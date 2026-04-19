@@ -7,6 +7,7 @@ import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
 import { env } from '../config/env.js'
 import { prisma } from '../db/client.js'
+import { prisma } from '../db/client.js'
 import { listOrgNavItems, createOrgNavItem, updateOrgNavItem, deleteOrgNavItem } from '../services/org-nav.service.js'
 import type { CreateOrgNavItemRequest, UpdateOrgNavItemRequest } from '@ibe/shared'
 
@@ -223,6 +224,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const { invalidateCredentialsCache } = await import('../services/credentials.service.js')
     invalidateCredentialsCache(organizationId)
     return reply.send({ ok: true })
+  })
+
+  fastify.put('/admin/properties/:id/subdomain', async (request, reply) => {
+    const organizationId = request.admin.organizationId!
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const { subdomain } = request.body as { subdomain?: string }
+    const value = subdomain?.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || null
+    await prisma.property.update({
+      where: { id, organizationId },
+      data: { subdomain: value },
+    })
+    return reply.send({ ok: true, subdomain: value })
   })
 
   // ── Org Nav Items ─────────────────────────────────────────────────────────────

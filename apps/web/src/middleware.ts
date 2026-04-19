@@ -1,0 +1,42 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+const PLATFORM_HOST = 'hyperguest.net'
+const SKIP_SUBDOMAINS = new Set(['www', 'admin', 'api'])
+
+export function middleware(request: NextRequest) {
+  const host = (request.headers.get('host') || '').split(':')[0]
+
+  // Skip local dev and Render internal hostnames
+  if (
+    host === 'localhost' ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(host) ||
+    host.endsWith('.onrender.com')
+  ) {
+    return NextResponse.next()
+  }
+
+  const headers = new Headers(request.headers)
+
+  if (host === PLATFORM_HOST || host === `www.${PLATFORM_HOST}`) {
+    // Platform root — no tenant
+    return NextResponse.next()
+  }
+
+  if (host.endsWith(`.${PLATFORM_HOST}`)) {
+    const subdomain = host.slice(0, -(PLATFORM_HOST.length + 1))
+    if (subdomain && !SKIP_SUBDOMAINS.has(subdomain)) {
+      headers.set('x-tenant-host', host)
+      return NextResponse.next({ request: { headers } })
+    }
+    return NextResponse.next()
+  }
+
+  // Custom domain (e.g. book.grandhotel.com)
+  headers.set('x-tenant-host', host)
+  return NextResponse.next({ request: { headers } })
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico).*)'],
+}

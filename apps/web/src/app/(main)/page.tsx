@@ -1,5 +1,7 @@
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import type { HotelDesignConfig, PropertyDetail, PropertyListResponse } from '@ibe/shared'
 import { buildCssVars } from '@/lib/theme'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
@@ -10,6 +12,19 @@ import { PixelInjector } from '@/components/tracking/PixelInjector'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] || 0)
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
+
+type TenantResolution =
+  | { type: 'property'; propertyId: number; orgId: number }
+  | { type: 'org'; orgId: number }
+
+async function resolveTenant(host: string): Promise<TenantResolution | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/config/resolve?host=${encodeURIComponent(host)}`, {
+      next: { revalidate: 60 },
+    })
+    return res.ok ? (res.json() as Promise<TenantResolution>) : null
+  } catch { return null }
+}
 
 async function fetchConfig(propertyId: number): Promise<HotelDesignConfig | null> {
   try {
@@ -61,35 +76,37 @@ export default async function HomePage({
 }: {
   searchParams: { hotelId?: string; chain?: string }
 }) {
+  // Resolve tenant from subdomain/custom domain (set by middleware)
+  const tenantHost = headers().get('x-tenant-host')
+  let tenant: TenantResolution | null = tenantHost ? await resolveTenant(tenantHost) : null
+
+  // Fall back to query params (local dev / legacy)
   const chainOrgId = searchParams.chain ? Number(searchParams.chain) || null : null
+  if (!tenant && chainOrgId) tenant = { type: 'org', orgId: chainOrgId }
+  if (!tenant && searchParams.hotelId) {
+    const pid = Number(searchParams.hotelId) || 0
+    if (pid) tenant = { type: 'property', propertyId: pid, orgId: 0 }
+  }
+  if (!tenant && DEFAULT_PROPERTY_ID) {
+    tenant = { type: 'property', propertyId: DEFAULT_PROPERTY_ID, orgId: 0 }
+  }
+
+  // No tenant resolved — platform root, redirect to admin
+  if (!tenant) redirect('/admin')
 
   let config: HotelDesignConfig | null
   let property: PropertyDetail | null = null
   let propertyList: PropertyListResponse | null
   let propertyId: number
 
-  if (chainOrgId) {
+  if (tenant.type === 'org') {
     ;[config, propertyList] = await Promise.all([
-      fetchOrgConfig(chainOrgId),
-      fetchOrgPropertyList(chainOrgId),
+      fetchOrgConfig(tenant.orgId),
+      fetchOrgPropertyList(tenant.orgId),
     ])
     propertyId = propertyList?.properties[0]?.propertyId ?? 0
   } else {
-    propertyId = searchParams.hotelId ? Number(searchParams.hotelId) || DEFAULT_PROPERTY_ID : DEFAULT_PROPERTY_ID
-
-    if (!propertyId) {
-      return (
-        <div className="flex flex-1 items-center justify-center px-4 py-20 text-center">
-          <div>
-            <p className="text-lg font-semibold text-[var(--color-text)]">IBE not configured</p>
-            <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-              Set <code className="rounded bg-[var(--color-background)] px-1 py-0.5 font-mono text-xs">NEXT_PUBLIC_DEFAULT_HOTEL_ID</code> to a valid property ID.
-            </p>
-          </div>
-        </div>
-      )
-    }
-
+    propertyId = tenant.propertyId
     ;[config, property, propertyList] = await Promise.all([
       fetchConfig(propertyId),
       fetchProperty(propertyId),

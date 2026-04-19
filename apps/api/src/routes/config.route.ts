@@ -4,6 +4,7 @@ import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getO
 import { getOrgIdForProperty, listProperties } from '../services/property-registry.service.js'
 import { getOrgSettings } from '../services/org.service.js'
 import { getEffectiveOffersSettings } from '../services/offers.service.js'
+import { prisma } from '../db/client.js'
 
 export async function configRoutes(fastify: FastifyInstance) {
   // GET /offers/constraints/:propertyId — public: effective min/max nights & rooms for search UI
@@ -16,6 +17,34 @@ export async function configRoutes(fastify: FastifyInstance) {
     const s = await getEffectiveOffersSettings(propertyId)
     void reply.header('Cache-Control', 'public, max-age=30')
     return reply.send({ minNights: s.minNights, maxNights: s.maxNights, minRooms: s.minRooms, maxRooms: s.maxRooms, bookingMode: s.bookingMode, multiRoomLimitBy: s.multiRoomLimitBy })
+  })
+
+  // GET /config/resolve?host=grandhotel.hyperguest.net — resolves a hostname to a tenant
+  fastify.get('/config/resolve', async (request, reply) => {
+    const { host } = request.query as { host?: string }
+    if (!host) return reply.status(400).send({ error: 'host is required' })
+
+    const PLATFORM_HOST = 'hyperguest.net'
+
+    if (host.endsWith(`.${PLATFORM_HOST}`)) {
+      const subdomain = host.slice(0, -(PLATFORM_HOST.length + 1))
+      const property = await prisma.property.findFirst({
+        where: { subdomain, isActive: true, deletedAt: null },
+      })
+      if (property) {
+        return reply.send({ type: 'property', propertyId: property.propertyId, orgId: property.organizationId })
+      }
+      const org = await prisma.organization.findUnique({ where: { slug: subdomain } })
+      if (org) return reply.send({ type: 'org', orgId: org.id })
+    } else {
+      const normalized = host.replace(/^https?:\/\//, '')
+      const orgSettings = await prisma.orgSettings.findFirst({
+        where: { webDomain: { in: [`https://${normalized}`, `http://${normalized}`] } },
+      })
+      if (orgSettings) return reply.send({ type: 'org', orgId: orgSettings.organizationId })
+    }
+
+    return reply.status(404).send({ error: 'No tenant found for this host' })
   })
 
   // GET /config/property/:id — frontend fetches this on every page load (cached)

@@ -25,7 +25,7 @@ services:
       - key: WEB_BASE_URL
         value: https://hyperguest.net
       - key: CORS_ORIGINS
-        value: https://hyperguest.net,https://ibe-web.onrender.com
+        value: https://hyperguest.net,https://www.hyperguest.net,https://ibe-web.onrender.com
       - key: HYPERGUEST_SEARCH_DOMAIN
         value: search-api.hyperguest.io
       - key: HYPERGUEST_BOOKING_DOMAIN

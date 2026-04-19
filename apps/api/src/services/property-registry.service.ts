@@ -52,6 +52,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     isActive: r.isActive,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    subdomain: r.subdomain ?? null,
     hyperGuestBearerToken: r.hyperGuestBearerToken ? '****' + r.hyperGuestBearerToken.slice(-4) : null,
     hyperGuestStaticDomain: r.hyperGuestStaticDomain ?? null,
     hyperGuestSearchDomain: r.hyperGuestSearchDomain ?? null,
@@ -220,6 +221,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     isActive: r.isActive,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    subdomain: r.subdomain ?? null,
     orgId: r.organization.id,
     orgName: r.organization.name,
   }))

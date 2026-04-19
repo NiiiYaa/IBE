@@ -146,6 +146,57 @@ function SearchTestButton({ propertyId }: { propertyId: number }) {
   )
 }
 
+function SubdomainPanel({ record, onClose, onSaved }: { record: PropertyRecord; onClose: () => void; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [subdomain, setSubdomain] = useState(record.subdomain ?? '')
+
+  async function save() {
+    setSaving(true); setError(null)
+    try {
+      await apiClient.setPropertySubdomain(record.id, subdomain.trim() || null)
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally { setSaving(false) }
+  }
+
+  const inputClass = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none'
+
+  return (
+    <div className="border-t border-[var(--color-border)] bg-[var(--color-primary-light)] px-5 py-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+        Platform subdomain — guests access via <code>subdomain.hyperguest.net</code>
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          className={inputClass}
+          placeholder="e.g. grandhotel"
+          value={subdomain}
+          onChange={e => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+        />
+        <span className="shrink-0 text-sm text-[var(--color-text-muted)]">.hyperguest.net</span>
+      </div>
+      {subdomain && (
+        <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">
+          URL: <span className="font-mono">https://{subdomain}.hyperguest.net</span>
+        </p>
+      )}
+      {error && <p className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
+      <div className="mt-3 flex gap-2">
+        <button onClick={save} disabled={saving}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={onClose} className="rounded-lg px-4 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function HGCredentialsPanel({ record, onClose, onSaved }: { record: PropertyRecord; onClose: () => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -294,6 +345,7 @@ function PropertyRow({
   const [deleting, setDeleting] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
   const [showCreds, setShowCreds] = useState(false)
+  const [showSubdomain, setShowSubdomain] = useState(false)
   const isDemo = record.isDemo ?? false
 
   const activeMutation = useMutation({
@@ -376,6 +428,18 @@ function PropertyRow({
           {!isDemo && (
             <div className="flex items-center gap-1.5">
               <button
+                onClick={() => setShowSubdomain(v => !v)}
+                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                  showSubdomain
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+                title={record.subdomain ? `Subdomain: ${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+              >
+                {record.subdomain ? `${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+              </button>
+
+              <button
                 onClick={() => setShowCreds(v => !v)}
                 className={['h-7 rounded-lg border px-3 text-xs transition-colors',
                   showCreds
@@ -439,6 +503,14 @@ function PropertyRow({
           )}
         </div>
       </div>
+
+      {showSubdomain && !isDemo && (
+        <SubdomainPanel
+          record={record}
+          onClose={() => setShowSubdomain(false)}
+          onSaved={onRefresh}
+        />
+      )}
 
       {showAssign && !isDemo && (
         <AssignUsersPanel record={record} onClose={() => setShowAssign(false)} />

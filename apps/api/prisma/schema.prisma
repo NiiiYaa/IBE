@@ -339,6 +339,7 @@ model Property {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  subdomain               String?  @unique
   hyperGuestBearerToken   String?
   hyperGuestStaticDomain  String?
   hyperGuestSearchDomain  String?

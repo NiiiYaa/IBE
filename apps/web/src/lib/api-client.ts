@@ -365,6 +365,13 @@ export const apiClient = {
     })
   },
 
+  setPropertySubdomain(id: number, subdomain: string | null): Promise<{ ok: boolean; subdomain: string | null }> {
+    return apiRequest<{ ok: boolean; subdomain: string | null }>(`/api/v1/admin/properties/${id}/subdomain`, {
+      method: 'PUT',
+      body: JSON.stringify({ subdomain }),
+    })
+  },
+
   /** Get exchange rates from a base currency (cached 6h server-side) */
   getExchangeRates(base: string): Promise<ExchangeRatesResponse> {
     return apiRequest<ExchangeRatesResponse>(`/api/v1/rates?base=${base}`)
