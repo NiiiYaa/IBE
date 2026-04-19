@@ -43,10 +43,11 @@ services:
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: .
     plan: free
+    dockerBuildArgs:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://ibe-api.onrender.com
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NEXT_PUBLIC_API_URL
-        sync: false
       # Set these manually in the Render dashboard:
       # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
