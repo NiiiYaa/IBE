@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -10,25 +10,7 @@ RUN pnpm --filter @ibe/shared build
 RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
 RUN cd /repo/apps/api && npx tsc --noEmitOnError false || true
 
-FROM node:20-alpine AS runner
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-
 ENV NODE_ENV=production
-WORKDIR /repo
-
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/shared/package.json ./packages/shared/
-COPY apps/api/package.json ./apps/api/
-
-RUN pnpm install --frozen-lockfile --prod
-
-COPY --from=builder /repo/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /repo/apps/api/dist ./apps/api/dist
-COPY --from=builder /repo/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /repo/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
-
 WORKDIR /repo/apps/api
 EXPOSE 3001
 CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/server.js"]
