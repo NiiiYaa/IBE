@@ -1,0 +1,226 @@
+import { prisma } from '../db/client.js'
+
+export const DEMO_HG_ID = 125346
+
+export interface PropertyRecord {
+  id: number
+  propertyId: number
+  isDefault: boolean
+  isActive: boolean
+  lastSyncedAt: string | null
+  createdAt: string
+  isDemo?: boolean
+  hyperGuestBearerToken?: string | null
+  hyperGuestStaticDomain?: string | null
+  hyperGuestSearchDomain?: string | null
+  hyperGuestBookingDomain?: string | null
+}
+
+export function makeDemoRecord(): PropertyRecord {
+  return { id: 0, propertyId: DEMO_HG_ID, isDefault: false, isActive: true, lastSyncedAt: null, createdAt: new Date().toISOString(), isDemo: true }
+}
+
+export interface PropertyRecordWithOrg extends PropertyRecord {
+  orgId: number
+  orgName: string
+}
+
+export interface PropertyUserRecord {
+  id: number
+  name: string
+  email: string
+  assigned: boolean
+}
+
+export async function getOrgIdForProperty(propertyId: number): Promise<number | undefined> {
+  const row = await prisma.property.findFirst({
+    where: { propertyId, deletedAt: null },
+    select: { organizationId: true },
+  })
+  return row?.organizationId ?? undefined
+}
+
+export async function listProperties(organizationId: number, showDemoProperty = false): Promise<PropertyRecord[]> {
+  const rows = await prisma.property.findMany({
+    where: { organizationId, deletedAt: null },
+    orderBy: { createdAt: 'asc' },
+  })
+  const real: PropertyRecord[] = rows.map(r => ({
+    id: r.id,
+    propertyId: r.propertyId,
+    isDefault: r.isDefault,
+    isActive: r.isActive,
+    lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
+    createdAt: r.createdAt.toISOString(),
+    hyperGuestBearerToken: r.hyperGuestBearerToken ? '****' + r.hyperGuestBearerToken.slice(-4) : null,
+    hyperGuestStaticDomain: r.hyperGuestStaticDomain ?? null,
+    hyperGuestSearchDomain: r.hyperGuestSearchDomain ?? null,
+    hyperGuestBookingDomain: r.hyperGuestBookingDomain ?? null,
+  }))
+  if (real.length === 0 || showDemoProperty) {
+    const demo: PropertyRecord = {
+      id: 0,
+      propertyId: DEMO_HG_ID,
+      isDefault: real.length === 0,
+      isActive: true,
+      lastSyncedAt: null,
+      createdAt: new Date().toISOString(),
+      isDemo: true,
+    }
+    return real.length === 0 ? [demo] : [...real, demo]
+  }
+  return real
+}
+
+export async function updateLastSyncedAt(propertyId: number): Promise<void> {
+  await prisma.property.updateMany({
+    where: { propertyId, deletedAt: null },
+    data: { lastSyncedAt: new Date() },
+  })
+}
+
+export async function getPropertyUsers(propertyDbId: number, organizationId: number | null): Promise<PropertyUserRecord[]> {
+  const property = await prisma.property.findFirst({
+    where: { id: propertyDbId, ...(organizationId !== null ? { organizationId } : {}) },
+    select: { organizationId: true },
+  })
+  if (!property) throw new Error('Property not found')
+
+  const [users, assignments] = await Promise.all([
+    prisma.adminUser.findMany({
+      where: { organizationId: property.organizationId, role: 'user', isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.adminUserProperty.findMany({
+      where: { propertyId: propertyDbId },
+      select: { adminUserId: true },
+    }),
+  ])
+
+  const assignedIds = new Set(assignments.map(a => a.adminUserId))
+  return users.map(u => ({ id: u.id, name: u.name, email: u.email, assigned: assignedIds.has(u.id) }))
+}
+
+export async function setPropertyUsers(propertyDbId: number, organizationId: number | null, userIds: number[]): Promise<void> {
+  const property = await prisma.property.findFirst({
+    where: { id: propertyDbId, ...(organizationId !== null ? { organizationId } : {}) },
+    select: { organizationId: true },
+  })
+  if (!property) throw new Error('Property not found')
+
+  const allRoleUsers = await prisma.adminUser.findMany({
+    where: { organizationId: property.organizationId, role: 'user' },
+    select: { id: true },
+  })
+  const toRemove = allRoleUsers.map(u => u.id).filter(id => !userIds.includes(id))
+
+  await prisma.$transaction([
+    prisma.adminUserProperty.deleteMany({ where: { propertyId: propertyDbId, adminUserId: { in: toRemove } } }),
+    prisma.adminUserProperty.createMany({
+      data: userIds.map(userId => ({ adminUserId: userId, propertyId: propertyDbId })),
+      skipDuplicates: true,
+    }),
+  ])
+}
+
+export class PropertyConflictError extends Error {
+  constructor(
+    message: string,
+    public readonly conflictingOrgName?: string,
+  ) {
+    super(message)
+    this.name = 'PropertyConflictError'
+  }
+}
+
+export async function addProperty(organizationId: number, propertyId: number): Promise<PropertyRecord> {
+  const conflict = await prisma.property.findUnique({ where: { propertyId }, include: { organization: { select: { name: true } } } })
+
+  if (conflict) {
+    if (conflict.organizationId === organizationId) {
+      if (!conflict.deletedAt) {
+        throw new PropertyConflictError('Property is already registered for this organization')
+      }
+      // Restore soft-deleted record in the same org
+      const restored = await prisma.property.update({
+        where: { propertyId },
+        data: { deletedAt: null, isActive: true },
+      })
+      return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, isActive: restored.isActive, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString() }
+    }
+    if (!conflict.deletedAt) {
+      throw new PropertyConflictError(`Property is already registered under organization "${conflict.organization.name}"`, conflict.organization.name)
+    }
+    // Soft-deleted in another org — reassign to this org
+    const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
+    const reassigned = await prisma.property.update({
+      where: { propertyId },
+      data: { organizationId, deletedAt: null, isActive: true, isDefault: count === 0 },
+    })
+    return { id: reassigned.id, propertyId: reassigned.propertyId, isDefault: reassigned.isDefault, isActive: reassigned.isActive, lastSyncedAt: reassigned.lastSyncedAt?.toISOString() ?? null, createdAt: reassigned.createdAt.toISOString() }
+  }
+
+  const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
+  const row = await prisma.property.create({
+    data: { organizationId, propertyId, isDefault: count === 0 },
+  })
+  return { id: row.id, propertyId: row.propertyId, isDefault: row.isDefault, isActive: row.isActive, lastSyncedAt: null, createdAt: row.createdAt.toISOString() }
+}
+
+export async function setDefaultProperty(organizationId: number, id: number): Promise<void> {
+  await prisma.$transaction([
+    prisma.property.updateMany({ where: { organizationId }, data: { isDefault: false } }),
+    prisma.property.update({ where: { id, organizationId }, data: { isDefault: true } }),
+  ])
+}
+
+export async function setPropertyHGCredentials(
+  organizationId: number,
+  id: number,
+  credentials: {
+    bearerToken?: string | null
+    staticDomain?: string | null
+    searchDomain?: string | null
+    bookingDomain?: string | null
+  },
+): Promise<void> {
+  await prisma.property.update({
+    where: { id, organizationId },
+    data: {
+      hyperGuestBearerToken: credentials.bearerToken ?? null,
+      hyperGuestStaticDomain: credentials.staticDomain ?? null,
+      hyperGuestSearchDomain: credentials.searchDomain ?? null,
+      hyperGuestBookingDomain: credentials.bookingDomain ?? null,
+    },
+  })
+}
+
+export async function removeProperty(organizationId: number, id: number): Promise<void> {
+  await prisma.property.update({ where: { id, organizationId }, data: { deletedAt: new Date(), isActive: false } })
+}
+
+export async function setPropertyActive(organizationId: number | null, id: number, active: boolean): Promise<void> {
+  await prisma.property.update({
+    where: { id, ...(organizationId !== null ? { organizationId } : {}) },
+    data: { isActive: active },
+  })
+}
+
+export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
+  const rows = await prisma.property.findMany({
+    where: { deletedAt: null },
+    include: { organization: { select: { id: true, name: true } } },
+    orderBy: [{ organizationId: 'asc' }, { createdAt: 'asc' }],
+  })
+  return rows.map(r => ({
+    id: r.id,
+    propertyId: r.propertyId,
+    isDefault: r.isDefault,
+    isActive: r.isActive,
+    lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
+    createdAt: r.createdAt.toISOString(),
+    orgId: r.organization.id,
+    orgName: r.organization.name,
+  }))
+}

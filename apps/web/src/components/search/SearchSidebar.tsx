@@ -1,0 +1,389 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { addDays, todayIso, nightsBetween } from '@ibe/shared'
+import { encodeSearchParams } from '@/lib/search-params'
+import { displayDate } from '@/lib/calendar-utils'
+import { COUNTRIES, countryFlag } from '@/lib/countries'
+import { useCountryDetect } from '@/hooks/use-country-detect'
+import { useOffersConstraints } from '@/hooks/use-offers-constraints'
+import { CalendarDropdown } from './CalendarDropdown'
+
+interface GuestRoom {
+  adults: number
+  children: number
+  infants: number
+}
+
+interface SearchSidebarProps {
+  propertyId: number
+  initialCheckIn?: string
+  initialCheckOut?: string
+  initialRooms?: GuestRoom[]
+  initialNationality?: string | undefined
+  infantMaxAge?: number
+  childMaxAge?: number
+}
+
+const MAX_CHILDREN_PER_ROOM = 6
+
+function repAge(lo: number, hi: number) {
+  return Math.round((lo + hi) / 2)
+}
+
+function roomSummary(room: GuestRoom): string {
+  const parts: string[] = [`${room.adults} Adult${room.adults !== 1 ? 's' : ''}`]
+  if (room.children > 0) parts.push(`${room.children} Child${room.children !== 1 ? 'ren' : ''}`)
+  if (room.infants > 0) parts.push(`${room.infants} Infant${room.infants !== 1 ? 's' : ''}`)
+  return parts.join(' · ')
+}
+
+export function SearchSidebar({
+  propertyId,
+  initialCheckIn,
+  initialCheckOut,
+  initialRooms,
+  initialNationality,
+  infantMaxAge = 2,
+  childMaxAge = 16,
+}: SearchSidebarProps) {
+  const router = useRouter()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const [checkIn,  setCheckIn]  = useState(initialCheckIn  ?? '')
+  const [checkOut, setCheckOut] = useState(initialCheckOut ?? '')
+  const [rooms, setRooms] = useState<GuestRoom[]>(
+    initialRooms ?? [{ adults: 2, children: 0, infants: 0 }],
+  )
+  const [nationality, setNationality] = useState(initialNationality ?? '')
+  const [promoCode, setPromoCode] = useState('')
+  const [showPromo, setShowPromo] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [calendarInitialField, setCalendarInitialField] = useState<'checkin' | 'checkout'>('checkin')
+  const [expandedRooms, setExpandedRooms] = useState<Set<number>>(new Set())
+
+  const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(propertyId)
+
+  const detectedCountry = useCountryDetect()
+  useEffect(() => {
+    if (detectedCountry && !nationality) setNationality(detectedCountry)
+  }, [detectedCountry])
+
+  useEffect(() => {
+    if (!checkIn) {
+      const today = todayIso()
+      setCheckIn(addDays(today, 1))
+      if (!checkOut) setCheckOut(addDays(today, 3))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!calendarOpen) return
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [calendarOpen])
+
+  function openCalendar(field: 'checkin' | 'checkout') {
+    setCalendarInitialField(field)
+    setCalendarOpen(prev => !(prev && calendarInitialField === field))
+  }
+
+  function toggleRoom(i: number) {
+    setExpandedRooms(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
+  }
+
+  const nights = nightsBetween(checkIn, checkOut)
+
+  function updateRoom(i: number, field: keyof GuestRoom, value: number) {
+    setRooms(prev =>
+      prev.map((r, idx) => {
+        if (idx !== i) return r
+        const next = { ...r, [field]: value }
+        next.adults = Math.min(9, Math.max(1, next.adults))
+        next.children = Math.min(MAX_CHILDREN_PER_ROOM, Math.max(0, next.children))
+        next.infants = Math.min(MAX_CHILDREN_PER_ROOM, Math.max(0, next.infants))
+        if (next.children + next.infants > MAX_CHILDREN_PER_ROOM) {
+          if (field === 'children') next.infants = MAX_CHILDREN_PER_ROOM - next.children
+          else next.children = MAX_CHILDREN_PER_ROOM - next.infants
+        }
+        return next
+      }),
+    )
+  }
+
+  function addRoom() {
+    if (rooms.length >= maxRooms) return
+    const newIdx = rooms.length
+    setRooms(prev => [...prev, { adults: 2, children: 0, infants: 0 }])
+    setExpandedRooms(prev => new Set([...prev, newIdx]))
+  }
+
+  function removeRoom(i: number) {
+    if (rooms.length <= minRooms) return
+    setRooms(prev => prev.filter((_, idx) => idx !== i))
+    setExpandedRooms(prev => {
+      const next = new Set<number>()
+      prev.forEach(idx => {
+        if (idx < i) next.add(idx)
+        else if (idx > i) next.add(idx - 1)
+      })
+      return next
+    })
+  }
+
+  function handleSearch() {
+    if (nights <= 0) return
+    const childRep = repAge(infantMaxAge + 1, childMaxAge)
+    const infantRep = repAge(0, infantMaxAge)
+    const qs = encodeSearchParams({
+      hotelId: propertyId,
+      checkIn,
+      checkOut,
+      rooms: rooms.map(r => {
+        const childAges = [
+          ...Array<number>(r.children).fill(childRep),
+          ...Array<number>(r.infants).fill(infantRep),
+        ]
+        return { adults: r.adults, ...(childAges.length > 0 ? { childAges } : {}) }
+      }),
+      nationality: nationality || undefined,
+      promoCode: promoCode || undefined,
+    })
+    router.push(`/search?${qs.toString()}`)
+  }
+
+  return (
+    <div ref={containerRef} className="sticky top-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-card overflow-hidden" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
+      {/* Header */}
+      <div className="bg-primary px-5 py-3">
+        <p className="text-xs font-medium uppercase tracking-wider text-white/70">Book directly</p>
+        <p className="text-base font-semibold text-white">Check availability</p>
+      </div>
+
+      <div className="overflow-y-auto p-5 space-y-4" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
+
+        {/* Dates + calendar inline */}
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
+                Check-in
+              </label>
+              <button
+                onClick={() => openCalendar('checkin')}
+                className={[
+                  'w-full rounded-md border px-3 py-2 text-left text-sm font-medium transition-colors',
+                  calendarOpen && calendarInitialField === 'checkin'
+                    ? 'border-primary bg-[var(--color-primary-light)] text-primary'
+                    : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
+                ].join(' ')}
+              >
+                {displayDate(checkIn) || 'Select date'}
+              </button>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
+                Check-out
+              </label>
+              <button
+                onClick={() => openCalendar('checkout')}
+                className={[
+                  'w-full rounded-md border px-3 py-2 text-left text-sm font-medium transition-colors',
+                  calendarOpen && calendarInitialField === 'checkout'
+                    ? 'border-primary bg-[var(--color-primary-light)] text-primary'
+                    : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
+                ].join(' ')}
+              >
+                {displayDate(checkOut) || 'Select date'}
+              </button>
+            </div>
+          </div>
+
+          {nights > 0 && (
+            <p className="mt-2 text-center text-xs text-muted">
+              <span className="font-semibold text-primary">{nights}</span> night{nights !== 1 ? 's' : ''}
+            </p>
+          )}
+
+          {calendarOpen && (
+            <div className="mt-3">
+              <CalendarDropdown
+                checkIn={checkIn}
+                checkOut={checkOut}
+                initialField={calendarInitialField}
+                onDatesChange={(ci, co) => { setCheckIn(ci); setCheckOut(co) }}
+                onClose={() => setCalendarOpen(false)}
+                variant="inline"
+                minNights={minNights}
+                maxNights={maxNights}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Rooms & Guests — collapsed summaries, expand to edit */}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
+            Rooms &amp; Guests
+          </label>
+
+          {rooms.map((room, i) => {
+            const isExpanded = expandedRooms.has(i)
+            return (
+              <div key={i} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden">
+                <button
+                  onClick={() => toggleRoom(i)}
+                  className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-primary-light)]"
+                >
+                  <div>
+                    <p className="text-xs font-semibold text-muted">Room {i + 1}</p>
+                    <p className="text-sm font-medium text-[var(--color-text)]">{roomSummary(room)}</p>
+                  </div>
+                  <svg
+                    className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isExpanded && (
+                  <div className="border-t border-[var(--color-border)] px-3 py-3 space-y-2">
+                    <GuestCounter
+                      label="Adults"
+                      hint={`Age ${childMaxAge + 1}+`}
+                      value={room.adults}
+                      min={1} max={9}
+                      onChange={v => updateRoom(i, 'adults', v)}
+                    />
+                    <GuestCounter
+                      label="Children"
+                      hint={`Age ${infantMaxAge + 1}–${childMaxAge}`}
+                      value={room.children}
+                      min={0} max={MAX_CHILDREN_PER_ROOM}
+                      onChange={v => updateRoom(i, 'children', v)}
+                    />
+                    <GuestCounter
+                      label="Infants"
+                      hint={`Age 0–${infantMaxAge}`}
+                      value={room.infants}
+                      min={0} max={MAX_CHILDREN_PER_ROOM}
+                      onChange={v => updateRoom(i, 'infants', v)}
+                    />
+                    {rooms.length > minRooms && (
+                      <button
+                        onClick={() => removeRoom(i)}
+                        className="pt-1 text-xs text-error hover:underline"
+                      >
+                        Remove room
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {rooms.length < maxRooms && (
+            <button
+              onClick={addRoom}
+              className="w-full rounded-lg border border-dashed border-[var(--color-border)] py-2 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-[var(--color-primary-light)]"
+            >
+              + Add another room
+            </button>
+          )}
+        </div>
+
+        {/* Nationality */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
+            Nationality
+          </label>
+          <select
+            value={nationality}
+            onChange={e => setNationality(e.target.value)}
+            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+          >
+            <option value="">Select country</option>
+            {COUNTRIES.map(c => (
+              <option key={c.code} value={c.code}>
+                {countryFlag(c.code)} {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Promo code */}
+        <div>
+          <button
+            onClick={() => setShowPromo(v => !v)}
+            className="text-xs text-primary hover:underline"
+          >
+            {showPromo ? '− Hide promo code' : '+ Have a promo code?'}
+          </button>
+          {showPromo && (
+            <input
+              type="text"
+              placeholder="Enter promo code"
+              value={promoCode}
+              onChange={e => setPromoCode(e.target.value.toUpperCase())}
+              className="mt-2 w-full rounded-md border border-[var(--color-border)] px-3 py-2 text-sm uppercase tracking-wider"
+            />
+          )}
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={handleSearch}
+          disabled={nights <= 0}
+          className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+        >
+          {nights > 0 ? `Search — ${nights} night${nights !== 1 ? 's' : ''}` : 'Check Availability'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GuestCounter({
+  label, hint, value, min, max, onChange,
+}: {
+  label: string; hint: string; value: number; min: number; max: number; onChange: (v: number) => void
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-xs font-medium text-[var(--color-text)]">{label}</p>
+        <p className="text-xs text-muted">{hint}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] text-sm font-medium transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          −
+        </button>
+        <span className="w-4 text-center text-sm font-semibold">{value}</span>
+        <button
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] text-sm font-medium transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}

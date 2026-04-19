@@ -1,0 +1,665 @@
+// Production schema — PostgreSQL.
+// For local development without Docker use: prisma/schema.dev.prisma (SQLite)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Multi-tenancy ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id              Int      @id @default(autoincrement())
+  name            String
+  slug            String   @unique
+  hyperGuestOrgId String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adminUsers            AdminUser[]
+  orgSettings           OrgSettings?
+  orgDesignDefaults     OrgDesignDefaults?
+  orgOffersSettings     OrgOffersSettings?
+  communicationSettings CommunicationSettings?
+  properties            Property[]
+  messageRules          MessageRule[]
+  priceComparisonOtas   PriceComparisonOta[]
+  promoCodes                  PromoCode[]
+  affiliates                  Affiliate[]
+  orgNavItems                 OrgNavItem[]
+  onsiteConversionSettings    OnsiteConversionSettings?
+  guests                      Guest[]
+  trackingPixels              TrackingPixel[]
+}
+
+// roles: super | admin | observer | user
+model AdminUser {
+  id             Int           @id @default(autoincrement())
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  email          String        @unique
+  passwordHash   String?
+  googleId       String?       @unique
+  name           String
+  role           String        @default("admin")
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  adminUserProperties AdminUserProperty[]
+
+  @@index([organizationId])
+}
+
+model AdminUserProperty {
+  adminUserId Int
+  propertyId  Int
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([adminUserId, propertyId])
+}
+
+// ── Bookings ──────────────────────────────────────────────────────────────────
+
+model Booking {
+  id                  Int      @id @default(autoincrement())
+  hyperGuestBookingId Int      @unique
+  propertyId          Int
+  status              String
+  checkIn             DateTime
+  checkOut            DateTime
+  leadGuestFirstName  String
+  leadGuestLastName   String
+  leadGuestEmail      String
+  totalAmount         Decimal
+  currency            String
+  agencyReference     String?
+  affiliateId         String?
+  promoCode              String?
+  promoDiscountPct       Decimal?
+  originalPrice          Decimal?
+  cancellationDeadline   DateTime?
+  paymentMethod          String
+  paymentFlow         String
+  stripeIntentId      String?
+  isTest              Boolean  @default(false)
+  rawResponse         Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  rooms             BookingRoom[]
+  stripeRecord      StripePaymentRecord?
+  affiliateBooking  AffiliateBooking?
+
+  @@index([propertyId])
+  @@index([leadGuestEmail])
+  @@index([agencyReference])
+  @@index([affiliateId])
+  @@index([createdAt])
+}
+
+model Guest {
+  id              Int          @id @default(autoincrement())
+  organizationId  Int
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  email           String
+  passwordHash    String?
+  firstName       String
+  lastName        String
+  phone           String?
+  nationality     String?
+  isBlocked       Boolean   @default(false)
+  blockedReason   String?
+  emailVerified   Boolean   @default(false)
+  resetToken      String?
+  resetTokenExp   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  notes           GuestNote[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model GuestNote {
+  id          Int      @id @default(autoincrement())
+  guestId     Int
+  guest       Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  authorId    Int?
+  authorName  String
+  content     String
+  createdAt   DateTime @default(now())
+
+  @@index([guestId])
+}
+
+model Affiliate {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     Int?
+  code           String
+  name           String
+  email          String?
+  commissionRate Decimal?
+  discountRate   Decimal?
+  displayText    String?
+  notes          String?
+  isActive       Boolean      @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  affiliateBookings AffiliateBooking[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model AffiliateBooking {
+  id               Int       @id @default(autoincrement())
+  bookingId        Int       @unique
+  affiliateId      Int
+  commissionRate   Decimal
+  commissionAmount Decimal
+  currency         String
+  createdAt        DateTime  @default(now())
+
+  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId])
+}
+
+model BookingRoom {
+  id                Int     @id @default(autoincrement())
+  bookingId         Int
+  hyperGuestItemId  Int
+  roomCode          String
+  rateCode          String
+  board             String
+  status            String
+  propertyReference String?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+// ── Search Sessions ───────────────────────────────────────────────────────────
+
+model SearchSession {
+  id          String   @id @default(cuid())
+  propertyId  Int
+  checkIn     DateTime
+  checkOut    DateTime
+  guestsParam String
+  nationality String?
+  currency    String?
+  metaJson    Json?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+// ── Promo Codes ───────────────────────────────────────────────────────────────
+
+model PromoCode {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  code           String       @unique
+  description    String?
+  discountType   String
+  discountValue  Decimal
+  currency       String?
+  maxUses        Int?
+  usesCount      Int          @default(0)
+  propertyId     Int?
+  validFrom      DateTime?
+  validTo        DateTime?
+  validDateType  String       @default("booking")
+  isActive       Boolean      @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([code])
+  @@index([propertyId])
+}
+
+// ── Hotel Configuration ───────────────────────────────────────────────────────
+
+model HotelConfig {
+  id                              Int      @id @default(autoincrement())
+  propertyId                      Int      @unique
+  defaultCurrency                 String?
+  defaultLocale                   String?
+  textDirection                   String?
+  enabledLocales                  String?
+  enabledCurrencies               String?
+  onlinePaymentEnabled            Boolean  @default(true)
+  payAtHotelEnabled               Boolean  @default(true)
+  payAtHotelCardGuaranteeRequired Boolean  @default(false)
+  colorPrimary                    String?
+  colorPrimaryHover               String?
+  colorPrimaryLight               String?
+  colorAccent                     String?
+  colorBackground                 String?
+  colorSurface                    String?
+  colorText                       String?
+  colorTextMuted                  String?
+  colorBorder                     String?
+  colorSuccess                    String?
+  colorError                      String?
+  fontFamily                      String?
+  borderRadius                    Int?
+  logoUrl                         String?
+  faviconUrl                      String?
+  heroImageUrl                    String?
+  searchResultsImageUrl           String?
+  displayName                     String?
+  tagline                         String?
+  tabTitle                        String?
+  infantMaxAge                    Int      @default(2)
+  childMaxAge                     Int      @default(16)
+  roomRatesDefaultExpanded        Boolean  @default(false)
+  heroStyle                       String   @default("fullpage")
+  heroImageMode                   String   @default("fixed")
+  heroCarouselInterval            Int      @default(5)
+  searchResultsImageMode          String   @default("fixed")
+  searchResultsCarouselInterval   Int      @default(5)
+  searchResultsExcludedImageIds   String   @default("[]")
+  excludedPropertyImageIds        String   @default("[]")
+  excludedRoomImageIds            String   @default("[]")
+  roomPrimaryImageIds             String   @default("{}")
+  tripadvisorHotelKey             String?
+  priceComparisonEnabled          Boolean  @default(true)
+  isActive                        Boolean  @default(true)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+}
+
+// ── Stripe Payment Records ────────────────────────────────────────────────────
+
+model StripePaymentRecord {
+  id               Int      @id @default(autoincrement())
+  bookingId        Int?     @unique
+  stripeIntentId   String   @unique
+  stripeIntentType String
+  paymentFlow      String
+  amount           Int?
+  currency         String?
+  status           String
+  stripeCustomerId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([stripeIntentId])
+}
+
+model NavItem {
+  id         String    @id @default(uuid())
+  propertyId Int
+  section    String
+  label      String
+  type       String
+  url        String?
+  content    String?
+  order      Int       @default(0)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([propertyId, section])
+}
+
+model Property {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     Int          @unique
+  isDefault      Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  deletedAt      DateTime?
+  lastSyncedAt   DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  hyperGuestBearerToken   String?
+  hyperGuestStaticDomain  String?
+  hyperGuestSearchDomain  String?
+  hyperGuestBookingDomain String?
+
+  adminUserProperties AdminUserProperty[]
+
+  @@index([organizationId])
+}
+
+model OrgDesignDefaults {
+  id                Int          @id @default(autoincrement())
+  organizationId    Int          @unique
+  organization      Organization @relation(fields: [organizationId], references: [id])
+
+  colorPrimary      String?
+  colorPrimaryHover String?
+  colorPrimaryLight String?
+  colorAccent       String?
+  colorBackground   String?
+  colorSurface      String?
+  colorText         String?
+  colorTextMuted    String?
+  colorBorder       String?
+  colorSuccess      String?
+  colorError        String?
+  fontFamily        String?
+  borderRadius      Int?
+  logoUrl           String?
+  faviconUrl        String?
+  displayName       String?
+  tagline           String?
+  tabTitle          String?
+  defaultCurrency   String?
+  defaultLocale     String?
+  textDirection     String?
+  enabledLocales    String?
+  enabledCurrencies String?
+  heroStyle                    String?
+  heroImageMode                String?
+  heroCarouselInterval         Int?
+  searchResultsImageUrl        String?
+  searchResultsImageMode       String?
+  searchResultsCarouselInterval Int?
+  roomRatesDefaultExpanded     Boolean?
+  infantMaxAge                 Int?
+  childMaxAge                  Int?
+  onlinePaymentEnabled         Boolean?
+  payAtHotelEnabled            Boolean?
+  payAtHotelCardGuaranteeRequired Boolean?
+  chainHeroImageUrl            String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model OrgNavItem {
+  id             String       @id @default(uuid())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  section        String
+  label          String
+  type           String
+  url            String?
+  content        String?
+  order          Int          @default(0)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, section])
+}
+
+model OrgSettings {
+  id                      Int          @id @default(autoincrement())
+  organizationId          Int          @unique
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  propertyMode            String       @default("single")
+  showCitySelector        Boolean      @default(false)
+  showDemoProperty        Boolean      @default(false)
+  rateProvider            String       @default("frankfurter")
+  hyperGuestBearerToken   String?
+  hyperGuestStaticDomain  String?
+  hyperGuestSearchDomain  String?
+  hyperGuestBookingDomain String?
+  webDomain               String?
+  tlsCert                 String?
+  tlsKey                  String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+}
+
+// ── Communication Settings ────────────────────────────────────────────────────
+
+model CommunicationSettings {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Email
+  emailEnabled      Boolean @default(false)
+  emailProvider     String  @default("smtp")
+  emailFromName     String  @default("")
+  emailFromAddress  String  @default("")
+  emailSmtpHost     String  @default("")
+  emailSmtpPort     Int     @default(587)
+  emailSmtpUser     String  @default("")
+  emailSmtpSecure   Boolean @default(true)
+  emailSmtpPassword String?
+  emailApiKey       String?
+
+  // WhatsApp
+  whatsappEnabled           Boolean @default(false)
+  whatsappProvider          String  @default("meta")
+  whatsappPhoneNumberId     String  @default("")
+  whatsappBusinessAccountId String  @default("")
+  whatsappAccessToken       String?
+  whatsappTwilioAccountSid  String  @default("")
+  whatsappTwilioAuthToken   String?
+  whatsappTwilioNumber      String  @default("")
+
+  // SMS
+  smsEnabled          Boolean @default(false)
+  smsProvider         String  @default("twilio")
+  smsFromNumber       String  @default("")
+  smsTwilioAccountSid String  @default("")
+  smsTwilioAuthToken  String?
+  smsVonageApiKey     String  @default("")
+  smsVonageApiSecret  String?
+  smsAwsAccessKey     String  @default("")
+  smsAwsSecretKey     String?
+  smsAwsRegion        String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Message Rules ─────────────────────────────────────────────────────────────
+
+model MessageRule {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     Int?
+  name           String
+  enabled        Boolean      @default(true)
+  channels       String       @default("[]")
+  trigger        String
+  offsetValue    Int          @default(0)
+  offsetUnit     String       @default("hours")
+  direction      String       @default("after")
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+// ── Org Nav Item Property Overrides ──────────────────────────────────────────
+
+model OrgNavItemOverride {
+  id           Int     @id @default(autoincrement())
+  orgNavItemId String
+  propertyId   Int
+  isEnabled    Boolean
+
+  @@unique([orgNavItemId, propertyId])
+  @@index([propertyId])
+}
+
+// ── Property Item Overrides ───────────────────────────────────────────────────
+
+model PropertyItemOverride {
+  id         Int     @id @default(autoincrement())
+  entityType String
+  entityId   Int
+  propertyId Int
+  isEnabled  Boolean
+
+  @@unique([entityType, entityId, propertyId])
+  @@index([entityType, propertyId])
+}
+
+// ── Offers Settings ──────────────────────────────────────────────────────────
+
+// ── Onsite Conversion ─────────────────────────────────────────────────────────
+
+model OnsiteConversionSettings {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  presenceEnabled     Boolean @default(true)
+  presenceMinViewers  Int     @default(3)
+  presenceMessage     String  @default("[xx] people are viewing this property right now")
+  presencePages       String  @default("[\"hotel\",\"room\"]")
+
+  bookingsEnabled     Boolean @default(true)
+  bookingsWindowHours Int     @default(24)
+  bookingsMinCount    Int     @default(1)
+  bookingsMessage     String  @default("[xx] rooms booked in the last [hh] hours")
+  bookingsPages       String  @default("[\"hotel\",\"room\"]")
+
+  popupEnabled      Boolean @default(false)
+  popupDelaySeconds Int     @default(30)
+  popupMessage      String?
+  popupPromoCode    String?
+  popupPages        String  @default("[\"hotel\",\"room\"]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PropertyOnsiteConversionSettings {
+  id         Int @id @default(autoincrement())
+  propertyId Int @unique
+
+  presenceEnabled     Boolean?
+  presenceMinViewers  Int?
+  presenceMessage     String?
+  presencePages       String?
+
+  bookingsEnabled     Boolean?
+  bookingsWindowHours Int?
+  bookingsMinCount    Int?
+  bookingsMessage     String?
+  bookingsPages       String?
+
+  popupEnabled      Boolean?
+  popupDelaySeconds Int?
+  popupMessage      String?
+  popupPromoCode    String?
+  popupPages        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrgOffersSettings {
+  id                           Int          @id @default(autoincrement())
+  organizationId               Int          @unique
+  organization                 Organization @relation(fields: [organizationId], references: [id])
+  minNights                    Int?
+  maxNights                    Int?
+  minRooms                     Int?
+  maxRooms                     Int?
+  allowedCancellationPolicies  String?
+  allowedBoardTypes            String?
+  allowedChargeParties         String?
+  allowedPaymentMethods        String?
+  minOfferValue                Decimal?
+  minOfferCurrency             String?
+  bookingMode                  String?
+  multiRoomLimitBy             String?
+  createdAt                    DateTime     @default(now())
+  updatedAt                    DateTime     @updatedAt
+}
+
+model PropertyOffersSettings {
+  id                           Int      @id @default(autoincrement())
+  propertyId                   Int      @unique
+  minNights                    Int?
+  maxNights                    Int?
+  minRooms                     Int?
+  maxRooms                     Int?
+  allowedCancellationPolicies  String?
+  allowedBoardTypes            String?
+  allowedChargeParties         String?
+  allowedPaymentMethods        String?
+  minOfferValue                Decimal?
+  minOfferCurrency             String?
+  bookingMode                  String?
+  multiRoomLimitBy             String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+}
+
+// ── Price Comparison OTAs ─────────────────────────────────────────────────────
+
+model PriceComparisonOta {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  url            String
+  isEnabled      Boolean      @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+// ── Price Comparison Cache ────────────────────────────────────────────────────
+
+model PriceComparisonCache {
+  id        Int      @id @default(autoincrement())
+  otaId     Int
+  cacheKey  String   @unique
+  price     Decimal?
+  currency  String   @default("USD")
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// ── Tracking Pixels ───────────────────────────────────────────────────────────
+
+model TrackingPixel {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     Int?
+  name           String
+  code           String
+  pages          String
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([propertyId])
+}

@@ -1,0 +1,47 @@
+/*
+  Warnings:
+
+  - You are about to drop the column `brandLogoUrl` on the `HotelConfig` table. All the data in the column will be lost.
+  - You are about to drop the column `brandPrimaryColor` on the `HotelConfig` table. All the data in the column will be lost.
+
+*/
+-- RedefineTables
+PRAGMA defer_foreign_keys=ON;
+PRAGMA foreign_keys=OFF;
+CREATE TABLE "new_HotelConfig" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "propertyId" INTEGER NOT NULL,
+    "defaultCurrency" TEXT NOT NULL DEFAULT 'EUR',
+    "defaultLocale" TEXT NOT NULL DEFAULT 'en',
+    "enabledLocales" TEXT NOT NULL DEFAULT '["en"]',
+    "enabledCurrencies" TEXT NOT NULL DEFAULT '["EUR"]',
+    "onlinePaymentEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "payAtHotelEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "payAtHotelCardGuaranteeRequired" BOOLEAN NOT NULL DEFAULT false,
+    "colorPrimary" TEXT NOT NULL DEFAULT '#0f509e',
+    "colorPrimaryHover" TEXT NOT NULL DEFAULT '#0a3a7a',
+    "colorPrimaryLight" TEXT NOT NULL DEFAULT '#e8f0fb',
+    "colorAccent" TEXT NOT NULL DEFAULT '#1399cd',
+    "colorBackground" TEXT NOT NULL DEFAULT '#f2f3ef',
+    "colorSurface" TEXT NOT NULL DEFAULT '#ffffff',
+    "colorText" TEXT NOT NULL DEFAULT '#211c18',
+    "colorTextMuted" TEXT NOT NULL DEFAULT '#717171',
+    "colorBorder" TEXT NOT NULL DEFAULT '#e0e0e0',
+    "colorSuccess" TEXT NOT NULL DEFAULT '#308c67',
+    "colorError" TEXT NOT NULL DEFAULT '#de1f27',
+    "fontFamily" TEXT NOT NULL DEFAULT 'Roboto',
+    "borderRadius" INTEGER NOT NULL DEFAULT 8,
+    "logoUrl" TEXT,
+    "heroImageUrl" TEXT,
+    "displayName" TEXT,
+    "tagline" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+INSERT INTO "new_HotelConfig" ("createdAt", "defaultCurrency", "defaultLocale", "enabledCurrencies", "enabledLocales", "id", "isActive", "onlinePaymentEnabled", "payAtHotelCardGuaranteeRequired", "payAtHotelEnabled", "propertyId", "updatedAt") SELECT "createdAt", "defaultCurrency", "defaultLocale", "enabledCurrencies", "enabledLocales", "id", "isActive", "onlinePaymentEnabled", "payAtHotelCardGuaranteeRequired", "payAtHotelEnabled", "propertyId", "updatedAt" FROM "HotelConfig";
+DROP TABLE "HotelConfig";
+ALTER TABLE "new_HotelConfig" RENAME TO "HotelConfig";
+CREATE UNIQUE INDEX "HotelConfig_propertyId_key" ON "HotelConfig"("propertyId");
+PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=OFF;
