@@ -14,4 +14,4 @@ RUN cd /repo/apps/api && npx tsc --noEmitOnError false || true
 ENV NODE_ENV=production
 WORKDIR /repo/apps/api
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate resolve --applied 20260419000000_init --schema=prisma/schema.prisma 2>/dev/null || true && npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/server.js"]
