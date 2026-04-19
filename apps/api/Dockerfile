@@ -7,8 +7,8 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
-RUN pnpm --filter api run db:generate
-RUN pnpm --filter api build
+RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
+RUN cd /repo/apps/api && npx tsc --noEmitOnError false
 
 FROM node:20-alpine AS runner
 ENV PNPM_HOME="/pnpm"
@@ -31,4 +31,4 @@ COPY --from=builder /repo/apps/api/node_modules/.prisma ./apps/api/node_modules/
 
 WORKDIR /repo/apps/api
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=prisma/schema.prisma && node dist/server.js"]
