@@ -18,7 +18,7 @@ function parseCertExpiry(pem: string): Date | null {
     for (let i = 0; i < der.length - 15; i++) {
       if (der[i] === 0x17 || der[i] === 0x18) {
         const len = der[i + 1]
-        if (len >= 12 && len <= 15) {
+        if (len !== undefined && len >= 12 && len <= 15) {
           const str = String.fromCharCode(...der.slice(i + 2, i + 2 + len))
           let d: Date | null = null
           if (der[i] === 0x17) {

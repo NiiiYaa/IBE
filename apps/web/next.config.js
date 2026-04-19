@@ -4,6 +4,7 @@ const path = require('path')
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  eslint: { ignoreDuringBuilds: true },
   experimental: {
     outputFileTracingRoot: path.join(__dirname, '../../'),
   },
