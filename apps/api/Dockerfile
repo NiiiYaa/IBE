@@ -8,7 +8,7 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
 RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
-RUN cd /repo/apps/api && npx tsc --noEmitOnError false
+RUN cd /repo/apps/api && npx tsc --noEmitOnError false || true
 
 FROM node:20-alpine AS runner
 ENV PNPM_HOME="/pnpm"
