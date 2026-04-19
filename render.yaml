@@ -44,9 +44,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          name: ibe-api
-          type: web
-          property: url
+        sync: false
       # Set these manually in the Render dashboard:
       # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
