@@ -26,11 +26,14 @@ services:
         value: https://hyperguest.net
       - key: CORS_ORIGINS
         value: https://hyperguest.net
+      - key: HYPERGUEST_SEARCH_DOMAIN
+        value: search-api.hyperguest.io
+      - key: HYPERGUEST_BOOKING_DOMAIN
+        value: book-api.hyperguest.io
+      - key: HYPERGUEST_STATIC_DOMAIN
+        value: hg-static.hyperguest.com
       # Set these manually in the Render dashboard:
       # HYPERGUEST_BEARER_TOKEN
-      # HYPERGUEST_SEARCH_DOMAIN
-      # HYPERGUEST_BOOKING_DOMAIN
-      # HYPERGUEST_STATIC_DOMAIN
       # STRIPE_SECRET_KEY
       # STRIPE_WEBHOOK_SECRET
 
