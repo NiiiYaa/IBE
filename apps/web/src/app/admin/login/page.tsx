@@ -119,14 +119,6 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <div className="mt-5">
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Don&apos;t have an account?{' '}
-            <Link href="/admin/signup" className="font-medium text-[var(--color-primary)] hover:underline">
-              Sign up
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   )
