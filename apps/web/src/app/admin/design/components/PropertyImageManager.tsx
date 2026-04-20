@@ -23,6 +23,12 @@ export function PropertyImageManager({
   const excludedSet = new Set(excludedIds)
   const hiddenCount = images.filter(img => excludedSet.has(img.id)).length
 
+  const sortedImages = [...images].sort((a, b) => {
+    const rank = (img: PropertyImage) =>
+      img.url === heroImageUrl ? 0 : excludedSet.has(img.id) ? 2 : 1
+    return rank(a) - rank(b)
+  })
+
   function togglePrimary(img: PropertyImage) {
     if (heroImageUrl === img.url) {
       onHeroChange('')
@@ -83,7 +89,7 @@ export function PropertyImageManager({
       </div>
 
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-        {images.map(img => {
+        {sortedImages.map(img => {
           const isPrimary = img.url === heroImageUrl
           const isExcluded = excludedSet.has(img.id)
 
