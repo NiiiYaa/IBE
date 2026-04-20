@@ -95,14 +95,11 @@ export async function generateMetadata({
 
     if (!config && searchParams.chain) {
       const chainParam = searchParams.chain
-      const numeric = parseInt(chainParam, 10)
-      let orgId: number | null = (!isNaN(numeric) && numeric > 0) ? numeric : null
-      if (!orgId) {
-        try {
-          const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
-          if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
-        } catch { /* ignore */ }
-      }
+      let orgId: number | null = null
+      try {
+        const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
+        if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
+      } catch { /* ignore */ }
       if (orgId) config = await fetchOrgConfig(orgId)
     }
 
@@ -139,14 +136,11 @@ export default async function HomePage({
   // ?chain= accepts the HyperGuest Org ID (string); resolve to internal DB org id
   if (!tenant && searchParams.chain) {
     const chainParam = searchParams.chain
-    const numeric = parseInt(chainParam, 10)
-    let orgId: number | null = (!isNaN(numeric) && numeric > 0) ? numeric : null
-    if (!orgId) {
-      try {
-        const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
-        if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
-      } catch { /* ignore */ }
-    }
+    let orgId: number | null = null
+    try {
+      const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
+      if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
+    } catch { /* ignore */ }
     if (orgId) tenant = { type: 'org', orgId }
   }
   if (!tenant && searchParams.hotelId) {

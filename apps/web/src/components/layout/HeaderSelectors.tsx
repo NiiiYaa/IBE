@@ -105,6 +105,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function GuestAccountButton() {
   const { guest, isLoading, isAuthenticated } = useGuestAuth()
+  const pathname = usePathname()
+  const rawSearchParams = useSearchParams()
 
   if (isLoading) return null
 
@@ -123,9 +125,13 @@ function GuestAccountButton() {
     )
   }
 
+  const returnTo = rawSearchParams.toString()
+    ? `${pathname}?${rawSearchParams.toString()}`
+    : pathname
+
   return (
     <Link
-      href="/account/login"
+      href={`/account/login?returnTo=${encodeURIComponent(returnTo)}`}
       className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
     >
       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

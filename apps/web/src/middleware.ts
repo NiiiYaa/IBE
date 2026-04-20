@@ -5,7 +5,8 @@ const PLATFORM_HOST = 'hyperguest.net'
 const SKIP_SUBDOMAINS = new Set(['www', 'admin', 'api'])
 
 export function middleware(request: NextRequest) {
-  const host = (request.headers.get('host') || '').split(':')[0]
+  const hostHeader = (request.headers.get('host') || '').split(':')
+  const host = hostHeader[0] ?? ''
 
   // Skip local dev and Render internal hostnames
   if (
@@ -18,9 +19,14 @@ export function middleware(request: NextRequest) {
 
   const headers = new Headers(request.headers)
 
+  // Always propagate chain/hotelId query params as headers so layout can resolve the tenant
+  const chain = request.nextUrl.searchParams.get('chain')
+  const hotelId = request.nextUrl.searchParams.get('hotelId')
+  if (chain) headers.set('x-tenant-chain', chain)
+  if (hotelId) headers.set('x-tenant-hotel', hotelId)
+
   if (host === PLATFORM_HOST || host === `www.${PLATFORM_HOST}`) {
-    // Platform root — no tenant
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers } })
   }
 
   if (host.endsWith(`.${PLATFORM_HOST}`)) {
@@ -29,7 +35,7 @@ export function middleware(request: NextRequest) {
       headers.set('x-tenant-host', host)
       return NextResponse.next({ request: { headers } })
     }
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers } })
   }
 
   // Custom domain (e.g. book.grandhotel.com)
