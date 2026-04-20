@@ -24,7 +24,7 @@ function RegisterForm() {
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const returnTo = searchParams.get('returnTo') || '/'
-  const [form, setForm] = useState({ email: '', password: '', firstName: '', lastName: '', phone: '', nationality: '' })
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', firstName: '', lastName: '', phone: '', nationality: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
   const [googleEnabled, setGoogleEnabled] = useState(false)
@@ -40,6 +40,7 @@ function RegisterForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return }
     setError(null)
     setIsPending(true)
     try {
@@ -111,6 +112,11 @@ function RegisterForm() {
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
             <input type="password" value={form.password} onChange={set('password')} required autoComplete="new-password" minLength={8} className={inputCls} />
             <p className="mt-1 text-xs text-[var(--color-text-muted)]">At least 8 characters</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Confirm password</label>
+            <input type="password" value={form.confirmPassword} onChange={set('confirmPassword')} required autoComplete="new-password" placeholder="Repeat your password" className={inputCls} />
           </div>
 
           <div>

@@ -4,33 +4,91 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 
-function EnvBadge() {
-  return (
-    <span className="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-blue-600">
-      from env
-    </span>
-  )
-}
-
 function Field({
   label,
   hint,
-  envFallback,
   children,
 }: {
   label: string
   hint?: string
-  envFallback?: boolean
   children: React.ReactNode
 }) {
   return (
     <div>
-      <div className="mb-1 flex items-center">
-        <label className="text-sm font-medium text-[var(--color-text)]">{label}</label>
-        {envFallback && <EnvBadge />}
-      </div>
+      <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{label}</label>
       {hint && <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">{hint}</p>}
       {children}
+    </div>
+  )
+}
+
+function DomainField({
+  label,
+  hint,
+  value,
+  onChange,
+  effectiveValue,
+  hasDefault,
+  isLocked,
+  onUnlock,
+  onReset,
+  inputCls,
+}: {
+  label: string
+  hint?: string
+  value: string
+  onChange: (v: string) => void
+  effectiveValue: string
+  hasDefault: boolean
+  isLocked: boolean
+  onUnlock: () => void
+  onReset: () => void
+  inputCls: string
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-sm font-medium text-[var(--color-text)]">{label}</label>
+        {hasDefault && isLocked && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+            System default
+          </span>
+        )}
+      </div>
+      {hint && <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">{hint}</p>}
+      {isLocked ? (
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 opacity-60">
+          <span className="flex-1 truncate font-mono text-sm text-[var(--color-text)]">
+            {effectiveValue || '—'}
+          </span>
+          <button
+            type="button"
+            onClick={onUnlock}
+            className="shrink-0 text-xs font-medium text-[var(--color-primary)] opacity-100 hover:underline"
+          >
+            Override
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={hasDefault ? effectiveValue : 'e.g. domain.hyperguest.com'}
+            className={inputCls}
+          />
+          {hasDefault && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="shrink-0 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)]"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -41,8 +99,11 @@ export default function OrgPage() {
   const [token, setToken] = useState('')
   const [tokenVisible, setTokenVisible] = useState(false)
   const [staticDomain, setStaticDomain] = useState('')
+  const [staticLocked, setStaticLocked] = useState(false)
   const [searchDomain, setSearchDomain] = useState('')
+  const [searchLocked, setSearchLocked] = useState(false)
   const [bookingDomain, setBookingDomain] = useState('')
+  const [bookingLocked, setBookingLocked] = useState(false)
   const [saved, setSaved] = useState(false)
 
   const { data, isLoading } = useQuery({
@@ -55,8 +116,11 @@ export default function OrgPage() {
       setHgOrgId(data.hyperGuestOrgId ?? '')
       setToken(data.hyperGuestBearerToken ?? '')
       setStaticDomain(data.hyperGuestStaticDomain ?? '')
+      setStaticLocked(data.envFallback.staticDomain)
       setSearchDomain(data.hyperGuestSearchDomain ?? '')
+      setSearchLocked(data.envFallback.searchDomain)
       setBookingDomain(data.hyperGuestBookingDomain ?? '')
+      setBookingLocked(data.envFallback.bookingDomain)
     }
   }, [data])
 
@@ -65,9 +129,9 @@ export default function OrgPage() {
       apiClient.updateOrgSettings({
         hyperGuestOrgId: hgOrgId,
         hyperGuestBearerToken: token,
-        hyperGuestStaticDomain: staticDomain,
-        hyperGuestSearchDomain: searchDomain,
-        hyperGuestBookingDomain: bookingDomain,
+        hyperGuestStaticDomain: staticLocked ? '' : staticDomain,
+        hyperGuestSearchDomain: searchLocked ? '' : searchDomain,
+        hyperGuestBookingDomain: bookingLocked ? '' : bookingDomain,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-org'] })
@@ -93,7 +157,7 @@ export default function OrgPage() {
         <div>
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Organization</h1>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-            HyperGuest API credentials. Leave a field blank to keep using the environment variable.
+            HyperGuest API credentials. Domain fields showing a system default are shared across all accounts — click Override to set an account-specific value.
           </p>
         </div>
         <button
@@ -122,7 +186,7 @@ export default function OrgPage() {
               : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />}
           </svg>
           {data.effectiveBearerTokenSet
-            ? 'HyperGuest is connected. Domain fields marked "from env" are using environment variables — override them here if needed.'
+            ? 'HyperGuest is connected.'
             : 'No Bearer Token configured. The IBE will not function until a valid token is saved here.'}
         </div>
       )}
@@ -153,6 +217,7 @@ export default function OrgPage() {
               value={token}
               onChange={e => setToken(e.target.value)}
               placeholder="Paste token…"
+              autoComplete="new-password"
               className={inputCls}
             />
             <button
@@ -167,51 +232,48 @@ export default function OrgPage() {
 
         <div className="border-t border-[var(--color-border)]" />
 
-        <Field
+        <DomainField
           label="Static Domain"
-          envFallback={data?.envFallback.staticDomain}
-          hint={data?.effectiveStaticDomain ? `Active: ${data.effectiveStaticDomain}` : 'Used to fetch property static data (images, rooms, descriptions).'}
-        >
-          <input
-            type="text"
-            value={staticDomain}
-            onChange={e => setStaticDomain(e.target.value)}
-            placeholder={data?.envFallback.staticDomain ? `(using env var: ${data.effectiveStaticDomain})` : 'e.g. static.hyperguest.com'}
-            className={inputCls}
-          />
-        </Field>
+          hint="Used to fetch property static data (images, rooms, descriptions)."
+          value={staticDomain}
+          onChange={setStaticDomain}
+          effectiveValue={data?.effectiveStaticDomain ?? ''}
+          hasDefault={data?.envDefault.staticDomain ?? false}
+          isLocked={staticLocked}
+          onUnlock={() => { setStaticLocked(false); setStaticDomain(data?.effectiveStaticDomain ?? '') }}
+          onReset={() => { setStaticLocked(true); setStaticDomain('') }}
+          inputCls={inputCls}
+        />
 
-        <Field
+        <DomainField
           label="Search Domain"
-          envFallback={data?.envFallback.searchDomain}
-          hint={data?.effectiveSearchDomain ? `Active: ${data.effectiveSearchDomain}` : 'Used for availability search requests.'}
-        >
-          <input
-            type="text"
-            value={searchDomain}
-            onChange={e => setSearchDomain(e.target.value)}
-            placeholder={data?.envFallback.searchDomain ? `(using env var: ${data.effectiveSearchDomain})` : 'e.g. search.hyperguest.com'}
-            className={inputCls}
-          />
-        </Field>
+          hint="Used for availability search requests."
+          value={searchDomain}
+          onChange={setSearchDomain}
+          effectiveValue={data?.effectiveSearchDomain ?? ''}
+          hasDefault={data?.envDefault.searchDomain ?? false}
+          isLocked={searchLocked}
+          onUnlock={() => { setSearchLocked(false); setSearchDomain(data?.effectiveSearchDomain ?? '') }}
+          onReset={() => { setSearchLocked(true); setSearchDomain('') }}
+          inputCls={inputCls}
+        />
 
-        <Field
+        <DomainField
           label="Booking Domain"
-          envFallback={data?.envFallback.bookingDomain}
-          hint={data?.effectiveBookingDomain ? `Active: ${data.effectiveBookingDomain}` : 'Used for create and list booking requests.'}
-        >
-          <input
-            type="text"
-            value={bookingDomain}
-            onChange={e => setBookingDomain(e.target.value)}
-            placeholder={data?.envFallback.bookingDomain ? `(using env var: ${data.effectiveBookingDomain})` : 'e.g. booking.hyperguest.com'}
-            className={inputCls}
-          />
-        </Field>
+          hint="Used for create and list booking requests."
+          value={bookingDomain}
+          onChange={setBookingDomain}
+          effectiveValue={data?.effectiveBookingDomain ?? ''}
+          hasDefault={data?.envDefault.bookingDomain ?? false}
+          isLocked={bookingLocked}
+          onUnlock={() => { setBookingLocked(false); setBookingDomain(data?.effectiveBookingDomain ?? '') }}
+          onReset={() => { setBookingLocked(true); setBookingDomain('') }}
+          inputCls={inputCls}
+        />
       </div>
 
       <p className="mt-3 text-xs text-[var(--color-text-muted)]">
-        Changes apply within 60 seconds — no restart required. Environment variables are used as fallbacks when a field is left blank.
+        Changes apply within 60 seconds — no restart required.
       </p>
     </div>
   )

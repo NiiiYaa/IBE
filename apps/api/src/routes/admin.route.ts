@@ -7,7 +7,6 @@ import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
 import { env } from '../config/env.js'
 import { prisma } from '../db/client.js'
-import { prisma } from '../db/client.js'
 import { listOrgNavItems, createOrgNavItem, updateOrgNavItem, deleteOrgNavItem } from '../services/org-nav.service.js'
 import type { CreateOrgNavItemRequest, UpdateOrgNavItemRequest } from '@ibe/shared'
 
@@ -15,7 +14,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // ── Org Settings ─────────────────────────────────────────────────────────────
 
   fastify.get('/admin/org', async (request, reply) => {
-    const organizationId = request.admin.organizationId!
+    let organizationId = request.admin.organizationId
+    if (organizationId === null) {
+      const firstOrg = await prisma.organization.findFirst({ orderBy: { id: 'asc' } })
+      if (!firstOrg) return reply.status(404).send({ error: 'No organization found', code: 'IBE.ADMIN.001' })
+      organizationId = firstOrg.id
+    }
     const [org, settings, effective] = await Promise.all([
       prisma.organization.findUnique({ where: { id: organizationId }, select: { hyperGuestOrgId: true } }),
       getOrgSettings(organizationId),
@@ -39,6 +43,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         searchDomain: !settings.hyperGuestSearchDomain && !!env.HYPERGUEST_SEARCH_DOMAIN,
         bookingDomain: !settings.hyperGuestBookingDomain && !!env.HYPERGUEST_BOOKING_DOMAIN,
       },
+      envDefault: {
+        staticDomain: !!env.HYPERGUEST_STATIC_DOMAIN,
+        searchDomain: !!env.HYPERGUEST_SEARCH_DOMAIN,
+        bookingDomain: !!env.HYPERGUEST_BOOKING_DOMAIN,
+      },
       rateProvider: settings.rateProvider,
       defaultPropertyId: env.NEXT_PUBLIC_DEFAULT_HOTEL_ID ?? Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID']),
       webDomain: settings.webDomain,
@@ -49,7 +58,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   fastify.put('/admin/org', async (request, reply) => {
-    const organizationId = request.admin.organizationId!
+    let organizationId = request.admin.organizationId
+    if (organizationId === null) {
+      const firstOrg = await prisma.organization.findFirst({ orderBy: { id: 'asc' } })
+      if (!firstOrg) return reply.status(404).send({ error: 'No organization found', code: 'IBE.ADMIN.001' })
+      organizationId = firstOrg.id
+    }
     const body = request.body as {
       hyperGuestOrgId?: string
       hyperGuestBearerToken?: string

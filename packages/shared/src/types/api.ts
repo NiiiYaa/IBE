@@ -731,6 +731,11 @@ export interface OrgSettingsResponse {
     searchDomain: boolean
     bookingDomain: boolean
   }
+  envDefault: {
+    staticDomain: boolean
+    searchDomain: boolean
+    bookingDomain: boolean
+  }
   rateProvider: string
   defaultPropertyId: number | undefined
   webDomain: string | null
