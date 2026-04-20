@@ -182,20 +182,22 @@ export async function configRoutes(fastify: FastifyInstance) {
     })
     const configMap = new Map(configs.map(c => [c.propertyId, c]))
 
-    // 2. Return pre-stored image data from DB; only fall back to HyperGuest if not yet populated
+    // 2. HyperGuest calls run in parallel; backfills run sequentially after to avoid pool exhaustion
+    const toBackfill: Array<{ propertyId: number; images: string }> = []
+
     const results = await Promise.all(
       properties.map(async prop => {
         const config = configMap.get(prop.propertyId)
         const featuredIds = safeParseJsonIds(config?.chainFeaturedImageIds)
         if (featuredIds.length === 0) return null
 
-        // Happy path: images were cached in DB when admin saved the hotel page
+        // Happy path: images already stored in DB — zero HyperGuest calls
         const storedImages = safeParseJsonImages(config?.chainFeaturedImagesJson)
         if (storedImages.length > 0) {
           return { propertyId: prop.propertyId, name: prop.name ?? `Property ${prop.propertyId}`, images: storedImages }
         }
 
-        // Cold path: not yet backfilled — fetch from HyperGuest once and store for next time
+        // Cold path: fetch from HyperGuest; queue backfill for after all calls complete
         try {
           const staticData = await fetchPropertyStatic(prop.propertyId)
           const featuredSet = new Set(featuredIds)
@@ -204,17 +206,22 @@ export async function configRoutes(fastify: FastifyInstance) {
             .sort((a, b) => a.priority - b.priority)
             .map(img => ({ id: img.id, url: img.uri, description: img.description, priority: img.priority }))
           if (images.length === 0) return null
-          // Backfill so next load is instant
-          void prisma.hotelConfig.update({
-            where: { propertyId: prop.propertyId },
-            data: { chainFeaturedImagesJson: JSON.stringify(images) },
-          }).catch(() => {})
+          toBackfill.push({ propertyId: prop.propertyId, images: JSON.stringify(images) })
           return { propertyId: prop.propertyId, name: prop.name ?? `Property ${prop.propertyId}`, images }
         } catch {
           return null
         }
       })
     )
+
+    // Sequential backfill: one connection at a time, won't exhaust the pool
+    for (const { propertyId, images } of toBackfill) {
+      try {
+        await prisma.hotelConfig.update({ where: { propertyId }, data: { chainFeaturedImagesJson: images } })
+      } catch {
+        // non-critical: will retry on next load
+      }
+    }
 
     return reply.send({ properties: results.filter(Boolean) })
   })
