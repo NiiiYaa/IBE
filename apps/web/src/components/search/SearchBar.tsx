@@ -172,7 +172,7 @@ export function SearchBar({
   }
 
   return (
-    <div ref={containerRef} className="relative mx-auto w-full max-w-4xl">
+    <div ref={containerRef} className="relative mx-auto w-full max-w-5xl">
       {/* Pill bar */}
       <div className="flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
         {showCitySelector && cities.length > 1 && (
@@ -217,7 +217,7 @@ export function SearchBar({
 
         <Divider />
 
-        <div className="flex flex-col items-center justify-center px-5 py-3">
+        <div className="flex shrink-0 flex-col items-center justify-center px-4 py-3">
           <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
             Nights
           </span>
@@ -380,14 +380,14 @@ function Segment({
     <button
       onClick={onClick}
       className={[
-        'flex flex-1 flex-col items-start justify-center px-5 py-3 transition-colors',
+        'flex min-w-0 flex-1 flex-col items-start justify-center px-4 py-3 transition-colors',
         active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
       ].join(' ')}
     >
-      <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
+      <span className="mb-0.5 whitespace-nowrap text-xs font-medium leading-none text-[var(--color-text-muted)]">
         {label}
       </span>
-      <span className="whitespace-nowrap text-sm font-semibold text-[var(--color-text)]">
+      <span className="block w-full truncate text-sm font-semibold text-[var(--color-text)]" title={value}>
         {value}
       </span>
     </button>

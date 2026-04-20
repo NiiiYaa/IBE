@@ -1,0 +1,2 @@
+ALTER TABLE "Organization" ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Organization" ADD COLUMN "deletedAt" TIMESTAMP(3);

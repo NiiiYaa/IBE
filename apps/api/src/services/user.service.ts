@@ -53,24 +53,62 @@ export interface OrgServiceRecord {
   name: string
   slug: string
   hyperGuestOrgId: string | null
+  isActive: boolean
+  deletedAt: Date | null
   userCount: number
   createdAt: Date
 }
 
-export async function listOrgs(): Promise<OrgServiceRecord[]> {
-  const orgs = await prisma.organization.findMany({
-    select: {
-      id: true, name: true, slug: true, hyperGuestOrgId: true, createdAt: true,
-      _count: { select: { adminUsers: true } },
-    },
-    orderBy: { createdAt: 'asc' },
-  })
-  return orgs.map(o => ({
+const ORG_SELECT = {
+  id: true, name: true, slug: true, hyperGuestOrgId: true,
+  isActive: true, deletedAt: true, createdAt: true,
+  _count: { select: { adminUsers: true } },
+} as const
+
+function mapOrg(o: { id: number; name: string; slug: string; hyperGuestOrgId: string | null; isActive: boolean; deletedAt: Date | null; createdAt: Date; _count: { adminUsers: number } }): OrgServiceRecord {
+  return {
     id: o.id, name: o.name, slug: o.slug,
     hyperGuestOrgId: o.hyperGuestOrgId,
+    isActive: o.isActive, deletedAt: o.deletedAt,
     userCount: o._count.adminUsers,
     createdAt: o.createdAt,
-  }))
+  }
+}
+
+export async function listOrgs(): Promise<OrgServiceRecord[]> {
+  const orgs = await prisma.organization.findMany({
+    where: { deletedAt: null },
+    select: ORG_SELECT,
+    orderBy: { createdAt: 'asc' },
+  })
+  return orgs.map(mapOrg)
+}
+
+export async function updateOrg(
+  id: number,
+  data: { name?: string; hyperGuestOrgId?: string | null },
+): Promise<OrgServiceRecord> {
+  if (data.hyperGuestOrgId) {
+    const existing = await prisma.organization.findUnique({ where: { hyperGuestOrgId: data.hyperGuestOrgId } })
+    if (existing && existing.id !== id) throw new Error('This HyperGuest Org ID is already in use')
+  }
+  const org = await prisma.organization.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined && { name: data.name.trim() }),
+      ...(data.hyperGuestOrgId !== undefined && { hyperGuestOrgId: data.hyperGuestOrgId || null }),
+    },
+    select: ORG_SELECT,
+  })
+  return mapOrg(org)
+}
+
+export async function setOrgActive(id: number, isActive: boolean): Promise<void> {
+  await prisma.organization.update({ where: { id }, data: { isActive } })
+}
+
+export async function softDeleteOrg(id: number): Promise<void> {
+  await prisma.organization.update({ where: { id }, data: { isActive: false, deletedAt: new Date() } })
 }
 
 function slugify(name: string): string {

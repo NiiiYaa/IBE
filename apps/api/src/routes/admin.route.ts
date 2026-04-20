@@ -35,7 +35,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       hyperGuestStaticDomain: settings.hyperGuestStaticDomain,
       hyperGuestSearchDomain: settings.hyperGuestSearchDomain,
       hyperGuestBookingDomain: settings.hyperGuestBookingDomain,
-      effectiveBearerTokenSet: !!settings.hyperGuestBearerToken,
+      effectiveBearerTokenSet: !!effective.bearerToken,
       effectiveStaticDomain: effective.staticDomain,
       effectiveSearchDomain: effective.searchDomain,
       effectiveBookingDomain: effective.bookingDomain,
@@ -171,6 +171,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (!propertyId || isNaN(propertyId) || propertyId <= 0) {
       return reply.status(400).send({ error: 'Invalid property ID', code: 'IBE.VALIDATION.001' })
     }
+    const creds = await getHGCredentials(organizationId)
+    if (!creds.bearerToken) {
+      return reply.status(400).send({ error: 'No HyperGuest bearer token configured. Please add a token in Organization settings before adding properties.', code: 'IBE.PROPERTY.NO_TOKEN' })
+    }
     try {
       const record = await addProperty(organizationId, propertyId)
       return reply.status(201).send(record)
@@ -184,6 +188,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.post('/admin/properties/import', async (request, reply) => {
     const organizationId = request.admin.organizationId!
+    const creds = await getHGCredentials(organizationId)
+    if (!creds.bearerToken) {
+      return reply.status(400).send({ error: 'No HyperGuest bearer token configured. Please add a token in Organization settings before importing properties.', code: 'IBE.PROPERTY.NO_TOKEN' })
+    }
     const file = await request.file()
     if (!file) {
       return reply.status(400).send({ error: 'No file uploaded', code: 'IBE.VALIDATION.001' })

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig } from '@ibe/shared'
 import { useGlobalConfig } from '@/hooks/use-global-config'
@@ -8,6 +9,7 @@ import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { apiClient } from '@/lib/api-client'
 import { ColorRow, Section, FormRow, TextInput, SaveBar, selectCls } from '../components'
 import { HeroThumbnail } from '../HeroThumbnail'
+import { PropertyImageManager } from '../components/PropertyImageManager'
 
 const FONT_OPTIONS = [
   'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins',
@@ -79,11 +81,7 @@ export default function ChainPage() {
     staleTime: 60_000,
   })
 
-  const [filterPropertyId, setFilterPropertyId] = useState<number | null>(null)
   const allImages = propertyImagesQuery.data ?? []
-  const filteredPropertyImages = filterPropertyId
-    ? allImages.filter(p => p.propertyId === filterPropertyId)
-    : allImages
 
   // Live-preview CSS vars
   useEffect(() => {
@@ -199,82 +197,48 @@ export default function ChainPage() {
           )}
         </Section>
 
-        {/* ── Chain Hero Image ── */}
-        <Section title="Chain Hero Image">
+        {/* ── Hero Images ── */}
+        <Section title="Hero Images">
           <p className="mb-4 text-xs text-[var(--color-text-muted)]">
-            Image displayed in the hero section of the chain page. Select from your properties&apos; media library or enter a custom URL.
+            <strong>★</strong> sets the hero (main) image &nbsp;·&nbsp; <strong>🚫</strong> hides it from the carousel. Images are sourced from all your properties.
           </p>
 
-          {allImages.length > 0 && (
-            <div className="mb-4">
-              {allImages.length > 1 && (
-                <div className="mb-3 flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => setFilterPropertyId(null)}
-                    className={['rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                      filterPropertyId === null
-                        ? 'bg-[var(--color-primary)] text-white'
-                        : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                    ].join(' ')}
-                  >
-                    All
-                  </button>
-                  {allImages.map(p => (
-                    <button
-                      key={p.propertyId}
-                      onClick={() => setFilterPropertyId(p.propertyId === filterPropertyId ? null : p.propertyId)}
-                      className={['rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                        filterPropertyId === p.propertyId
-                          ? 'bg-[var(--color-primary)] text-white'
-                          : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                      ].join(' ')}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
+          {propertyImagesQuery.isLoading ? (
+            <div className="h-24 animate-pulse rounded-xl bg-[var(--color-border)]" />
+          ) : allImages.length === 0 ? (
+            <p className="text-xs text-[var(--color-text-muted)]">No images available. Sync your properties first.</p>
+          ) : (
+            <div className="space-y-5">
+              {allImages.map(p => (
+                <div key={p.propertyId}>
+                  {allImages.length > 1 && (
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{p.name}</p>
+                  )}
+                  <PropertyImageManager
+                    images={p.images}
+                    heroImageUrl={draft.chainHeroImageUrl ?? ''}
+                    excludedIds={draft.chainExcludedPropertyImageIds ?? []}
+                    onHeroChange={url => set('chainHeroImageUrl', url || null)}
+                    onExcludedChange={newIds => {
+                      const thisIds = new Set(p.images.map(img => img.id))
+                      const otherExcluded = (draft.chainExcludedPropertyImageIds ?? []).filter(id => !thisIds.has(id))
+                      set('chainExcludedPropertyImageIds', [...otherExcluded, ...newIds])
+                    }}
+                  />
                 </div>
-              )}
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {filteredPropertyImages.flatMap(p =>
-                  p.images.slice(0, 8).map(img => {
-                    const isSelected = draft.chainHeroImageUrl === img.url
-                    return (
-                      <button
-                        key={img.id}
-                        onClick={() => set('chainHeroImageUrl', isSelected ? null : img.url)}
-                        className={['relative aspect-video overflow-hidden rounded-lg border-2 transition-all',
-                          isSelected
-                            ? 'border-[var(--color-primary)] shadow-md'
-                            : 'border-[var(--color-border)] hover:border-[var(--color-primary-light)]',
-                        ].join(' ')}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.url} alt={img.description || ''} className="h-full w-full object-cover" />
-                        {isSelected && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-primary)]/20">
-                            <div className="rounded-full bg-[var(--color-primary)] p-1">
-                              <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
+              ))}
             </div>
           )}
 
-          <FormRow label="Custom URL" hint="Overrides the media library selection">
+          <div className="mt-4">
+            <p className="mb-1.5 text-xs font-medium text-[var(--color-text-muted)]">Or enter a custom URL for the hero image</p>
             <TextInput value={draft.chainHeroImageUrl ?? ''} onChange={v => set('chainHeroImageUrl', v || null)} placeholder="https://..." />
-          </FormRow>
+          </div>
+
           {draft.chainHeroImageUrl && (
             <div className="mt-3">
               <div className="relative h-40 w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={draft.chainHeroImageUrl} alt="Chain hero preview" className="h-full w-full object-cover" />
+                <Image src={draft.chainHeroImageUrl} alt="Chain hero preview" fill unoptimized sizes="640px" className="object-cover" />
               </div>
               <button onClick={() => set('chainHeroImageUrl', null)} className="mt-1.5 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-error)]">
                 Remove

@@ -7,21 +7,20 @@ import { apiClient, ApiClientError } from '@/lib/api-client'
 
 interface CreatedCredentials {
   orgName: string
+  hyperGuestOrgId: string
   email: string
   temporaryPassword: string
 }
 
 function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
-
   function copy() {
     void navigator.clipboard.writeText(
-      `Login: https://hyperguest.net/admin/login\nEmail: ${creds.email}\nTemporary password: ${creds.temporaryPassword}`
+      `Login: https://hyperguest.net/admin/login\nHyperGuest Org ID: ${creds.hyperGuestOrgId}\nEmail: ${creds.email}\nTemporary password: ${creds.temporaryPassword}`
     )
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
@@ -31,15 +30,17 @@ function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClo
           </svg>
           <h2 className="text-base font-semibold text-[var(--color-text)]">Account created — {creds.orgName}</h2>
         </div>
-
         <p className="mb-4 text-sm text-[var(--color-text-muted)]">
-          Share these credentials with the account admin. The password is temporary and should be changed on first login.
+          Share these credentials with the account admin. The password is temporary.
         </p>
-
         <div className="mb-4 space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 font-mono text-sm">
           <div className="flex justify-between gap-4">
             <span className="text-[var(--color-text-muted)]">Login URL</span>
             <span className="text-[var(--color-text)]">hyperguest.net/admin/login</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-[var(--color-text-muted)]">HyperGuest Org ID</span>
+            <span className="font-bold text-[var(--color-text)]">{creds.hyperGuestOrgId}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-[var(--color-text-muted)]">Email</span>
@@ -50,19 +51,57 @@ function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClo
             <span className="font-bold text-[var(--color-text)]">{creds.temporaryPassword}</span>
           </div>
         </div>
-
         <div className="flex gap-3">
-          <button
-            onClick={copy}
-            className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-background)]"
-          >
+          <button onClick={copy} className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-background)]">
             {copied ? 'Copied!' : 'Copy credentials'}
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
-          >
+          <button onClick={onClose} className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]">
             Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => void; onSaved: (updated: OrgRecord) => void }) {
+  const [name, setName] = useState(org.name)
+  const [hgOrgId, setHgOrgId] = useState(org.hyperGuestOrgId ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
+
+  async function save() {
+    if (!name.trim()) return
+    setSaving(true); setError(null)
+    try {
+      const updated = await apiClient.updateOrg(org.id, { name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null })
+      onSaved(updated)
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to save')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+        <h2 className="mb-4 text-base font-semibold text-[var(--color-text)]">Edit account</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Name</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">HyperGuest Org ID</label>
+            <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} className={`${inputCls} font-mono`} placeholder="optional" />
+          </div>
+        </div>
+        {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
+        <div className="mt-5 flex gap-3">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-background)]">Cancel</button>
+          <button onClick={save} disabled={saving || !name.trim()} className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -80,6 +119,8 @@ export default function OrganizationsPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [createdCreds, setCreatedCreds] = useState<CreatedCredentials | null>(null)
+  const [editingOrg, setEditingOrg] = useState<OrgRecord | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<OrgRecord | null>(null)
 
   const { data: orgs = [], isLoading } = useQuery<OrgRecord[]>({
     queryKey: ['super-orgs'],
@@ -89,24 +130,27 @@ export default function OrganizationsPage() {
 
   async function handleCreate() {
     if (!name.trim() || !adminName.trim() || !adminEmail.trim()) return
-    setSaveError(null)
-    setIsSaving(true)
+    setSaveError(null); setIsSaving(true)
     try {
       const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null })
-      const user = await apiClient.createAdminUser({
-        email: adminEmail.trim(),
-        name: adminName.trim(),
-        role: 'admin',
-        orgId: org.id,
-      })
+      const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id })
       await qc.invalidateQueries({ queryKey: ['super-orgs'] })
-      setCreatedCreds({ orgName: org.name, email: user.email, temporaryPassword: user.temporaryPassword })
+      setCreatedCreds({ orgName: org.name, hyperGuestOrgId: org.hyperGuestOrgId ?? hgOrgId.trim(), email: user.email, temporaryPassword: user.temporaryPassword })
       setName(''); setHgOrgId(''); setAdminName(''); setAdminEmail('')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create account')
-    } finally {
-      setIsSaving(false)
-    }
+    } finally { setIsSaving(false) }
+  }
+
+  async function toggleActive(org: OrgRecord) {
+    await apiClient.setOrgActive(org.id, !org.isActive)
+    await qc.invalidateQueries({ queryKey: ['super-orgs'] })
+  }
+
+  async function handleDelete(org: OrgRecord) {
+    await apiClient.deleteOrg(org.id)
+    await qc.invalidateQueries({ queryKey: ['super-orgs'] })
+    setConfirmDelete(null)
   }
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
@@ -115,6 +159,27 @@ export default function OrganizationsPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       {createdCreds && <CredentialsModal creds={createdCreds} onClose={() => setCreatedCreds(null)} />}
+      {editingOrg && (
+        <EditModal
+          org={editingOrg}
+          onClose={() => setEditingOrg(null)}
+          onSaved={() => { void qc.invalidateQueries({ queryKey: ['super-orgs'] }); setEditingOrg(null) }}
+        />
+      )}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-semibold text-[var(--color-text)]">Delete account?</h2>
+            <p className="mb-5 text-sm text-[var(--color-text-muted)]">
+              <strong>{confirmDelete.name}</strong> will be disabled and hidden. All users will lose access immediately. This cannot be undone from the UI.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-background)]">Cancel</button>
+              <button onClick={() => handleDelete(confirmDelete)} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <h1 className="mb-1 text-xl font-semibold text-[var(--color-text)]">Organizations</h1>
       <p className="mb-6 text-sm text-[var(--color-text-muted)]">Create and manage hotel accounts. Each account gets its own admin user, properties, and settings.</p>
@@ -122,7 +187,6 @@ export default function OrganizationsPage() {
       {/* Create form */}
       <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">New account</h2>
-
         <div className="mb-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Hotel / org name</label>
@@ -133,7 +197,6 @@ export default function OrganizationsPage() {
             <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} placeholder="e.g. demand-org-123" className={`${inputCls} font-mono`} />
           </div>
         </div>
-
         <div className="mb-1 border-t border-[var(--color-border)] pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">First admin user</p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -147,9 +210,7 @@ export default function OrganizationsPage() {
             </div>
           </div>
         </div>
-
         {saveError && <p className="mt-3 text-sm text-[var(--color-error)]">{saveError}</p>}
-
         <button
           onClick={handleCreate}
           disabled={isSaving || !name.trim() || !adminName.trim() || !adminEmail.trim()}
@@ -171,20 +232,34 @@ export default function OrganizationsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
-                {['Name', 'HG Org ID', 'Users', 'Created'].map(h => (
+                {['Name', 'HG Org ID', 'Users', 'Status', 'Created', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
               {orgs.map(org => (
-                <tr key={org.id} className="hover:bg-[var(--color-background)]">
+                <tr key={org.id} className={['hover:bg-[var(--color-background)]', !org.isActive ? 'opacity-50' : ''].join(' ')}>
                   <td className="px-4 py-3 font-medium text-[var(--color-text)]">{org.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-[var(--color-text-muted)]">
                     {org.hyperGuestOrgId ?? <span className="italic">not set</span>}
                   </td>
                   <td className="px-4 py-3 text-[var(--color-text-muted)]">{org.userCount}</td>
+                  <td className="px-4 py-3">
+                    <span className={['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', org.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'].join(' ')}>
+                      {org.isActive ? 'Active' : 'Disabled'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-[var(--color-text-muted)]">{new Date(org.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEditingOrg(org)} className="text-xs font-medium text-[var(--color-primary)] hover:underline">Edit</button>
+                      <button onClick={() => toggleActive(org)} className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:underline">
+                        {org.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                      <button onClick={() => setConfirmDelete(org)} className="text-xs font-medium text-red-500 hover:underline">Delete</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

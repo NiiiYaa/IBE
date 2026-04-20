@@ -23,6 +23,11 @@ export async function verifyAdminLogin(
 
   if (!hyperGuestOrgId) return null
 
+  if (user.role !== 'super' && user.organizationId) {
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
+    if (!org || !org.isActive || org.deletedAt) return null
+  }
+
   if (user.role === 'super') {
     if (hyperGuestOrgId !== '1') return null
     return { adminId: user.id, organizationId: null, role: 'super' }
@@ -120,7 +125,13 @@ export async function getAdminById(id: number) {
       adminUserProperties: { select: { propertyId: true } },
     },
   })
-  if (!user) return null
+  if (!user || !user.isActive) return null
+
+  if (user.role !== 'super' && user.organizationId) {
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
+    if (!org || !org.isActive || org.deletedAt) return null
+  }
+
   return {
     id: user.id,
     email: user.email,

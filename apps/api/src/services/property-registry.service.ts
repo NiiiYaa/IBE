@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import { logger } from '../utils/logger.js'
 
 export const DEMO_HG_ID = 125346
 
@@ -9,6 +10,7 @@ export interface PropertyRecord {
   isActive: boolean
   lastSyncedAt: string | null
   createdAt: string
+  name?: string | null
   isDemo?: boolean
   hyperGuestBearerToken?: string | null
   hyperGuestStaticDomain?: string | null
@@ -52,6 +54,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     isActive: r.isActive,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    name: r.name ?? null,
     subdomain: r.subdomain ?? null,
     hyperGuestBearerToken: r.hyperGuestBearerToken ? '****' + r.hyperGuestBearerToken.slice(-4) : null,
     hyperGuestStaticDomain: r.hyperGuestStaticDomain ?? null,
@@ -135,6 +138,17 @@ export class PropertyConflictError extends Error {
   }
 }
 
+async function fetchPropertyName(propertyId: number): Promise<string | null> {
+  try {
+    const { fetchPropertyStatic } = await import('../adapters/hyperguest/static.js')
+    const data = await fetchPropertyStatic(propertyId)
+    return data.name ?? null
+  } catch (err) {
+    logger.warn({ propertyId, err }, '[Property] Could not fetch property name from HG')
+    return null
+  }
+}
+
 export async function addProperty(organizationId: number, propertyId: number): Promise<PropertyRecord> {
   const conflict = await prisma.property.findUnique({ where: { propertyId }, include: { organization: { select: { name: true } } } })
 
@@ -143,30 +157,34 @@ export async function addProperty(organizationId: number, propertyId: number): P
       if (!conflict.deletedAt) {
         throw new PropertyConflictError('Property is already registered for this organization')
       }
-      // Restore soft-deleted record in the same org
+      const name = conflict.name ?? await fetchPropertyName(propertyId)
       const restored = await prisma.property.update({
         where: { propertyId },
-        data: { deletedAt: null, isActive: true },
+        data: { deletedAt: null, isActive: true, ...(name ? { name } : {}) },
       })
-      return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, isActive: restored.isActive, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString() }
+      return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, isActive: restored.isActive, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString(), name: restored.name ?? null }
     }
     if (!conflict.deletedAt) {
       throw new PropertyConflictError(`Property is already registered under organization "${conflict.organization.name}"`, conflict.organization.name)
     }
-    // Soft-deleted in another org — reassign to this org
+    const name = conflict.name ?? await fetchPropertyName(propertyId)
     const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
     const reassigned = await prisma.property.update({
       where: { propertyId },
-      data: { organizationId, deletedAt: null, isActive: true, isDefault: count === 0 },
+      data: { organizationId, deletedAt: null, isActive: true, isDefault: count === 0, ...(name ? { name } : {}) },
     })
-    return { id: reassigned.id, propertyId: reassigned.propertyId, isDefault: reassigned.isDefault, isActive: reassigned.isActive, lastSyncedAt: reassigned.lastSyncedAt?.toISOString() ?? null, createdAt: reassigned.createdAt.toISOString() }
+    return { id: reassigned.id, propertyId: reassigned.propertyId, isDefault: reassigned.isDefault, isActive: reassigned.isActive, lastSyncedAt: reassigned.lastSyncedAt?.toISOString() ?? null, createdAt: reassigned.createdAt.toISOString(), name: reassigned.name ?? null }
   }
 
   const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
   const row = await prisma.property.create({
     data: { organizationId, propertyId, isDefault: count === 0 },
   })
-  return { id: row.id, propertyId: row.propertyId, isDefault: row.isDefault, isActive: row.isActive, lastSyncedAt: null, createdAt: row.createdAt.toISOString() }
+  const name = await fetchPropertyName(propertyId)
+  if (name) {
+    await prisma.property.update({ where: { id: row.id }, data: { name } })
+  }
+  return { id: row.id, propertyId: row.propertyId, isDefault: row.isDefault, isActive: row.isActive, lastSyncedAt: null, createdAt: row.createdAt.toISOString(), name: name ?? null }
 }
 
 export async function setDefaultProperty(organizationId: number, id: number): Promise<void> {
@@ -221,6 +239,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     isActive: r.isActive,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    name: r.name ?? null,
     subdomain: r.subdomain ?? null,
     orgId: r.organization.id,
     orgName: r.organization.name,

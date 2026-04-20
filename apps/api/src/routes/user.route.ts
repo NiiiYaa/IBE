@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { listUsers, listAllUsers, createUser, updateUser, deleteUser, resetUserPassword, setOrgHyperGuestId, setUserPropertyIds, listOrgs, createOrg } from '../services/user.service.js'
+import { listUsers, listAllUsers, createUser, updateUser, deleteUser, resetUserPassword, setOrgHyperGuestId, setUserPropertyIds, listOrgs, createOrg, updateOrg, setOrgActive, softDeleteOrg } from '../services/user.service.js'
 import { listProperties } from '../services/property-registry.service.js'
 
 const ALLOWED_ROLES = ['admin', 'observer', 'user']
@@ -33,7 +33,37 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // Super-only: update any org's HG Org ID
+  // Super-only: edit org
+  fastify.put('/admin/super/orgs/:orgId', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    const { name, hyperGuestOrgId } = request.body as { name?: string; hyperGuestOrgId?: string }
+    try {
+      const org = await updateOrg(orgId, { name, hyperGuestOrgId })
+      return reply.send(org)
+    } catch (err) {
+      return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to update' })
+    }
+  })
+
+  // Super-only: enable / disable org
+  fastify.patch('/admin/super/orgs/:orgId/active', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    const { isActive } = request.body as { isActive: boolean }
+    await setOrgActive(orgId, isActive)
+    return reply.send({ ok: true })
+  })
+
+  // Super-only: soft-delete org (sets disabled + deletedAt, hides from list)
+  fastify.delete('/admin/super/orgs/:orgId', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    await softDeleteOrg(orgId)
+    return reply.send({ ok: true })
+  })
+
+  // Super-only: update any org's HG Org ID (kept for backwards compat)
   fastify.put('/admin/super/orgs/:orgId/hg-org-id', async (request, reply) => {
     if (request.admin.role !== 'super')
       return reply.status(403).send({ error: 'Forbidden' })

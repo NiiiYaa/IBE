@@ -13,12 +13,14 @@ datasource db {
 // ── Multi-tenancy ─────────────────────────────────────────────────────────────
 
 model Organization {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   name            String
-  slug            String   @unique
-  hyperGuestOrgId String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  slug            String    @unique
+  hyperGuestOrgId String?   @unique
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   adminUsers            AdminUser[]
   orgSettings           OrgSettings?
@@ -339,6 +341,7 @@ model Property {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  name                    String?
   subdomain               String?  @unique
   hyperGuestBearerToken   String?
   hyperGuestStaticDomain  String?
@@ -391,6 +394,7 @@ model OrgDesignDefaults {
   payAtHotelEnabled            Boolean?
   payAtHotelCardGuaranteeRequired Boolean?
   chainHeroImageUrl            String?
+  chainExcludedPropertyImageIds String  @default("[]")
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

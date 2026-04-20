@@ -297,7 +297,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           {visibleSections.map(({ title, items: rawItems, minRole }) => {
             const items = rawItems.filter(i =>
               (!i.propertyOnly || propertyId !== null) &&
-              (!i.multiPropertyOnly || realProperties.length > 1)
+              (!i.multiPropertyOnly || realProperties.length > 1 || isSuper)
             )
             if (items.length === 0) return null
             const isOpen = openSections.has(title)

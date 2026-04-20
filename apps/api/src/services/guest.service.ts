@@ -12,8 +12,11 @@ export class OrgNotFoundError extends Error { constructor() { super('ORG_NOT_FOU
 
 /** Resolve organizationId from a HyperGuest propertyId (the external integer ID). */
 export async function resolveOrgIdFromProperty(propertyId: number): Promise<number> {
-  const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
-  if (!prop) throw new OrgNotFoundError()
+  const prop = await prisma.property.findUnique({
+    where: { propertyId },
+    select: { organizationId: true, organization: { select: { isActive: true, deletedAt: true } } },
+  })
+  if (!prop || !prop.organization.isActive || prop.organization.deletedAt) throw new OrgNotFoundError()
   return prop.organizationId
 }
 

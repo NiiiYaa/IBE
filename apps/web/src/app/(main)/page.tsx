@@ -104,7 +104,12 @@ export default async function HomePage({
       fetchOrgConfig(tenant.orgId),
       fetchOrgPropertyList(tenant.orgId),
     ])
-    propertyId = propertyList?.properties[0]?.propertyId ?? 0
+    const defaultProp = propertyList?.properties.find(p => p.isDefault) ?? propertyList?.properties[0]
+    propertyId = defaultProp?.propertyId ?? 0
+    // Always fetch the default property's data so hero images and name are available
+    if (propertyId) {
+      property = await fetchProperty(propertyId)
+    }
   } else {
     propertyId = tenant.propertyId
     ;[config, property, propertyList] = await Promise.all([
@@ -127,13 +132,16 @@ export default async function HomePage({
     .sort((a, b) => a.priority - b.priority)
     .map(img => img.url)
 
-  const heroImageUrl = config?.heroImageUrl || propertyImages[0] || null
-  const carouselImages = config?.heroImageUrl
-    ? [config.heroImageUrl, ...propertyImages.filter(u => u !== config.heroImageUrl)]
+  const heroImageUrl = (tenant.type === 'org' ? config?.chainHeroImageUrl : null)
+    || config?.heroImageUrl
+    || propertyImages[0]
+    || null
+  const carouselImages = heroImageUrl
+    ? [heroImageUrl, ...propertyImages.filter(u => u !== heroImageUrl)]
     : propertyImages
 
-  // In multi-property mode, fetch names + cities for all registered properties
-  const isMulti = propertyList?.mode === 'multi' && (propertyList?.properties.length ?? 0) > 1
+  // PropertyGrid only renders on the chain/org landing page in multi-property mode
+  const isMulti = tenant.type === 'org' && propertyList?.mode === 'multi' && (propertyList?.properties.length ?? 0) > 1
   const multiProperties = isMulti
     ? await Promise.all(
         propertyList!.properties.map(async r => {

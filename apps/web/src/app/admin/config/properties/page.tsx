@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
-import type { PropertyMode, PropertyRecord, PropertyUserAssignment, ImportSummary } from '@ibe/shared'
+import type { PropertyMode, PropertyRecord, PropertyUserAssignment, ImportSummary, OrgSettingsResponse } from '@ibe/shared'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 
@@ -340,7 +340,8 @@ function PropertyRow({
   onRefresh: () => void
 }) {
   const qc = useQueryClient()
-  const { data: property, isLoading } = useProperty(record.propertyId)
+  const needsHGFetch = !record.name
+  const { data: property, isLoading } = useProperty(needsHGFetch ? record.propertyId : null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
@@ -375,16 +376,22 @@ function PropertyRow({
           This is a demo property. Add your own HyperGuest property to get started — the demo will disappear once you do.
         </div>
       )}
-      <div className="flex items-start justify-between gap-4 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-4">
+      <div className="px-5 py-4">
+        {/* Header row: avatar + name (flex-1) | view buttons */}
+        <div className="flex items-center gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-light)] text-sm font-bold text-[var(--color-primary)]">
             {record.propertyId}
           </div>
-          <div className="min-w-0">
-            {isLoading ? (
+          <div className="min-w-0 flex-1">
+            {!record.name && isLoading ? (
               <div className="h-4 w-32 animate-pulse rounded bg-[var(--color-border)]" />
             ) : (
-              <p className="truncate font-medium text-[var(--color-text)]">{property?.name ?? `Property ${record.propertyId}`}</p>
+              <p
+                className="truncate font-medium text-[var(--color-text)]"
+                title={record.name ?? property?.name ?? `Property ${record.propertyId}`}
+              >
+                {record.name ?? property?.name ?? `Property ${record.propertyId}`}
+              </p>
             )}
             <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
               HyperGuest ID: {record.propertyId}
@@ -403,11 +410,8 @@ function PropertyRow({
               )}
             </p>
           </div>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {/* Row 1: view / sync */}
-          <div className="flex items-center gap-1.5">
+          {/* View / sync buttons */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <a
               href={record.subdomain
                 ? `https://${record.subdomain}.hyperguest.net`
@@ -425,85 +429,85 @@ function PropertyRow({
             <SearchTestButton propertyId={record.propertyId} />
             <SyncButton propertyId={record.propertyId} lastSyncedAt={record.lastSyncedAt} onSynced={onRefresh} />
           </div>
-
-          {/* Row 2: management (non-demo only) */}
-          {!isDemo && (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setShowSubdomain(v => !v)}
-                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
-                  showSubdomain
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                ].join(' ')}
-                title={record.subdomain ? `Subdomain: ${record.subdomain}.hyperguest.net` : 'Set subdomain'}
-              >
-                {record.subdomain ? `${record.subdomain}.hyperguest.net` : 'Set subdomain'}
-              </button>
-
-              <button
-                onClick={() => setShowCreds(v => !v)}
-                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
-                  showCreds
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                ].join(' ')}
-              >
-                HG credentials
-              </button>
-
-              <button
-                onClick={() => activeMutation.mutate(!record.isActive)}
-                disabled={activeMutation.isPending}
-                title={record.isActive ? 'Disable property' : 'Enable property'}
-                className={[
-                  'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
-                  record.isActive
-                    ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                ].join(' ')}
-              >
-                {record.isActive ? 'Enabled' : 'Disabled'}
-              </button>
-
-              <button
-                onClick={() => setShowAssign(v => !v)}
-                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
-                  showAssign
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                ].join(' ')}
-              >
-                Assign users
-              </button>
-
-              {showDefault && !record.isDefault && onSetDefault && (
-                <button onClick={onSetDefault}
-                  className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
-                  Set default
-                </button>
-              )}
-
-              {deleteConfirm ? (
-                <div className="flex items-center gap-1">
-                  <button onClick={handleDelete} disabled={deleting}
-                    className="h-7 rounded-lg bg-[var(--color-error)] px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
-                    {deleting ? '…' : 'Confirm delete'}
-                  </button>
-                  <button onClick={() => setDeleteConfirm(false)}
-                    className="h-7 rounded-lg px-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => setDeleteConfirm(true)}
-                  className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)]">
-                  Delete
-                </button>
-              )}
-            </div>
-          )}
         </div>
+
+        {/* Management buttons row (non-demo only) */}
+        {!isDemo && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[var(--color-border)] pt-3">
+            <button
+              onClick={() => setShowSubdomain(v => !v)}
+              className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                showSubdomain
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+              ].join(' ')}
+              title={record.subdomain ? `Subdomain: ${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+            >
+              {record.subdomain ? `${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+            </button>
+
+            <button
+              onClick={() => setShowCreds(v => !v)}
+              className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                showCreds
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+              ].join(' ')}
+            >
+              HG credentials
+            </button>
+
+            <button
+              onClick={() => activeMutation.mutate(!record.isActive)}
+              disabled={activeMutation.isPending}
+              title={record.isActive ? 'Disable property' : 'Enable property'}
+              className={[
+                'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
+                record.isActive
+                  ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+              ].join(' ')}
+            >
+              {record.isActive ? 'Enabled' : 'Disabled'}
+            </button>
+
+            <button
+              onClick={() => setShowAssign(v => !v)}
+              className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                showAssign
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+              ].join(' ')}
+            >
+              Assign users
+            </button>
+
+            {showDefault && !record.isDefault && onSetDefault && (
+              <button onClick={onSetDefault}
+                className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Set default
+              </button>
+            )}
+
+            {deleteConfirm ? (
+              <div className="flex items-center gap-1">
+                <button onClick={handleDelete} disabled={deleting}
+                  className="h-7 rounded-lg bg-[var(--color-error)] px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                  {deleting ? '…' : 'Confirm delete'}
+                </button>
+                <button onClick={() => setDeleteConfirm(false)}
+                  className="h-7 rounded-lg px-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setDeleteConfirm(true)}
+                className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)]">
+                Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {showSubdomain && !isDemo && (
@@ -529,7 +533,7 @@ function PropertyRow({
   )
 }
 
-function AddPropertyPanel({ onAdd, onImportDone, isPending, error }: { onAdd: (id: number) => void; onImportDone: () => void; isPending: boolean; error: string | null }) {
+function AddPropertyPanel({ onAdd, onImportDone, isPending, error, hasToken }: { onAdd: (id: number) => void; onImportDone: () => void; isPending: boolean; error: string | null; hasToken: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [newId, setNewId] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
@@ -557,6 +561,23 @@ function AddPropertyPanel({ onAdd, onImportDone, isPending, error }: { onAdd: (i
     setImportError(null)
     importMutation.mutate(file)
     e.target.value = ''
+  }
+
+  if (!hasToken) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5">
+        <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+        <div>
+          <p className="text-sm font-medium text-amber-800">HyperGuest bearer token required</p>
+          <p className="mt-0.5 text-xs text-amber-700">
+            A HyperGuest bearer token must be configured before adding properties.{' '}
+            <a href="/admin/config/org" className="underline hover:text-amber-900">Go to Organization settings</a> to add one.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -640,9 +661,13 @@ function AddPropertyPanel({ onAdd, onImportDone, isPending, error }: { onAdd: (i
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+type FilterStatus = 'all' | 'active' | 'inactive'
+
 export default function PropertiesPage() {
   const qc = useQueryClient()
   const [addError, setAddError] = useState<string | null>(null)
+  const [filterText, setFilterText] = useState('')
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const { admin, isAuthenticated } = useAdminAuth()
   const isSuper = admin?.role === 'super'
 
@@ -661,10 +686,18 @@ export default function PropertiesPage() {
     staleTime: 30_000,
   })
 
+  const { data: orgSettings } = useQuery<OrgSettingsResponse>({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    enabled: isAuthenticated && !isSuper,
+    staleTime: 60_000,
+  })
+
   const loading = !admin || (isSuper ? superLoading : isLoading)
   const mode = data?.mode ?? 'single'
   const showDemoProperty = data?.showDemoProperty ?? false
   const properties = isSuper ? (superData?.properties ?? []) : (data?.properties ?? [])
+  const hasToken = orgSettings ? orgSettings.effectiveBearerTokenSet : true
 
   const modeMutation = useMutation({
     mutationFn: (m: PropertyMode) => apiClient.setPropertyMode(m),
@@ -689,6 +722,18 @@ export default function PropertiesPage() {
 
   const realProperties = properties.filter(p => !p.isDemo)
   const canAddMore = !isSuper && (mode === 'multi' || realProperties.length === 0)
+
+  const filteredProperties = properties.filter(p => {
+    if (filterStatus === 'active' && !p.isActive) return false
+    if (filterStatus === 'inactive' && p.isActive) return false
+    if (filterText) {
+      const text = filterText.toLowerCase()
+      const matchesId = String(p.propertyId).includes(text)
+      const matchesName = (p.name ?? '').toLowerCase().includes(text) || (p.orgName ?? '').toLowerCase().includes(text)
+      if (!matchesId && !matchesName) return false
+    }
+    return true
+  })
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -717,6 +762,7 @@ export default function PropertiesPage() {
                 onImportDone={() => void qc.invalidateQueries({ queryKey: ['admin-properties'] })}
                 isPending={addMutation.isPending}
                 error={addError}
+                hasToken={hasToken}
               />
             </div>
           )}
@@ -744,13 +790,37 @@ export default function PropertiesPage() {
         </>
       )}
 
+      {/* Filters */}
+      {!loading && properties.length > 1 && (
+        <div className="mb-4 flex gap-2">
+          <input
+            type="text"
+            placeholder="Search by ID or name…"
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+          />
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value as FilterStatus)}
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--color-border)]" />)}
         </div>
+      ) : filteredProperties.length === 0 && properties.length > 0 ? (
+        <p className="py-8 text-center text-sm text-[var(--color-text-muted)]">No properties match your filters.</p>
       ) : (
         <div className="space-y-3">
-          {properties.map(r => (
+          {filteredProperties.map(r => (
             <PropertyRow key={`${r.orgId ?? 0}-${r.propertyId}`} record={r}
               showDefault={!isSuper && mode === 'multi'}
               onSetDefault={() => defaultMutation.mutate(r.id)}

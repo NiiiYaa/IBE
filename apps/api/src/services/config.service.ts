@@ -158,7 +158,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     searchResultsImageMode: (o?.searchResultsImageMode ?? 'fixed') as 'fixed' | 'carousel',
     searchResultsCarouselInterval: o?.searchResultsCarouselInterval ?? 5,
     searchResultsExcludedImageIds: [],
-    excludedPropertyImageIds: [],
+    excludedPropertyImageIds: safeParseJson<number[]>(o?.chainExcludedPropertyImageIds ?? null, []),
     excludedRoomImageIds: [],
     roomPrimaryImageIds: {},
     tripadvisorHotelKey: null,
@@ -270,6 +270,7 @@ export async function upsertOrgDesignDefaults(
   }
   if (updates.enabledLocales !== undefined) data.enabledLocales = JSON.stringify(updates.enabledLocales)
   if (updates.enabledCurrencies !== undefined) data.enabledCurrencies = JSON.stringify(updates.enabledCurrencies)
+  if (updates.chainExcludedPropertyImageIds !== undefined) data.chainExcludedPropertyImageIds = JSON.stringify(updates.chainExcludedPropertyImageIds ?? [])
 
   const row = await prisma.orgDesignDefaults.upsert({
     where: { organizationId },
@@ -295,6 +296,7 @@ function rowToOrgDefaults(row: {
   roomRatesDefaultExpanded: boolean | null; infantMaxAge: number | null; childMaxAge: number | null
   onlinePaymentEnabled: boolean | null; payAtHotelEnabled: boolean | null; payAtHotelCardGuaranteeRequired: boolean | null
   chainHeroImageUrl?: string | null
+  chainExcludedPropertyImageIds?: string | null
 } | null): OrgDesignDefaultsConfig {
   return {
     colorPrimary: row?.colorPrimary ?? null,
@@ -333,6 +335,7 @@ function rowToOrgDefaults(row: {
     payAtHotelEnabled: row?.payAtHotelEnabled ?? null,
     payAtHotelCardGuaranteeRequired: row?.payAtHotelCardGuaranteeRequired ?? null,
     chainHeroImageUrl: row?.chainHeroImageUrl ?? null,
+    chainExcludedPropertyImageIds: safeParseJson<number[]>(row?.chainExcludedPropertyImageIds ?? null, []),
   }
 }
 

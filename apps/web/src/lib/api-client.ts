@@ -539,6 +539,24 @@ export const apiClient = {
     })
   },
 
+  updateOrg(orgId: number, data: { name?: string; hyperGuestOrgId?: string | null }): Promise<OrgRecord> {
+    return apiRequest<OrgRecord>(`/api/v1/admin/super/orgs/${orgId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  setOrgActive(orgId: number, isActive: boolean): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/orgs/${orgId}/active`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    })
+  },
+
+  deleteOrg(orgId: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/orgs/${orgId}`, { method: 'DELETE' })
+  },
+
   setOrgHyperGuestId(orgId: number, hyperGuestOrgId: string | null): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/orgs/${orgId}/hg-org-id`, {
       method: 'PUT',

@@ -385,6 +385,7 @@ export interface OrgDesignDefaultsConfig {
   payAtHotelEnabled: boolean | null
   payAtHotelCardGuaranteeRequired: boolean | null
   chainHeroImageUrl: string | null
+  chainExcludedPropertyImageIds: number[] | null
 }
 
 export interface OrgNavItem {
@@ -618,6 +619,7 @@ export interface PropertyRecord {
   isActive: boolean
   lastSyncedAt: string | null
   createdAt: string
+  name?: string | null
   isDemo?: boolean
   orgId?: number
   orgName?: string
@@ -896,6 +898,8 @@ export interface OrgRecord {
   name: string
   slug: string
   hyperGuestOrgId: string | null
+  isActive: boolean
+  deletedAt: string | null
   userCount: number
   createdAt: string
 }
