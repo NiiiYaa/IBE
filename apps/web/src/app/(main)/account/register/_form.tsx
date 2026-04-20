@@ -21,7 +21,7 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const returnTo = searchParams.get('returnTo') || '/'
+  const returnTo = searchParams.get('returnTo') || `/?hotelId=${propertyId}`
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', firstName: '', lastName: '', phone: '', nationality: '' })
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)

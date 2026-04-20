@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'next/navigation'
 import { useRequireGuestAuth } from '@/hooks/use-guest-auth'
 import { apiClient } from '@/lib/api-client'
 import type { GuestBookingSummary } from '@ibe/shared'
@@ -57,6 +58,9 @@ function BookingCard({ b }: { b: GuestBookingSummary }) {
 
 export default function GuestBookingsPage() {
   useRequireGuestAuth()
+  const searchParams = useSearchParams()
+  const hotelId = searchParams.get('hotelId')
+  const homeHref = hotelId ? `/?hotelId=${hotelId}` : '/'
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -98,7 +102,7 @@ export default function GuestBookingsPage() {
           </p>
           {tab === 'upcoming' && (
             <Link
-              href="/"
+              href={homeHref}
               className="mt-3 inline-block text-sm font-medium text-[var(--color-primary)] hover:underline"
             >
               Browse hotels
