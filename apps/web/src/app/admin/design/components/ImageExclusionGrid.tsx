@@ -35,7 +35,7 @@ export function ImageExclusionGrid({ images, excludedIds, onChange, label }: Ima
         </p>
       )}
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-        {images.map(img => {
+        {[...images].sort((a, b) => Number(excludedIds.includes(a.id)) - Number(excludedIds.includes(b.id))).map(img => {
           const isExcluded = excludedIds.includes(img.id)
           return (
             <button

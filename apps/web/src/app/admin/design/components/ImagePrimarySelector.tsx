@@ -44,7 +44,7 @@ export function ImagePrimarySelector({
         </p>
       )}
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-        {availableImages.map(img => {
+        {[...availableImages].sort((a, b) => Number(b.id === currentPrimaryId) - Number(a.id === currentPrimaryId)).map(img => {
           const isPrimary = img.id === currentPrimaryId
           return (
             <button

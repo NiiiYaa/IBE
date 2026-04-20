@@ -55,6 +55,12 @@ export function RoomImageManager({
 
   const hiddenCount = images.filter(img => excludedSet.has(img.id)).length
 
+  const sortedImages = [...images].sort((a, b) => {
+    const rank = (img: PropertyImage) =>
+      img.id === primaryId ? 0 : excludedSet.has(img.id) ? 2 : 1
+    return rank(a) - rank(b)
+  })
+
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
@@ -96,7 +102,7 @@ export function RoomImageManager({
       </div>
 
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-        {images.map(img => {
+        {sortedImages.map(img => {
           const isPrimary = img.id === primaryId
           const isExcluded = excludedSet.has(img.id)
 

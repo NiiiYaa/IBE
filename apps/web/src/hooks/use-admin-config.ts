@@ -89,5 +89,17 @@ export function useAdminConfig(propertyId: number) {
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
 
-  return { config, isLoading, draft, set, save: () => mutate(draft), isPending, saved, saveError, isDirty }
+  function buildDiff(): UpdateDesignConfigRequest {
+    const diff: UpdateDesignConfigRequest = {}
+    for (const k of Object.keys(draft) as (keyof UpdateDesignConfigRequest)[]) {
+      const a = draft[k], b = baseline[k]
+      const changed = Array.isArray(a) || (typeof a === 'object' && a !== null)
+        ? JSON.stringify(a) !== JSON.stringify(b)
+        : a !== b
+      if (changed) (diff as Record<string, unknown>)[k] = a
+    }
+    return Object.keys(diff).length > 0 ? diff : draft
+  }
+
+  return { config, isLoading, draft, set, save: () => mutate(buildDiff()), isPending, saved, saveError, isDirty }
 }
