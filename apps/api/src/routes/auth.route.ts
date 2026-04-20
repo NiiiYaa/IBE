@@ -96,18 +96,37 @@ export async function authRoutes(fastify: FastifyInstance) {
         client: { id: env.GOOGLE_CLIENT_ID, secret: env.GOOGLE_CLIENT_SECRET },
         auth: (oauth2 as unknown as { GOOGLE_CONFIGURATION: object }).GOOGLE_CONFIGURATION,
       },
-      startRedirectPath: '/auth/google',
       callbackUri: `${env.WEB_BASE_URL}/api/v1/auth/google/callback`,
     })
 
-    fastify.get('/auth/google/callback', async (request, reply) => {
-      try {
-        const instance = fastify as unknown as {
-          googleOAuth2: { getAccessTokenFromAuthorizationCodeFlow: (req: typeof request) => Promise<{ token: { access_token: string } }> }
-        }
-        const { token } = await instance.googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request)
+    type GoogleOAuth2Instance = {
+      googleOAuth2: {
+        generateAuthorizationUri: (req: typeof request, reply: typeof reply) => Promise<string>
+        getAccessTokenFromAuthorizationCodeFlow: (req: typeof request) => Promise<{ token: { access_token: string } }>
+      }
+    }
 
-        // Fetch Google profile
+    const INTENT_COOKIE = 'google_oauth_intent'
+    const INTENT_COOKIE_OPTS = { path: '/', httpOnly: true, sameSite: 'lax' as const, maxAge: 300 }
+
+    fastify.get('/auth/google/login', async (request, reply) => {
+      reply.setCookie(INTENT_COOKIE, 'login', INTENT_COOKIE_OPTS)
+      const uri = await (fastify as unknown as GoogleOAuth2Instance).googleOAuth2.generateAuthorizationUri(request, reply)
+      return reply.redirect(uri)
+    })
+
+    fastify.get('/auth/google/signup', async (request, reply) => {
+      reply.setCookie(INTENT_COOKIE, 'signup', INTENT_COOKIE_OPTS)
+      const uri = await (fastify as unknown as GoogleOAuth2Instance).googleOAuth2.generateAuthorizationUri(request, reply)
+      return reply.redirect(uri)
+    })
+
+    fastify.get('/auth/google/callback', async (request, reply) => {
+      const intent = (request.cookies as Record<string, string>)[INTENT_COOKIE] ?? 'signup'
+      reply.clearCookie(INTENT_COOKIE, { path: '/' })
+      try {
+        const { token } = await (fastify as unknown as GoogleOAuth2Instance).googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request)
+
         const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: { Authorization: `Bearer ${token.access_token}` },
         })
@@ -117,11 +136,16 @@ export async function authRoutes(fastify: FastifyInstance) {
           googleId: profile.id,
           email: profile.email,
           name: profile.name,
+          createIfNotFound: intent === 'signup',
         })
 
         setCookieAndRespond(fastify, reply, admin)
         return reply.redirect(`${env.WEB_BASE_URL}/admin${admin.isNew ? '/onboarding' : ''}`)
       } catch (err) {
+        const message = err instanceof Error ? err.message : ''
+        if (message === 'NO_ACCOUNT') {
+          return reply.redirect(`${env.WEB_BASE_URL}/admin/login?error=google_no_account`)
+        }
         fastify.log.error(err, 'Google OAuth callback failed')
         return reply.redirect(`${env.WEB_BASE_URL}/admin/login?error=oauth_failed`)
       }

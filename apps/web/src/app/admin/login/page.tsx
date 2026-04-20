@@ -19,7 +19,10 @@ export default function AdminLoginPage() {
   const [googleEnabled, setGoogleEnabled] = useState(false)
 
   useEffect(() => {
-    if (searchParams.get('error') === 'oauth_failed') {
+    const oauthError = searchParams.get('error')
+    if (oauthError === 'google_no_account') {
+      setError('No account found for this Google account. Please sign up first.')
+    } else if (oauthError === 'oauth_failed') {
       setError('Google sign-in failed. Please try again.')
     }
   }, [searchParams])
@@ -52,7 +55,7 @@ export default function AdminLoginPage() {
         {googleEnabled && (
           <>
             <a
-              href="/api/v1/auth/google"
+              href="/api/v1/auth/google/login"
               className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
             >
               <GoogleIcon />

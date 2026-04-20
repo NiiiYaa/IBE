@@ -70,7 +70,7 @@ export default function AdminSignupPage() {
         {googleEnabled && (
           <>
             <a
-              href="/api/v1/auth/google"
+              href="/api/v1/auth/google/signup"
               className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
             >
               <GoogleIcon />

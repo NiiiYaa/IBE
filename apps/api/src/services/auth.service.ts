@@ -76,6 +76,7 @@ export async function findOrCreateGoogleUser(data: {
   googleId: string
   email: string
   name: string
+  createIfNotFound?: boolean
 }): Promise<AdminPayload & { isNew: boolean }> {
   const email = data.email.toLowerCase()
 
@@ -90,6 +91,8 @@ export async function findOrCreateGoogleUser(data: {
     if (!existing.isActive) throw new Error('Account is inactive')
     return { adminId: existing.id, organizationId: existing.organizationId, role: existing.role, isNew: false }
   }
+
+  if (!data.createIfNotFound) throw new Error('NO_ACCOUNT')
 
   const slug = email.split('@')[0]!.replace(/[^a-z0-9]+/g, '-') + '-' + Date.now()
   const org = await prisma.organization.create({ data: { name: data.name, slug } })
