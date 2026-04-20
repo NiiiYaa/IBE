@@ -69,7 +69,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const faviconUrl        = c?.faviconUrl        ?? o?.faviconUrl        ?? null
   const displayName       = c?.displayName       ?? property?.name       ?? null
   const tagline           = c?.tagline           ?? o?.tagline           ?? null
-  const tabTitle          = c?.tabTitle          ?? o?.tabTitle          ?? null
+  const tabTitle          = c?.tabTitle          ?? null
   const defaultCurrency   = c?.defaultCurrency   ?? o?.defaultCurrency   ?? d.defaultCurrency
   const defaultLocale     = c?.defaultLocale     ?? o?.defaultLocale     ?? d.defaultLocale
   const textDirection     = (c?.textDirection    ?? o?.textDirection     ?? d.textDirection) as 'ltr' | 'rtl'

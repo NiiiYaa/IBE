@@ -66,6 +66,13 @@ async function resolveDefaultPropertyId(orgId: number): Promise<number | null> {
   } catch { return null }
 }
 
+async function fetchPropertyList(propertyId: number): Promise<PropertyListResponse | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/config/properties?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    return res.ok ? (res.json() as Promise<PropertyListResponse>) : null
+  } catch { return null }
+}
+
 async function resolveTenantConfig(): Promise<{
   config: HotelDesignConfig | null
   hotelConfig: HotelDesignConfig | null
@@ -129,11 +136,16 @@ async function resolveTenantConfig(): Promise<{
   }
 
   if (DEFAULT_PROPERTY_ID) {
-    const [config, property, navItems] = await Promise.all([
+    const [config, property, navItems, propertyList] = await Promise.all([
       fetchConfig(DEFAULT_PROPERTY_ID),
       fetchProperty(DEFAULT_PROPERTY_ID),
       fetchNavItems(DEFAULT_PROPERTY_ID),
+      fetchPropertyList(DEFAULT_PROPERTY_ID),
     ])
+    if (propertyList?.orgId && propertyList.properties.length > 1) {
+      const orgConfig = await fetchOrgConfig(propertyList.orgId)
+      return { config: orgConfig, hotelConfig: config, property, navItems: [], isChain: true }
+    }
     return { config, hotelConfig: config, property, navItems, isChain: false }
   }
 

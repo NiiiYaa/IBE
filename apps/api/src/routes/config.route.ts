@@ -107,6 +107,7 @@ export async function configRoutes(fastify: FastifyInstance) {
     ])
     void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
     return reply.send({
+      orgId,
       mode: settings.propertyMode,
       showCitySelector: settings.showCitySelector,
       showDemoProperty: settings.showDemoProperty,

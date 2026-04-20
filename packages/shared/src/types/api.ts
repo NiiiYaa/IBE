@@ -644,6 +644,7 @@ export interface PropertyListResponse {
   showCitySelector: boolean
   showDemoProperty: boolean
   properties: PropertyRecord[]
+  orgId?: number
 }
 
 export interface SuperPropertyListResponse {
