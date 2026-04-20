@@ -280,7 +280,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
 
         const jwtToken = fastify.jwt.sign({ guestId: guest.id, type: 'guest' })
         reply.setCookie(GUEST_COOKIE, jwtToken, COOKIE_OPTS)
-        return reply.redirect(`${env.WEB_BASE_URL}/account/bookings`)
+        return reply.redirect(`${env.WEB_BASE_URL}/account/oauth-success?propertyId=${propertyId}`)
       } catch (err) {
         fastify.log.error(err, 'Guest Google OAuth callback failed')
         return reply.redirect(`${env.WEB_BASE_URL}/account/login?error=oauth_failed`)

@@ -9,7 +9,7 @@ const NAV = [
   { href: '/account/profile', label: 'Profile' },
 ]
 
-const AUTH_PAGES = ['/account/login', '/account/register']
+const AUTH_PAGES = ['/account/login', '/account/register', '/account/oauth-success']
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

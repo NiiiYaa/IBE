@@ -11,6 +11,10 @@ function safeParseJsonIds(value: string | null | undefined): number[] {
   try { return JSON.parse(value ?? '[]') as number[] } catch { return [] }
 }
 
+function safeParseJsonImages(value: string | null | undefined): Array<{ id: number; url: string; description: string; priority: number }> {
+  try { return JSON.parse(value ?? '[]') as Array<{ id: number; url: string; description: string; priority: number }> } catch { return [] }
+}
+
 export async function configRoutes(fastify: FastifyInstance) {
   // GET /offers/constraints/:propertyId — public: effective min/max nights & rooms for search UI
   fastify.get('/offers/constraints/:propertyId', async (request, reply) => {
@@ -174,15 +178,24 @@ export async function configRoutes(fastify: FastifyInstance) {
     const propertyIds = properties.map(p => p.propertyId)
     const configs = await prisma.hotelConfig.findMany({
       where: { propertyId: { in: propertyIds } },
-      select: { propertyId: true, chainFeaturedImageIds: true },
+      select: { propertyId: true, chainFeaturedImageIds: true, chainFeaturedImagesJson: true },
     })
-    const configMap = new Map(configs.map(c => [c.propertyId, safeParseJsonIds(c.chainFeaturedImageIds)]))
+    const configMap = new Map(configs.map(c => [c.propertyId, c]))
 
-    // 2. Fetch static data only for properties that have featured IDs (server-side cached)
+    // 2. Return pre-stored image data from DB; only fall back to HyperGuest if not yet populated
     const results = await Promise.all(
       properties.map(async prop => {
-        const featuredIds = configMap.get(prop.propertyId) ?? []
+        const config = configMap.get(prop.propertyId)
+        const featuredIds = safeParseJsonIds(config?.chainFeaturedImageIds)
         if (featuredIds.length === 0) return null
+
+        // Happy path: images were cached in DB when admin saved the hotel page
+        const storedImages = safeParseJsonImages(config?.chainFeaturedImagesJson)
+        if (storedImages.length > 0) {
+          return { propertyId: prop.propertyId, name: prop.name ?? `Property ${prop.propertyId}`, images: storedImages }
+        }
+
+        // Cold path: not yet backfilled — fetch from HyperGuest once and store for next time
         try {
           const staticData = await fetchPropertyStatic(prop.propertyId)
           const featuredSet = new Set(featuredIds)
@@ -191,6 +204,11 @@ export async function configRoutes(fastify: FastifyInstance) {
             .sort((a, b) => a.priority - b.priority)
             .map(img => ({ id: img.id, url: img.uri, description: img.description, priority: img.priority }))
           if (images.length === 0) return null
+          // Backfill so next load is instant
+          void prisma.hotelConfig.update({
+            where: { propertyId: prop.propertyId },
+            data: { chainFeaturedImagesJson: JSON.stringify(images) },
+          }).catch(() => {})
           return { propertyId: prop.propertyId, name: prop.name ?? `Property ${prop.propertyId}`, images }
         } catch {
           return null

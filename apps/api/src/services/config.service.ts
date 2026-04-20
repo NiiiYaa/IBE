@@ -215,6 +215,7 @@ export async function upsertHotelDesignConfig(
     ...(updates.excludedRoomImageIds !== undefined && { excludedRoomImageIds: JSON.stringify(updates.excludedRoomImageIds) }),
     ...(updates.roomPrimaryImageIds !== undefined && { roomPrimaryImageIds: JSON.stringify(updates.roomPrimaryImageIds) }),
     ...(updates.chainFeaturedImageIds !== undefined && { chainFeaturedImageIds: JSON.stringify(updates.chainFeaturedImageIds) }),
+    ...(updates.chainFeaturedImageIds !== undefined && updates.chainFeaturedImageIds.length === 0 && { chainFeaturedImagesJson: '[]' }),
     ...(updates.tripadvisorHotelKey !== undefined && { tripadvisorHotelKey: updates.tripadvisorHotelKey }),
     ...(updates.priceComparisonEnabled !== undefined && { priceComparisonEnabled: updates.priceComparisonEnabled }),
   }
@@ -224,6 +225,27 @@ export async function upsertHotelDesignConfig(
     create: { propertyId, ...data },
     update: data,
   })
+
+  // Backfill chainFeaturedImagesJson with full image data (fire-and-forget, no HyperGuest blocking the save)
+  if (updates.chainFeaturedImageIds !== undefined && updates.chainFeaturedImageIds.length > 0) {
+    void (async () => {
+      try {
+        const { fetchPropertyStatic } = await import('../adapters/hyperguest/static.js')
+        const staticData = await fetchPropertyStatic(propertyId)
+        const featuredSet = new Set(updates.chainFeaturedImageIds)
+        const images = staticData.images
+          .filter(img => featuredSet.has(img.id))
+          .sort((a, b) => a.priority - b.priority)
+          .map(img => ({ id: img.id, url: img.uri, description: img.description, priority: img.priority }))
+        await prisma.hotelConfig.update({
+          where: { propertyId },
+          data: { chainFeaturedImagesJson: JSON.stringify(images) },
+        })
+      } catch {
+        // non-critical: chain page falls back to HyperGuest if this fails
+      }
+    })()
+  }
 
   // When chain-featured images are updated, auto-unexclude them in org defaults
   if (updates.chainFeaturedImageIds !== undefined && updates.chainFeaturedImageIds.length > 0) {

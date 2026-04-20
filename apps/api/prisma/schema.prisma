@@ -286,6 +286,7 @@ model HotelConfig {
   excludedRoomImageIds            String   @default("[]")
   roomPrimaryImageIds             String   @default("{}")
   chainFeaturedImageIds           String   @default("[]")
+  chainFeaturedImagesJson         String   @default("[]")
   tripadvisorHotelKey             String?
   priceComparisonEnabled          Boolean  @default(true)
   isActive                        Boolean  @default(true)
