@@ -31,6 +31,23 @@ export function errorHandler(
     return
   }
 
+  // Prisma / DB connection errors → 503 so the client can retry
+  const msg = error.message ?? ''
+  if (
+    msg.includes("Can't reach database server") ||
+    msg.includes('Server has closed the connection') ||
+    msg.includes('Connection timed out') ||
+    msg.includes('connection is closed') ||
+    (error as unknown as { code?: string }).code === 'P1001' ||
+    (error as unknown as { code?: string }).code === 'P1017'
+  ) {
+    void reply.status(503).send({
+      error: 'Database temporarily unavailable, please retry',
+      code: 'DB_UNAVAILABLE',
+    })
+    return
+  }
+
   // Unexpected errors
   logger.error(
     { err: error, url: request.url, method: request.method },

@@ -91,34 +91,58 @@ class ApiClientError extends Error {
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`
   const hasBody = options?.body !== undefined
-  const response = await fetch(url, {
+  const fetchOptions: RequestInit = {
     headers: {
       ...(hasBody && { 'Content-Type': 'application/json' }),
       ...options?.headers,
     },
     ...options,
-  })
-
-  if (response.status === 204) return undefined as T
-
-  let body: T | ApiError
-  try {
-    body = (await response.json()) as T | ApiError
-  } catch {
-    throw new ApiClientError(`HTTP_${response.status}`, response.statusText || 'Request failed', response.status)
   }
 
-  if (!response.ok) {
-    const err = body as ApiError
-    throw new ApiClientError(
-      err.code ?? `HTTP_${response.status}`,
-      err.message || err.error || 'Request failed',
-      response.status,
-      err.details,
-    )
+  // Retry on 503 (DB temporarily unavailable) or network errors for up to ~60s.
+  const maxAttempts = 12
+  const retryDelayMs = 5000
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let response: Response
+    try {
+      response = await fetch(url, fetchOptions)
+    } catch {
+      // Network error — server unreachable (e.g. restarting)
+      if (attempt >= maxAttempts - 1) throw new ApiClientError('NETWORK_ERROR', 'Request failed', 0)
+      await new Promise(r => setTimeout(r, retryDelayMs))
+      continue
+    }
+
+    if (response.status === 503) {
+      if (attempt >= maxAttempts - 1) throw new ApiClientError('DB_UNAVAILABLE', 'Database temporarily unavailable', 503)
+      await new Promise(r => setTimeout(r, retryDelayMs))
+      continue
+    }
+
+    if (response.status === 204) return undefined as T
+
+    let body: T | ApiError
+    try {
+      body = (await response.json()) as T | ApiError
+    } catch {
+      throw new ApiClientError(`HTTP_${response.status}`, response.statusText || 'Request failed', response.status)
+    }
+
+    if (!response.ok) {
+      const err = body as ApiError
+      throw new ApiClientError(
+        err.code ?? `HTTP_${response.status}`,
+        err.message || err.error || 'Request failed',
+        response.status,
+        err.details,
+      )
+    }
+
+    return body as T
   }
 
-  return body as T
+  throw new ApiClientError('NETWORK_ERROR', 'Request failed', 0)
 }
 
 export interface AdminMe {
