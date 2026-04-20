@@ -92,8 +92,11 @@ async function resolveTenantConfig(): Promise<{
         fetchOrgConfig(tenant.orgId),
         resolveDefaultPropertyId(tenant.orgId),
       ])
-      const hotelConfig = pid ? await fetchConfig(pid) : null
-      return { config: orgConfig, hotelConfig, property: null, navItems: [] }
+      const [hotelConfig, property] = await Promise.all([
+        pid ? fetchConfig(pid) : Promise.resolve(null),
+        pid ? fetchProperty(pid) : Promise.resolve(null),
+      ])
+      return { config: orgConfig, hotelConfig, property, navItems: [] }
     }
   }
 
@@ -116,8 +119,11 @@ async function resolveTenantConfig(): Promise<{
         fetchOrgConfig(orgId),
         resolveDefaultPropertyId(orgId),
       ])
-      const hotelConfig = pid ? await fetchConfig(pid) : null
-      return { config: orgConfig, hotelConfig, property: null, navItems: [] }
+      const [hotelConfig, property] = await Promise.all([
+        pid ? fetchConfig(pid) : Promise.resolve(null),
+        pid ? fetchProperty(pid) : Promise.resolve(null),
+      ])
+      return { config: orgConfig, hotelConfig, property, navItems: [] }
     }
   }
 
