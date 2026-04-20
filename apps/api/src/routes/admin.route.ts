@@ -21,11 +21,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
       organizationId = firstOrg.id
     }
     const [org, settings, effective] = await Promise.all([
-      prisma.organization.findUnique({ where: { id: organizationId }, select: { hyperGuestOrgId: true } }),
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, hyperGuestOrgId: true } }),
       getOrgSettings(organizationId),
       getHGCredentials(organizationId),
     ])
     return reply.send({
+      orgName: org?.name ?? null,
       hyperGuestOrgId: org?.hyperGuestOrgId ?? null,
       hyperGuestBearerToken: settings.hyperGuestBearerToken
         ? `****${settings.hyperGuestBearerToken.slice(-4)}`
@@ -65,6 +66,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       organizationId = firstOrg.id
     }
     const body = request.body as {
+      orgName?: string
       hyperGuestOrgId?: string
       hyperGuestBearerToken?: string
       hyperGuestStaticDomain?: string
@@ -77,13 +79,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const updates: Promise<unknown>[] = []
 
-    if (body.hyperGuestOrgId !== undefined) {
-      updates.push(
-        prisma.organization.update({
-          where: { id: organizationId },
-          data: { hyperGuestOrgId: body.hyperGuestOrgId.trim() || null },
-        })
-      )
+    const orgUpdate: Record<string, string | null> = {}
+    if (body.orgName !== undefined) orgUpdate['name'] = body.orgName.trim() || null
+    if (body.hyperGuestOrgId !== undefined) orgUpdate['hyperGuestOrgId'] = body.hyperGuestOrgId.trim() || null
+    if (Object.keys(orgUpdate).length > 0) {
+      updates.push(prisma.organization.update({ where: { id: organizationId }, data: orgUpdate }))
     }
 
     const data: Record<string, string | null> = {}

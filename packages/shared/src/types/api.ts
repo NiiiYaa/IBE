@@ -716,6 +716,7 @@ export interface OnsiteStats {
 }
 
 export interface OrgSettingsResponse {
+  orgName: string | null
   hyperGuestOrgId: string | null
   hyperGuestBearerToken: string | null       // masked as ****xxxx when set
   hyperGuestBearerTokenSet: boolean
@@ -745,6 +746,7 @@ export interface OrgSettingsResponse {
 }
 
 export interface UpdateOrgSettingsRequest {
+  orgName?: string
   hyperGuestOrgId?: string
   hyperGuestBearerToken?: string
   hyperGuestStaticDomain?: string

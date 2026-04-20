@@ -189,12 +189,26 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [properties, realProperties, showPropertySelector, propertyId, setPropertyId])
 
   const isAuthPage = pathname === '/admin/login' || pathname === '/admin/signup'
+  const isOnboarding = pathname === '/admin/onboarding'
+
+  const { data: orgData } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    enabled: isAuthenticated && !isAuthPage && !isOnboarding && role !== 'super',
+    staleTime: Infinity,
+  })
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isAuthPage) {
       router.replace('/admin/login')
     }
   }, [isLoading, isAuthenticated, isAuthPage, pathname, router])
+
+  useEffect(() => {
+    if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super') {
+      router.replace('/admin/onboarding')
+    }
+  }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])
 
   function toggle(title: string) {
     setOpenSections(prev => {
@@ -208,7 +222,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     return null
   }
 
-  if (isAuthPage) {
+  if (isAuthPage || isOnboarding) {
     return <>{children}</>
   }
 

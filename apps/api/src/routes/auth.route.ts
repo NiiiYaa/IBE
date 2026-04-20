@@ -120,7 +120,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         })
 
         setCookieAndRespond(fastify, reply, admin)
-        return reply.redirect(`${env.WEB_BASE_URL}/admin`)
+        return reply.redirect(`${env.WEB_BASE_URL}/admin${admin.isNew ? '/onboarding' : ''}`)
       } catch (err) {
         fastify.log.error(err, 'Google OAuth callback failed')
         return reply.redirect(`${env.WEB_BASE_URL}/admin/login?error=oauth_failed`)
