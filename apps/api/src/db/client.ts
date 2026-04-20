@@ -30,19 +30,23 @@ function buildClient() {
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          const delays = [500, 1500, 3000]
+          // Render PostgreSQL can go unavailable for ~60s during maintenance/scaling.
+          // Retry every 5s for up to 75s total before surfacing the error.
+          const maxAttempts = 16
+          const retryDelayMs = 5000
           let lastError: unknown
-          for (const delay of delays) {
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
             try {
               return await query(args)
             } catch (e) {
               if (!isConnectionError(e)) throw e
               lastError = e
-              await new Promise(r => setTimeout(r, delay))
+              if (attempt < maxAttempts - 1) {
+                void base.$disconnect()
+                await new Promise(r => setTimeout(r, retryDelayMs))
+              }
             }
           }
-          // All retries exhausted — close the entire pool so the next request
-          // reconnects fresh rather than reusing stale connections indefinitely
           void base.$disconnect()
           throw lastError
         },
