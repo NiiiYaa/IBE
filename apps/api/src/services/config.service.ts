@@ -103,12 +103,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     searchResultsImageMode: (config?.searchResultsImageMode ?? o?.searchResultsImageMode ?? 'fixed') as 'fixed' | 'carousel',
     searchResultsCarouselInterval: config?.searchResultsCarouselInterval ?? o?.searchResultsCarouselInterval ?? 5,
     searchResultsExcludedImageIds: safeParseJson<number[]>(config?.searchResultsExcludedImageIds ?? null, []),
-    excludedPropertyImageIds: [
-      ...new Set([
-        ...safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
-        ...safeParseJson<number[]>(o?.chainExcludedPropertyImageIds ?? null, []),
-      ])
-    ],
+    excludedPropertyImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
     excludedRoomImageIds: safeParseJson<number[]>(config?.excludedRoomImageIds ?? null, []),
     roomPrimaryImageIds: safeParseJson<Record<number, number>>(config?.roomPrimaryImageIds ?? null, {}),
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
