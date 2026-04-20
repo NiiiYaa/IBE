@@ -9,6 +9,9 @@ interface PropertyImageManagerProps {
   excludedIds: number[]
   onHeroChange: (url: string) => void
   onExcludedChange: (ids: number[]) => void
+  showChainFlag?: boolean
+  chainFeaturedIds?: number[]
+  onChainFeaturedChange?: (ids: number[]) => void
 }
 
 export function PropertyImageManager({
@@ -17,15 +20,20 @@ export function PropertyImageManager({
   excludedIds,
   onHeroChange,
   onExcludedChange,
+  showChainFlag = false,
+  chainFeaturedIds = [],
+  onChainFeaturedChange,
 }: PropertyImageManagerProps) {
   if (images.length === 0) return null
 
   const excludedSet = new Set(excludedIds)
+  const featuredSet = new Set(chainFeaturedIds)
   const hiddenCount = images.filter(img => excludedSet.has(img.id)).length
+  const featuredCount = chainFeaturedIds.length
 
   const sortedImages = [...images].sort((a, b) => {
     const rank = (img: PropertyImage) =>
-      img.url === heroImageUrl ? 0 : excludedSet.has(img.id) ? 2 : 1
+      img.url === heroImageUrl ? 0 : excludedSet.has(img.id) ? 3 : featuredSet.has(img.id) ? 1 : 2
     return rank(a) - rank(b)
   })
 
@@ -34,7 +42,6 @@ export function PropertyImageManager({
       onHeroChange('')
     } else {
       onHeroChange(img.url)
-      // un-exclude if it was excluded
       if (excludedSet.has(img.id)) {
         onExcludedChange(excludedIds.filter(x => x !== img.id))
       }
@@ -45,11 +52,17 @@ export function PropertyImageManager({
     if (excludedSet.has(img.id)) {
       onExcludedChange(excludedIds.filter(x => x !== img.id))
     } else {
-      // un-primary if it was primary
-      if (heroImageUrl === img.url) {
-        onHeroChange('')
-      }
+      if (heroImageUrl === img.url) onHeroChange('')
       onExcludedChange([...excludedIds, img.id])
+    }
+  }
+
+  function toggleChainFeatured(img: PropertyImage) {
+    if (!onChainFeaturedChange) return
+    if (featuredSet.has(img.id)) {
+      onChainFeaturedChange(chainFeaturedIds.filter(x => x !== img.id))
+    } else {
+      onChainFeaturedChange([...chainFeaturedIds, img.id])
     }
   }
 
@@ -61,6 +74,9 @@ export function PropertyImageManager({
           {hiddenCount > 0 && <span className="ml-1.5 text-[var(--color-error)]">{hiddenCount} hidden</span>}
           {heroImageUrl && images.some(img => img.url === heroImageUrl) && (
             <span className="ml-1.5 text-[var(--color-primary)]">· hero selected</span>
+          )}
+          {showChainFlag && featuredCount > 0 && (
+            <span className="ml-1.5 text-amber-500">{featuredCount} on chain page</span>
           )}
         </p>
         <div className="flex items-center gap-2">
@@ -92,14 +108,16 @@ export function PropertyImageManager({
         {sortedImages.map(img => {
           const isPrimary = img.url === heroImageUrl
           const isExcluded = excludedSet.has(img.id)
+          const isChainFeatured = featuredSet.has(img.id)
 
           return (
             <div
               key={img.id}
               className={[
                 'group relative aspect-video overflow-hidden rounded-lg border-2 transition-all',
-                isPrimary  ? 'border-[var(--color-primary)]' :
-                isExcluded ? 'border-[var(--color-error)] opacity-50' :
+                isPrimary     ? 'border-[var(--color-primary)]' :
+                isExcluded    ? 'border-[var(--color-error)] opacity-50' :
+                isChainFeatured ? 'border-amber-400' :
                 'border-transparent',
               ].join(' ')}
             >
@@ -122,21 +140,44 @@ export function PropertyImageManager({
                   <HideIcon className="h-2.5 w-2.5 text-white" />
                 </div>
               )}
+              {isChainFeatured && !isPrimary && !isExcluded && (
+                <div className="absolute bottom-1 left-1 rounded-full bg-amber-500 p-1">
+                  <ChainIcon className="h-2.5 w-2.5 text-white" />
+                </div>
+              )}
 
               <div className="absolute inset-0 flex items-start justify-between p-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  type="button"
-                  onClick={() => togglePrimary(img)}
-                  title={isPrimary ? 'Remove as hero' : 'Set as hero image'}
-                  className={[
-                    'rounded-full p-1 shadow transition-colors',
-                    isPrimary
-                      ? 'bg-[var(--color-primary)] text-white'
-                      : 'bg-white/90 text-[var(--color-text-muted)] hover:bg-[var(--color-primary)] hover:text-white',
-                  ].join(' ')}
-                >
-                  <StarIcon className="h-3 w-3" />
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => togglePrimary(img)}
+                    title={isPrimary ? 'Remove as hero' : 'Set as hero image'}
+                    className={[
+                      'rounded-full p-1 shadow transition-colors',
+                      isPrimary
+                        ? 'bg-[var(--color-primary)] text-white'
+                        : 'bg-white/90 text-[var(--color-text-muted)] hover:bg-[var(--color-primary)] hover:text-white',
+                    ].join(' ')}
+                  >
+                    <StarIcon className="h-3 w-3" />
+                  </button>
+
+                  {showChainFlag && (
+                    <button
+                      type="button"
+                      onClick={() => toggleChainFeatured(img)}
+                      title={isChainFeatured ? 'Remove from chain page' : 'Feature on chain page'}
+                      className={[
+                        'rounded-full p-1 shadow transition-colors',
+                        isChainFeatured
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-white/90 text-[var(--color-text-muted)] hover:bg-amber-500 hover:text-white',
+                      ].join(' ')}
+                    >
+                      <ChainIcon className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
 
                 <button
                   type="button"
@@ -173,6 +214,14 @@ function HideIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
         d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
+    </svg>
+  )
+}
+
+function ChainIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19V5M5 12l7-7 7 7" />
     </svg>
   )
 }

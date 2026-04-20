@@ -74,16 +74,22 @@ export default function ChainPage() {
   })
 
   const propertyIds = realProperties.map(p => p.propertyId)
+
+  // Fetch images + hotel config (for chainFeaturedImageIds) per property
   const propertyImagesQuery = useQuery({
     queryKey: ['admin-chain-property-images', propertyIds],
     queryFn: async () => {
       const results = await Promise.all(
         propertyIds.map(async id => {
-          const detail = await apiClient.getProperty(id)
+          const [detail, hotelConfig] = await Promise.all([
+            apiClient.getProperty(id),
+            apiClient.getHotelConfigAdmin(id),
+          ])
+          const featuredSet = new Set(hotelConfig.chainFeaturedImageIds ?? [])
           return {
             propertyId: id,
             name: detail.name,
-            images: detail.images ?? [],
+            images: (detail.images ?? []).filter(img => featuredSet.has(img.id)),
           }
         })
       )
@@ -94,7 +100,8 @@ export default function ChainPage() {
     retry: 3,
   })
 
-  const allImages = propertyImagesQuery.data ?? []
+  // Only show properties that have at least one chain-featured image
+  const allImages = (propertyImagesQuery.data ?? []).filter(p => p.images.length > 0)
   const [activeTab, setActiveTab] = useState(0)
 
   // Live-preview CSS vars
@@ -214,7 +221,7 @@ export default function ChainPage() {
         {/* ── Hero Images ── */}
         <Section title="Hero Images">
           <p className="mb-4 text-xs text-[var(--color-text-muted)]">
-            <strong>★</strong> sets the hero (main) image &nbsp;·&nbsp; <strong>🚫</strong> hides it from the carousel. Images are sourced from all your properties.
+            Images flagged with ↑ on each hotel page appear here. <strong>★</strong> sets the hero image &nbsp;·&nbsp; <strong>🚫</strong> hides it from the carousel.
           </p>
 
           {propertyImagesQuery.isLoading ? (
@@ -227,7 +234,9 @@ export default function ChainPage() {
               </button>
             </div>
           ) : allImages.length === 0 ? (
-            <p className="text-xs text-[var(--color-text-muted)]">No images available. Sync your properties first.</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              No images flagged yet. Go to each hotel&apos;s Homepage design page and tap the ↑ button on images you want here.
+            </p>
           ) : (() => {
             const safeTab = Math.min(activeTab, allImages.length - 1)
             const current = allImages[safeTab]!

@@ -292,6 +292,7 @@ export interface HotelDesignConfig {
   excludedPropertyImageIds: number[]
   excludedRoomImageIds: number[]
   roomPrimaryImageIds: Record<number, number>
+  chainFeaturedImageIds: number[]
   tripadvisorHotelKey: string | null
   priceComparisonEnabled: boolean
   chainHeroImageUrl: string | null
@@ -338,6 +339,7 @@ export interface UpdateDesignConfigRequest {
   excludedPropertyImageIds?: number[]
   excludedRoomImageIds?: number[]
   roomPrimaryImageIds?: Record<number, number>
+  chainFeaturedImageIds?: number[]
   tripadvisorHotelKey?: string | null
   priceComparisonEnabled?: boolean
 }

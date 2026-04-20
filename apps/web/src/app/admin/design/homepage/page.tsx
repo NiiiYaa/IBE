@@ -58,6 +58,7 @@ const SYSTEM_DEFAULTS: Record<string, string | number> = {
 type HomepageDraft = Partial<OrgDesignDefaultsConfig> & {
   heroImageUrl?: string | null
   excludedPropertyImageIds?: number[]
+  chainFeaturedImageIds?: number[]
 }
 
 export default function HomepageDesignPage() {
@@ -355,12 +356,20 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
   const { data: property } = useProperty(propertyId)
 
+  const { data: propertiesData } = useQuery({
+    queryKey: ['admin-properties'],
+    queryFn: () => apiClient.listProperties(),
+    staleTime: 30_000,
+  })
+  const isChainMode = (propertiesData?.properties ?? []).filter(p => !p.isDemo).length > 1
+
   useEffect(() => {
     if (designData && config && !initialized) {
       setDraft({
         ...designData.overrides,
         heroImageUrl: config.heroImageUrl,
         excludedPropertyImageIds: config.excludedPropertyImageIds,
+        chainFeaturedImageIds: config.chainFeaturedImageIds,
       })
       setInitialized(true)
       setIsDirty(false)
@@ -706,7 +715,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             {hgImages.length > 0 && (
               <div className="mb-3">
                 <p className="mb-2 text-xs text-[var(--color-text-muted)]">
-                  <strong>★</strong> sets the hero image &nbsp;·&nbsp; <strong>🚫</strong> hides it from the carousel. Hover to see controls.
+                  <strong>★</strong> sets the hero image &nbsp;·&nbsp; <strong>🚫</strong> hides it from the carousel
+                  {isChainMode && <> &nbsp;·&nbsp; <strong className="text-amber-500">↑</strong> features on chain page</>}. Hover to see controls.
                 </p>
                 <PropertyImageManager
                   images={hgImages}
@@ -714,6 +724,9 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
                   excludedIds={draft.excludedPropertyImageIds ?? []}
                   onHeroChange={url => set('heroImageUrl', url)}
                   onExcludedChange={ids => set('excludedPropertyImageIds', ids)}
+                  showChainFlag={isChainMode}
+                  chainFeaturedIds={draft.chainFeaturedImageIds ?? []}
+                  onChainFeaturedChange={ids => set('chainFeaturedImageIds', ids)}
                 />
               </div>
             )}

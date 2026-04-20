@@ -106,6 +106,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     excludedPropertyImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
     excludedRoomImageIds: safeParseJson<number[]>(config?.excludedRoomImageIds ?? null, []),
     roomPrimaryImageIds: safeParseJson<Record<number, number>>(config?.roomPrimaryImageIds ?? null, {}),
+    chainFeaturedImageIds: safeParseJson<number[]>(config?.chainFeaturedImageIds ?? null, []),
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
     chainHeroImageUrl: orgDefaults?.chainHeroImageUrl ?? null,
@@ -161,6 +162,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     excludedPropertyImageIds: safeParseJson<number[]>(o?.chainExcludedPropertyImageIds ?? null, []),
     excludedRoomImageIds: [],
     roomPrimaryImageIds: {},
+    chainFeaturedImageIds: [],
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
@@ -212,6 +214,7 @@ export async function upsertHotelDesignConfig(
     ...(updates.excludedPropertyImageIds !== undefined && { excludedPropertyImageIds: JSON.stringify(updates.excludedPropertyImageIds) }),
     ...(updates.excludedRoomImageIds !== undefined && { excludedRoomImageIds: JSON.stringify(updates.excludedRoomImageIds) }),
     ...(updates.roomPrimaryImageIds !== undefined && { roomPrimaryImageIds: JSON.stringify(updates.roomPrimaryImageIds) }),
+    ...(updates.chainFeaturedImageIds !== undefined && { chainFeaturedImageIds: JSON.stringify(updates.chainFeaturedImageIds) }),
     ...(updates.tripadvisorHotelKey !== undefined && { tripadvisorHotelKey: updates.tripadvisorHotelKey }),
     ...(updates.priceComparisonEnabled !== undefined && { priceComparisonEnabled: updates.priceComparisonEnabled }),
   }
