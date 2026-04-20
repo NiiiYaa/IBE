@@ -50,5 +50,19 @@ export function useGlobalConfig() {
 
   const isDirty = savedSnapshot.current !== null && JSON.stringify(draft) !== JSON.stringify(savedSnapshot.current)
 
-  return { isLoading, draft, set, save: () => mutate(draft), isPending, saved, isDirty, saveError }
+  function buildDiff(): GlobalDraft {
+    const snapshot = savedSnapshot.current
+    if (!snapshot) return draft
+    const diff: GlobalDraft = {}
+    for (const k of Object.keys(draft) as (keyof GlobalDraft)[]) {
+      const a = draft[k], b = snapshot[k]
+      const changed = Array.isArray(a) || typeof a === 'object'
+        ? JSON.stringify(a) !== JSON.stringify(b)
+        : a !== b
+      if (changed) (diff as Record<string, unknown>)[k] = a
+    }
+    return Object.keys(diff).length > 0 ? diff : draft
+  }
+
+  return { isLoading, draft, set, save: () => mutate(buildDiff()), isPending, saved, isDirty, saveError }
 }
