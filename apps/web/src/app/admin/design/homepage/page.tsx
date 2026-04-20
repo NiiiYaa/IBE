@@ -25,6 +25,7 @@ import {
   OverrideSelectRow,
 } from '../override-helpers'
 import { HeroThumbnail } from '../HeroThumbnail'
+import { compressImage } from '@/lib/compress-image'
 
 const FONT_OPTIONS = [
   'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins',
@@ -211,13 +212,11 @@ function GlobalHomepageEditor() {
               <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
                 Upload file
                 <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                  onChange={e => {
+                  onChange={async e => {
                     const file = e.target.files?.[0]
                     if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = ev => { if (typeof ev.target?.result === 'string') set('logoUrl', ev.target.result) }
-                    reader.readAsDataURL(file)
                     e.target.value = ''
+                    set('logoUrl', await compressImage(file, 800))
                   }} />
               </label>
               <span className="text-xs text-[var(--color-text-muted)]">or</span>
@@ -236,13 +235,11 @@ function GlobalHomepageEditor() {
               <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
                 Upload file
                 <input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                  onChange={e => {
+                  onChange={async e => {
                     const file = e.target.files?.[0]
                     if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = ev => { if (typeof ev.target?.result === 'string') set('faviconUrl', ev.target.result) }
-                    reader.readAsDataURL(file)
                     e.target.value = ''
+                    set('faviconUrl', await compressImage(file, 256))
                   }} />
               </label>
               <span className="text-xs text-[var(--color-text-muted)]">or</span>
@@ -625,13 +622,11 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
                   <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
                     Upload file
                     <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                      onChange={e => {
+                      onChange={async e => {
                         const file = e.target.files?.[0]
                         if (!file) return
-                        const reader = new FileReader()
-                        reader.onload = ev => { if (typeof ev.target?.result === 'string') set('logoUrl', ev.target.result) }
-                        reader.readAsDataURL(file)
                         e.target.value = ''
+                        set('logoUrl', await compressImage(file, 800))
                       }} />
                   </label>
                   <span className="text-xs text-[var(--color-text-muted)]">or</span>
@@ -669,13 +664,11 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
                   <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
                     Upload file
                     <input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                      onChange={e => {
+                      onChange={async e => {
                         const file = e.target.files?.[0]
                         if (!file) return
-                        const reader = new FileReader()
-                        reader.onload = ev => { if (typeof ev.target?.result === 'string') set('faviconUrl', ev.target.result) }
-                        reader.readAsDataURL(file)
                         e.target.value = ''
+                        set('faviconUrl', await compressImage(file, 256))
                       }} />
                   </label>
                   <span className="text-xs text-[var(--color-text-muted)]">or</span>
