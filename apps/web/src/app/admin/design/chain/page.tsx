@@ -47,7 +47,7 @@ function Spinner() {
 
 export default function ChainPage() {
   const qc = useQueryClient()
-  const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { isLoading, draft, set, save, isPending, isDirty, saveError } = useGlobalConfig()
   const { admin } = useAdminAuth()
   const orgId = admin?.organizationId
 
@@ -433,6 +433,11 @@ export default function ChainPage() {
 
       </div>
 
+      {saveError && (
+        <div className="fixed bottom-24 right-6 z-50 rounded-lg border border-[var(--color-error)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-error)] shadow-xl">
+          Save failed: {saveError}
+        </div>
+      )}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={save} />
     </div>
   )

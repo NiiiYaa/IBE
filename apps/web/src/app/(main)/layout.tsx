@@ -142,7 +142,7 @@ async function resolveTenantConfig(): Promise<{
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { config, hotelConfig, property } = await resolveTenantConfig()
-    const title = hotelConfig?.tabTitle || hotelConfig?.displayName || property?.name || config?.displayName || 'Hotel Booking'
+    const title = config?.tabTitle || hotelConfig?.tabTitle || config?.displayName || hotelConfig?.displayName || property?.name || 'Hotel Booking'
     const favicon = hotelConfig?.faviconUrl || config?.faviconUrl
     return {
       title,

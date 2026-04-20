@@ -11,6 +11,7 @@ export function useGlobalConfig() {
   const qc = useQueryClient()
   const [draft, setDraft] = useState<GlobalDraft>({})
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const initialized = useRef(false)
   const savedSnapshot = useRef<GlobalDraft | null>(null)
 
@@ -34,7 +35,12 @@ export function useGlobalConfig() {
       qc.setQueryData(['global-design-defaults'], fresh)
       savedSnapshot.current = fresh
       setSaved(true)
+      setSaveError(null)
       setTimeout(() => setSaved(false), 3000)
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Save failed'
+      setSaveError(msg)
     },
   })
 
@@ -44,5 +50,5 @@ export function useGlobalConfig() {
 
   const isDirty = savedSnapshot.current !== null && JSON.stringify(draft) !== JSON.stringify(savedSnapshot.current)
 
-  return { isLoading, draft, set, save: () => mutate(draft), isPending, saved, isDirty }
+  return { isLoading, draft, set, save: () => mutate(draft), isPending, saved, isDirty, saveError }
 }
