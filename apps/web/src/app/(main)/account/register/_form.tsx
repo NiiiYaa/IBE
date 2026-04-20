@@ -52,6 +52,7 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
       if (form.phone.trim()) regData.phone = form.phone.trim()
       if (form.nationality.trim()) regData.nationality = form.nationality.trim()
       await apiClient.guestRegister(regData)
+      sessionStorage.setItem('guestPropertyId', String(propertyId))
       await queryClient.invalidateQueries({ queryKey: ['guest-me'] })
       router.replace(returnTo)
     } catch (err) {

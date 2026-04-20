@@ -4,7 +4,12 @@ import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getO
 import { getOrgIdForProperty, listProperties } from '../services/property-registry.service.js'
 import { getOrgSettings } from '../services/org.service.js'
 import { getEffectiveOffersSettings } from '../services/offers.service.js'
+import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 import { prisma } from '../db/client.js'
+
+function safeParseJsonIds(value: string | null | undefined): number[] {
+  try { return JSON.parse(value ?? '[]') as number[] } catch { return [] }
+}
 
 export async function configRoutes(fastify: FastifyInstance) {
   // GET /offers/constraints/:propertyId — public: effective min/max nights & rooms for search UI
@@ -150,5 +155,49 @@ export async function configRoutes(fastify: FastifyInstance) {
     const body = request.body as Record<string, unknown>
     const defaults = await upsertOrgDesignDefaults(orgId, body)
     return reply.send(defaults)
+  })
+
+  // GET /admin/design/chain-images — all chain-featured images for every property in the org (single round-trip)
+  fastify.get('/admin/design/chain-images', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const orgId = request.admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+
+    // 1. Fetch all non-demo properties + their HotelConfig in one DB query
+    const properties = await prisma.property.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { propertyId: true, name: true },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    if (properties.length === 0) return reply.send({ properties: [] })
+
+    const propertyIds = properties.map(p => p.propertyId)
+    const configs = await prisma.hotelConfig.findMany({
+      where: { propertyId: { in: propertyIds } },
+      select: { propertyId: true, chainFeaturedImageIds: true },
+    })
+    const configMap = new Map(configs.map(c => [c.propertyId, safeParseJsonIds(c.chainFeaturedImageIds)]))
+
+    // 2. Fetch static data only for properties that have featured IDs (server-side cached)
+    const results = await Promise.all(
+      properties.map(async prop => {
+        const featuredIds = configMap.get(prop.propertyId) ?? []
+        if (featuredIds.length === 0) return null
+        try {
+          const staticData = await fetchPropertyStatic(prop.propertyId)
+          const featuredSet = new Set(featuredIds)
+          const images = staticData.images
+            .filter(img => featuredSet.has(img.id))
+            .sort((a, b) => a.priority - b.priority)
+            .map(img => ({ id: img.id, url: img.uri, description: img.description, priority: img.priority }))
+          if (images.length === 0) return null
+          return { propertyId: prop.propertyId, name: prop.name ?? `Property ${prop.propertyId}`, images }
+        } catch {
+          return null
+        }
+      })
+    )
+
+    return reply.send({ properties: results.filter(Boolean) })
   })
 }

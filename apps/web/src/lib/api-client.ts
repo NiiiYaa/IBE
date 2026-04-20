@@ -65,6 +65,7 @@ import type {
   AdminGuestRow,
   AdminGuestProfile,
   AdminGuestsResponse,
+  ChainImagesResponse,
   TrackingPixel,
   CreateTrackingPixelRequest,
   UpdateTrackingPixelRequest,
@@ -227,6 +228,11 @@ export const apiClient = {
   /** Get hotel design config for admin — bypasses browser HTTP cache */
   getHotelConfigAdmin(propertyId: number): Promise<HotelDesignConfig> {
     return apiRequest<HotelDesignConfig>(`/api/v1/config/property/${propertyId}`, { cache: 'no-store' })
+  },
+
+  /** Get all chain-featured images for every property in the org — single round-trip */
+  getChainImages(): Promise<ChainImagesResponse> {
+    return apiRequest<ChainImagesResponse>('/api/v1/admin/design/chain-images')
   },
 
   /** Get nav items for a property (optionally filtered by section) */

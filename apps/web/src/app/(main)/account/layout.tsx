@@ -27,8 +27,10 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   }
 
   if (!isAuthenticated) {
-    // Redirect via replace so back-button works correctly
-    if (typeof window !== 'undefined') window.location.replace('/account/login')
+    if (typeof window !== 'undefined') {
+      const propertyId = sessionStorage.getItem('guestPropertyId')
+      window.location.replace(propertyId ? `/account/login?hotelId=${propertyId}` : '/account/login')
+    }
     return null
   }
 

@@ -1110,6 +1110,16 @@ export interface AdminGuestsResponse {
   pageSize: number
 }
 
+export interface ChainPropertyImages {
+  propertyId: number
+  name: string
+  images: PropertyImage[]
+}
+
+export interface ChainImagesResponse {
+  properties: ChainPropertyImages[]
+}
+
 // ── Tracking Pixels ───────────────────────────────────────────────────────────
 
 export type TrackingPage = 'all' | 'home' | 'search' | 'booking' | 'confirmation'

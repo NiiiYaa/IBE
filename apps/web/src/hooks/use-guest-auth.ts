@@ -19,7 +19,8 @@ export function useGuestAuth() {
     mutationFn: () => apiClient.guestLogout(),
     onSettled: () => {
       queryClient.clear()
-      router.push('/account/login')
+      const propertyId = typeof window !== 'undefined' ? sessionStorage.getItem('guestPropertyId') : null
+      router.push(propertyId ? `/?hotelId=${propertyId}` : '/account/login')
     },
   })
 

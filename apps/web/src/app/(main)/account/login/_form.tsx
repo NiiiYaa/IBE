@@ -39,6 +39,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
     setIsPending(true)
     try {
       await apiClient.guestLogin(email.trim(), password, propertyId)
+      sessionStorage.setItem('guestPropertyId', String(propertyId))
       await queryClient.invalidateQueries({ queryKey: ['guest-me'] })
       router.replace(returnTo)
     } catch (err) {

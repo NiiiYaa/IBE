@@ -65,7 +65,6 @@ export default function ChainPage() {
     enabled: !!orgId,
   })
 
-  const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
   const citySelectorMutation = useMutation({
@@ -73,39 +72,15 @@ export default function ChainPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-properties'] }),
   })
 
-  const propertyIds = realProperties.map(p => p.propertyId)
-
-  // Fetch images + hotel config (for chainFeaturedImageIds) per property
+  // Single endpoint fetches all chain-featured images for the whole org
   const propertyImagesQuery = useQuery({
-    queryKey: ['admin-chain-property-images', propertyIds],
-    queryFn: async () => {
-      const results = await Promise.all(
-        propertyIds.map(async id => {
-          try {
-            const [detail, hotelConfig] = await Promise.all([
-              apiClient.getProperty(id),
-              apiClient.getHotelConfigAdmin(id),
-            ])
-            const featuredSet = new Set(hotelConfig.chainFeaturedImageIds ?? [])
-            return {
-              propertyId: id,
-              name: detail.name,
-              images: (detail.images ?? []).filter(img => featuredSet.has(img.id)),
-            }
-          } catch {
-            return { propertyId: id, name: `Property ${id}`, images: [] }
-          }
-        })
-      )
-      return results
-    },
-    enabled: propertyIds.length > 0,
+    queryKey: ['admin-chain-property-images'],
+    queryFn: () => apiClient.getChainImages(),
     staleTime: 60_000,
     retry: 1,
   })
 
-  // Only show properties that have at least one chain-featured image
-  const allImages = (propertyImagesQuery.data ?? []).filter(p => p.images.length > 0)
+  const allImages = propertyImagesQuery.data?.properties ?? []
   const [activeTab, setActiveTab] = useState(0)
 
   // Live-preview CSS vars
