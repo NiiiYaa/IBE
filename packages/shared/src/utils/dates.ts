@@ -33,7 +33,7 @@ export function calculateCancellationDeadline(
   timeFromCheckInType: 'hours' | 'days',
   deadlineHour: string | undefined,
 ): string {
-  const [hourStr, minuteStr] = (deadlineHour ?? '00:00').split(':') as [string, string]
+  const [hourStr, minuteStr] = (deadlineHour || '00:00').split(':') as [string, string]
   const [year, month, day] = checkIn.split('-').map(Number) as [number, number, number]
 
   // Start from check-in date at the specified deadline hour

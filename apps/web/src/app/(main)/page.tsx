@@ -72,6 +72,12 @@ const SearchBar = dynamic(
   },
 )
 
+async function resolveDefaultPropertyId(orgId: number): Promise<number | null> {
+  const list = await fetchOrgPropertyList(orgId)
+  const defaultProp = list?.properties.find(p => p.isDefault) ?? list?.properties[0]
+  return defaultProp?.propertyId ?? null
+}
+
 export async function generateMetadata({
   searchParams,
 }: {
@@ -79,44 +85,66 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   try {
     const tenantHost = headers().get('x-tenant-host')
-    let config: HotelDesignConfig | null = null
+    let hotelConfig: HotelDesignConfig | null = null
     let propertyName: string | null = null
+    let faviconUrl: string | null = null
 
     if (tenantHost) {
       const tenant = await resolveTenant(tenantHost)
       if (tenant?.type === 'org') {
-        config = await fetchOrgConfig(tenant.orgId)
+        const pid = await resolveDefaultPropertyId(tenant.orgId)
+        const orgConfig = await fetchOrgConfig(tenant.orgId)
+        faviconUrl = orgConfig?.faviconUrl ?? null
+        if (pid) {
+          ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
+            fetchConfig(pid),
+            fetchProperty(pid).then(p => ({ name: p?.name ?? null })),
+          ])
+        }
       } else if (tenant?.type === 'property') {
-        config = await fetchConfig(tenant.propertyId)
-        const prop = await fetchProperty(tenant.propertyId)
-        propertyName = prop?.name ?? null
+        ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
+          fetchConfig(tenant.propertyId),
+          fetchProperty(tenant.propertyId).then(p => ({ name: p?.name ?? null })),
+        ])
       }
     }
 
-    if (!config && searchParams.chain) {
+    if (!hotelConfig && searchParams.chain) {
       const chainParam = searchParams.chain
       let orgId: number | null = null
       try {
         const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
         if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
       } catch { /* ignore */ }
-      if (orgId) config = await fetchOrgConfig(orgId)
-    }
-
-    if (!config && searchParams.hotelId) {
-      const pid = Number(searchParams.hotelId) || 0
-      if (pid) {
-        config = await fetchConfig(pid)
-        const prop = await fetchProperty(pid)
-        propertyName = prop?.name ?? null
+      if (orgId) {
+        const orgConfig = await fetchOrgConfig(orgId)
+        faviconUrl = orgConfig?.faviconUrl ?? null
+        const pid = await resolveDefaultPropertyId(orgId)
+        if (pid) {
+          ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
+            fetchConfig(pid),
+            fetchProperty(pid).then(p => ({ name: p?.name ?? null })),
+          ])
+        }
       }
     }
 
-    const title = config?.tabTitle || config?.displayName || propertyName || 'Hotel Booking'
+    if (!hotelConfig && searchParams.hotelId) {
+      const pid = Number(searchParams.hotelId) || 0
+      if (pid) {
+        ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
+          fetchConfig(pid),
+          fetchProperty(pid).then(p => ({ name: p?.name ?? null })),
+        ])
+      }
+    }
+
+    const title = hotelConfig?.tabTitle || hotelConfig?.displayName || propertyName || 'Hotel Booking'
+    const favicon = hotelConfig?.faviconUrl || faviconUrl
     return {
       title,
       description: 'Book your stay directly',
-      icons: config?.faviconUrl ? [{ rel: 'icon', url: config.faviconUrl }] : undefined,
+      icons: favicon ? [{ rel: 'icon', url: favicon }] : undefined,
     }
   } catch {
     return { title: 'Hotel Booking' }
@@ -205,14 +233,23 @@ export default async function HomePage({
   const multiProperties = isMulti
     ? await Promise.all(
         propertyList!.properties.map(async r => {
-          const detail = await fetchProperty(r.propertyId)
-          const firstImage = (detail?.images ?? []).sort((a, b) => a.priority - b.priority)[0]
+          const [detail, hotelConfig] = await Promise.all([
+            fetchProperty(r.propertyId),
+            fetchConfig(r.propertyId),
+          ])
+          const sortedImages = (detail?.images ?? []).sort((a, b) => a.priority - b.priority)
+          const excludedIds = new Set(hotelConfig?.excludedPropertyImageIds ?? [])
+          // Use admin-starred hero image first, then first non-excluded image, then first image
+          const imageUrl = hotelConfig?.heroImageUrl
+            || sortedImages.find(img => !excludedIds.has(img.id))?.url
+            || sortedImages[0]?.url
+            || null
           const firstDesc = detail?.descriptions.find(d => d.locale === 'en') ?? detail?.descriptions[0]
           return {
             id: r.propertyId,
             name: detail?.name ?? `Property ${r.propertyId}`,
             starRating: detail?.starRating ?? 0,
-            imageUrl: firstImage?.url ?? null,
+            imageUrl,
             city: detail?.location.city ?? '',
             address: detail?.location.address ?? '',
             description: firstDesc?.text ?? '',

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import {
   registerGuest, loginGuest, getGuestById, updateGuestProfile,
@@ -225,22 +226,41 @@ export async function guestRoutes(fastify: FastifyInstance) {
       },
       startRedirectPath: '/guest/auth/google',
       callbackUri: `${env.WEB_BASE_URL}/api/v1/guest/auth/google/callback`,
+      // Embed propertyId inside state: "<nonce>:<propertyId>"
+      // The plugin stores the full state in an httpOnly cookie (oauth2-redirect-state)
+      // for CSRF verification on callback.
+      generateStateFunction: function (this: FastifyInstance, request: FastifyRequest) {
+        const propertyId = (request.query as Record<string, string>)['state'] ?? '0'
+        const nonce = crypto.randomBytes(10).toString('hex')
+        return `${nonce}:${propertyId}`
+      },
+      checkStateFunction: function (request: FastifyRequest, callback: (err?: Error) => void) {
+        const cookieState = (request.cookies as Record<string, string>)['oauth2-redirect-state']
+        const queryState = (request.query as Record<string, string>)['state']
+        if (queryState && cookieState && queryState === cookieState) {
+          callback()
+        } else {
+          callback(new Error('Invalid state'))
+        }
+      },
     })
 
     fastify.get('/guest/auth/google/callback', async (request, reply) => {
       try {
         const instance = fastify as unknown as {
-          guestGoogleOAuth2: { getAccessTokenFromAuthorizationCodeFlow: (req: typeof request) => Promise<{ token: { access_token: string } }> }
+          guestGoogleOAuth2: { getAccessTokenFromAuthorizationCodeFlow: (req: typeof request, rep: typeof reply) => Promise<{ token: { access_token: string } }> }
         }
-        const { token } = await instance.guestGoogleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request)
+        const { token } = await instance.guestGoogleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request, reply)
 
         const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: { Authorization: `Bearer ${token.access_token}` },
         })
         const profile = await profileRes.json() as { email: string; given_name: string; family_name: string }
 
-        // state param carries propertyId set by the frontend redirect
-        const propertyId = Number((request.query as Record<string, string>)['state'] ?? 0)
+        // Parse propertyId from state: "<nonce>:<propertyId>"
+        const stateStr = (request.query as Record<string, string>)['state'] ?? ''
+        const propertyId = Number(stateStr.split(':')[1] ?? 0)
+
         let organizationId: number
         try {
           organizationId = await resolveOrgIdFromProperty(propertyId)

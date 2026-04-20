@@ -665,7 +665,7 @@ export const apiClient = {
 
   /** Get property-level design overrides + org defaults for admin */
   getPropertyDesignAdmin(propertyId: number): Promise<PropertyDesignAdminResponse> {
-    return apiRequest<PropertyDesignAdminResponse>(`/api/v1/admin/design/property/${propertyId}`)
+    return apiRequest<PropertyDesignAdminResponse>(`/api/v1/admin/design/property/${propertyId}`, { cache: 'no-store' })
   },
 
   getAdminBookings(params: {

@@ -20,8 +20,17 @@ export function middleware(request: NextRequest) {
   const headers = new Headers(request.headers)
 
   // Always propagate chain/hotelId query params as headers so layout can resolve the tenant
-  const chain = request.nextUrl.searchParams.get('chain')
-  const hotelId = request.nextUrl.searchParams.get('hotelId')
+  let chain = request.nextUrl.searchParams.get('chain')
+  let hotelId = request.nextUrl.searchParams.get('hotelId')
+  // Also parse from returnTo (e.g. /account/login?returnTo=/?chain=141185)
+  if (!chain && !hotelId) {
+    const returnTo = request.nextUrl.searchParams.get('returnTo')
+    if (returnTo) {
+      const rtp = new URLSearchParams(returnTo.split('?')[1] ?? '')
+      chain = rtp.get('chain')
+      hotelId = rtp.get('hotelId')
+    }
+  }
   if (chain) headers.set('x-tenant-chain', chain)
   if (hotelId) headers.set('x-tenant-hotel', hotelId)
 
