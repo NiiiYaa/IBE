@@ -5,11 +5,20 @@ const globalForPrisma = globalThis as unknown as { prisma?: ReturnType<typeof bu
 
 function isConnectionError(e: unknown): boolean {
   if (!(e instanceof Error)) return false
+  const m = e.message
+  // Prisma uses Unicode smart apostrophe U+2019 in "Can\u2019t reach database server"
+  // so we match on the apostrophe-free substring to be safe.
   return (
-    e.message.includes('Server has closed the connection') ||
-    e.message.includes("Can't reach database server") ||
-    e.message.includes('Connection timed out') ||
-    e.message.includes('connection is closed')
+    m.includes('reach database server') ||
+    m.includes('Server has closed the connection') ||
+    m.includes('Connection timed out') ||
+    m.includes('connection is closed') ||
+    m.includes('ECONNREFUSED') ||
+    m.includes('ENOTFOUND') ||
+    (e as { errorCode?: string }).errorCode === 'P1001' ||
+    (e as { errorCode?: string }).errorCode === 'P1002' ||
+    (e as { code?: string }).code === 'P1001' ||
+    (e as { code?: string }).code === 'P1017'
   )
 }
 

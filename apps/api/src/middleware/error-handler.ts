@@ -31,15 +31,22 @@ export function errorHandler(
     return
   }
 
-  // Prisma / DB connection errors → 503 so the client can retry
+  // Prisma / DB connection errors → 503 so the client can retry.
+  // Prisma uses Unicode smart apostrophe (U+2019) in "Can\u2019t reach database server"
+  // so we match on the apostrophe-free substring.
   const msg = error.message ?? ''
+  const errAny = error as unknown as { code?: string; errorCode?: string }
   if (
-    msg.includes("Can't reach database server") ||
+    msg.includes('reach database server') ||
     msg.includes('Server has closed the connection') ||
     msg.includes('Connection timed out') ||
     msg.includes('connection is closed') ||
-    (error as unknown as { code?: string }).code === 'P1001' ||
-    (error as unknown as { code?: string }).code === 'P1017'
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ENOTFOUND') ||
+    errAny.errorCode === 'P1001' ||
+    errAny.errorCode === 'P1002' ||
+    errAny.code === 'P1001' ||
+    errAny.code === 'P1017'
   ) {
     void reply.status(503).send({
       error: 'Database temporarily unavailable, please retry',
