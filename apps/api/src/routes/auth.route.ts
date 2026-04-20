@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { verifyAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById } from '../services/auth.service.js'
 import { env } from '../config/env.js'
+import { cookieDomain } from '../utils/cookie.js'
 
 const COOKIE_NAME = 'ibe_admin_token'
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 // 7 days in seconds
@@ -17,6 +18,7 @@ function setCookieAndRespond(
     sameSite: 'lax',
     path: '/',
     maxAge: COOKIE_MAX_AGE,
+    domain: cookieDomain(),
   })
 }
 
@@ -69,7 +71,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // ── Logout ─────────────────────────────────────────────────────────────────
 
   fastify.post('/auth/logout', async (_request, reply) => {
-    reply.clearCookie(COOKIE_NAME, { path: '/' })
+    reply.clearCookie(COOKIE_NAME, { path: '/', domain: cookieDomain() })
     return reply.send({ ok: true })
   })
 
@@ -78,7 +80,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/me', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const admin = await getAdminById(request.admin.adminId)
     if (!admin || !admin.isActive) {
-      reply.clearCookie(COOKIE_NAME, { path: '/' })
+      reply.clearCookie(COOKIE_NAME, { path: '/', domain: cookieDomain() })
       return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
     }
     return reply.send(admin)

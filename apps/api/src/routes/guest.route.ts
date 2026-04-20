@@ -8,14 +8,17 @@ import {
   GuestExistsError, InvalidCredentialsError, GuestBlockedError, OrgNotFoundError,
 } from '../services/guest.service.js'
 import { env } from '../config/env.js'
+import { cookieDomain } from '../utils/cookie.js'
 
 const GUEST_COOKIE = 'ibe_guest_token'
+
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env['NODE_ENV'] === 'production',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 24 * 30, // 30 days
+  domain: cookieDomain(),
 }
 
 interface GuestPayload { guestId: number; type: 'guest' }
@@ -95,7 +98,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/guest/auth/logout', async (request, reply) => {
-    reply.clearCookie(GUEST_COOKIE, { path: '/' })
+    reply.clearCookie(GUEST_COOKIE, { path: '/', domain: cookieDomain() })
     return reply.send({ ok: true })
   })
 
@@ -143,7 +146,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
     const payload = await requireGuest(fastify, request, reply)
     if (!payload) return
     await deleteGuestAccount(payload.guestId)
-    reply.clearCookie(GUEST_COOKIE, { path: '/' })
+    reply.clearCookie(GUEST_COOKIE, { path: '/', domain: cookieDomain() })
     return reply.send({ ok: true })
   })
 

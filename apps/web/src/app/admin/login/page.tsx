@@ -41,7 +41,15 @@ export default function AdminLoginPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin-me'] })
       router.replace('/admin')
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Login failed')
+      if (err instanceof ApiClientError) {
+        if (err.status === 0 || err.message === 'Request failed') {
+          setError('Could not reach the server. Please wait a moment and try again.')
+        } else {
+          setError(err.message)
+        }
+      } else {
+        setError('Login failed. Please try again.')
+      }
     } finally {
       setIsPending(false)
     }
