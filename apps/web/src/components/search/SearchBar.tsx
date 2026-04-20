@@ -164,12 +164,11 @@ export function SearchBar({
 
   function handleCitySelect(city: string) {
     setSelectedCity(city)
-    setActivePanel(null)
     if (city) {
-      // auto-select first property in that city
       const first = properties?.find(p => p.city === city)
       if (first) setSelectedPropertyId(first.id)
     }
+    setActivePanel('property')
   }
 
   return (

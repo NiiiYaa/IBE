@@ -285,13 +285,17 @@ export default async function HomePage({
     </div>
   ) : null
 
+  const multiCities = multiProperties
+    ? new Set(multiProperties.map(p => p.city).filter(Boolean)).size
+    : 0
+
   const searchBarProps = {
     propertyId: defaultPropertyId,
     infantMaxAge: config?.infantMaxAge ?? 2,
     childMaxAge: config?.childMaxAge ?? 16,
     ...(multiProperties ? {
       properties: multiProperties,
-      showCitySelector: propertyList?.showCitySelector ?? false,
+      showCitySelector: multiCities > 1,
     } : {}),
   }
 
