@@ -15,10 +15,8 @@ function isConnectionError(e: unknown): boolean {
 
 function buildDatabaseUrl(): string {
   const url = new URL(env.DATABASE_URL)
-  // Cap connection pool — prevents exhausting Render PostgreSQL's connection limit
+  // Cap connection pool to avoid exhausting Render PostgreSQL's connection limit
   if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '5')
-  // Allow more time for TCP handshake (covers brief network blips on Render internal network)
-  if (!url.searchParams.has('connect_timeout')) url.searchParams.set('connect_timeout', '30')
   return url.toString()
 }
 
@@ -32,7 +30,6 @@ function buildClient() {
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          // Retry on transient TCP errors (Render internal network can have brief blips)
           const delays = [500, 1500, 3000]
           let lastError: unknown
           for (const delay of delays) {
@@ -44,6 +41,9 @@ function buildClient() {
               await new Promise(r => setTimeout(r, delay))
             }
           }
+          // All retries exhausted — close the entire pool so the next request
+          // reconnects fresh rather than reusing stale connections indefinitely
+          void base.$disconnect()
           throw lastError
         },
       },
