@@ -8,7 +8,7 @@ import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
 import { localeName, localeFlag } from '@/lib/locales'
 import { SaveBar, Section } from '../components'
-import { OverrideSelectRow, OverrideDirectionRow } from '../override-helpers'
+import { OverrideSelectRow, OverrideDirectionRow, OverrideLocalesRow } from '../override-helpers'
 
 const ALL_LOCALES = ['en', 'de', 'fr', 'es', 'it', 'pt', 'nl', 'ar', 'zh', 'ja', 'ru', 'he', 'tr', 'ko', 'pl', 'sv']
 
@@ -162,6 +162,10 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
   const localeOptions = ALL_LOCALES.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeName(code)}` }))
+  const localeItems = ALL_LOCALES.map(code => ({ code, label: `${localeFlag(code)} ${localeName(code)}` }))
+
+  const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
+  const activeLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -171,6 +175,23 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
       </p>
 
       <div className="space-y-6">
+        <Section title="Enabled Languages">
+          <OverrideLocalesRow
+            label="Languages shown to guests"
+            fieldKey="enabledLocales"
+            items={localeItems}
+            activeItems={activeLocales}
+            draft={draft}
+            orgDefaults={orgDefaults}
+            onToggle={code => {
+              const current = (draft.enabledLocales as string[] | null | undefined) ?? (orgDefaults.enabledLocales ?? ['en'])
+              set('enabledLocales', current.includes(code) ? current.filter(l => l !== code) : [...current, code])
+            }}
+            onReset={reset}
+            onOverride={() => set('enabledLocales', orgDefaults.enabledLocales ?? ['en'])}
+          />
+        </Section>
+
         <Section title="Default Language">
           <OverrideSelectRow label="Default language" fieldKey="defaultLocale" systemDefault="en"
             options={localeOptions}
