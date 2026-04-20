@@ -170,7 +170,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-  const { config, navItems, property } = await resolveTenantConfig()
+  const { config, hotelConfig, navItems, property, isChain } = await resolveTenantConfig()
 
   const headerItems = navItems.filter(n => n.section === 'header')
   const footerItems = navItems.filter(n => n.section === 'footer')
@@ -178,6 +178,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const logoUrl = config?.logoUrl || property?.logo || null
   const cssVars = config ? buildCssVars(config) : ''
   const fontUrl = config?.fontUrl ?? null
+  // For locale/currency, use hotelConfig in chain mode — it already merges org defaults
+  const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
 
   return (
     <>
@@ -187,10 +189,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
         logoUrl={logoUrl}
         displayName={displayName}
         navItems={headerItems}
-        enabledLocales={config?.enabledLocales ?? []}
-        enabledCurrencies={config?.enabledCurrencies ?? []}
-        defaultLocale={config?.defaultLocale ?? 'en'}
-        defaultCurrency={config?.defaultCurrency ?? 'USD'}
+        enabledLocales={localeConfig?.enabledLocales ?? []}
+        enabledCurrencies={localeConfig?.enabledCurrencies ?? []}
+        defaultLocale={localeConfig?.defaultLocale ?? 'en'}
+        defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
       />
       <div className="flex flex-1 flex-col">
         {children}

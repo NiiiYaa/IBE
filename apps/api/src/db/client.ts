@@ -18,20 +18,22 @@ function buildClient() {
     log: env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
   })
 
-  // Auto-retry once on stale-connection errors (e.g. after Render free-tier sleep)
   return base.$extends({
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          try {
-            return await query(args)
-          } catch (e) {
-            if (isConnectionError(e)) {
-              await new Promise(r => setTimeout(r, 300))
-              return query(args)
+          const delays = [300, 1000, 2000]
+          let lastError: unknown
+          for (const delay of delays) {
+            try {
+              return await query(args)
+            } catch (e) {
+              if (!isConnectionError(e)) throw e
+              lastError = e
+              await new Promise(r => setTimeout(r, delay))
             }
-            throw e
           }
+          throw lastError
         },
       },
     },

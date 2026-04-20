@@ -86,14 +86,18 @@ export async function generateMetadata({
   try {
     const tenantHost = headers().get('x-tenant-host')
     let hotelConfig: HotelDesignConfig | null = null
+    let chainConfig: HotelDesignConfig | null = null
     let propertyName: string | null = null
     let faviconUrl: string | null = null
 
     if (tenantHost) {
       const tenant = await resolveTenant(tenantHost)
       if (tenant?.type === 'org') {
-        const pid = await resolveDefaultPropertyId(tenant.orgId)
-        const orgConfig = await fetchOrgConfig(tenant.orgId)
+        const [orgConfig, pid] = await Promise.all([
+          fetchOrgConfig(tenant.orgId),
+          resolveDefaultPropertyId(tenant.orgId),
+        ])
+        chainConfig = orgConfig
         faviconUrl = orgConfig?.faviconUrl ?? null
         if (pid) {
           ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
@@ -109,7 +113,7 @@ export async function generateMetadata({
       }
     }
 
-    if (!hotelConfig && searchParams.chain) {
+    if (!hotelConfig && !chainConfig && searchParams.chain) {
       const chainParam = searchParams.chain
       let orgId: number | null = null
       try {
@@ -117,9 +121,12 @@ export async function generateMetadata({
         if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
       } catch { /* ignore */ }
       if (orgId) {
-        const orgConfig = await fetchOrgConfig(orgId)
+        const [orgConfig, pid] = await Promise.all([
+          fetchOrgConfig(orgId),
+          resolveDefaultPropertyId(orgId),
+        ])
+        chainConfig = orgConfig
         faviconUrl = orgConfig?.faviconUrl ?? null
-        const pid = await resolveDefaultPropertyId(orgId)
         if (pid) {
           ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
             fetchConfig(pid),
@@ -129,7 +136,7 @@ export async function generateMetadata({
       }
     }
 
-    if (!hotelConfig && searchParams.hotelId) {
+    if (!hotelConfig && !chainConfig && searchParams.hotelId) {
       const pid = Number(searchParams.hotelId) || 0
       if (pid) {
         ;[hotelConfig, { name: propertyName } = { name: null }] = await Promise.all([
@@ -139,8 +146,10 @@ export async function generateMetadata({
       }
     }
 
-    const title = hotelConfig?.tabTitle || hotelConfig?.displayName || propertyName || 'Hotel Booking'
-    const favicon = hotelConfig?.faviconUrl || faviconUrl
+    const title = chainConfig
+      ? (chainConfig.tabTitle || chainConfig.displayName || 'Hotel Booking')
+      : (hotelConfig?.tabTitle || hotelConfig?.displayName || propertyName || 'Hotel Booking')
+    const favicon = chainConfig?.faviconUrl || hotelConfig?.faviconUrl || faviconUrl
     return {
       title,
       description: 'Book your stay directly',
@@ -229,7 +238,7 @@ export default async function HomePage({
     : propertyImages
 
   // PropertyGrid only renders on the chain/org landing page in multi-property mode
-  const isMulti = tenant.type === 'org' && propertyList?.mode === 'multi' && (propertyList?.properties.length ?? 0) > 1
+  const isMulti = tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 1
   const multiProperties = isMulti
     ? await Promise.all(
         propertyList!.properties.map(async r => {
