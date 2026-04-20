@@ -8,8 +8,21 @@ import { env } from './config/env.js'
 import { prisma } from './db/client.js'
 import { logger } from './utils/logger.js'
 
+async function connectWithRetry(maxAttempts = 10, delayMs = 5000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await prisma.$connect()
+      return
+    } catch (err) {
+      if (attempt >= maxAttempts) throw err
+      logger.warn({ err, attempt }, `[Server] DB connect failed, retrying in ${delayMs}ms...`)
+      await new Promise(r => setTimeout(r, delayMs))
+    }
+  }
+}
+
 async function start() {
-  await prisma.$connect()
+  await connectWithRetry()
   logger.info('[Server] Database connected')
 
   if (env.REDIS_URL) {
