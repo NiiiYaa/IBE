@@ -228,10 +228,7 @@ export default function ChainPage() {
             const safeTab = Math.min(activeTab, allImages.length - 1)
             const current = allImages[safeTab]!
             const hotelExcludedSet = new Set(current.hotelExcludedIds)
-            const needsCuration = current.images.length > 10 && hotelExcludedSet.size === 0
-            const availableImages = needsCuration
-              ? []
-              : current.images.filter(img => !hotelExcludedSet.has(img.id))
+            const availableImages = current.images.filter(img => !hotelExcludedSet.has(img.id))
             return (
               <div>
                 {allImages.length > 1 && (
@@ -252,24 +249,17 @@ export default function ChainPage() {
                     ))}
                   </div>
                 )}
-                {needsCuration ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    This hotel has many images and none have been curated yet. Configure which images to show on the{' '}
-                    <strong>hotel&apos;s own design page</strong> first, then return here to select chain images.
-                  </div>
-                ) : (
-                  <PropertyImageManager
-                    images={availableImages}
-                    heroImageUrl={draft.chainHeroImageUrl ?? ''}
-                    excludedIds={draft.chainExcludedPropertyImageIds ?? []}
-                    onHeroChange={url => set('chainHeroImageUrl', url || null)}
-                    onExcludedChange={newIds => {
-                      const thisIds = new Set(availableImages.map(img => img.id))
-                      const otherExcluded = (draft.chainExcludedPropertyImageIds ?? []).filter(id => !thisIds.has(id))
-                      set('chainExcludedPropertyImageIds', [...otherExcluded, ...newIds])
-                    }}
-                  />
-                )}
+                <PropertyImageManager
+                  images={availableImages}
+                  heroImageUrl={draft.chainHeroImageUrl ?? ''}
+                  excludedIds={draft.chainExcludedPropertyImageIds ?? []}
+                  onHeroChange={url => set('chainHeroImageUrl', url || null)}
+                  onExcludedChange={newIds => {
+                    const thisIds = new Set(availableImages.map(img => img.id))
+                    const otherExcluded = (draft.chainExcludedPropertyImageIds ?? []).filter(id => !thisIds.has(id))
+                    set('chainExcludedPropertyImageIds', [...otherExcluded, ...newIds])
+                  }}
+                />
               </div>
             )
           })()}

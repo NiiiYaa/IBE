@@ -65,8 +65,8 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const colorError        = c?.colorError        ?? o?.colorError        ?? d.colorError
   const fontFamily        = c?.fontFamily        ?? o?.fontFamily        ?? d.fontFamily
   const borderRadius      = c?.borderRadius      ?? o?.borderRadius      ?? d.borderRadius
-  const logoUrl           = c?.logoUrl           ?? o?.logoUrl           ?? null
-  const faviconUrl        = c?.faviconUrl        ?? o?.faviconUrl        ?? null
+  const logoUrl           = c?.logoUrl           || o?.logoUrl           || null
+  const faviconUrl        = c?.faviconUrl        || o?.faviconUrl        || null
   const displayName       = c?.displayName       ?? property?.name       ?? null
   const tagline           = c?.tagline           ?? o?.tagline           ?? null
   const tabTitle          = c?.tabTitle          ?? null

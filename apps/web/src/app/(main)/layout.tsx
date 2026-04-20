@@ -142,7 +142,7 @@ async function resolveTenantConfig(): Promise<{
       fetchNavItems(DEFAULT_PROPERTY_ID),
       fetchPropertyList(DEFAULT_PROPERTY_ID),
     ])
-    if (propertyList?.orgId && propertyList.properties.length > 1) {
+    if (propertyList?.orgId && (propertyList.mode === 'multi' || propertyList.properties.length > 1)) {
       const orgConfig = await fetchOrgConfig(propertyList.orgId)
       return { config: orgConfig, hotelConfig: config, property, navItems: [], isChain: true }
     }
