@@ -225,6 +225,32 @@ export async function upsertHotelDesignConfig(
     update: data,
   })
 
+  // When chain-featured images are updated, auto-unexclude them in org defaults
+  if (updates.chainFeaturedImageIds !== undefined && updates.chainFeaturedImageIds.length > 0) {
+    try {
+      const property = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+      if (property) {
+        const orgRow = await prisma.orgDesignDefaults.findUnique({
+          where: { organizationId: property.organizationId },
+          select: { chainExcludedPropertyImageIds: true },
+        })
+        if (orgRow) {
+          const featuredSet = new Set(updates.chainFeaturedImageIds)
+          const currentExcluded = safeParseJson<number[]>(orgRow.chainExcludedPropertyImageIds ?? null, [])
+          const updatedExcluded = currentExcluded.filter(id => !featuredSet.has(id))
+          if (updatedExcluded.length !== currentExcluded.length) {
+            await prisma.orgDesignDefaults.update({
+              where: { organizationId: property.organizationId },
+              data: { chainExcludedPropertyImageIds: JSON.stringify(updatedExcluded) },
+            })
+          }
+        }
+      }
+    } catch {
+      // non-critical: don't fail the hotel config save if this cleanup fails
+    }
+  }
+
   logger.info({ propertyId }, '[Config] Design config updated')
   return getHotelDesignConfig(propertyId)
 }

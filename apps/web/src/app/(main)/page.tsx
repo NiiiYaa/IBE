@@ -398,8 +398,8 @@ export default async function HomePage({
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/65" />
         </div>
 
-        <div className="relative flex flex-1 flex-col px-4">
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <div className="relative flex flex-1 flex-col items-center justify-center px-4 pb-12">
+          <div className="w-full text-center">
             <h1 className="text-4xl font-bold text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
               {displayName}
             </h1>
@@ -407,7 +407,7 @@ export default async function HomePage({
               <p className="mt-4 text-lg text-white/80 drop-shadow sm:text-xl">{tagline}</p>
             )}
           </div>
-          <div className="mb-14 w-full">
+          <div className="mt-8 w-full">
             <SearchBar {...searchBarProps} />
           </div>
         </div>

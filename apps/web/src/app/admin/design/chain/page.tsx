@@ -81,15 +81,19 @@ export default function ChainPage() {
     queryFn: async () => {
       const results = await Promise.all(
         propertyIds.map(async id => {
-          const [detail, hotelConfig] = await Promise.all([
-            apiClient.getProperty(id),
-            apiClient.getHotelConfigAdmin(id),
-          ])
-          const featuredSet = new Set(hotelConfig.chainFeaturedImageIds ?? [])
-          return {
-            propertyId: id,
-            name: detail.name,
-            images: (detail.images ?? []).filter(img => featuredSet.has(img.id)),
+          try {
+            const [detail, hotelConfig] = await Promise.all([
+              apiClient.getProperty(id),
+              apiClient.getHotelConfigAdmin(id),
+            ])
+            const featuredSet = new Set(hotelConfig.chainFeaturedImageIds ?? [])
+            return {
+              propertyId: id,
+              name: detail.name,
+              images: (detail.images ?? []).filter(img => featuredSet.has(img.id)),
+            }
+          } catch {
+            return { propertyId: id, name: `Property ${id}`, images: [] }
           }
         })
       )
@@ -97,7 +101,7 @@ export default function ChainPage() {
     },
     enabled: propertyIds.length > 0,
     staleTime: 60_000,
-    retry: 3,
+    retry: 1,
   })
 
   // Only show properties that have at least one chain-featured image
