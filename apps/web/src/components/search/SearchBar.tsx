@@ -55,12 +55,11 @@ export function SearchBar({
 
   const [selectedPropertyId, setSelectedPropertyId] = useState(propertyId)
 
-  // Derive unique cities and track selected city
+  // Derive unique cities and track selected city; '' means "All"
   const cities = showCitySelector && properties
     ? [...new Set(properties.map(p => p.city ?? '').filter(Boolean))].sort()
     : []
-  const defaultCity = properties?.find(p => p.id === propertyId)?.city ?? cities[0] ?? ''
-  const [selectedCity, setSelectedCity] = useState(defaultCity)
+  const [selectedCity, setSelectedCity] = useState('')
   const [checkIn, setCheckIn] = useState(initialCheckIn ?? '')
   const [checkOut, setCheckOut] = useState(initialCheckOut ?? '')
   const [rooms, setRooms] = useState<GuestRoom[]>(
@@ -151,10 +150,10 @@ export function SearchBar({
     ? `${countryFlag(nationality)} ${countryName(nationality)}`
     : 'Select country'
 
-  // When city selector is active, filter properties by selected city
+  // When city selector is active, filter properties by selected city ('' = All)
   const visibleProperties = showCitySelector && selectedCity
     ? (properties ?? []).filter(p => p.city === selectedCity)
-    : properties
+    : (properties ?? [])
 
   // If selected property is no longer in the filtered list, reset to first of filtered
   const effectivePropertyId = visibleProperties?.some(p => p.id === selectedPropertyId)
@@ -166,9 +165,11 @@ export function SearchBar({
   function handleCitySelect(city: string) {
     setSelectedCity(city)
     setActivePanel(null)
-    // auto-select first property in that city
-    const first = properties?.find(p => p.city === city)
-    if (first) setSelectedPropertyId(first.id)
+    if (city) {
+      // auto-select first property in that city
+      const first = properties?.find(p => p.city === city)
+      if (first) setSelectedPropertyId(first.id)
+    }
   }
 
   return (
@@ -179,7 +180,7 @@ export function SearchBar({
           <>
             <Segment
               label="City"
-              value={selectedCity || 'Select city'}
+              value={selectedCity || 'All'}
               active={activePanel === 'city'}
               onClick={() => setActivePanel(p => (p === 'city' ? null : 'city'))}
             />
@@ -288,17 +289,17 @@ export function SearchBar({
 
       {activePanel === 'city' && cities.length > 0 && (
         <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
-          {cities.map(city => (
+          {[{ value: '', label: 'All' }, ...cities.map(c => ({ value: c, label: c }))].map(({ value, label }) => (
             <button
-              key={city}
-              onClick={() => handleCitySelect(city)}
+              key={value || '__all__'}
+              onClick={() => handleCitySelect(value)}
               className={[
                 'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
-                city === selectedCity ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                value === selectedCity ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
               ].join(' ')}
             >
-              <span>{city}</span>
-              {city === selectedCity && (
+              <span>{label}</span>
+              {value === selectedCity && (
                 <svg className="h-4 w-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
