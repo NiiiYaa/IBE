@@ -203,10 +203,7 @@ export default async function HomePage({
     ])
     const defaultProp = propertyList?.properties.find(p => p.isDefault) ?? propertyList?.properties[0]
     propertyId = defaultProp?.propertyId ?? 0
-    // Always fetch the default property's data so hero images and name are available
-    if (propertyId) {
-      property = await fetchProperty(propertyId)
-    }
+    // property is set below together with multiProperties to avoid a serial waterfall
   } else {
     propertyId = tenant.propertyId
     ;[config, property, propertyList] = await Promise.all([
@@ -215,6 +212,34 @@ export default async function HomePage({
       fetchPropertyList(propertyId),
     ])
   }
+
+  // For org tenants: fetch ALL property details + configs in one parallel batch.
+  // This avoids a serial waterfall (previously: fetch default → then fetch all others).
+  const isMulti = tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 1
+  const multiProperties = (tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 0)
+    ? await Promise.all(
+        propertyList!.properties.map(async r => {
+          const [detail, hotelConfig] = await Promise.all([
+            fetchProperty(r.propertyId),
+            fetchConfig(r.propertyId),
+          ])
+          if (r.propertyId === propertyId) property = detail
+          const sortedImages = (detail?.images ?? []).sort((a, b) => a.priority - b.priority)
+          const imageUrl = hotelConfig?.heroImageUrl || sortedImages[0]?.url || null
+          const firstDesc = detail?.descriptions.find(d => d.locale === 'en') ?? detail?.descriptions[0]
+          return {
+            id: r.propertyId,
+            name: detail?.name ?? `Property ${r.propertyId}`,
+            starRating: detail?.starRating ?? 0,
+            imageUrl,
+            city: detail?.location.city ?? '',
+            address: detail?.location.address ?? '',
+            description: firstDesc?.text ?? '',
+            isDefault: r.isDefault,
+          }
+        })
+      )
+    : null
 
   const heroStyle = config?.heroStyle ?? 'fullpage'
   const heroImageMode = config?.heroImageMode ?? 'fixed'
@@ -236,33 +261,6 @@ export default async function HomePage({
   const carouselImages = heroImageUrl
     ? [heroImageUrl, ...propertyImages.filter(u => u !== heroImageUrl)]
     : propertyImages
-
-  // PropertyGrid only renders on the chain/org landing page in multi-property mode
-  const isMulti = tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 1
-  const multiProperties = isMulti
-    ? await Promise.all(
-        propertyList!.properties.map(async r => {
-          const [detail, hotelConfig] = await Promise.all([
-            fetchProperty(r.propertyId),
-            fetchConfig(r.propertyId),
-          ])
-          const sortedImages = (detail?.images ?? []).sort((a, b) => a.priority - b.priority)
-          // Hero set by hotel admin takes priority; otherwise first image by priority
-          const imageUrl = hotelConfig?.heroImageUrl || sortedImages[0]?.url || null
-          const firstDesc = detail?.descriptions.find(d => d.locale === 'en') ?? detail?.descriptions[0]
-          return {
-            id: r.propertyId,
-            name: detail?.name ?? `Property ${r.propertyId}`,
-            starRating: detail?.starRating ?? 0,
-            imageUrl,
-            city: detail?.location.city ?? '',
-            address: detail?.location.address ?? '',
-            description: firstDesc?.text ?? '',
-            isDefault: r.isDefault,
-          }
-        })
-      )
-    : null
 
   const defaultPropertyId = multiProperties?.find(p => p.isDefault)?.id ?? propertyId
   const cssVars = config ? buildCssVars(config) : ''
