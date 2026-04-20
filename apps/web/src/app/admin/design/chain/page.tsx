@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig } from '@ibe/shared'
@@ -81,7 +81,7 @@ export default function ChainPage() {
   })
 
   const allImages = propertyImagesQuery.data?.properties ?? []
-  const [activeTab, setActiveTab] = useState(0)
+  const flatImages = allImages.flatMap(p => p.images)
 
   // Live-preview CSS vars
   useEffect(() => {
@@ -212,48 +212,19 @@ export default function ChainPage() {
                 Retry
               </button>
             </div>
-          ) : allImages.length === 0 ? (
+          ) : flatImages.length === 0 ? (
             <p className="text-xs text-[var(--color-text-muted)]">
               No images flagged yet. Go to each hotel&apos;s Homepage design page and tap the ↑ button on images you want here.
             </p>
-          ) : (() => {
-            const safeTab = Math.min(activeTab, allImages.length - 1)
-            const current = allImages[safeTab]!
-            const availableImages = current.images
-            return (
-              <div>
-                {allImages.length > 1 && (
-                  <div className="mb-4 flex flex-wrap gap-1.5">
-                    {allImages.map((p, i) => (
-                      <button
-                        key={p.propertyId}
-                        onClick={() => setActiveTab(i)}
-                        className={[
-                          'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-                          safeTab === i
-                            ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-                        ].join(' ')}
-                      >
-                        {p.name ?? `Property ${p.propertyId}`}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <PropertyImageManager
-                  images={availableImages}
-                  heroImageUrl={draft.chainHeroImageUrl ?? ''}
-                  excludedIds={draft.chainExcludedPropertyImageIds ?? []}
-                  onHeroChange={url => set('chainHeroImageUrl', url || null)}
-                  onExcludedChange={newIds => {
-                    const thisIds = new Set(availableImages.map(img => img.id))
-                    const otherExcluded = (draft.chainExcludedPropertyImageIds ?? []).filter(id => !thisIds.has(id))
-                    set('chainExcludedPropertyImageIds', [...otherExcluded, ...newIds])
-                  }}
-                />
-              </div>
-            )
-          })()}
+          ) : (
+            <PropertyImageManager
+              images={flatImages}
+              heroImageUrl={draft.chainHeroImageUrl ?? ''}
+              excludedIds={draft.chainExcludedPropertyImageIds ?? []}
+              onHeroChange={url => set('chainHeroImageUrl', url || null)}
+              onExcludedChange={newIds => set('chainExcludedPropertyImageIds', newIds)}
+            />
+          )}
 
           <div className="mt-4">
             <p className="mb-1.5 text-xs font-medium text-[var(--color-text-muted)]">Or enter a custom URL for the hero image</p>

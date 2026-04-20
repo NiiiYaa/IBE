@@ -41,6 +41,31 @@ async function start() {
   const app = await buildApp()
   await app.listen({ port: env.API_PORT, host: env.API_HOST })
   logger.info(`[Server] Listening on ${env.API_HOST}:${env.API_PORT}`)
+
+  // Background warmup: pre-populate HyperGuest static cache so the first request is never cold
+  void warmupStaticCache()
+}
+
+async function warmupStaticCache() {
+  if (env.HYPERGUEST_MOCK === 'true') return
+  try {
+    const properties = await prisma.property.findMany({
+      where: { isActive: true, deletedAt: null },
+      select: { propertyId: true },
+    })
+    if (properties.length === 0) return
+    logger.info({ count: properties.length }, '[Warmup] Pre-fetching static data for active properties')
+
+    const { fetchPropertyStatic } = await import('./adapters/hyperguest/static.js')
+    const CONCURRENCY = 3
+    for (let i = 0; i < properties.length; i += CONCURRENCY) {
+      const batch = properties.slice(i, i + CONCURRENCY)
+      await Promise.allSettled(batch.map(p => fetchPropertyStatic(p.propertyId)))
+    }
+    logger.info('[Warmup] Static cache warm')
+  } catch (err) {
+    logger.warn({ err }, '[Warmup] Static cache warmup failed (non-fatal)')
+  }
 }
 
 async function shutdown(signal: string) {

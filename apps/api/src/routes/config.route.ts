@@ -157,8 +157,16 @@ export async function configRoutes(fastify: FastifyInstance) {
     const orgId = request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const body = request.body as Record<string, unknown>
-    const defaults = await upsertOrgDesignDefaults(orgId, body)
-    return reply.send(defaults)
+    try {
+      const defaults = await upsertOrgDesignDefaults(orgId, body)
+      return reply.send(defaults)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('reach database server') || msg.includes('P1001') || msg.includes('Connection timed out')) {
+        return reply.status(503).send({ error: 'Database temporarily unavailable, please retry' })
+      }
+      throw err
+    }
   })
 
   // GET /admin/design/chain-images — all chain-featured images for every property in the org (single round-trip)
