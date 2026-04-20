@@ -202,17 +202,17 @@ export async function upsertHotelDesignConfig(
     ...(updates.textDirection !== undefined && { textDirection: updates.textDirection }),
     ...(updates.enabledLocales !== undefined && { enabledLocales: updates.enabledLocales != null ? JSON.stringify(updates.enabledLocales) : null }),
     ...(updates.enabledCurrencies !== undefined && { enabledCurrencies: updates.enabledCurrencies != null ? JSON.stringify(updates.enabledCurrencies) : null }),
-    ...(updates.onlinePaymentEnabled !== undefined && { onlinePaymentEnabled: updates.onlinePaymentEnabled }),
-    ...(updates.payAtHotelEnabled !== undefined && { payAtHotelEnabled: updates.payAtHotelEnabled }),
-    ...(updates.payAtHotelCardGuaranteeRequired !== undefined && { payAtHotelCardGuaranteeRequired: updates.payAtHotelCardGuaranteeRequired }),
-    ...(updates.infantMaxAge !== undefined && { infantMaxAge: updates.infantMaxAge }),
-    ...(updates.childMaxAge !== undefined && { childMaxAge: updates.childMaxAge }),
-    ...(updates.roomRatesDefaultExpanded !== undefined && { roomRatesDefaultExpanded: updates.roomRatesDefaultExpanded }),
-    ...(updates.heroStyle !== undefined && { heroStyle: updates.heroStyle }),
-    ...(updates.heroImageMode !== undefined && { heroImageMode: updates.heroImageMode }),
-    ...(updates.heroCarouselInterval !== undefined && { heroCarouselInterval: updates.heroCarouselInterval }),
-    ...(updates.searchResultsImageMode !== undefined && { searchResultsImageMode: updates.searchResultsImageMode }),
-    ...(updates.searchResultsCarouselInterval !== undefined && { searchResultsCarouselInterval: updates.searchResultsCarouselInterval }),
+    ...(updates.onlinePaymentEnabled != null && { onlinePaymentEnabled: updates.onlinePaymentEnabled }),
+    ...(updates.payAtHotelEnabled != null && { payAtHotelEnabled: updates.payAtHotelEnabled }),
+    ...(updates.payAtHotelCardGuaranteeRequired != null && { payAtHotelCardGuaranteeRequired: updates.payAtHotelCardGuaranteeRequired }),
+    ...(updates.infantMaxAge != null && { infantMaxAge: updates.infantMaxAge }),
+    ...(updates.childMaxAge != null && { childMaxAge: updates.childMaxAge }),
+    ...(updates.roomRatesDefaultExpanded != null && { roomRatesDefaultExpanded: updates.roomRatesDefaultExpanded }),
+    ...(updates.heroStyle != null && { heroStyle: updates.heroStyle }),
+    ...(updates.heroImageMode != null && { heroImageMode: updates.heroImageMode }),
+    ...(updates.heroCarouselInterval != null && { heroCarouselInterval: updates.heroCarouselInterval }),
+    ...(updates.searchResultsImageMode != null && { searchResultsImageMode: updates.searchResultsImageMode }),
+    ...(updates.searchResultsCarouselInterval != null && { searchResultsCarouselInterval: updates.searchResultsCarouselInterval }),
     ...(updates.searchResultsExcludedImageIds !== undefined && { searchResultsExcludedImageIds: JSON.stringify(updates.searchResultsExcludedImageIds) }),
     ...(updates.excludedPropertyImageIds !== undefined && { excludedPropertyImageIds: JSON.stringify(updates.excludedPropertyImageIds) }),
     ...(updates.excludedRoomImageIds !== undefined && { excludedRoomImageIds: JSON.stringify(updates.excludedRoomImageIds) }),
@@ -234,6 +234,8 @@ export async function upsertHotelDesignConfig(
 export async function getPropertyDesignAdmin(propertyId: number): Promise<{
   overrides: OrgDesignDefaultsConfig
   orgDefaults: OrgDesignDefaultsConfig
+  hgName: string | null
+  hotelExcludedImageIds: number[]
 }> {
   const [config, property] = await Promise.all([
     prisma.hotelConfig.findUnique({ where: { propertyId } }),

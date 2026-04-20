@@ -399,7 +399,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     vars.forEach(([prop, val]) => { if (prop && val) document.documentElement.style.setProperty(prop, val) })
   }, [draft, orgDefaults])
 
-  const { mutate, isPending } = useMutation({
+  const { mutate, isPending, isError, error } = useMutation({
     mutationFn: (d: HomepageDraft) => apiClient.updateHotelConfig(propertyId, d as Parameters<typeof apiClient.updateHotelConfig>[1]),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['property-design-admin', propertyId] })
@@ -811,6 +811,11 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
         </Section>
       </div>
 
+      {isError && (
+        <div className="fixed bottom-20 right-6 z-50 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
+          Save failed: {(error as Error)?.message ?? 'Unknown error'}
+        </div>
+      )}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
     </div>
   )
