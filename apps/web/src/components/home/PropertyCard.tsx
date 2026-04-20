@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import Image from 'next/image'
 
 interface PropertyCardProps {
@@ -26,8 +25,10 @@ function StarRating({ rating }: { rating: number }) {
 
 export function PropertyCard({ id, name, starRating, imageUrl, city, address, description }: PropertyCardProps) {
   return (
-    <Link
+    <a
       href={`/?hotelId=${id}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className="group flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition-shadow hover:shadow-md"
     >
       <div className="relative h-48 w-full shrink-0 overflow-hidden bg-[var(--color-background)]">
@@ -43,9 +44,6 @@ export function PropertyCard({ id, name, starRating, imageUrl, city, address, de
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-slate-300 to-slate-400" />
         )}
-        <span className="absolute left-3 top-3 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
-          Hotel
-        </span>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
@@ -65,6 +63,6 @@ export function PropertyCard({ id, name, starRating, imageUrl, city, address, de
           </span>
         </div>
       </div>
-    </Link>
+    </a>
   )
 }

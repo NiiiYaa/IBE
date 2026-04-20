@@ -67,7 +67,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const borderRadius      = c?.borderRadius      ?? o?.borderRadius      ?? d.borderRadius
   const logoUrl           = c?.logoUrl           ?? o?.logoUrl           ?? null
   const faviconUrl        = c?.faviconUrl        ?? o?.faviconUrl        ?? null
-  const displayName       = c?.displayName       ?? o?.displayName       ?? null
+  const displayName       = c?.displayName       ?? property?.name       ?? null
   const tagline           = c?.tagline           ?? o?.tagline           ?? null
   const tabTitle          = c?.tabTitle          ?? o?.tabTitle          ?? null
   const defaultCurrency   = c?.defaultCurrency   ?? o?.defaultCurrency   ?? d.defaultCurrency
@@ -103,7 +103,12 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     searchResultsImageMode: (config?.searchResultsImageMode ?? o?.searchResultsImageMode ?? 'fixed') as 'fixed' | 'carousel',
     searchResultsCarouselInterval: config?.searchResultsCarouselInterval ?? o?.searchResultsCarouselInterval ?? 5,
     searchResultsExcludedImageIds: safeParseJson<number[]>(config?.searchResultsExcludedImageIds ?? null, []),
-    excludedPropertyImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
+    excludedPropertyImageIds: [
+      ...new Set([
+        ...safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
+        ...safeParseJson<number[]>(o?.chainExcludedPropertyImageIds ?? null, []),
+      ])
+    ],
     excludedRoomImageIds: safeParseJson<number[]>(config?.excludedRoomImageIds ?? null, []),
     roomPrimaryImageIds: safeParseJson<Record<number, number>>(config?.roomPrimaryImageIds ?? null, {}),
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
@@ -240,6 +245,8 @@ export async function getPropertyDesignAdmin(propertyId: number): Promise<{
   return {
     overrides: rowToOrgDefaults(config),
     orgDefaults: rowToOrgDefaults(orgRow),
+    hgName: property?.name ?? null,
+    hotelExcludedImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
   }
 }
 

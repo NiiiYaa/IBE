@@ -59,13 +59,14 @@ function sourceLabel(key: string, org: OrgDesignDefaultsConfig): 'chain' | 'syst
   return (org[key as keyof OrgDesignDefaultsConfig] != null) ? 'chain' : 'system'
 }
 
-function SourceBadge({ source }: { source: 'hotel' | 'chain' | 'system' }) {
+function SourceBadge({ source }: { source: 'hotel' | 'chain' | 'system' | 'hyperguest' }) {
   const styles = {
-    hotel:  'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
-    chain:  'bg-amber-50 text-amber-700',
-    system: 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+    hotel:      'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
+    chain:      'bg-amber-50 text-amber-700',
+    system:     'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+    hyperguest: 'bg-sky-50 text-sky-700',
   }
-  const labels = { hotel: 'hotel', chain: 'from chain', system: 'from system' }
+  const labels = { hotel: 'hotel', chain: 'from chain', system: 'from system', hyperguest: 'from HyperGuest' }
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${styles[source]}`}>
       {labels[source]}
@@ -241,8 +242,9 @@ export default function PropertyBrandPage() {
 
           {/* Branding */}
           <Section title="Branding">
-            <OverrideTextRow label="Display name" hint="Overrides the property name from HyperGuest"
+            <OverrideTextRow label="Hotel name" hint="Defaults to the name from HyperGuest; override to customise"
               fieldKey="displayName" placeholder="e.g. Grand Palace Hotel"
+              hgFallback={designData?.hgName ?? null}
               draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
             <OverrideTextRow label="Tagline" hint="Short brand message shown on the homepage"
               fieldKey="tagline" placeholder="e.g. Your home away from home"
@@ -308,13 +310,15 @@ type OverrideProps = {
   onReset: (key: keyof Draft) => void
 }
 
-function OverrideTextRow({ label, hint, fieldKey, placeholder, draft, orgDefaults, onSet, onReset }: OverrideProps & {
-  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig; placeholder?: string
+function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft, orgDefaults, onSet, onReset }: OverrideProps & {
+  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig; placeholder?: string; hgFallback?: string | null
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
-  const inherited = orgDefaults[fieldKey] as string | null
-  const source = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
+  const inherited = hgFallback !== undefined ? (hgFallback ?? null) : (orgDefaults[fieldKey] as string | null)
+  const source: 'hotel' | 'chain' | 'system' | 'hyperguest' = isOverriding
+    ? 'hotel'
+    : hgFallback !== undefined ? 'hyperguest' : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
     <FormRow label={label} hint={hint}>

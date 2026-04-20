@@ -11,14 +11,15 @@ export function sourceLabel(key: string, org: OrgDesignDefaultsConfig): 'chain' 
   return (org[key as keyof OrgDesignDefaultsConfig] != null) ? 'chain' : 'system'
 }
 
-export function SourceBadge({ source }: { source: 'hotel' | 'chain' | 'system' | 'room' }) {
+export function SourceBadge({ source }: { source: 'hotel' | 'chain' | 'system' | 'room' | 'hyperguest' }) {
   const styles = {
-    hotel:  'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
-    chain:  'bg-amber-50 text-amber-700',
-    system: 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
-    room:   'bg-emerald-50 text-emerald-700',
+    hotel:       'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
+    chain:       'bg-amber-50 text-amber-700',
+    system:      'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+    room:        'bg-emerald-50 text-emerald-700',
+    hyperguest:  'bg-sky-50 text-sky-700',
   }
-  const labels = { hotel: 'hotel', chain: 'from chain', system: 'from system', room: 'room' }
+  const labels = { hotel: 'hotel', chain: 'from chain', system: 'from system', room: 'room', hyperguest: 'from HyperGuest' }
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${styles[source]}`}>
       {labels[source]}
@@ -76,17 +77,20 @@ export function OverrideColorRow({
 }
 
 export function OverrideTextRow({
-  label, hint, fieldKey, placeholder, draft, orgDefaults, onSet, onReset,
+  label, hint, fieldKey, placeholder, hgFallback, draft, orgDefaults, onSet, onReset,
 }: {
   label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; placeholder?: string | undefined
+  hgFallback?: string | null
   draft: OverrideDraft; orgDefaults: OrgDesignDefaultsConfig
   onSet: (key: keyof OrgDesignDefaultsConfig, val: string | null) => void
   onReset: (key: keyof OrgDesignDefaultsConfig) => void
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
-  const inherited = orgDefaults[fieldKey] as string | null
-  const source: 'hotel' | 'chain' | 'system' = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
+  const inherited = hgFallback !== undefined ? (hgFallback ?? null) : (orgDefaults[fieldKey] as string | null)
+  const source: 'hotel' | 'chain' | 'system' | 'hyperguest' = isOverriding
+    ? 'hotel'
+    : hgFallback !== undefined ? 'hyperguest' : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
     <FormRow label={label} hint={hint}>

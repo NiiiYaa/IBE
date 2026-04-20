@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig } from '@ibe/shared'
@@ -57,6 +57,13 @@ export default function ChainPage() {
     staleTime: 30_000,
   })
 
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
+    enabled: !!orgId,
+  })
+
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
@@ -71,8 +78,16 @@ export default function ChainPage() {
     queryFn: async () => {
       const results = await Promise.all(
         propertyIds.map(async id => {
-          const detail = await apiClient.getProperty(id)
-          return { propertyId: id, name: detail.name, images: detail.images ?? [] }
+          const [detail, design] = await Promise.all([
+            apiClient.getProperty(id),
+            apiClient.getPropertyDesignAdmin(id),
+          ])
+          return {
+            propertyId: id,
+            name: detail.name,
+            images: detail.images ?? [],
+            hotelExcludedIds: design.hotelExcludedImageIds,
+          }
         })
       )
       return results
@@ -82,6 +97,7 @@ export default function ChainPage() {
   })
 
   const allImages = propertyImagesQuery.data ?? []
+  const [activeTab, setActiveTab] = useState(0)
 
   // Live-preview CSS vars
   useEffect(() => {
@@ -113,7 +129,7 @@ export default function ChainPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Chain-page</h1>
           <a
-            href={orgId ? `/?chain=${orgId}` : '/'}
+            href={orgSettings?.hyperGuestOrgId ? `/?chain=${orgSettings.hyperGuestOrgId}` : '/'}
             target="_blank"
             rel="noopener noreferrer"
             className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
@@ -207,28 +223,55 @@ export default function ChainPage() {
             <div className="h-24 animate-pulse rounded-xl bg-[var(--color-border)]" />
           ) : allImages.length === 0 ? (
             <p className="text-xs text-[var(--color-text-muted)]">No images available. Sync your properties first.</p>
-          ) : (
-            <div className="space-y-5">
-              {allImages.map(p => (
-                <div key={p.propertyId}>
-                  {allImages.length > 1 && (
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{p.name}</p>
-                  )}
+          ) : (() => {
+            const safeTab = Math.min(activeTab, allImages.length - 1)
+            const current = allImages[safeTab]!
+            const hotelExcludedSet = new Set(current.hotelExcludedIds)
+            const needsCuration = current.images.length > 10 && hotelExcludedSet.size === 0
+            const availableImages = needsCuration
+              ? []
+              : current.images.filter(img => !hotelExcludedSet.has(img.id))
+            return (
+              <div>
+                {allImages.length > 1 && (
+                  <div className="mb-4 flex flex-wrap gap-1.5">
+                    {allImages.map((p, i) => (
+                      <button
+                        key={p.propertyId}
+                        onClick={() => setActiveTab(i)}
+                        className={[
+                          'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                          safeTab === i
+                            ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                        ].join(' ')}
+                      >
+                        {p.name ?? `Property ${p.propertyId}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {needsCuration ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    This hotel has many images and none have been curated yet. Configure which images to show on the{' '}
+                    <strong>hotel&apos;s own design page</strong> first, then return here to select chain images.
+                  </div>
+                ) : (
                   <PropertyImageManager
-                    images={p.images}
+                    images={availableImages}
                     heroImageUrl={draft.chainHeroImageUrl ?? ''}
                     excludedIds={draft.chainExcludedPropertyImageIds ?? []}
                     onHeroChange={url => set('chainHeroImageUrl', url || null)}
                     onExcludedChange={newIds => {
-                      const thisIds = new Set(p.images.map(img => img.id))
+                      const thisIds = new Set(availableImages.map(img => img.id))
                       const otherExcluded = (draft.chainExcludedPropertyImageIds ?? []).filter(id => !thisIds.has(id))
                       set('chainExcludedPropertyImageIds', [...otherExcluded, ...newIds])
                     }}
                   />
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+              </div>
+            )
+          })()}
 
           <div className="mt-4">
             <p className="mb-1.5 text-xs font-medium text-[var(--color-text-muted)]">Or enter a custom URL for the hero image</p>

@@ -346,6 +346,8 @@ export interface PropertyDesignAdminResponse {
   propertyId: number
   overrides: OrgDesignDefaultsConfig   // nulls = inheriting from org/system
   orgDefaults: OrgDesignDefaultsConfig
+  hgName: string | null
+  hotelExcludedImageIds: number[]
 }
 
 export interface OrgDesignDefaultsConfig {

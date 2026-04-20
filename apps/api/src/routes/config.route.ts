@@ -59,6 +59,15 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send(config)
   })
 
+  // GET /config/org-resolve/:hyperGuestOrgId — resolve hyperGuestOrgId → internal org DB id
+  fastify.get('/config/org-resolve/:hyperGuestOrgId', async (request, reply) => {
+    const { hyperGuestOrgId } = request.params as { hyperGuestOrgId: string }
+    const org = await prisma.organization.findUnique({ where: { hyperGuestOrgId }, select: { id: true } })
+    if (!org) return reply.status(404).send({ error: 'Organization not found', code: 'IBE.ORG.001' })
+    void reply.header('Cache-Control', 'public, max-age=3600, s-maxage=3600')
+    return reply.send({ id: org.id })
+  })
+
   // GET /config/org/:orgId — public org-level design config for chain page
   fastify.get('/config/org/:orgId', async (request, reply) => {
     const { orgId: rawId } = request.params as { orgId: string }

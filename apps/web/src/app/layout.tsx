@@ -18,10 +18,15 @@ async function fetchConfig(propertyId: number): Promise<HotelDesignConfig | null
   }
 }
 
+// Fallback metadata — overridden per-page by (main)/page.tsx generateMetadata
 export async function generateMetadata(): Promise<Metadata> {
   const config = await fetchConfig(DEFAULT_PROPERTY_ID)
   const title = config?.tabTitle || config?.displayName || 'Hotel Booking'
-  return { title, description: 'Book your stay directly' }
+  return {
+    title,
+    description: 'Book your stay directly',
+    icons: config?.faviconUrl ? [{ rel: 'icon', url: config.faviconUrl }] : undefined,
+  }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -38,9 +43,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
             <link rel="stylesheet" href={fontUrl} />
           </>
-        )}
-        {config?.faviconUrl && (
-          <link rel="icon" href={config.faviconUrl} />
         )}
         {cssVars && (
           <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />

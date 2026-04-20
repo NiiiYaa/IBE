@@ -465,7 +465,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
   const hgImages = property?.images ?? []
   const fontOptions = FONT_OPTIONS.map(f => ({ value: f, label: f }))
-  const effectiveDisplayName = (draft.displayName ?? orgDefaults.displayName ?? property?.name ?? '')
+  const effectiveDisplayName = (draft.displayName ?? designData?.hgName ?? property?.name ?? '')
   const effectiveTagline = (draft.tagline ?? orgDefaults.tagline ?? '')
 
   return (
@@ -606,7 +606,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
         <Section title="Branding">
           <OverrideTextRow label="Hotel name" fieldKey="displayName"
-            {...(property?.name !== undefined ? { placeholder: property.name } : {})}
+            hgFallback={designData?.hgName ?? property?.name ?? null}
+            placeholder="e.g. Grand Palace Hotel"
             draft={draft} orgDefaults={orgDefaults} onSet={setStr} onReset={reset} />
 
           {/* Logo — inline override with HyperGuest fallback and image preview */}

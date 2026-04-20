@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { headers } from 'next/headers'
@@ -71,6 +72,60 @@ const SearchBar = dynamic(
   },
 )
 
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: { hotelId?: string; chain?: string }
+}): Promise<Metadata> {
+  try {
+    const tenantHost = headers().get('x-tenant-host')
+    let config: HotelDesignConfig | null = null
+    let propertyName: string | null = null
+
+    if (tenantHost) {
+      const tenant = await resolveTenant(tenantHost)
+      if (tenant?.type === 'org') {
+        config = await fetchOrgConfig(tenant.orgId)
+      } else if (tenant?.type === 'property') {
+        config = await fetchConfig(tenant.propertyId)
+        const prop = await fetchProperty(tenant.propertyId)
+        propertyName = prop?.name ?? null
+      }
+    }
+
+    if (!config && searchParams.chain) {
+      const chainParam = searchParams.chain
+      const numeric = parseInt(chainParam, 10)
+      let orgId: number | null = (!isNaN(numeric) && numeric > 0) ? numeric : null
+      if (!orgId) {
+        try {
+          const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
+          if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
+        } catch { /* ignore */ }
+      }
+      if (orgId) config = await fetchOrgConfig(orgId)
+    }
+
+    if (!config && searchParams.hotelId) {
+      const pid = Number(searchParams.hotelId) || 0
+      if (pid) {
+        config = await fetchConfig(pid)
+        const prop = await fetchProperty(pid)
+        propertyName = prop?.name ?? null
+      }
+    }
+
+    const title = config?.tabTitle || config?.displayName || propertyName || 'Hotel Booking'
+    return {
+      title,
+      description: 'Book your stay directly',
+      icons: config?.faviconUrl ? [{ rel: 'icon', url: config.faviconUrl }] : undefined,
+    }
+  } catch {
+    return { title: 'Hotel Booking' }
+  }
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -81,8 +136,19 @@ export default async function HomePage({
   let tenant: TenantResolution | null = tenantHost ? await resolveTenant(tenantHost) : null
 
   // Fall back to query params (local dev / legacy)
-  const chainOrgId = searchParams.chain ? Number(searchParams.chain) || null : null
-  if (!tenant && chainOrgId) tenant = { type: 'org', orgId: chainOrgId }
+  // ?chain= accepts the HyperGuest Org ID (string); resolve to internal DB org id
+  if (!tenant && searchParams.chain) {
+    const chainParam = searchParams.chain
+    const numeric = parseInt(chainParam, 10)
+    let orgId: number | null = (!isNaN(numeric) && numeric > 0) ? numeric : null
+    if (!orgId) {
+      try {
+        const r = await fetch(`${API_URL}/api/v1/config/org-resolve/${encodeURIComponent(chainParam)}`, { next: { revalidate: 3600 } })
+        if (r.ok) { const d = await r.json() as { id: number }; orgId = d.id ?? null }
+      } catch { /* ignore */ }
+    }
+    if (orgId) tenant = { type: 'org', orgId }
+  }
   if (!tenant && searchParams.hotelId) {
     const pid = Number(searchParams.hotelId) || 0
     if (pid) tenant = { type: 'property', propertyId: pid, orgId: 0 }
