@@ -11,6 +11,7 @@ import { usePreferences } from '@/context/preferences'
 import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { RoomCard } from '@/components/search/RoomCard'
+import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
 import { RoomCartPanel, type CartItem } from '@/components/search/RoomCartPanel'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
@@ -137,6 +138,21 @@ export function SearchContent() {
         )
       })()}
 
+
+      {searchParams.hotelId > 0 && (
+        <PriceComparisonBar
+          checkin={searchParams.checkIn}
+          checkout={searchParams.checkOut}
+          adults={searchParams.rooms.reduce((s, r) => s + r.adults, 0)}
+          children={searchParams.rooms.reduce((s, r) => s + (r.childAges?.length ?? 0), 0)}
+          rooms={searchParams.rooms.length}
+          propertyId={searchParams.hotelId}
+          directPrice={allRooms.length > 0
+            ? Math.min(...allRooms.flatMap(r => r.rates.map(rate => convert(rate.prices.sell.amount))))
+            : null}
+          currency={dispCur}
+        />
+      )}
 
       <div className="flex items-center justify-between">
         <div>
