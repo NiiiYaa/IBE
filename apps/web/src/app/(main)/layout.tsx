@@ -71,6 +71,7 @@ async function resolveTenantConfig(): Promise<{
   hotelConfig: HotelDesignConfig | null
   property: PropertyDetail | null
   navItems: NavItem[]
+  isChain: boolean
 }> {
   const reqHeaders = headers()
   const tenantHost  = reqHeaders.get('x-tenant-host')
@@ -85,7 +86,7 @@ async function resolveTenantConfig(): Promise<{
         fetchProperty(tenant.propertyId),
         fetchNavItems(tenant.propertyId),
       ])
-      return { config, hotelConfig: config, property, navItems }
+      return { config, hotelConfig: config, property, navItems, isChain: false }
     }
     if (tenant?.type === 'org') {
       const [orgConfig, pid] = await Promise.all([
@@ -96,7 +97,7 @@ async function resolveTenantConfig(): Promise<{
         pid ? fetchConfig(pid) : Promise.resolve(null),
         pid ? fetchProperty(pid) : Promise.resolve(null),
       ])
-      return { config: orgConfig, hotelConfig, property, navItems: [] }
+      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true }
     }
   }
 
@@ -108,7 +109,7 @@ async function resolveTenantConfig(): Promise<{
         fetchProperty(pid),
         fetchNavItems(pid),
       ])
-      return { config, hotelConfig: config, property, navItems }
+      return { config, hotelConfig: config, property, navItems, isChain: false }
     }
   }
 
@@ -123,7 +124,7 @@ async function resolveTenantConfig(): Promise<{
         pid ? fetchConfig(pid) : Promise.resolve(null),
         pid ? fetchProperty(pid) : Promise.resolve(null),
       ])
-      return { config: orgConfig, hotelConfig, property, navItems: [] }
+      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true }
     }
   }
 
@@ -133,17 +134,19 @@ async function resolveTenantConfig(): Promise<{
       fetchProperty(DEFAULT_PROPERTY_ID),
       fetchNavItems(DEFAULT_PROPERTY_ID),
     ])
-    return { config, hotelConfig: config, property, navItems }
+    return { config, hotelConfig: config, property, navItems, isChain: false }
   }
 
-  return { config: null, hotelConfig: null, property: null, navItems: [] }
+  return { config: null, hotelConfig: null, property: null, navItems: [], isChain: false }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
-    const { config, hotelConfig, property } = await resolveTenantConfig()
-    const title = config?.tabTitle || hotelConfig?.tabTitle || config?.displayName || hotelConfig?.displayName || property?.name || 'Hotel Booking'
-    const favicon = hotelConfig?.faviconUrl || config?.faviconUrl
+    const { config, hotelConfig, property, isChain } = await resolveTenantConfig()
+    const title = isChain
+      ? (config?.tabTitle || config?.displayName || 'Hotel Booking')
+      : (hotelConfig?.tabTitle || hotelConfig?.displayName || property?.name || 'Hotel Booking')
+    const favicon = isChain ? (config?.faviconUrl ?? null) : (hotelConfig?.faviconUrl || config?.faviconUrl)
     return {
       title,
       description: 'Book your stay directly',

@@ -55,6 +55,7 @@ export async function buildApp() {
   const app = Fastify({
     loggerInstance: logger,
     disableRequestLogging: env.NODE_ENV === 'production',
+    bodyLimit: 10 * 1024 * 1024, // 10 MB — needed for base64-encoded image uploads
   })
 
   // ── Plugins ────────────────────────────────────────────────────────────────
