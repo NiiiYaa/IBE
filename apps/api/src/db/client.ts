@@ -13,16 +13,27 @@ function isConnectionError(e: unknown): boolean {
   )
 }
 
+function buildDatabaseUrl(): string {
+  const url = new URL(env.DATABASE_URL)
+  // Cap connection pool — prevents exhausting Render PostgreSQL's connection limit
+  if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '5')
+  // Allow more time for TCP handshake (covers brief network blips on Render internal network)
+  if (!url.searchParams.has('connect_timeout')) url.searchParams.set('connect_timeout', '30')
+  return url.toString()
+}
+
 function buildClient() {
   const base = new PrismaClient({
     log: env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+    datasources: { db: { url: buildDatabaseUrl() } },
   })
 
   return base.$extends({
     query: {
       $allModels: {
         async $allOperations({ args, query }) {
-          const delays = [300, 1000, 2000]
+          // Retry on transient TCP errors (Render internal network can have brief blips)
+          const delays = [500, 1500, 3000]
           let lastError: unknown
           for (const delay of delays) {
             try {
