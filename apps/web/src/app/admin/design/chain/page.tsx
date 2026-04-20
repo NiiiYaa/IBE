@@ -79,15 +79,11 @@ export default function ChainPage() {
     queryFn: async () => {
       const results = await Promise.all(
         propertyIds.map(async id => {
-          const [detail, design] = await Promise.all([
-            apiClient.getProperty(id),
-            apiClient.getPropertyDesignAdmin(id),
-          ])
+          const detail = await apiClient.getProperty(id)
           return {
             propertyId: id,
             name: detail.name,
             images: detail.images ?? [],
-            hotelExcludedIds: design.hotelExcludedImageIds,
           }
         })
       )
@@ -95,6 +91,7 @@ export default function ChainPage() {
     },
     enabled: propertyIds.length > 0,
     staleTime: 60_000,
+    retry: 3,
   })
 
   const allImages = propertyImagesQuery.data ?? []
@@ -222,13 +219,19 @@ export default function ChainPage() {
 
           {propertyImagesQuery.isLoading ? (
             <div className="h-24 animate-pulse rounded-xl bg-[var(--color-border)]" />
+          ) : propertyImagesQuery.isError ? (
+            <div className="rounded-xl border border-[var(--color-error)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-error)]">
+              Failed to load images.{' '}
+              <button onClick={() => void propertyImagesQuery.refetch()} className="underline underline-offset-2">
+                Retry
+              </button>
+            </div>
           ) : allImages.length === 0 ? (
             <p className="text-xs text-[var(--color-text-muted)]">No images available. Sync your properties first.</p>
           ) : (() => {
             const safeTab = Math.min(activeTab, allImages.length - 1)
             const current = allImages[safeTab]!
-            const hotelExcludedSet = new Set(current.hotelExcludedIds)
-            const availableImages = current.images.filter(img => !hotelExcludedSet.has(img.id))
+            const availableImages = current.images
             return (
               <div>
                 {allImages.length > 1 && (

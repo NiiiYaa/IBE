@@ -247,12 +247,8 @@ export default async function HomePage({
             fetchConfig(r.propertyId),
           ])
           const sortedImages = (detail?.images ?? []).sort((a, b) => a.priority - b.priority)
-          const excludedIds = new Set(hotelConfig?.excludedPropertyImageIds ?? [])
-          // Use admin-starred hero image first, then first non-excluded image, then first image
-          const imageUrl = hotelConfig?.heroImageUrl
-            || sortedImages.find(img => !excludedIds.has(img.id))?.url
-            || sortedImages[0]?.url
-            || null
+          // Hero set by hotel admin takes priority; otherwise first image by priority
+          const imageUrl = hotelConfig?.heroImageUrl || sortedImages[0]?.url || null
           const firstDesc = detail?.descriptions.find(d => d.locale === 'en') ?? detail?.descriptions[0]
           return {
             id: r.propertyId,
