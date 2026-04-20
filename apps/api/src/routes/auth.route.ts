@@ -104,7 +104,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     type GoogleOAuth2Instance = {
       googleOAuth2: {
         generateAuthorizationUri: (req: typeof request, reply: typeof reply) => Promise<string>
-        getAccessTokenFromAuthorizationCodeFlow: (req: typeof request) => Promise<{ token: { access_token: string } }>
+        getAccessTokenFromAuthorizationCodeFlow: (req: typeof request, reply: typeof reply) => Promise<{ token: { access_token: string } }>
       }
     }
 
@@ -127,7 +127,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       const intent = (request.cookies as Record<string, string>)[INTENT_COOKIE] ?? 'signup'
       reply.clearCookie(INTENT_COOKIE, { path: '/' })
       try {
-        const { token } = await (fastify as unknown as GoogleOAuth2Instance).googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request)
+        const { token } = await (fastify as unknown as GoogleOAuth2Instance).googleOAuth2.getAccessTokenFromAuthorizationCodeFlow(request, reply)
 
         const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: { Authorization: `Bearer ${token.access_token}` },
