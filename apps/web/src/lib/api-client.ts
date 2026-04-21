@@ -131,7 +131,8 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       body = (await response.json()) as T | ApiError
     } catch {
-      throw new ApiClientError(`HTTP_${response.status}`, response.statusText || 'Request failed', response.status)
+      const raw = await response.text().catch(() => '')
+      throw new ApiClientError(`HTTP_${response.status}`, raw.slice(0, 200) || response.statusText || 'Request failed', response.status)
     }
 
     if (!response.ok) {
