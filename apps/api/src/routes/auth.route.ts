@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { verifyAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile } from '../services/auth.service.js'
+import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile } from '../services/auth.service.js'
 import { env } from '../config/env.js'
 import { cookieDomain } from '../utils/cookie.js'
 
@@ -32,16 +32,20 @@ export async function authRoutes(fastify: FastifyInstance) {
   // ── Email / password login ─────────────────────────────────────────────────
 
   fastify.post('/auth/login', async (request, reply) => {
-    const { email, password, hyperGuestOrgId } = request.body as {
-      email?: string; password?: string; hyperGuestOrgId?: string
+    const { email, password, adminId } = request.body as {
+      email?: string; password?: string; adminId?: number
     }
     if (!email || !password) {
       return reply.status(400).send({ error: 'email and password are required', code: 'IBE.AUTH.002' })
     }
-    const admin = await verifyAdminLogin(email, password, hyperGuestOrgId)
-    if (!admin) {
+    const result = await resolveAdminLogin(email, password, adminId)
+    if (!result.direct && result.choices.length === 0) {
       return reply.status(401).send({ error: 'Invalid credentials', code: 'IBE.AUTH.003' })
     }
+    if (result.choices.length > 0) {
+      return reply.send({ requiresSelection: true, accounts: result.choices })
+    }
+    const admin = result.direct!
     setCookieAndRespond(fastify, reply, admin)
     return reply.send({ ok: true, role: admin.role, organizationId: admin.organizationId, mustChangePassword: admin.mustChangePassword ?? false })
   })

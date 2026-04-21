@@ -168,10 +168,17 @@ export const apiClient = {
     return apiRequest<{ googleOAuth: boolean }>('/api/v1/auth/providers')
   },
 
-  adminLogin(email: string, password: string, hyperGuestOrgId?: string): Promise<{ ok: boolean; role: string; organizationId: number | null }> {
+  adminLogin(
+    email: string,
+    password: string,
+    adminId?: number,
+  ): Promise<
+    | { ok: true; role: string; organizationId: number | null; mustChangePassword: boolean; requiresSelection?: never }
+    | { requiresSelection: true; accounts: Array<{ adminId: number; name: string; organizationName: string; role: string }>; ok?: never }
+  > {
     return apiRequest('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, ...(hyperGuestOrgId && { hyperGuestOrgId }) }),
+      body: JSON.stringify({ email, password, ...(adminId !== undefined && { adminId }) }),
     })
   },
 

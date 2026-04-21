@@ -44,7 +44,7 @@ model AdminUser {
   id             Int           @id @default(autoincrement())
   organizationId Int?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  email          String        @unique
+  email          String
   passwordHash   String?
   googleId       String?       @unique
   name           String
@@ -56,6 +56,7 @@ model AdminUser {
 
   adminUserProperties AdminUserProperty[]
 
+  @@unique([organizationId, email])
   @@index([organizationId])
 }
 

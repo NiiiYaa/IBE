@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import Image from 'next/image'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '../../../lib/api-client'
 import { PasswordInput } from '@/components/ui/PasswordInput'
+
+type AccountChoice = { adminId: number; name: string; organizationName: string; role: string }
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -15,9 +16,10 @@ export default function AdminLoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [accounts, setAccounts] = useState<AccountChoice[] | null>(null)
+  const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
-  const isSuper = email.trim().toLowerCase() === 'nir@hyperguest.com'
   const [googleEnabled, setGoogleEnabled] = useState(false)
 
   useEffect(() => {
@@ -39,7 +41,13 @@ export default function AdminLoginPage() {
     setError(null)
     setIsPending(true)
     try {
-      await apiClient.adminLogin(email.trim(), password, isSuper ? '1' : undefined)
+      const result = await apiClient.adminLogin(email.trim(), password, selectedAdminId ?? undefined)
+      if (result.requiresSelection) {
+        setAccounts(result.accounts)
+        setSelectedAdminId(result.accounts[0]?.adminId ?? null)
+        setIsPending(false)
+        return
+      }
       await queryClient.invalidateQueries({ queryKey: ['admin-me'] })
       router.replace('/admin')
     } catch (err) {
@@ -57,6 +65,14 @@ export default function AdminLoginPage() {
     }
   }
 
+  function handleBack() {
+    setAccounts(null)
+    setSelectedAdminId(null)
+    setError(null)
+  }
+
+  const inputCls = 'w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)]'
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)]">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
@@ -65,59 +81,100 @@ export default function AdminLoginPage() {
           <p className="text-sm text-[var(--color-text-muted)]">Admin Portal</p>
         </div>
 
-        {googleEnabled && (
-          <>
-            <a
-              href="/api/v1/auth/google/login"
-              className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </a>
-
-            <div className="my-4 flex items-center gap-3">
-              <div className="h-px flex-1 bg-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-text-muted)]">or</span>
-              <div className="h-px flex-1 bg-[var(--color-border)]" />
+        {accounts ? (
+          /* Step 2: account selection */
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Multiple accounts found for <span className="font-medium text-[var(--color-text)]">{email}</span>. Select which to sign in to:
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Account</label>
+              <select
+                value={selectedAdminId ?? ''}
+                onChange={e => setSelectedAdminId(Number(e.target.value))}
+                className={inputCls}
+              >
+                {accounts.map(a => (
+                  <option key={a.adminId} value={a.adminId}>
+                    {a.organizationName}{a.role !== 'admin' ? ` (${a.role})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
+            {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="rounded-md border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={isPending || !selectedAdminId}
+                className="flex-1 rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+              >
+                {isPending ? 'Signing in…' : 'Sign in'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* Step 1: email + password */
+          <>
+            {googleEnabled && (
+              <>
+                <a
+                  href="/api/v1/auth/google/login"
+                  className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </a>
+                <div className="my-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[var(--color-border)]" />
+                  <span className="text-xs text-[var(--color-text-muted)]">or</span>
+                  <div className="h-px flex-1 bg-[var(--color-border)]" />
+                </div>
+              </>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
+                <PasswordInput
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className={inputCls}
+                />
+              </div>
+
+              {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={isPending}
+                className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+              >
+                {isPending ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
           </>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-            <PasswordInput
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)]"
-            />
-          </div>
-
-          {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
-          >
-            {isPending ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-
       </div>
     </div>
   )

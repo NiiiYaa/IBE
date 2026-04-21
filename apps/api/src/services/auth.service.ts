@@ -10,39 +10,70 @@ export interface AdminPayload {
   mustChangePassword?: boolean
 }
 
-export async function verifyAdminLogin(
+export type AccountChoice = {
+  adminId: number
+  name: string
+  organizationName: string
+  role: string
+}
+
+export async function resolveAdminLogin(
   email: string,
   password: string,
-  hyperGuestOrgId?: string,
-): Promise<AdminPayload | null> {
-  const user = await prisma.adminUser.findUnique({
-    where: { email: email.toLowerCase() },
-    include: { adminUserProperties: { select: { propertyId: true } } },
+  adminId?: number,
+): Promise<{ direct: AdminPayload | null; choices: AccountChoice[] }> {
+  const where = adminId
+    ? { id: adminId, email: email.toLowerCase(), isActive: true }
+    : { email: email.toLowerCase(), isActive: true }
+
+  const users = await prisma.adminUser.findMany({
+    where,
+    include: {
+      adminUserProperties: { select: { propertyId: true } },
+      organization: { select: { name: true, isActive: true, deletedAt: true } },
+    },
   })
-  if (!user || !user.isActive || !user.passwordHash) return null
-  const valid = await bcrypt.compare(password, user.passwordHash)
-  if (!valid) return null
 
-  // Super admin requires the magic org ID '1' as a second factor
-  if (user.role === 'super') {
-    if (hyperGuestOrgId !== '1') return null
-    return { adminId: user.id, organizationId: null, role: 'super', mustChangePassword: user.mustChangePassword }
+  const matched: Array<{ user: typeof users[0]; payload: AdminPayload }> = []
+
+  for (const user of users) {
+    if (!user.passwordHash) continue
+    const valid = await bcrypt.compare(password, user.passwordHash)
+    if (!valid) continue
+
+    if (user.role === 'super') {
+      return {
+        direct: { adminId: user.id, organizationId: null, role: 'super', mustChangePassword: user.mustChangePassword },
+        choices: [],
+      }
+    }
+
+    if (user.organization && (!user.organization.isActive || user.organization.deletedAt)) continue
+
+    const propertyIds = user.role === 'user' ? user.adminUserProperties.map(p => p.propertyId) : undefined
+    matched.push({
+      user,
+      payload: {
+        adminId: user.id,
+        organizationId: user.organizationId,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword,
+        ...(propertyIds !== undefined && { propertyIds }),
+      },
+    })
   }
 
-  // Regular users: verify their org is active
-  if (user.organizationId) {
-    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
-    if (!org || !org.isActive || org.deletedAt) return null
-  }
-
-  const propertyIds = user.role === 'user'
-    ? user.adminUserProperties.map(p => p.propertyId)
-    : undefined
+  if (matched.length === 0) return { direct: null, choices: [] }
+  if (matched.length === 1) return { direct: matched[0]!.payload, choices: [] }
 
   return {
-    adminId: user.id, organizationId: user.organizationId, role: user.role,
-    mustChangePassword: user.mustChangePassword,
-    ...(propertyIds !== undefined && { propertyIds }),
+    direct: null,
+    choices: matched.map(m => ({
+      adminId: m.user.id,
+      name: m.user.name,
+      organizationName: m.user.organization?.name ?? 'Unknown',
+      role: m.user.role,
+    })),
   }
 }
 
@@ -54,9 +85,6 @@ export async function signUpAdmin(data: {
   hyperGuestOrgId?: string
 }): Promise<AdminPayload> {
   const email = data.email.toLowerCase()
-
-  const existing = await prisma.adminUser.findUnique({ where: { email } })
-  if (existing) throw new Error('An account with this email already exists')
 
   if (data.hyperGuestOrgId) {
     const existingOrg = await prisma.organization.findUnique({ where: { hyperGuestOrgId: data.hyperGuestOrgId } })
