@@ -1,7 +1,7 @@
 'use client'
 
 import type { RateOption, RoomOption } from '@ibe/shared'
-import { formatCurrency } from '@ibe/shared'
+import { formatCurrency, formatDate } from '@ibe/shared'
 import { MealBadge } from './MealBadge'
 
 interface RateRowProps {
@@ -64,7 +64,7 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
         {/* Cancellation detail */}
         {rate.isRefundable && deadline && (
           <p className="text-xs text-success">
-            Free cancellation until {deadline.deadline.slice(0, 10)}
+            Free cancellation until {formatDate(deadline.deadline.slice(0, 10), locale)}
           </p>
         )}
 
