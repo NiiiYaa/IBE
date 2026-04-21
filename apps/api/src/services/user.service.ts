@@ -151,8 +151,8 @@ export async function createUser(
   data: { email: string; name: string; role: string },
 ): Promise<UserRecord & { temporaryPassword: string }> {
   const email = data.email.toLowerCase().trim()
-  const existing = await prisma.adminUser.findUnique({ where: { email } })
-  if (existing) throw new Error('A user with this email already exists')
+  const existing = await prisma.adminUser.findFirst({ where: { email, organizationId } })
+  if (existing) throw new Error('A user with this email already exists in this organization')
 
   const temporaryPassword = generateTemporaryPassword()
   const passwordHash = await hashPassword(temporaryPassword)

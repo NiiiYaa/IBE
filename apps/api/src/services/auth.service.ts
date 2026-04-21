@@ -196,7 +196,7 @@ export async function updateAdminProfile(
   }
 
   if (data.email) {
-    const existing = await prisma.adminUser.findUnique({ where: { email: data.email.toLowerCase() } })
+    const existing = await prisma.adminUser.findFirst({ where: { email: data.email.toLowerCase() } })
     if (existing && existing.id !== adminId) throw new Error('Email already in use')
   }
 
