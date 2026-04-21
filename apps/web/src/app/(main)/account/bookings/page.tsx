@@ -7,6 +7,12 @@ import { useRequireGuestAuth } from '@/hooks/use-guest-auth'
 import { apiClient } from '@/lib/api-client'
 import type { GuestBookingSummary } from '@ibe/shared'
 
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  return `${d.getDate()}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`
+}
+
 const STATUS_COLORS: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-700',
   pending: 'bg-yellow-100 text-yellow-700',
@@ -47,7 +53,7 @@ function BookingCard({ b }: { b: GuestBookingSummary }) {
       {b.canCancel && (
         <p className="mt-2 text-xs text-[var(--color-text-muted)]">
           {b.cancellationDeadline
-            ? `Free cancellation until ${new Date(b.cancellationDeadline).toLocaleDateString()}`
+            ? `Free cancellation until ${fmtDate(b.cancellationDeadline)}`
             : 'Free cancellation'}
         </p>
       )}

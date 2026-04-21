@@ -12,6 +12,7 @@ import {
   PaymentMethodType,
   ChargeParty,
   CreateBookingRequestSchema,
+  formatDate,
 } from '@ibe/shared'
 import type { CreateBookingRequestInput } from '@ibe/shared'
 import type { PaymentStepResult } from '@/components/payment/PaymentStep'
@@ -260,7 +261,7 @@ export function BookingForm({
             )}
             {primaryRate.cancellationDeadlines[0] && primaryRate.isRefundable && (
               <p className="text-success text-xs">
-                ✓ Free cancellation until {primaryRate.cancellationDeadlines[0].deadline.slice(0, 10)}
+                ✓ Free cancellation until {formatDate(primaryRate.cancellationDeadlines[0].deadline.slice(0, 10), locale)}
               </p>
             )}
             {!primaryRate.isRefundable && (

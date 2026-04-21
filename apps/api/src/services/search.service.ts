@@ -233,17 +233,17 @@ function transformCancellationPolicy(
 }
 
 /**
- * A rate is refundable if any cancellation policy's deadline is still in the
- * future — meaning we're currently in a free-cancellation window (either an
- * explicit zero-penalty period, or the period before the first penalty kicks in).
- * Non-refundable rates use a deadline far in the past (e.g. 999 days before
- * check-in) so their deadlines are always ≤ now.
+ * A rate is refundable if it has at least one zero-penalty policy whose
+ * free-cancellation deadline is still in the future.
+ * Checking amount===0 is required — a penalty policy can have a future deadline
+ * (e.g. "100% charge at check-in") which must not be mistaken for a free window.
  */
 function isRatePlanRefundable(policies: HGCancellationPolicy[], checkIn: string): boolean {
   if (policies.length === 0) return false
   const now = Date.now()
   return policies.some((p) => {
-    if (!p.timeSetting) return false
+    if (Number(p.amount) !== 0) return false  // only zero-penalty policies indicate free cancellation
+    if (!p.timeSetting) return true  // no time constraint = always free
     const deadline = calculateCancellationDeadline(
       checkIn,
       p.timeSetting.timeFromCheckIn,

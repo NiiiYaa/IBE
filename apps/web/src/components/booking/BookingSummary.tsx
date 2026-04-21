@@ -16,8 +16,8 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
 
   const formatDateShort = (d: string) => {
     const [year, month, day] = d.split('-').map(Number) as [number, number, number]
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    return `${day} ${MONTHS[month - 1]} ${year}`
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+    return `${day}-${MONTHS[month - 1]}-${year}`
   }
 
   const currency = rooms[0]?.rate.prices.sell.currency ?? 'USD'

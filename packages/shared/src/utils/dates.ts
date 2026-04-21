@@ -18,7 +18,9 @@ export function nightsBetween(checkIn: string, checkOut: string): number {
 export function formatDate(isoDate: string, locale: string, options?: Intl.DateTimeFormatOptions): string {
   const [year, month, day] = isoDate.split('-').map(Number) as [number, number, number]
   const date = new Date(year, month - 1, day)
-  return date.toLocaleDateString(locale, options ?? { year: 'numeric', month: 'short', day: 'numeric' })
+  if (options) return date.toLocaleDateString(locale, options)
+  const monthName = date.toLocaleDateString(locale, { month: 'long' })
+  return `${day}-${monthName}-${year}`
 }
 
 /**

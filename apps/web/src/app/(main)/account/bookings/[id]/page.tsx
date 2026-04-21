@@ -7,6 +7,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRequireGuestAuth } from '@/hooks/use-guest-auth'
 import { apiClient } from '@/lib/api-client'
 
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  return `${d.getDate()}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`
+}
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === '') return null
   return (
@@ -93,9 +99,9 @@ export default function GuestBookingDetailPage() {
         <Row label="Payment method" value={booking.paymentMethod} />
         {booking.agencyReference && <Row label="Reference" value={booking.agencyReference} />}
         {booking.cancellationDeadline && (
-          <Row label="Free cancellation until" value={new Date(booking.cancellationDeadline).toLocaleString()} />
+          <Row label="Free cancellation until" value={fmtDate(booking.cancellationDeadline)} />
         )}
-        <Row label="Booked on" value={new Date(booking.createdAt).toLocaleDateString()} />
+        <Row label="Booked on" value={fmtDate(booking.createdAt)} />
       </div>
 
       {booking.rooms.length > 0 && (
