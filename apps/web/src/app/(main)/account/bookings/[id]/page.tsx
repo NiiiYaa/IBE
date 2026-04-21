@@ -121,6 +121,40 @@ export default function GuestBookingDetailPage() {
         </div>
       )}
 
+      {/* Cancellation policy */}
+      {booking.cancellationFrames !== undefined && (
+        <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Cancellation policy</h3>
+          {booking.isRefundable ? (
+            <div className="flex items-start gap-2 text-sm text-success">
+              <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Free cancellation — no charges apply</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {booking.cancellationFrames.filter(f => f.penaltyAmount > 0).map((f, i) => {
+                const isPast = new Date(f.from) <= new Date()
+                return (
+                  <div key={i} className={`flex items-start gap-2 text-sm ${isPast ? 'text-error' : 'text-amber-700'}`}>
+                    <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                    <span>
+                      {isPast
+                        ? <>Non-refundable — cancellation fee: <strong>{f.currency} {f.penaltyAmount.toFixed(2)}</strong></>
+                        : <>Cancellation fee of <strong>{f.currency} {f.penaltyAmount.toFixed(2)}</strong> applies after {fmtDate(f.from)}</>
+                      }
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {booking.canCancel && (
         <div className="mt-6">
           {!confirming ? (
@@ -131,8 +165,31 @@ export default function GuestBookingDetailPage() {
               Cancel booking
             </button>
           ) : (
-            <div className="rounded-xl border border-[var(--color-error)]/40 bg-red-50 p-4">
-              <p className="mb-3 text-sm text-[var(--color-text)]">Are you sure you want to cancel this booking?</p>
+            <div className="rounded-xl border border-[var(--color-error)]/40 bg-red-50 p-4 space-y-3">
+              {booking.isRefundable ? (
+                <div className="flex items-start gap-2">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <p className="text-sm text-[var(--color-text)]">
+                    <strong>No cancellation fee</strong> — this booking can be cancelled at no charge.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <p className="text-sm text-[var(--color-text)]">
+                    {booking.cancellationFrames.find(f => f.penaltyAmount > 0) ? (
+                      <>A cancellation fee of <strong>{booking.cancellationFrames.find(f => f.penaltyAmount > 0)!.currency} {booking.cancellationFrames.find(f => f.penaltyAmount > 0)!.penaltyAmount.toFixed(2)}</strong> will apply.</>
+                    ) : (
+                      <>A cancellation fee may apply.</>
+                    )}
+                  </p>
+                </div>
+              )}
+              <p className="text-sm font-medium text-[var(--color-text)]">Are you sure you want to cancel?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => cancelMutation.mutate()}

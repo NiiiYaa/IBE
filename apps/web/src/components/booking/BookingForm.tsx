@@ -93,7 +93,16 @@ export function BookingForm({
 
   const { mutate, isPending, error: bookingError } = useMutation({
     mutationFn: (data: CreateBookingRequestInput) => apiClient.createBooking(data),
-    onSuccess: (c: BookingConfirmation) => router.push(`/booking/confirmation/${c.bookingId}`),
+    onSuccess: (c: BookingConfirmation) => {
+      try {
+        sessionStorage.setItem(`ibe_confirm_${c.bookingId}`, JSON.stringify({
+          cancellationFrames: c.rooms.flatMap(r => r.cancellationFrames),
+          totalAmount: c.totalAmount,
+          currency: c.currency,
+        }))
+      } catch {}
+      router.push(`/booking/confirmation/${c.bookingId}`)
+    },
   })
 
   async function onGuestSubmit(e: React.FormEvent) {

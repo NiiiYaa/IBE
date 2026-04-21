@@ -185,6 +185,16 @@ export async function guestRoutes(fastify: FastifyInstance) {
     const b = await getGuestBookingById(id, guest.id, guest.email)
     if (!b) return reply.status(404).send({ error: 'Booking not found' })
     const now = new Date()
+    const raw = b.rawResponse as Record<string, unknown> | null
+    const cancellationFrames = ((raw?.rooms as Array<Record<string, unknown>>) ?? []).flatMap(r =>
+      ((r.cancellationPolicy as Array<Record<string, unknown>>) ?? []).map(cp => ({
+        from: cp.startDate as string,
+        to: cp.endDate as string | null,
+        penaltyAmount: (cp.price as Record<string, unknown>)?.amount as number ?? 0,
+        currency: (cp.price as Record<string, unknown>)?.currency as string ?? b.currency,
+      }))
+    )
+    const isRefundable = cancellationFrames.every(f => f.penaltyAmount === 0)
     return reply.send({
       id: b.id,
       hyperGuestBookingId: b.hyperGuestBookingId,
@@ -203,6 +213,8 @@ export async function guestRoutes(fastify: FastifyInstance) {
       agencyReference: b.agencyReference,
       cancellationDeadline: b.cancellationDeadline?.toISOString() ?? null,
       canCancel: b.status !== 'cancelled' && (!b.cancellationDeadline || b.cancellationDeadline > now),
+      cancellationFrames,
+      isRefundable,
       rooms: b.rooms.map(r => ({ roomCode: r.roomCode, rateCode: r.rateCode, board: r.board, status: r.status })),
       createdAt: b.createdAt.toISOString(),
     })

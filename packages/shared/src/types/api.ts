@@ -1111,6 +1111,8 @@ export interface GuestBookingDetail extends GuestBookingSummary {
   paymentMethod: string
   agencyReference: string | null
   rooms: Array<{ roomCode: string; rateCode: string; board: string; status: string }>
+  cancellationFrames: BookingCancellationFrame[]
+  isRefundable: boolean
 }
 
 // ── Admin: Guest Management ───────────────────────────────────────────────────
