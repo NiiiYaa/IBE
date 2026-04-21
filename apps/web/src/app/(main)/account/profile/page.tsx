@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRequireGuestAuth } from '@/hooks/use-guest-auth'
 import { apiClient, ApiClientError } from '@/lib/api-client'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 export default function GuestProfilePage() {
   const { guest } = useRequireGuestAuth()
@@ -127,15 +128,15 @@ export default function GuestProfilePage() {
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Current password</label>
-            <input type="password" value={passwordForm.currentPassword} onChange={pset('currentPassword')} required autoComplete="current-password" className={inputCls} />
+            <PasswordInput value={passwordForm.currentPassword} onChange={pset('currentPassword')} required autoComplete="current-password" className={inputCls} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">New password</label>
-            <input type="password" value={passwordForm.newPassword} onChange={pset('newPassword')} required autoComplete="new-password" minLength={8} className={inputCls} />
+            <PasswordInput value={passwordForm.newPassword} onChange={pset('newPassword')} required autoComplete="new-password" className={inputCls} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Confirm new password</label>
-            <input type="password" value={passwordForm.confirmPassword} onChange={pset('confirmPassword')} required autoComplete="new-password" className={inputCls} />
+            <PasswordInput value={passwordForm.confirmPassword} onChange={pset('confirmPassword')} required autoComplete="new-password" className={inputCls} />
           </div>
           {passwordError && <p className="text-sm text-[var(--color-error)]">{passwordError}</p>}
           {passwordSuccess && <p className="text-sm text-green-600">Password changed.</p>}

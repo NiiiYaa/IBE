@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function GoogleIcon() {
   return (
@@ -90,8 +91,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={e => setPassword(e.target.value)}
               required

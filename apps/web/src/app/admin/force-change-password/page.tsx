@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { validatePassword } from '@ibe/shared'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function PasswordStrengthHint({ password }: { password: string }) {
   if (!password) return null
@@ -58,8 +59,7 @@ export default function ForceChangePasswordPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">New password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={form.newPassword}
               onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
               required
@@ -71,8 +71,7 @@ export default function ForceChangePasswordPage() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Confirm password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={form.confirmPassword}
               onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
               required

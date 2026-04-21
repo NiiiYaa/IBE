@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { validatePassword } from '@ibe/shared'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function GoogleIcon() {
   return (
@@ -111,13 +112,13 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-            <input type="password" value={form.password} onChange={set('password')} required autoComplete="new-password" className={inputCls} />
+            <PasswordInput value={form.password} onChange={set('password')} required autoComplete="new-password" className={inputCls} />
             <p className="mt-1 text-xs text-[var(--color-text-muted)]">Min. 8 characters with uppercase, lowercase, number and special character</p>
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Confirm password</label>
-            <input type="password" value={form.confirmPassword} onChange={set('confirmPassword')} required autoComplete="new-password" placeholder="Repeat your password" className={inputCls} />
+            <PasswordInput value={form.confirmPassword} onChange={set('confirmPassword')} required autoComplete="new-password" placeholder="Repeat your password" className={inputCls} />
           </div>
 
           <div>

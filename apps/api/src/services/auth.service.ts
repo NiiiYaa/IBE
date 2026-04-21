@@ -23,27 +23,24 @@ export async function verifyAdminLogin(
   const valid = await bcrypt.compare(password, user.passwordHash)
   if (!valid) return null
 
-  if (!hyperGuestOrgId) return null
-
-  if (user.role !== 'super' && user.organizationId) {
-    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
-    if (!org || !org.isActive || org.deletedAt) return null
-  }
-
+  // Super admin requires the magic org ID '1' as a second factor
   if (user.role === 'super') {
     if (hyperGuestOrgId !== '1') return null
     return { adminId: user.id, organizationId: null, role: 'super', mustChangePassword: user.mustChangePassword }
   }
 
-  const org = await prisma.organization.findUnique({ where: { hyperGuestOrgId } })
-  if (!org || user.organizationId !== org.id) return null
+  // Regular users: verify their org is active
+  if (user.organizationId) {
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
+    if (!org || !org.isActive || org.deletedAt) return null
+  }
 
   const propertyIds = user.role === 'user'
     ? user.adminUserProperties.map(p => p.propertyId)
     : undefined
 
   return {
-    adminId: user.id, organizationId: org.id, role: user.role,
+    adminId: user.id, organizationId: user.organizationId, role: user.role,
     mustChangePassword: user.mustChangePassword,
     ...(propertyIds !== undefined && { propertyIds }),
   }

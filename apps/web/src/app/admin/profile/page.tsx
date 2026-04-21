@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { validatePassword } from '@ibe/shared'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 function PasswordStrengthHint({ password }: { password: string }) {
   if (!password) return null
@@ -121,8 +122,7 @@ export default function AdminProfilePage() {
         <form onSubmit={savePassword} className="space-y-4">
           <div>
             <label className={labelCls}>Current password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={pwForm.currentPassword}
               onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))}
               required
@@ -132,8 +132,7 @@ export default function AdminProfilePage() {
           </div>
           <div>
             <label className={labelCls}>New password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={pwForm.newPassword}
               onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))}
               required
@@ -144,8 +143,7 @@ export default function AdminProfilePage() {
           </div>
           <div>
             <label className={labelCls}>Confirm new password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={pwForm.confirmPassword}
               onChange={e => setPwForm(f => ({ ...f, confirmPassword: e.target.value }))}
               required

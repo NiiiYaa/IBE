@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '../../../lib/api-client'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -14,9 +15,9 @@ export default function AdminLoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [hyperGuestOrgId, setHyperGuestOrgId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const isSuper = email.trim().toLowerCase() === 'nir@hyperguest.com'
   const [googleEnabled, setGoogleEnabled] = useState(false)
 
   useEffect(() => {
@@ -34,11 +35,11 @@ export default function AdminLoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !password || !hyperGuestOrgId.trim()) return
+    if (!email.trim() || !password) return
     setError(null)
     setIsPending(true)
     try {
-      await apiClient.adminLogin(email.trim(), password, hyperGuestOrgId.trim())
+      await apiClient.adminLogin(email.trim(), password, isSuper ? '1' : undefined)
       await queryClient.invalidateQueries({ queryKey: ['admin-me'] })
       router.replace('/admin')
     } catch (err) {
@@ -84,19 +85,6 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">HyperGuest Org ID</label>
-            <input
-              type="text"
-              value={hyperGuestOrgId}
-              onChange={e => setHyperGuestOrgId(e.target.value)}
-              required
-              autoComplete="organization"
-              placeholder="Your HyperGuest demand org ID"
-              className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)]"
-            />
-          </div>
-
-          <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Email</label>
             <input
               type="email"
@@ -110,8 +98,7 @@ export default function AdminLoginPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
