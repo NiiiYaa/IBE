@@ -7,7 +7,6 @@ import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar, Section } from '../../design/components'
-import { OverrideToggleRow } from '../../design/override-helpers'
 
 export default function PaymentGatewayPage() {
   const { propertyId } = useAdminProperty()
@@ -22,9 +21,18 @@ function GlobalPaymentEditor() {
 
   if (isLoading) return <Spinner />
 
-  const onlineEnabled = draft.onlinePaymentEnabled ?? true
-  const payAtHotelEnabled = draft.payAtHotelEnabled ?? true
-  const guaranteeRequired = draft.payAtHotelCardGuaranteeRequired ?? false
+  const isStripe = draft.onlinePaymentEnabled ?? true
+
+  function selectStripe() {
+    set('onlinePaymentEnabled', true)
+    set('payAtHotelEnabled', false)
+  }
+
+  function selectAtHotel() {
+    set('onlinePaymentEnabled', false)
+    set('payAtHotelEnabled', true)
+    set('payAtHotelCardGuaranteeRequired', false)
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -35,33 +43,20 @@ function GlobalPaymentEditor() {
         </p>
       </div>
 
-      <Section title="Online Payment">
-        <ToggleRow
-          label="Accept credit card payments"
-          description="Guests pay in full at the time of booking via Stripe. Always requires a credit card."
-          badge="Prepaid"
-          checked={onlineEnabled}
-          onChange={v => set('onlinePaymentEnabled', v)}
-        />
-      </Section>
-
-      <Section title="Pay at Hotel">
+      <Section title="Select gateway">
         <div className="space-y-3">
-          <ToggleRow
-            label="Allow pay-at-hotel reservations"
-            description="Guests can complete a reservation without paying upfront."
-            checked={payAtHotelEnabled}
-            onChange={v => {
-              set('payAtHotelEnabled', v)
-              if (!v) set('payAtHotelCardGuaranteeRequired', false)
-            }}
+          <GatewayOption
+            label="Stripe"
+            description="Guests pay online in full at the time of booking via credit card."
+            badge="Prepaid"
+            selected={isStripe}
+            onSelect={selectStripe}
           />
-          <ToggleRow
-            label="Require credit card to guarantee the reservation"
-            description="When enabled, guests must provide a credit card to hold the reservation — the card is not charged at booking."
-            checked={guaranteeRequired}
-            onChange={v => set('payAtHotelCardGuaranteeRequired', v)}
-            disabled={!payAtHotelEnabled}
+          <GatewayOption
+            label="Pay at Hotel"
+            description="No payment is collected at booking. Payment will be collected at the hotel."
+            selected={!isStripe}
+            onSelect={selectAtHotel}
           />
         </div>
       </Section>
@@ -112,59 +107,64 @@ function PropertyPaymentEditor({ propertyId }: { propertyId: number }) {
     setIsDirty(true)
   }, [])
 
-  const reset = useCallback((key: keyof OrgDesignDefaultsConfig) => {
-    setDraft(d => ({ ...d, [key]: null }))
-    setIsDirty(true)
-  }, [])
-
   if (!propertyId || isLoading) return <Spinner />
 
-  const effectivePayAtHotel = (draft.payAtHotelEnabled ?? orgDefaults.payAtHotelEnabled ?? true)
-  const setB = set as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void
+  // Effective value: draft override → org default → system default (true = Stripe)
+  const effectiveOnline = draft.onlinePaymentEnabled ?? orgDefaults.onlinePaymentEnabled ?? true
+  const isOverridden = draft.onlinePaymentEnabled !== null && draft.onlinePaymentEnabled !== undefined
+  const chainGateway = (orgDefaults.onlinePaymentEnabled ?? true) ? 'Stripe' : 'Pay at Hotel'
+
+  function selectStripe() {
+    setDraft(d => ({ ...d, onlinePaymentEnabled: true, payAtHotelEnabled: false, payAtHotelCardGuaranteeRequired: false }))
+    setIsDirty(true)
+  }
+
+  function selectAtHotel() {
+    setDraft(d => ({ ...d, onlinePaymentEnabled: false, payAtHotelEnabled: true, payAtHotelCardGuaranteeRequired: false }))
+    setIsDirty(true)
+  }
+
+  function resetToChain() {
+    setDraft(d => ({ ...d, onlinePaymentEnabled: null, payAtHotelEnabled: null, payAtHotelCardGuaranteeRequired: null }))
+    setIsDirty(true)
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <h1 className="mb-2 text-xl font-semibold text-[var(--color-text)]">Payment Gateway</h1>
       <p className="mb-6 text-sm text-[var(--color-text-muted)]">
-        Hotel overrides — inherit from chain or set a custom value for this hotel.
+        Hotel override — inherit from chain or set a custom gateway for this hotel.
       </p>
 
-      <Section title="Online Payment">
-        <OverrideToggleRow
-          label="Accept credit card payments"
-          description="Guests pay in full at the time of booking via Stripe. Always requires a credit card."
-          badge="Prepaid"
-          fieldKey="onlinePaymentEnabled"
-          draft={draft} orgDefaults={orgDefaults} systemDefault={true}
-          onSet={setB} onReset={reset}
-        />
-      </Section>
-
-      <Section title="Pay at Hotel">
+      <Section title="Select gateway">
         <div className="space-y-3">
-          <OverrideToggleRow
-            label="Allow pay-at-hotel reservations"
-            description="Guests can complete a reservation without paying upfront."
-            fieldKey="payAtHotelEnabled"
-            draft={draft} orgDefaults={orgDefaults} systemDefault={true}
-            onSet={(key, val) => {
-              setB(key, val)
-              if (!val) reset('payAtHotelCardGuaranteeRequired')
-            }}
-            onReset={key => {
-              reset(key)
-              reset('payAtHotelCardGuaranteeRequired')
-            }}
+          <GatewayOption
+            label="Stripe"
+            description="Guests pay online in full at the time of booking via credit card."
+            badge="Prepaid"
+            selected={effectiveOnline === true}
+            onSelect={selectStripe}
           />
-          <OverrideToggleRow
-            label="Require credit card to guarantee the reservation"
-            description="When enabled, guests must provide a credit card to hold the reservation — the card is not charged at booking."
-            fieldKey="payAtHotelCardGuaranteeRequired"
-            draft={draft} orgDefaults={orgDefaults} systemDefault={false}
-            onSet={setB} onReset={reset}
-            disabledWhen={!effectivePayAtHotel}
+          <GatewayOption
+            label="Pay at Hotel"
+            description="No payment is collected at booking. Payment will be collected at the hotel."
+            selected={effectiveOnline === false}
+            onSelect={selectAtHotel}
           />
         </div>
+
+        {isOverridden ? (
+          <button
+            onClick={resetToChain}
+            className="mt-3 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            Reset to chain default ({chainGateway})
+          </button>
+        ) : (
+          <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+            Inheriting chain default: <span className="font-medium">{chainGateway}</span>
+          </p>
+        )}
       </Section>
 
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
@@ -174,46 +174,42 @@ function PropertyPaymentEditor({ propertyId }: { propertyId: number }) {
 
 // ── Shared components ─────────────────────────────────────────────────────────
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={[
-        'relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200',
-        disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-        checked ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
-      ].join(' ')}
-    >
-      <span className={[
-        'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200',
-        checked ? 'translate-x-5' : 'translate-x-0',
-      ].join(' ')} />
-    </button>
-  )
-}
-
-function ToggleRow({ label, description, checked, onChange, disabled, badge }: {
-  label: string; description?: string; checked: boolean
-  onChange: (v: boolean) => void; disabled?: boolean; badge?: string
+function GatewayOption({ label, description, badge, selected, onSelect }: {
+  label: string
+  description: string
+  badge?: string
+  selected: boolean
+  onSelect: () => void
 }) {
   return (
-    <div className={['flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4', disabled ? 'opacity-60' : ''].join(' ')}>
-      <div>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        'w-full flex items-center gap-4 rounded-xl border px-5 py-4 text-left transition-colors',
+        selected
+          ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
+          : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)]/50',
+      ].join(' ')}
+    >
+      <div className={[
+        'mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center',
+        selected ? 'border-[var(--color-primary)]' : 'border-[var(--color-border)]',
+      ].join(' ')}>
+        {selected && <div className="h-2 w-2 rounded-full bg-[var(--color-primary)]" />}
+      </div>
+      <div className="flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-[var(--color-text)]">{label}</p>
+          <span className="text-sm font-medium text-[var(--color-text)]">{label}</span>
           {badge && (
             <span className="rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
               {badge}
             </span>
           )}
         </div>
-        {description && <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{description}</p>}
+        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{description}</p>
       </div>
-      <Toggle checked={checked} onChange={onChange} {...(disabled !== undefined ? { disabled } : {})} />
-    </div>
+    </button>
   )
 }
 

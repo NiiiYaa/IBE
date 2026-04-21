@@ -28,6 +28,7 @@ interface BookingFormProps {
   searchId: string
   affiliateId?: string
   locale: string
+  onlinePaymentEnabled?: boolean
   payAtHotelCardGuaranteeRequired?: boolean
 }
 
@@ -40,7 +41,8 @@ const STEP_LABELS: Record<Step, string> = {
 }
 const STEPS: Step[] = ['guest', 'payment', 'confirm']
 
-function resolvePaymentFlow(chargeParty: string, guaranteeRequired: boolean): PaymentFlow {
+function resolvePaymentFlow(chargeParty: string, guaranteeRequired: boolean, onlinePaymentEnabled: boolean): PaymentFlow {
+  if (!onlinePaymentEnabled) return PaymentFlow.PayAtHotelNoCard
   if (chargeParty === ChargeParty.Agent) return PaymentFlow.OnlineCharge
   if (guaranteeRequired) return PaymentFlow.PayAtHotelGuarantee
   return PaymentFlow.PayAtHotelNoCard
@@ -48,6 +50,7 @@ function resolvePaymentFlow(chargeParty: string, guaranteeRequired: boolean): Pa
 
 export function BookingForm({
   propertyId, checkIn, checkOut, rooms, searchId, affiliateId, locale,
+  onlinePaymentEnabled = true,
   payAtHotelCardGuaranteeRequired = false,
 }: BookingFormProps) {
   const router = useRouter()
@@ -55,7 +58,7 @@ export function BookingForm({
   const [paymentResult, setPaymentResult] = useState<PaymentStepResult | null>(null)
 
   const primaryRate = rooms[0]!.rate
-  const paymentFlow = resolvePaymentFlow(primaryRate.chargeParty, payAtHotelCardGuaranteeRequired)
+  const paymentFlow = resolvePaymentFlow(primaryRate.chargeParty, payAtHotelCardGuaranteeRequired, onlinePaymentEnabled)
   const amountMinorUnits = Math.round(rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0) * 100)
 
   const {
@@ -65,7 +68,7 @@ export function BookingForm({
     resolver: zodResolver(CreateBookingRequestSchema),
     defaultValues: {
       propertyId, checkIn, checkOut,
-      paymentMethod: PaymentMethodType.CreditCard,
+      paymentMethod: onlinePaymentEnabled ? PaymentMethodType.CreditCard : PaymentMethodType.AtHotel,
       paymentFlow,
       isTest: true,
       searchId,

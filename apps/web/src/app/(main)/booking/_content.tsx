@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { decodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
+import { useHotelConfig } from '@/hooks/use-hotel-config'
 import { BookingForm } from '@/components/booking/BookingForm'
 import { BookingSummary, type SelectedRoom } from '@/components/booking/BookingSummary'
 import Link from 'next/link'
@@ -15,6 +16,8 @@ export function BookingContent() {
 
   const searchParams = decodeSearchParams(rawParams)
   const { data: searchData, isLoading } = useSearch(searchParams)
+  const { data: hotelConfig } = useHotelConfig(searchParams?.hotelId ?? null)
+  const onlinePaymentEnabled = hotelConfig?.onlinePaymentEnabled ?? true
 
   // Support both single-room (?roomId=X&ratePlanId=Y) and multi-room (?rooms[0][roomId]=X...) formats
   const singleRoomId   = Number(rawParams.get('roomId'))
@@ -117,6 +120,7 @@ export function BookingContent() {
             {...(affiliateId ? { affiliateId } : {})}
             {...(campaignId ? { campaignId } : {})}
             locale="en"
+            onlinePaymentEnabled={onlinePaymentEnabled}
           />
         </div>
         <div>

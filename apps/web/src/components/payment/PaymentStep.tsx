@@ -69,9 +69,7 @@ function NoCardPayment({ onComplete }: { onComplete: () => void }) {
     <div className="space-y-4">
       <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
         <p className="font-medium">Pay at the hotel</p>
-        <p className="mt-1">
-          No payment is taken now. You will pay directly at the hotel upon arrival.
-        </p>
+        <p className="mt-1">Payment will be collected at the hotel.</p>
       </div>
       <Button size="lg" className="w-full" onClick={onComplete}>
         Continue to confirm

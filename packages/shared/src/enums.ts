@@ -85,6 +85,7 @@ export enum PaymentMethodType {
   Enett = 'enett',
   PayPal = 'paypal',
   Stripe = 'stripe',
+  AtHotel = 'at_hotel',
 }
 
 /**
