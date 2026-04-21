@@ -78,7 +78,7 @@ export async function hgGet<T>(url: string, credentialsOrOrgId?: HGCredentials |
     log.warn({ statusCode, errorCode: err.errorCode, errorMessage: err.error, details: err.errorDetails }, 'HyperGuest GET error')
     throw new HyperGuestApiError(
       err.errorCode ?? `HTTP_${statusCode}`,
-      err.error ?? 'HyperGuest request failed',
+      err.error || err.errorDetails?.[0]?.message || 'HyperGuest request failed',
       err.errorDetails,
       statusCode,
     )
@@ -111,7 +111,7 @@ export async function hgPost<TBody, TResponse>(url: string, body: TBody, credent
     log.warn({ statusCode, errorCode: err.errorCode, errorMessage: err.error, details: err.errorDetails }, 'HyperGuest POST error')
     throw new HyperGuestApiError(
       err.errorCode ?? `HTTP_${statusCode}`,
-      err.error ?? 'HyperGuest request failed',
+      err.error || err.errorDetails?.[0]?.message || 'HyperGuest request failed',
       err.errorDetails,
       statusCode,
     )

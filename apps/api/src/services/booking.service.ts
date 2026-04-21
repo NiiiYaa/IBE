@@ -23,8 +23,10 @@ import {
   PaymentMethodType,
   IBE_ERROR_PRICE_MISMATCH,
   IBE_ERROR_UNAVAILABLE,
+  IBE_ERROR_BOOKING_FAILED,
   HG_ERROR_PRICE_CHANGED,
   HG_ERROR_NO_AVAILABILITY,
+  HG_ERROR_PAYMENT_ISSUE,
 } from '@ibe/shared'
 import { createBooking } from '../adapters/hyperguest/booking.js'
 import { getActiveAffiliate } from './affiliate.service.js'
@@ -93,7 +95,10 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
       if (err.errorCode === HG_ERROR_NO_AVAILABILITY) {
         throw new BookingError(IBE_ERROR_UNAVAILABLE, 'This room is no longer available.', 409)
       }
-      throw new BookingError('IBE.BOOKING.HG_ERROR', err.message, 502)
+      if (err.errorCode === HG_ERROR_PAYMENT_ISSUE) {
+        throw new BookingError(IBE_ERROR_BOOKING_FAILED, 'Payment could not be processed. Please try a different payment method.', 402)
+      }
+      throw new BookingError('IBE.BOOKING.HG_ERROR', err.message || 'Booking failed. Please try again.', 502)
     }
     throw err
   }

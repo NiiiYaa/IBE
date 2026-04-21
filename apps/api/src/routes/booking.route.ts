@@ -25,7 +25,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
     } catch (err) {
       if (err instanceof BookingError) {
         return reply.status(err.httpStatus).send({
-          error: err.message,
+          error: err.message || 'Booking failed',
           code: err.code,
         })
       }
