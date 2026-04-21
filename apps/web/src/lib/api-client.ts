@@ -127,19 +127,19 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
 
     if (response.status === 204) return undefined as T
 
-    let body: T | ApiError
+    const raw = await response.text().catch(() => '')
+    let body: T | ApiError | undefined
     try {
-      body = (await response.json()) as T | ApiError
+      if (raw) body = JSON.parse(raw) as T | ApiError
     } catch {
-      const raw = await response.text().catch(() => '')
       throw new ApiClientError(`HTTP_${response.status}`, raw.slice(0, 200) || response.statusText || 'Request failed', response.status)
     }
 
     if (!response.ok) {
-      const err = body as ApiError
+      const err = (body ?? {}) as ApiError
       throw new ApiClientError(
         err.code ?? `HTTP_${response.status}`,
-        err.message || err.error || 'Request failed',
+        err.message || err.error || raw.slice(0, 200) || response.statusText || 'Request failed',
         response.status,
         err.details,
       )

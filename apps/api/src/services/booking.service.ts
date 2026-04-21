@@ -60,7 +60,7 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
   )
 
   // Determine HyperGuest payment method based on flow
-  const hgPaymentMethod = resolveHyperGuestPaymentMethod(paymentFlow, request.paymentMethod)
+  const hgPaymentMethod = resolveHyperGuestPaymentMethod()
 
   let hgResponse
   try {
@@ -195,20 +195,13 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * For pay-at-hotel flows, we always send 'external' to HyperGuest.
- * We handle all payment details ourselves via Stripe.
+ * Always send 'external' to HyperGuest — Stripe handles all payment capture on our side.
+ * HyperGuest's 'credit_card' type requires us to embed raw card data in the request,
+ * which we never do. For every flow (online charge, guarantee, no-card) the IBE is
+ * the payment collector and HyperGuest is notified post-capture.
  */
-function resolveHyperGuestPaymentMethod(
-  paymentFlow: PaymentFlow,
-  requestedMethod: PaymentMethodType,
-): string {
-  if (
-    paymentFlow === PaymentFlow.PayAtHotelGuarantee ||
-    paymentFlow === PaymentFlow.PayAtHotelNoCard
-  ) {
-    return PaymentMethodType.External
-  }
-  return requestedMethod
+function resolveHyperGuestPaymentMethod(): string {
+  return PaymentMethodType.External
 }
 
 function extractCancellationDeadline(
