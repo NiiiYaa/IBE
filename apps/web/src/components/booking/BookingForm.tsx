@@ -277,6 +277,7 @@ export function BookingForm({
           {apiError && (
             <div className="rounded-lg border border-error/20 bg-[var(--color-error-light)] p-4 text-sm space-y-1">
               <p className="font-semibold text-error">{apiError.message}</p>
+              <p className="text-xs text-error/60">[{apiError.code} · HTTP {apiError.status}]</p>
               {apiError.details?.map((d, i) => (
                 <p key={i} className="text-xs text-error/80">
                   {d.field ? `${d.field}: ` : ''}{d.message}
