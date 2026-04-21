@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
+import { validatePassword } from '@ibe/shared'
 
 function GoogleIcon() {
   return (
@@ -37,7 +38,8 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    const pwErrors = validatePassword(form.password)
+    if (pwErrors.length > 0) { setError(pwErrors.join(', ')); return }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return }
     setError(null)
     setIsPending(true)
@@ -109,8 +111,8 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-            <input type="password" value={form.password} onChange={set('password')} required autoComplete="new-password" minLength={8} className={inputCls} />
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">At least 8 characters</p>
+            <input type="password" value={form.password} onChange={set('password')} required autoComplete="new-password" className={inputCls} />
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Min. 8 characters with uppercase, lowercase, number and special character</p>
           </div>
 
           <div>

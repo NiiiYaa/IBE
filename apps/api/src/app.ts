@@ -34,6 +34,7 @@ import { adminBookingsRoutes } from './routes/admin-bookings.route.js'
 import { guestRoutes } from './routes/guest.route.js'
 import { adminGuestsRoutes } from './routes/admin-guests.route.js'
 import { trackingPixelRoutes, publicTrackingPixelRoutes } from './routes/tracking-pixel.route.js'
+import { manualRoutes } from './routes/manual.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -85,7 +86,7 @@ export async function buildApp() {
   await app.register(cookie)
 
   await app.register(multipart, {
-    limits: { fileSize: 5 * 1024 * 1024 },  // 5 MB
+    limits: { fileSize: 30 * 1024 * 1024 },  // 30 MB — covers PDFs and image uploads
   })
 
   await app.register(jwt, {
@@ -149,6 +150,7 @@ export async function buildApp() {
     await adminApp.register(adminBookingsRoutes, { prefix: '/api/v1' })
     await adminApp.register(adminGuestsRoutes, { prefix: '/api/v1' })
     await adminApp.register(trackingPixelRoutes, { prefix: '/api/v1' })
+    await adminApp.register(manualRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

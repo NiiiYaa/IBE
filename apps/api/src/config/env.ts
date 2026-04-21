@@ -37,6 +37,9 @@ const EnvSchema = z.object({
   SEARCH_CACHE_TTL: z.coerce.number().int().positive().default(300),
   STATIC_DATA_CACHE_TTL: z.coerce.number().int().positive().default(86400),
 
+  // Manual PDF path (defaults to apps/web/public/ in the monorepo)
+  MANUAL_FILE_PATH: z.string().optional(),
+
   // Stripe
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),

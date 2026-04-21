@@ -66,6 +66,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/communication/emails', label: 'Emails' },
       { href: '/admin/communication/whatsapp', label: 'WhatsApp' },
       { href: '/admin/communication/sms', label: 'SMS' },
+      { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],
   },
   {
@@ -211,6 +212,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isLoading, isAuthenticated, isAuthPage, pathname, router])
 
   useEffect(() => {
+    if (isAuthenticated && admin?.mustChangePassword && !isAuthPage && !isOnboarding && pathname !== '/admin/force-change-password') {
+      router.replace('/admin/force-change-password')
+    }
+  }, [isAuthenticated, admin?.mustChangePassword, isAuthPage, isOnboarding, pathname, router])
+
+  useEffect(() => {
     if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super') {
       router.replace('/admin/onboarding')
     }
@@ -265,13 +272,41 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
           {admin && (
             <div className="border-b border-[var(--color-border)] px-4 pb-3">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs font-medium text-[var(--color-text)]">{admin.name}</p>
-                {(admin.role === 'super' || admin.role === 'admin') && (
-                  <RoleBadge role={admin.role as 'super' | 'admin'} />
-                )}
+              <div className="flex items-center justify-between gap-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-xs font-medium text-[var(--color-text)]">{admin.name}</p>
+                    {(admin.role === 'super' || admin.role === 'admin') && (
+                      <RoleBadge role={admin.role as 'super' | 'admin'} />
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-[var(--color-text-muted)]">{admin.email}</p>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <Link
+                    href="/admin/profile"
+                    title="My profile"
+                    className="flex-shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4" />
+                      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                    </svg>
+                  </Link>
+                  <a
+                    href="/HG-IBE-Admin-User-Manual.pdf"
+                    download
+                    title="Download user manual"
+                    className="flex-shrink-0 rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </a>
+                </div>
               </div>
-              <p className="truncate text-xs text-[var(--color-text-muted)]">{admin.email}</p>
               <button
                 onClick={logout}
                 className="mt-2 text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-error)]"

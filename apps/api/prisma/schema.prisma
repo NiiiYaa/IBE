@@ -48,10 +48,11 @@ model AdminUser {
   passwordHash   String?
   googleId       String?       @unique
   name           String
-  role           String        @default("admin")
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  role                String        @default("admin")
+  isActive            Boolean       @default(true)
+  mustChangePassword  Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   adminUserProperties AdminUserProperty[]
 

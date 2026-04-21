@@ -95,9 +95,10 @@ class ApiClientError extends Error {
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`
   const hasBody = options?.body !== undefined
+  const isFormData = options?.body instanceof FormData
   const fetchOptions: RequestInit = {
     headers: {
-      ...(hasBody && { 'Content-Type': 'application/json' }),
+      ...(hasBody && !isFormData && { 'Content-Type': 'application/json' }),
       ...options?.headers,
     },
     ...options,
@@ -156,6 +157,7 @@ export interface AdminMe {
   role: string  // 'super' | 'admin' | 'observer' | 'user'
   organizationId: number | null
   isActive: boolean
+  mustChangePassword: boolean
   propertyIds?: number[]
 }
 
@@ -186,6 +188,10 @@ export const apiClient = {
 
   adminMe(): Promise<AdminMe> {
     return apiRequest<AdminMe>('/api/v1/auth/me')
+  },
+
+  updateMyAdminProfile(data: { name?: string; email?: string; currentPassword?: string; newPassword?: string }): Promise<{ id: number; name: string; email: string }> {
+    return apiRequest('/api/v1/auth/me', { method: 'PUT', body: JSON.stringify(data) })
   },
   /** Search availability for a property */
   search(params: URLSearchParams): Promise<SearchResponse> {
@@ -559,6 +565,16 @@ export const apiClient = {
   },
 
   // ── Admin: Users ───────────────────────────────────────────────────────────
+
+  getManualInfo(): Promise<{ exists: boolean; size: number; updatedAt: string | null }> {
+    return apiRequest('/api/v1/admin/super/manual-info')
+  },
+
+  uploadManual(file: File): Promise<{ ok: boolean }> {
+    const fd = new FormData()
+    fd.append('file', file, file.name)
+    return apiRequest('/api/v1/admin/super/manual', { method: 'POST', body: fd })
+  },
 
   listAdminUsers(): Promise<AdminUserRecord[]> {
     return apiRequest<AdminUserRecord[]>('/api/v1/admin/users')

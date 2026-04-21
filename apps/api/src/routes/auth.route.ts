@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { verifyAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById } from '../services/auth.service.js'
+import { verifyAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile } from '../services/auth.service.js'
 import { env } from '../config/env.js'
 import { cookieDomain } from '../utils/cookie.js'
 
@@ -43,7 +43,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid credentials', code: 'IBE.AUTH.003' })
     }
     setCookieAndRespond(fastify, reply, admin)
-    return reply.send({ ok: true, role: admin.role, organizationId: admin.organizationId })
+    return reply.send({ ok: true, role: admin.role, organizationId: admin.organizationId, mustChangePassword: admin.mustChangePassword ?? false })
   })
 
   // ── Sign up ────────────────────────────────────────────────────────────────
@@ -84,6 +84,25 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
     }
     return reply.send(admin)
+  })
+
+  fastify.put('/auth/me', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const body = request.body as { name?: string; email?: string; currentPassword?: string; newPassword?: string }
+    try {
+      const updated = await updateAdminProfile(request.admin.adminId, {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.email !== undefined && { email: body.email }),
+        ...(body.currentPassword !== undefined && { currentPassword: body.currentPassword }),
+        ...(body.newPassword !== undefined && { newPassword: body.newPassword }),
+      })
+      return reply.send(updated)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Update failed'
+      const status = message === 'Current password is incorrect' ? 401
+        : message === 'Email already in use' ? 409
+        : 400
+      return reply.status(status).send({ error: message })
+    }
   })
 
   // ── Google OAuth ───────────────────────────────────────────────────────────

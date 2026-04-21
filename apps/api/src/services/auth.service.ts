@@ -1,11 +1,13 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../db/client.js'
+import { validatePassword } from '@ibe/shared'
 
 export interface AdminPayload {
   adminId: number
   organizationId: number | null  // null for super admins
   role: string
   propertyIds?: number[]  // populated for 'user' role
+  mustChangePassword?: boolean
 }
 
 export async function verifyAdminLogin(
@@ -30,7 +32,7 @@ export async function verifyAdminLogin(
 
   if (user.role === 'super') {
     if (hyperGuestOrgId !== '1') return null
-    return { adminId: user.id, organizationId: null, role: 'super' }
+    return { adminId: user.id, organizationId: null, role: 'super', mustChangePassword: user.mustChangePassword }
   }
 
   const org = await prisma.organization.findUnique({ where: { hyperGuestOrgId } })
@@ -40,7 +42,11 @@ export async function verifyAdminLogin(
     ? user.adminUserProperties.map(p => p.propertyId)
     : undefined
 
-  return { adminId: user.id, organizationId: org.id, role: user.role, ...(propertyIds !== undefined && { propertyIds }) }
+  return {
+    adminId: user.id, organizationId: org.id, role: user.role,
+    mustChangePassword: user.mustChangePassword,
+    ...(propertyIds !== undefined && { propertyIds }),
+  }
 }
 
 export async function signUpAdmin(data: {
@@ -122,6 +128,7 @@ export async function getAdminById(id: number) {
       role: true,
       organizationId: true,
       isActive: true,
+      mustChangePassword: true,
       adminUserProperties: { select: { propertyId: true } },
     },
   })
@@ -139,6 +146,47 @@ export async function getAdminById(id: number) {
     role: user.role,
     organizationId: user.organizationId,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     propertyIds: user.role === 'user' ? user.adminUserProperties.map(p => p.propertyId) : undefined,
   }
+}
+
+export async function updateAdminProfile(
+  adminId: number,
+  data: { name?: string; email?: string; currentPassword?: string; newPassword?: string },
+): Promise<{ id: number; name: string; email: string }> {
+  const user = await prisma.adminUser.findUnique({ where: { id: adminId } })
+  if (!user) throw new Error('User not found')
+
+  if (data.newPassword) {
+    const errors = validatePassword(data.newPassword)
+    if (errors.length > 0) throw new Error(errors.join(', '))
+
+    if (!user.mustChangePassword) {
+      if (!data.currentPassword) throw new Error('Current password is required')
+      if (!user.passwordHash) throw new Error('Account uses social login — cannot set password here')
+      const valid = await bcrypt.compare(data.currentPassword, user.passwordHash)
+      if (!valid) throw new Error('Current password is incorrect')
+    }
+  }
+
+  if (data.email) {
+    const existing = await prisma.adminUser.findUnique({ where: { email: data.email.toLowerCase() } })
+    if (existing && existing.id !== adminId) throw new Error('Email already in use')
+  }
+
+  const updated = await prisma.adminUser.update({
+    where: { id: adminId },
+    data: {
+      ...(data.name !== undefined && { name: data.name.trim() }),
+      ...(data.email !== undefined && { email: data.email.toLowerCase().trim() }),
+      ...(data.newPassword !== undefined && {
+        passwordHash: await bcrypt.hash(data.newPassword, 10),
+        mustChangePassword: false,
+      }),
+    },
+    select: { id: true, name: true, email: true },
+  })
+
+  return updated
 }

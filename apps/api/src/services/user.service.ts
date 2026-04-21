@@ -158,7 +158,7 @@ export async function createUser(
   const passwordHash = await hashPassword(temporaryPassword)
 
   const user = await prisma.adminUser.create({
-    data: { organizationId, email, name: data.name.trim(), role: data.role, passwordHash, isActive: true },
+    data: { organizationId, email, name: data.name.trim(), role: data.role, passwordHash, isActive: true, mustChangePassword: true },
     select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
   })
 
@@ -193,7 +193,7 @@ export async function resetUserPassword(
 
   const temporaryPassword = generateTemporaryPassword()
   const passwordHash = await hashPassword(temporaryPassword)
-  await prisma.adminUser.update({ where: { id }, data: { passwordHash } })
+  await prisma.adminUser.update({ where: { id }, data: { passwordHash, mustChangePassword: true } })
   return { temporaryPassword }
 }
 
@@ -220,6 +220,23 @@ export async function setUserPropertyIds(
 }
 
 function generateTemporaryPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower = 'abcdefghjkmnpqrstuvwxyz'
+  const digits = '23456789'
+  const special = '!@#$%^&*'
+  const all = upper + lower + digits + special
+
+  const required = [
+    upper[Math.floor(Math.random() * upper.length)]!,
+    lower[Math.floor(Math.random() * lower.length)]!,
+    digits[Math.floor(Math.random() * digits.length)]!,
+    special[Math.floor(Math.random() * special.length)]!,
+  ]
+  const fill = Array.from({ length: 8 }, () => all[Math.floor(Math.random() * all.length)]!)
+  const combined = [...required, ...fill]
+  for (let i = combined.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[combined[i], combined[j]] = [combined[j]!, combined[i]!]
+  }
+  return combined.join('')
 }

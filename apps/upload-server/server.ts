@@ -35,7 +35,14 @@ async function start() {
     if (!data) return reply.status(400).send({ error: 'No file provided' })
 
     const originalExt = extname(data.filename).toLowerCase()
-    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico']
+    const allowed = [
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',
+      // Documents
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+      // Text
+      '.txt', '.csv',
+    ]
     const ext = allowed.includes(originalExt) ? originalExt : '.bin'
 
     const filename = `${randomUUID()}${ext}`

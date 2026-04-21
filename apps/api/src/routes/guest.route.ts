@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import { validatePassword } from '@ibe/shared'
 import {
   registerGuest, loginGuest, getGuestById, updateGuestProfile,
   updateGuestPassword, deleteGuestAccount, findOrCreateGoogleGuest,
@@ -49,8 +50,9 @@ export async function guestRoutes(fastify: FastifyInstance) {
 
     if (!email || !password || !firstName || !lastName || !propertyId)
       return reply.status(400).send({ error: 'email, password, firstName, lastName and propertyId are required' })
-    if (password.length < 8)
-      return reply.status(400).send({ error: 'Password must be at least 8 characters' })
+    const pwErrors = validatePassword(password)
+    if (pwErrors.length > 0)
+      return reply.status(400).send({ error: pwErrors.join(', ') })
 
     let organizationId: number
     try {
@@ -124,7 +126,8 @@ export async function guestRoutes(fastify: FastifyInstance) {
 
     if (newPassword) {
       if (!currentPassword) return reply.status(400).send({ error: 'currentPassword required to change password' })
-      if (newPassword.length < 8) return reply.status(400).send({ error: 'New password must be at least 8 characters' })
+      const pwErrors = validatePassword(newPassword)
+      if (pwErrors.length > 0) return reply.status(400).send({ error: pwErrors.join(', ') })
       const guest = await getGuestById(payload.guestId)
       try {
         await loginGuest(guest.organizationId, guest.email, currentPassword)
