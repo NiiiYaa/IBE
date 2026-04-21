@@ -205,6 +205,7 @@ export interface CreateBookingRequest {
   stripeSetupIntentId?: string
   agencyReference?: string
   affiliateId?: string
+  campaignId?: string
   searchId?: string
   isTest?: boolean
   promoCode?: string
@@ -867,7 +868,7 @@ export interface Affiliate {
 }
 
 export interface SetPropertyOverrideRequest {
-  entityType: 'affiliate' | 'message_rule' | 'promo_code'
+  entityType: 'affiliate' | 'campaign' | 'message_rule' | 'promo_code'
   entityId: number
   propertyId: number
   isEnabled: boolean
@@ -886,6 +887,47 @@ export interface CreateAffiliateRequest {
 }
 
 export interface UpdateAffiliateRequest {
+  code?: string
+  name?: string
+  email?: string | null
+  commissionRate?: number | null
+  discountRate?: number | null
+  displayText?: string | null
+  notes?: string | null
+  isActive?: boolean
+}
+
+// ── Campaigns ─────────────────────────────────────────────────────────────────
+
+export interface Campaign {
+  id: number
+  code: string
+  name: string
+  email: string | null
+  commissionRate: number | null
+  discountRate: number | null
+  displayText: string | null
+  notes: string | null
+  isActive: boolean
+  createdAt: string
+  propertyId: number | null
+  isGlobal: boolean
+  propertyEnabled: boolean | null
+}
+
+export interface CreateCampaignRequest {
+  code: string
+  name: string
+  email?: string | null
+  commissionRate?: number | null
+  discountRate?: number | null
+  displayText?: string | null
+  notes?: string | null
+  isActive?: boolean
+  propertyId?: number | null
+}
+
+export interface UpdateCampaignRequest {
   code?: string
   name?: string
   email?: string | null

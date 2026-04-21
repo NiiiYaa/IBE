@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '../../../lib/api-client'
 
@@ -58,7 +59,10 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)]">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
-        <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Admin Login</h1>
+        <div className="mb-6 flex flex-col items-center gap-3">
+          <Image src="/hyperguest-logo.png" alt="HyperGuest" width={160} height={38} priority />
+          <p className="text-sm text-[var(--color-text-muted)]">Admin Portal</p>
+        </div>
 
         {googleEnabled && (
           <>

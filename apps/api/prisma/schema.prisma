@@ -32,6 +32,7 @@ model Organization {
   priceComparisonOtas   PriceComparisonOta[]
   promoCodes                  PromoCode[]
   affiliates                  Affiliate[]
+  campaigns                   Campaign[]
   orgNavItems                 OrgNavItem[]
   onsiteConversionSettings    OnsiteConversionSettings?
   guests                      Guest[]
@@ -97,11 +98,14 @@ model Booking {
   rooms             BookingRoom[]
   stripeRecord      StripePaymentRecord?
   affiliateBooking  AffiliateBooking?
+  campaignId        String?
+  campaignBooking   CampaignBooking?
 
   @@index([propertyId])
   @@index([leadGuestEmail])
   @@index([agencyReference])
   @@index([affiliateId])
+  @@index([campaignId])
   @@index([createdAt])
 }
 
@@ -178,6 +182,45 @@ model AffiliateBooking {
   affiliate Affiliate @relation(fields: [affiliateId], references: [id])
 
   @@index([affiliateId])
+}
+
+model Campaign {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  propertyId     Int?
+  code           String
+  name           String
+  email          String?
+  commissionRate Decimal?
+  discountRate   Decimal?
+  displayText    String?
+  notes          String?
+  isActive       Boolean      @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  campaignBookings CampaignBooking[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model CampaignBooking {
+  id               Int       @id @default(autoincrement())
+  bookingId        Int       @unique
+  campaignId       Int
+  commissionRate   Decimal
+  commissionAmount Decimal
+  currency         String
+  createdAt        DateTime  @default(now())
+
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId])
 }
 
 model BookingRoom {

@@ -1,6 +1,6 @@
 import { prisma } from '../db/client.js'
 
-export type OverrideEntityType = 'affiliate' | 'message_rule' | 'promo_code'
+export type OverrideEntityType = 'affiliate' | 'campaign' | 'message_rule' | 'promo_code'
 
 export async function setPropertyOverride(
   entityType: OverrideEntityType,

@@ -42,6 +42,9 @@ import type {
   Affiliate,
   CreateAffiliateRequest,
   UpdateAffiliateRequest,
+  Campaign,
+  CreateCampaignRequest,
+  UpdateCampaignRequest,
   AdminUserRecord,
   CreateAdminUserRequest,
   CreateAdminUserResponse,
@@ -456,6 +459,25 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  },
+
+  // ── Admin: Campaigns ───────────────────────────────────────────────────────
+
+  listCampaigns(propertyId?: number | null): Promise<Campaign[]> {
+    const qs = propertyId != null ? `?propertyId=${propertyId}` : ''
+    return apiRequest<Campaign[]>(`/api/v1/admin/campaigns${qs}`, { cache: 'no-store' })
+  },
+
+  createCampaign(data: CreateCampaignRequest): Promise<Campaign> {
+    return apiRequest<Campaign>('/api/v1/admin/campaigns', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  updateCampaign(id: number, data: UpdateCampaignRequest): Promise<Campaign> {
+    return apiRequest<Campaign>(`/api/v1/admin/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  deleteCampaign(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/campaigns/${id}`, { method: 'DELETE' })
   },
 
   getOrgNavItemOverrides(propertyId: number): Promise<Record<string, boolean>> {

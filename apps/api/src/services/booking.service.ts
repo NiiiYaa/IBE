@@ -28,6 +28,7 @@ import {
 } from '@ibe/shared'
 import { createBooking } from '../adapters/hyperguest/booking.js'
 import { getActiveAffiliate } from './affiliate.service.js'
+import { getActiveCampaign } from './campaign.service.js'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 import { HyperGuestApiError } from '../adapters/hyperguest/client.js'
@@ -108,6 +109,17 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
     void recordAffiliateBooking(
       persisted.id,
       request.affiliateId,
+      request.propertyId,
+      booking.payment.chargeAmount.price,
+      booking.payment.chargeAmount.currency,
+    )
+  }
+
+  // Record campaign commission if a campaign code was submitted
+  if (request.campaignId) {
+    void recordCampaignBooking(
+      persisted.id,
+      request.campaignId,
       request.propertyId,
       booking.payment.chargeAmount.price,
       booking.payment.chargeAmount.currency,
@@ -224,6 +236,7 @@ async function persistBooking(
       currency: booking.payment.chargeAmount.currency,
       agencyReference: request.agencyReference,
       affiliateId: request.affiliateId,
+      campaignId: request.campaignId,
       promoCode: request.promoCode ?? null,
       promoDiscountPct: request.promoDiscount ?? null,
       originalPrice: request.rooms[0]?.originalSellAmount ?? null,
@@ -275,5 +288,35 @@ async function recordAffiliateBooking(
     })
   } catch (err) {
     logger.warn({ err, bookingId, affiliateCode }, '[Booking] Failed to record affiliate commission')
+  }
+}
+
+async function recordCampaignBooking(
+  bookingId: number,
+  campaignCode: string,
+  propertyId: number,
+  totalAmount: number,
+  currency: string,
+): Promise<void> {
+  try {
+    const property = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+    if (!property) return
+
+    const campaign = await getActiveCampaign(campaignCode, property.organizationId, propertyId)
+    if (!campaign || campaign.commissionRate === null) return
+
+    const commissionAmount = Math.round(totalAmount * campaign.commissionRate) / 100
+
+    await prisma.campaignBooking.create({
+      data: {
+        bookingId,
+        campaignId: campaign.id,
+        commissionRate: campaign.commissionRate,
+        commissionAmount,
+        currency,
+      },
+    })
+  } catch (err) {
+    logger.warn({ err, bookingId, campaignCode }, '[Booking] Failed to record campaign commission')
   }
 }

@@ -14,6 +14,7 @@ export interface SearchUrlParams {
   currency?: string | undefined
   promoCode?: string | undefined
   affiliateId?: string | undefined
+  campaignId?: string | undefined
 }
 
 /**
@@ -37,6 +38,7 @@ export function encodeSearchParams(params: SearchUrlParams): URLSearchParams {
   if (params.currency) qs.set('currency', params.currency)
   if (params.promoCode) qs.set('promoCode', params.promoCode)
   if (params.affiliateId) qs.set('affiliateId', params.affiliateId)
+  if (params.campaignId) qs.set('campaignId', params.campaignId)
 
   return qs
 }
@@ -75,5 +77,6 @@ export function decodeSearchParams(qs: URLSearchParams): SearchUrlParams | null 
     currency: qs.get('currency') ?? undefined,
     promoCode: qs.get('promoCode') ?? undefined,
     affiliateId: qs.get('affiliateId') ?? undefined,
+    campaignId: qs.get('campaignId') ?? undefined,
   }
 }

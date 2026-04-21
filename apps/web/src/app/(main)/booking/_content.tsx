@@ -11,6 +11,7 @@ export function BookingContent() {
   const rawParams = useSearchParams()
   const searchId   = rawParams.get('searchId') ?? ''
   const affiliateId = rawParams.get('affiliateId') ?? undefined
+  const campaignId = rawParams.get('campaignId') ?? undefined
 
   const searchParams = decodeSearchParams(rawParams)
   const { data: searchData, isLoading } = useSearch(searchParams)
@@ -114,6 +115,7 @@ export function BookingContent() {
             rooms={selectedRooms}
             searchId={searchId}
             {...(affiliateId ? { affiliateId } : {})}
+            {...(campaignId ? { campaignId } : {})}
             locale="en"
           />
         </div>

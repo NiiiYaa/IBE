@@ -20,6 +20,7 @@ import { adminRoutes } from './routes/admin.route.js'
 import { ratesRoutes } from './routes/rates.route.js'
 import { promoRoutes } from './routes/promo.route.js'
 import { affiliateRoutes } from './routes/affiliate.route.js'
+import { campaignRoutes } from './routes/campaign.route.js'
 import { communicationRoutes } from './routes/communication.route.js'
 import { messageRoutes } from './routes/message.route.js'
 import { priceComparisonRoutes } from './routes/price-comparison.route.js'
@@ -138,6 +139,7 @@ export async function buildApp() {
     await adminApp.register(syncRoutes, { prefix: '/api/v1' })
     await adminApp.register(promoRoutes, { prefix: '/api/v1' })
     await adminApp.register(affiliateRoutes, { prefix: '/api/v1' })
+    await adminApp.register(campaignRoutes, { prefix: '/api/v1' })
     await adminApp.register(communicationRoutes, { prefix: '/api/v1' })
     await adminApp.register(messageRoutes, { prefix: '/api/v1' })
     await adminApp.register(userRoutes, { prefix: '/api/v1' })
