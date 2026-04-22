@@ -149,10 +149,22 @@ export default function OrganizationsPage() {
   const [editingOrg, setEditingOrg] = useState<OrgRecord | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<OrgRecord | null>(null)
 
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterType, setFilterType] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
   const { data: orgs = [], isLoading } = useQuery<OrgRecord[]>({
     queryKey: ['super-orgs'],
     queryFn: () => apiClient.listOrgs(),
     refetchOnWindowFocus: false,
+  })
+
+  const filteredOrgs = orgs.filter(o => {
+    if (filterSearch && !o.name.toLowerCase().includes(filterSearch.toLowerCase())) return false
+    if (filterType && o.orgType !== filterType) return false
+    if (filterStatus === 'active' && !o.isActive) return false
+    if (filterStatus === 'disabled' && o.isActive) return false
+    return true
   })
 
   async function handleCreate() {
@@ -250,14 +262,53 @@ export default function OrganizationsPage() {
         </button>
       </div>
 
+      {/* Filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Search by name…"
+          value={filterSearch}
+          onChange={e => setFilterSearch(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)] min-w-[200px]"
+        />
+        <select
+          value={filterType}
+          onChange={e => setFilterType(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All types</option>
+          <option value="seller">Seller</option>
+          <option value="buyer">Buyer</option>
+        </select>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        {(filterSearch || filterType || filterStatus) && (
+          <button
+            onClick={() => { setFilterSearch(''); setFilterType(''); setFilterStatus('') }}
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       {/* Orgs table */}
       <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
           </div>
-        ) : orgs.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[var(--color-text-muted)]">No accounts yet.</div>
+        ) : filteredOrgs.length === 0 ? (
+          <div className="py-12 text-center text-sm text-[var(--color-text-muted)]">
+            {orgs.length === 0 ? 'No accounts yet.' : 'No accounts match the current filters.'}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -268,7 +319,7 @@ export default function OrganizationsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {orgs.map(org => (
+              {filteredOrgs.map(org => (
                 <tr key={org.id} className={['hover:bg-[var(--color-background)]', !org.isActive ? 'opacity-50' : ''].join(' ')}>
                   <td className="px-4 py-3 font-medium text-[var(--color-text)]">{org.name}</td>
                   <td className="px-4 py-3">

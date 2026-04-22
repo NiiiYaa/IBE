@@ -72,6 +72,12 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  // filters
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterRole, setFilterRole] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterOrg, setFilterOrg] = useState('')
+
   // password reveal
   const [shownPassword, setShownPassword] = useState<{ label: string; password: string } | null>(null)
   const [copiedPwd, setCopiedPwd] = useState(false)
@@ -170,6 +176,18 @@ export default function UsersPage() {
     setTimeout(() => setCopiedPwd(false), 2000)
   }
 
+  const filteredUsers = users.filter(u => {
+    if (filterSearch) {
+      const q = filterSearch.toLowerCase()
+      if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false
+    }
+    if (filterRole && u.role !== filterRole) return false
+    if (filterStatus === 'active' && !u.isActive) return false
+    if (filterStatus === 'inactive' && u.isActive) return false
+    if (filterOrg && u.orgName !== filterOrg) return false
+    return true
+  })
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -259,14 +277,66 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Search name or email…"
+          value={filterSearch}
+          onChange={e => setFilterSearch(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)] min-w-[200px]"
+        />
+        <select
+          value={filterRole}
+          onChange={e => setFilterRole(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All roles</option>
+          {(isSuper ? ['super', 'admin', 'observer', 'user'] : ['admin', 'observer', 'user']).map(r => (
+            <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
+          ))}
+        </select>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        {isSuper && (
+          <select
+            value={filterOrg}
+            onChange={e => setFilterOrg(e.target.value)}
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="">All orgs</option>
+            {[...new Set(users.map(u => u.orgName).filter(Boolean))].sort().map(org => (
+              <option key={org} value={org}>{org}</option>
+            ))}
+          </select>
+        )}
+        {(filterSearch || filterRole || filterStatus || filterOrg) && (
+          <button
+            onClick={() => { setFilterSearch(''); setFilterRole(''); setFilterStatus(''); setFilterOrg('') }}
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       {/* Users table */}
       <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
           </div>
-        ) : users.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[var(--color-text-muted)]">No users yet.</div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="py-12 text-center text-sm text-[var(--color-text-muted)]">
+            {users.length === 0 ? 'No users yet.' : 'No users match the current filters.'}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -281,7 +351,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {users.map(u => {
+              {filteredUsers.map(u => {
                 const isMe = u.id === me?.id
                 const isEditing = editingId === u.id
                 const isEditingThisOrg = isSuper && editingOrgId === u.orgId

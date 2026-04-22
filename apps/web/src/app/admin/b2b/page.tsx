@@ -22,6 +22,10 @@ export default function B2BAccessPage() {
   const [sellerOrgId, setSellerOrgId] = useState<number | ''>('')
   const [isPending, setIsPending] = useState(false)
 
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterSeller, setFilterSeller] = useState<number | ''>('')
+  const [filterBuyer, setFilterBuyer] = useState<number | ''>('')
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['b2b-access'],
     queryFn: () => apiClient.listB2BAccess(),
@@ -30,6 +34,18 @@ export default function B2BAccessPage() {
   const { data: orgs = [] } = useQuery<OrgRecord[]>({
     queryKey: ['orgs'],
     queryFn: () => apiClient.listOrgs(),
+  })
+
+  const orgMap = new Map(orgs.map(o => [o.id, o]))
+
+  const filteredRows = rows.filter(row => {
+    if (filterSeller && row.sellerOrgId !== filterSeller) return false
+    if (filterBuyer && row.buyerOrgId !== filterBuyer) return false
+    if (filterSearch) {
+      const q = filterSearch.toLowerCase()
+      if (!row.buyerOrg.name.toLowerCase().includes(q) && !row.sellerOrg.name.toLowerCase().includes(q)) return false
+    }
+    return true
   })
 
   async function handleAdd(e: React.FormEvent) {
@@ -63,8 +79,7 @@ export default function B2BAccessPage() {
 
   const selectCls = 'rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-light)]'
 
-  // Group rows by seller org for readability
-  const grouped = rows.reduce<Record<number, B2BAccessRow[]>>((acc, row) => {
+  const grouped = filteredRows.reduce<Record<number, B2BAccessRow[]>>((acc, row) => {
     if (!acc[row.sellerOrgId]) acc[row.sellerOrgId] = []
     acc[row.sellerOrgId]!.push(row)
     return acc
@@ -107,7 +122,7 @@ export default function B2BAccessPage() {
                 className={selectCls}
               >
                 <option value="">Select buyer…</option>
-                {orgs.map(o => (
+                {orgs.filter(o => o.orgType === 'buyer').map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
@@ -124,7 +139,7 @@ export default function B2BAccessPage() {
                 className={selectCls}
               >
                 <option value="">Select seller…</option>
-                {orgs.map(o => (
+                {orgs.filter(o => o.orgType === 'seller').map(o => (
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
@@ -149,6 +164,45 @@ export default function B2BAccessPage() {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Search by org name…"
+          value={filterSearch}
+          onChange={e => setFilterSearch(e.target.value)}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)] min-w-[200px]"
+        />
+        <select
+          value={filterSeller}
+          onChange={e => setFilterSeller(e.target.value ? Number(e.target.value) : '')}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All sellers</option>
+          {orgs.filter(o => o.orgType === 'seller').map(o => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+        <select
+          value={filterBuyer}
+          onChange={e => setFilterBuyer(e.target.value ? Number(e.target.value) : '')}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+        >
+          <option value="">All buyers</option>
+          {orgs.filter(o => o.orgType === 'buyer').map(o => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+        {(filterSearch || filterSeller || filterBuyer) && (
+          <button
+            onClick={() => { setFilterSearch(''); setFilterSeller(''); setFilterBuyer('') }}
+            className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
       {/* Access list grouped by seller */}
       {isLoading ? (
         <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
@@ -156,34 +210,61 @@ export default function B2BAccessPage() {
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center">
           <p className="text-sm text-[var(--color-text-muted)]">No B2B access relationships defined yet.</p>
         </div>
+      ) : Object.keys(grouped).length === 0 ? (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">No results match the current filters.</p>
+        </div>
       ) : (
         <div className="space-y-4">
           {Object.values(grouped).map(group => {
             const seller = group[0]!.sellerOrg
+            const sellerOrg = orgMap.get(seller.id)
             return (
               <div key={seller.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
                 <div className="border-b border-[var(--color-border)] bg-[var(--color-background)] px-5 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                    Seller
-                  </p>
-                  <p className="text-sm font-semibold text-[var(--color-text)]">{seller.name}</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">{seller.slug}</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Seller</p>
+                      <p className="text-sm font-semibold text-[var(--color-text)]">{seller.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{seller.slug}</p>
+                    </div>
+                    {sellerOrg?.createdAt && (
+                      <p className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                        Account created {new Date(sellerOrg.createdAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="divide-y divide-[var(--color-border)]">
-                  {group.map(row => (
-                    <div key={row.id} className="flex items-center justify-between px-5 py-3">
-                      <div>
-                        <p className="text-sm text-[var(--color-text)]">{row.buyerOrg.name}</p>
-                        <p className="text-xs text-[var(--color-text-muted)]">{row.buyerOrg.slug}</p>
+                  {group.map(row => {
+                    const buyerOrg = orgMap.get(row.buyerOrgId)
+                    return (
+                      <div key={row.id} className="flex items-center justify-between px-5 py-3 gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[var(--color-text)]">{row.buyerOrg.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{row.buyerOrg.slug}</p>
+                        </div>
+                        <div className="flex items-center gap-6 shrink-0 text-xs text-[var(--color-text-muted)]">
+                          {buyerOrg?.createdAt && (
+                            <div className="text-right">
+                              <p className="font-medium text-[var(--color-text-muted)]">Buyer created</p>
+                              <p>{new Date(buyerOrg.createdAt).toLocaleDateString()}</p>
+                            </div>
+                          )}
+                          <div className="text-right">
+                            <p className="font-medium text-[var(--color-text-muted)]">Connected</p>
+                            <p>{new Date(row.createdAt).toLocaleDateString()}</p>
+                          </div>
+                          <button
+                            onClick={() => handleDelete(row.id, row.buyerOrg.name, row.sellerOrg.name)}
+                            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)] transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleDelete(row.id, row.buyerOrg.name, row.sellerOrg.name)}
-                        className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)] transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )

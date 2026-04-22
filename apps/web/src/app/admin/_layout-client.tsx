@@ -9,7 +9,7 @@ import { useAdminAuth } from '../../hooks/use-admin-auth'
 import { AdminPropertyProvider, useAdminProperty } from './property-context'
 import { apiClient } from '@/lib/api-client'
 
-type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean }
+type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 
 const SECTIONS: Section[] = [
@@ -62,7 +62,7 @@ const SECTIONS: Section[] = [
     title: 'Configuration',
     items: [
       { href: '/admin/config/properties', label: 'Properties', sellerOnly: true },
-      { href: '/admin/config/org', label: 'Organization', minRole: 'admin' },
+      { href: '/admin/config/org', label: 'Organization', minRole: 'admin', buyerAccessible: true },
       { href: '/admin/config/domain', label: 'Domain', sellerOnly: true },
       { href: '/admin/config/offers', label: 'Offers', sellerOnly: true },
       { href: '/admin/config/models', label: 'Channels', sellerOnly: true },
@@ -98,7 +98,7 @@ function filterSections(sections: Section[], role: string, isBuyerOrg: boolean):
     .map(s => ({
       ...s,
       items: s.items.filter(i =>
-        (!i.minRole || level >= (i.minRole === 'super' ? 2 : 1)) &&
+        ((!i.minRole || level >= (i.minRole === 'super' ? 2 : 1)) || (isBuyerOrg && i.buyerAccessible)) &&
         (!i.sellerOnly || !isBuyerOrg)
       ),
     }))
