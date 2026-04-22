@@ -23,10 +23,10 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/super/orgs', async (request, reply) => {
     if (request.admin.role !== 'super')
       return reply.status(403).send({ error: 'Forbidden' })
-    const { name, hyperGuestOrgId } = request.body as { name?: string; hyperGuestOrgId?: string }
+    const { name, hyperGuestOrgId, orgType } = request.body as { name?: string; hyperGuestOrgId?: string; orgType?: string }
     if (!name?.trim()) return reply.status(400).send({ error: 'name is required' })
     try {
-      const org = await createOrg({ name, hyperGuestOrgId })
+      const org = await createOrg({ name, hyperGuestOrgId, orgType })
       return reply.status(201).send(org)
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to create org' })
@@ -37,9 +37,9 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/super/orgs/:orgId', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
-    const { name, hyperGuestOrgId } = request.body as { name?: string; hyperGuestOrgId?: string }
+    const { name, hyperGuestOrgId, orgType } = request.body as { name?: string; hyperGuestOrgId?: string; orgType?: string }
     try {
-      const org = await updateOrg(orgId, { name, hyperGuestOrgId })
+      const org = await updateOrg(orgId, { name, hyperGuestOrgId, orgType })
       return reply.send(org)
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to update' })

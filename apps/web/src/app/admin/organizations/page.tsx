@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { OrgRecord } from '@ibe/shared'
+import type { OrgRecord, OrgType } from '@ibe/shared'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 
 interface CreatedCredentials {
@@ -64,9 +64,34 @@ function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClo
   )
 }
 
+function OrgTypeSelector({ value, onChange }: { value: OrgType; onChange: (v: OrgType) => void }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Account type</label>
+      <div className="grid grid-cols-2 gap-2">
+        {(['seller', 'buyer'] as OrgType[]).map(t => (
+          <label key={t} className={[
+            'flex cursor-pointer items-center gap-2 rounded-lg border-2 px-3 py-2.5 transition-colors',
+            value === t ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40',
+          ].join(' ')}>
+            <input type="radio" name="orgType" value={t} checked={value === t} onChange={() => onChange(t)} className="accent-[var(--color-primary)]" />
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)] capitalize">{t}</p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {t === 'seller' ? 'Hotel / chain — full admin' : 'Travel agent — bookings only'}
+              </p>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => void; onSaved: (updated: OrgRecord) => void }) {
   const [name, setName] = useState(org.name)
   const [hgOrgId, setHgOrgId] = useState(org.hyperGuestOrgId ?? '')
+  const [orgType, setOrgType] = useState<OrgType>(org.orgType)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -76,7 +101,7 @@ function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => v
     if (!name.trim()) return
     setSaving(true); setError(null)
     try {
-      const updated = await apiClient.updateOrg(org.id, { name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null })
+      const updated = await apiClient.updateOrg(org.id, { name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, orgType })
       onSaved(updated)
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to save')
@@ -96,6 +121,7 @@ function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => v
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">HyperGuest Org ID</label>
             <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} className={`${inputCls} font-mono`} placeholder="optional" />
           </div>
+          <OrgTypeSelector value={orgType} onChange={setOrgType} />
         </div>
         {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
         <div className="mt-5 flex gap-3">
@@ -114,6 +140,7 @@ export default function OrganizationsPage() {
 
   const [name, setName] = useState('')
   const [hgOrgId, setHgOrgId] = useState('')
+  const [orgType, setOrgType] = useState<OrgType>('seller')
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -132,11 +159,11 @@ export default function OrganizationsPage() {
     if (!name.trim() || !adminName.trim() || !adminEmail.trim()) return
     setSaveError(null); setIsSaving(true)
     try {
-      const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null })
+      const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, orgType })
       const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id })
       await qc.invalidateQueries({ queryKey: ['super-orgs'] })
       setCreatedCreds({ orgName: org.name, hyperGuestOrgId: org.hyperGuestOrgId ?? hgOrgId.trim(), email: user.email, temporaryPassword: user.temporaryPassword })
-      setName(''); setHgOrgId(''); setAdminName(''); setAdminEmail('')
+      setName(''); setHgOrgId(''); setOrgType('seller'); setAdminName(''); setAdminEmail('')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create account')
     } finally { setIsSaving(false) }
@@ -187,10 +214,13 @@ export default function OrganizationsPage() {
       {/* Create form */}
       <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">New account</h2>
+        <div className="mb-4">
+          <OrgTypeSelector value={orgType} onChange={setOrgType} />
+        </div>
         <div className="mb-4 grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>Hotel / org name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Grand Palace Hotel" className={inputCls} />
+            <label className={labelCls}>{orgType === 'seller' ? 'Hotel / org name' : 'Agency name'}</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={orgType === 'seller' ? 'e.g. Grand Palace Hotel' : 'e.g. Acme Travel Agency'} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>HyperGuest Org ID <span className="normal-case font-normal">(optional)</span></label>
@@ -232,7 +262,7 @@ export default function OrganizationsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
-                {['Name', 'HG Org ID', 'Users', 'Status', 'Created', ''].map(h => (
+                {['Name', 'Type', 'HG Org ID', 'Users', 'Status', 'Created', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{h}</th>
                 ))}
               </tr>
@@ -241,6 +271,14 @@ export default function OrganizationsPage() {
               {orgs.map(org => (
                 <tr key={org.id} className={['hover:bg-[var(--color-background)]', !org.isActive ? 'opacity-50' : ''].join(' ')}>
                   <td className="px-4 py-3 font-medium text-[var(--color-text)]">{org.name}</td>
+                  <td className="px-4 py-3">
+                    <span className={[
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                      org.orgType === 'buyer' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700',
+                    ].join(' ')}>
+                      {org.orgType === 'buyer' ? 'Buyer' : 'Seller'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-[var(--color-text-muted)]">
                     {org.hyperGuestOrgId ?? <span className="italic">not set</span>}
                   </td>

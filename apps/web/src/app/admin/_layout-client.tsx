@@ -154,9 +154,17 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     ? properties.length > 1
     : propertyMode === 'multi' && realProperties.length > 1
 
-  // A buyer-only org has no owned properties (travel agent using B2B portal)
-  const isBuyerOrg = !isSuper && propertiesData !== undefined && realProperties.length === 0
+  const isAuthPage = pathname === '/admin/login' || pathname === '/admin/signup'
+  const isOnboarding = pathname === '/admin/onboarding'
 
+  const { data: orgData } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    enabled: isAuthenticated && !isAuthPage && !isOnboarding && role !== 'super',
+    staleTime: Infinity,
+  })
+
+  const isBuyerOrg = !isSuper && orgData?.orgType === 'buyer'
   const visibleSections = filterSections(SECTIONS, role, isBuyerOrg)
 
   const nameQueries = useQueries({
@@ -206,16 +214,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       if (!isValid) setPropertyId(null)
     }
   }, [properties, realProperties, showPropertySelector, propertyId, setPropertyId])
-
-  const isAuthPage = pathname === '/admin/login' || pathname === '/admin/signup'
-  const isOnboarding = pathname === '/admin/onboarding'
-
-  const { data: orgData } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
-    enabled: isAuthenticated && !isAuthPage && !isOnboarding && role !== 'super',
-    staleTime: Infinity,
-  })
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isAuthPage) {

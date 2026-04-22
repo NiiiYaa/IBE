@@ -17,6 +17,7 @@ model Organization {
   name            String
   slug            String    @unique
   hyperGuestOrgId String?   @unique
+  orgType         String    @default("seller")
   isActive        Boolean   @default(true)
   deletedAt       DateTime?
   createdAt       DateTime  @default(now())

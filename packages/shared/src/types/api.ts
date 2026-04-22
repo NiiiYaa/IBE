@@ -729,6 +729,7 @@ export interface OnsiteStats {
 export interface OrgSettingsResponse {
   orgName: string | null
   hyperGuestOrgId: string | null
+  orgType: OrgType
   hyperGuestBearerToken: string | null       // masked as ****xxxx when set
   hyperGuestBearerTokenSet: boolean
   hyperGuestStaticDomain: string | null
@@ -945,11 +946,14 @@ export interface UpdateCampaignRequest {
 
 // ── Organizations (super admin) ───────────────────────────────────────────────
 
+export type OrgType = 'seller' | 'buyer'
+
 export interface OrgRecord {
   id: number
   name: string
   slug: string
   hyperGuestOrgId: string | null
+  orgType: OrgType
   isActive: boolean
   deletedAt: string | null
   userCount: number
@@ -959,6 +963,7 @@ export interface OrgRecord {
 export interface CreateOrgRequest {
   name: string
   hyperGuestOrgId?: string | null
+  orgType?: OrgType
 }
 
 // ── Admin Users ───────────────────────────────────────────────────────────────

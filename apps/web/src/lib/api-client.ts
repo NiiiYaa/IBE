@@ -619,7 +619,7 @@ export const apiClient = {
     })
   },
 
-  updateOrg(orgId: number, data: { name?: string; hyperGuestOrgId?: string | null }): Promise<OrgRecord> {
+  updateOrg(orgId: number, data: { name?: string; hyperGuestOrgId?: string | null; orgType?: string }): Promise<OrgRecord> {
     return apiRequest<OrgRecord>(`/api/v1/admin/super/orgs/${orgId}`, {
       method: 'PUT',
       body: JSON.stringify(data),

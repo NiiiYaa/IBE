@@ -53,6 +53,7 @@ export interface OrgServiceRecord {
   name: string
   slug: string
   hyperGuestOrgId: string | null
+  orgType: string
   isActive: boolean
   deletedAt: Date | null
   userCount: number
@@ -60,15 +61,16 @@ export interface OrgServiceRecord {
 }
 
 const ORG_SELECT = {
-  id: true, name: true, slug: true, hyperGuestOrgId: true,
+  id: true, name: true, slug: true, hyperGuestOrgId: true, orgType: true,
   isActive: true, deletedAt: true, createdAt: true,
   _count: { select: { adminUsers: true } },
 } as const
 
-function mapOrg(o: { id: number; name: string; slug: string; hyperGuestOrgId: string | null; isActive: boolean; deletedAt: Date | null; createdAt: Date; _count: { adminUsers: number } }): OrgServiceRecord {
+function mapOrg(o: { id: number; name: string; slug: string; hyperGuestOrgId: string | null; orgType: string; isActive: boolean; deletedAt: Date | null; createdAt: Date; _count: { adminUsers: number } }): OrgServiceRecord {
   return {
     id: o.id, name: o.name, slug: o.slug,
     hyperGuestOrgId: o.hyperGuestOrgId,
+    orgType: o.orgType,
     isActive: o.isActive, deletedAt: o.deletedAt,
     userCount: o._count.adminUsers,
     createdAt: o.createdAt,
@@ -86,7 +88,7 @@ export async function listOrgs(): Promise<OrgServiceRecord[]> {
 
 export async function updateOrg(
   id: number,
-  data: { name?: string; hyperGuestOrgId?: string | null },
+  data: { name?: string; hyperGuestOrgId?: string | null; orgType?: string },
 ): Promise<OrgServiceRecord> {
   if (data.hyperGuestOrgId) {
     const existing = await prisma.organization.findUnique({ where: { hyperGuestOrgId: data.hyperGuestOrgId } })
@@ -97,6 +99,7 @@ export async function updateOrg(
     data: {
       ...(data.name !== undefined && { name: data.name.trim() }),
       ...(data.hyperGuestOrgId !== undefined && { hyperGuestOrgId: data.hyperGuestOrgId || null }),
+      ...(data.orgType !== undefined && { orgType: data.orgType }),
     },
     select: ORG_SELECT,
   })
@@ -115,7 +118,7 @@ function slugify(name: string): string {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-export async function createOrg(data: { name: string; hyperGuestOrgId?: string | null }): Promise<OrgServiceRecord> {
+export async function createOrg(data: { name: string; hyperGuestOrgId?: string | null; orgType?: string }): Promise<OrgServiceRecord> {
   const name = data.name.trim()
   if (!name) throw new Error('name is required')
 
@@ -131,11 +134,12 @@ export async function createOrg(data: { name: string; hyperGuestOrgId?: string |
     if (existing) throw new Error('This HyperGuest Org ID is already in use')
   }
 
+  const orgType = data.orgType ?? 'seller'
   const org = await prisma.organization.create({
-    data: { name, slug, hyperGuestOrgId: data.hyperGuestOrgId || null },
-    select: { id: true, name: true, slug: true, hyperGuestOrgId: true, createdAt: true },
+    data: { name, slug, hyperGuestOrgId: data.hyperGuestOrgId || null, orgType },
+    select: { id: true, name: true, slug: true, hyperGuestOrgId: true, orgType: true, createdAt: true },
   })
-  return { ...org, userCount: 0 }
+  return { ...org, isActive: true, deletedAt: null, userCount: 0 }
 }
 
 export async function setOrgHyperGuestId(orgId: number, hyperGuestOrgId: string | null): Promise<void> {

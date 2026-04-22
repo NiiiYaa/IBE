@@ -21,13 +21,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
       organizationId = firstOrg.id
     }
     const [org, settings, effective] = await Promise.all([
-      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, hyperGuestOrgId: true } }),
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, hyperGuestOrgId: true, orgType: true } }),
       getOrgSettings(organizationId),
       getHGCredentials(organizationId),
     ])
     return reply.send({
       orgName: org?.name ?? null,
       hyperGuestOrgId: org?.hyperGuestOrgId ?? null,
+      orgType: org?.orgType ?? 'seller',
       hyperGuestBearerToken: settings.hyperGuestBearerToken
         ? `****${settings.hyperGuestBearerToken.slice(-4)}`
         : null,
