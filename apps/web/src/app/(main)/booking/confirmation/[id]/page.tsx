@@ -2,21 +2,25 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Header } from '@/components/layout/Header'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 import type { BookingCancellationFrame } from '@ibe/shared'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
+interface StoredRoom {
+  roomCode: string
+  board: string
+  cancellationFrames?: BookingCancellationFrame[]
+}
+
 interface StoredConfirmation {
-  cancellationFrames: BookingCancellationFrame[]
   totalAmount: number
   currency: string
   propertyId?: number
   checkIn?: string
   checkOut?: string
   leadGuest?: { firstName: string; lastName: string; email: string }
-  rooms?: Array<{ roomCode: string; board: string }>
+  rooms?: StoredRoom[]
   hyperGuestBookingId?: number
 }
 
@@ -112,7 +116,6 @@ export default function ConfirmationPage({ params }: PageProps) {
 
   return (
     <>
-      <div className="print:hidden"><Header /></div>
       <main className="mx-auto max-w-2xl px-4 py-12 print:py-4 print:px-0">
         <div className="overflow-hidden rounded-2xl border border-[var(--color-success)]/20 bg-[var(--color-surface)] shadow-md print:shadow-none print:border-gray-300">
           {/* Top bar */}
@@ -193,11 +196,21 @@ export default function ConfirmationPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* Cancellation policy */}
-            {confirmation && (
-              <div className="space-y-2">
+            {/* Cancellation policy — per room */}
+            {confirmation?.rooms && confirmation.rooms.some(r => r.cancellationFrames) && (
+              <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted">Cancellation policy</p>
-                <CancellationPolicy frames={confirmation.cancellationFrames} currency={confirmation.currency} />
+                {confirmation.rooms.map((r, i) => (
+                  <div key={i} className="space-y-1.5">
+                    {confirmation.rooms!.length > 1 && (
+                      <p className="text-xs font-medium text-[var(--color-text)]">Room {i + 1}: {r.roomCode} · {r.board}</p>
+                    )}
+                    <CancellationPolicy
+                      frames={r.cancellationFrames ?? []}
+                      currency={confirmation.currency}
+                    />
+                  </div>
+                ))}
               </div>
             )}
 
@@ -218,7 +231,14 @@ export default function ConfirmationPage({ params }: PageProps) {
               Download confirmation
             </button>
             <Link
-              href={confirmation?.propertyId ? `/search?hotelId=${confirmation.propertyId}` : '/search'}
+              href={(() => {
+                if (!confirmation?.propertyId) return '/'
+                const qs = new URLSearchParams({ hotelId: String(confirmation.propertyId) })
+                if (confirmation.checkIn) qs.set('checkIn', confirmation.checkIn)
+                if (confirmation.checkOut) qs.set('checkOut', confirmation.checkOut)
+                qs.set('rooms[0][adults]', '2')
+                return `/search?${qs.toString()}`
+              })()}
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-5 py-2.5 text-sm font-medium text-[var(--color-text)] hover:border-primary hover:text-primary transition-colors"
             >
               Make another booking

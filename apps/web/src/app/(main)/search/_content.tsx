@@ -11,12 +11,13 @@ import { usePreferences } from '@/context/preferences'
 import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { RoomCard } from '@/components/search/RoomCard'
+import { RoomCardGrid } from '@/components/search/RoomCardGrid'
 import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
-import { RoomCartPanel, type CartItem } from '@/components/search/RoomCartPanel'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
+import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
-import { nightsBetween } from '@ibe/shared'
+import { nightsBetween, formatCurrency } from '@ibe/shared'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -33,7 +34,6 @@ export function SearchContent() {
 
   const { data, isLoading, isError, error } = useSearch(searchParams)
 
-  // Native currency is whatever HG returned in prices
   const nativeCurrency = data?.currency ?? 'USD'
   const convert = useConvertCurrency(nativeCurrency, displayCurrency)
   const { data: propertyData } = useProperty(searchParams?.hotelId ?? null)
@@ -44,6 +44,8 @@ export function SearchContent() {
     : maxRooms
 
   const [cartItems, setCartItems] = useState<CartItem[]>([])
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [cartExpanded, setCartExpanded] = useState(false)
 
   if (!searchParams) {
     return (
@@ -77,7 +79,6 @@ export function SearchContent() {
 
     if (bookingMode === 'multi') {
       if (cartItems.length >= effectiveMaxRooms) return
-      // Count how many times this room is already in the cart to enforce availableCount
       const timesInCart = cartItems.filter(i => i.room.roomId === room.roomId).length
       if (timesInCart >= room.availableCount) return
       const key = `${room.roomId}-${rate.ratePlanId}-${Date.now()}`
@@ -85,7 +86,6 @@ export function SearchContent() {
       return
     }
 
-    // single mode — original flow
     const qs = encodeSearchParams(searchParams)
     qs.set('roomId', String(room.roomId))
     qs.set('ratePlanId', String(rate.ratePlanId))
@@ -112,6 +112,10 @@ export function SearchContent() {
 
   const isMultiMode = bookingMode === 'multi'
   const dispCur = displayCurrency || nativeCurrency
+  const sidebarOnRight = hotelConfig?.searchSidebarPosition === 'right'
+  const roomSearchLayout = hotelConfig?.roomSearchLayout ?? 'rows'
+  const cartTotal = cartItems.reduce((sum, item) => sum + convert(item.rate.prices.sell.amount), 0)
+  const showCartBar = isMultiMode && cartItems.length > 0
 
   const roomList = (
     <div className="min-w-0 flex-1 space-y-4">
@@ -137,7 +141,6 @@ export function SearchContent() {
           />
         )
       })()}
-
 
       {searchParams.hotelId > 0 && (
         <PriceComparisonBar
@@ -165,11 +168,6 @@ export function SearchContent() {
             {nights} night{nights !== 1 ? 's' : ''} · {searchParams.rooms.reduce((s, r) => s + r.adults, 0)} adult{searchParams.rooms.reduce((s, r) => s + r.adults, 0) !== 1 ? 's' : ''}
           </p>
         </div>
-        {isMultiMode && cartItems.length > 0 && (
-          <span className="rounded-full bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-white">
-            {cartItems.length} room{cartItems.length !== 1 ? 's' : ''} selected
-          </span>
-        )}
       </div>
 
       {data && displayCurrency && displayCurrency !== nativeCurrency && (
@@ -181,13 +179,20 @@ export function SearchContent() {
         </div>
       )}
 
-
       {isLoading && (
-        <div className="space-y-4">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-48 animate-pulse rounded-xl bg-[var(--color-border)]" />
-          ))}
-        </div>
+        roomSearchLayout === 'cards' ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="aspect-[3/4] animate-pulse rounded-xl bg-[var(--color-border)]" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-48 animate-pulse rounded-xl bg-[var(--color-border)]" />
+            ))}
+          </div>
+        )
       )}
 
       {isError && (
@@ -206,35 +211,63 @@ export function SearchContent() {
         </div>
       )}
 
-      {allRooms.map(room => (
-        <RoomCard
-          key={room.roomId}
-          room={room}
-          nights={nights}
-          locale={LOCALE}
-          roomDetail={roomDetailMap.get(room.roomId)}
-          remarks={data?.results.flatMap(r => r.remarks) ?? []}
-          defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
-          onRateSelect={handleRateSelect}
-          displayCurrency={dispCur}
-          convert={convert}
-          {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
-            ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
-            : {})}
-          {...(isMultiMode
-            ? { selectLabel: 'Add to booking', selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
-            : {})}
-        />
-      ))}
+      {roomSearchLayout === 'cards' ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {allRooms.map(room => (
+            <RoomCardGrid
+              key={room.roomId}
+              room={room}
+              nights={nights}
+              locale={LOCALE}
+              roomDetail={roomDetailMap.get(room.roomId)}
+              remarks={data?.results.flatMap(r => r.remarks) ?? []}
+              defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+              onRateSelect={handleRateSelect}
+              displayCurrency={dispCur}
+              convert={convert}
+              {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+                ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+                : {})}
+              {...(isMultiMode
+                ? { selectLabel: 'Add to booking', selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
+                : {})}
+            />
+          ))}
+        </div>
+      ) : (
+        allRooms.map(room => (
+          <RoomCard
+            key={room.roomId}
+            room={room}
+            nights={nights}
+            locale={LOCALE}
+            roomDetail={roomDetailMap.get(room.roomId)}
+            remarks={data?.results.flatMap(r => r.remarks) ?? []}
+            defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+            onRateSelect={handleRateSelect}
+            displayCurrency={dispCur}
+            convert={convert}
+            {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+              ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+              : {})}
+            {...(isMultiMode
+              ? { selectLabel: 'Add to booking', selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
+              : {})}
+          />
+        ))
+      )}
     </div>
   )
 
   return (
     <>
       <OnsiteConversionOverlay propertyId={searchParams.hotelId} page="room" />
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <div className="flex gap-6 items-stretch">
-          <aside className="hidden w-64 shrink-0 lg:block">
+
+      <main className={`mx-auto max-w-7xl px-4 py-6 ${showCartBar ? 'pb-24' : ''}`}>
+        <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
+
+          {/* Collapsible sidebar */}
+          <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
             <SearchSidebar
               propertyId={searchParams.hotelId}
               initialCheckIn={searchParams.checkIn}
@@ -242,28 +275,104 @@ export function SearchContent() {
               initialNationality={searchParams.nationality}
               infantMaxAge={hotelConfig?.infantMaxAge ?? 2}
               childMaxAge={hotelConfig?.childMaxAge ?? 16}
+              isCollapsed={!sidebarOpen}
+              onToggle={() => setSidebarOpen(v => !v)}
             />
           </aside>
 
           {roomList}
-
-          {isMultiMode && (
-            <aside className="hidden w-64 shrink-0 lg:block sticky top-6 self-start" style={{ maxHeight: 'calc(100vh - 3rem)' }}>
-              <RoomCartPanel
-                items={cartItems}
-                maxRooms={effectiveMaxRooms}
-                nights={nights}
-                locale={LOCALE}
-                displayCurrency={dispCur}
-                convert={convert}
-                onRemove={key => setCartItems(prev => prev.filter(i => i.key !== key))}
-                onBook={handleCartBook}
-              />
-            </aside>
-          )}
         </div>
       </main>
+
+      {/* Sticky bottom cart bar — multi-room mode only */}
+      {isMultiMode && (
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${
+            showCartBar ? 'translate-y-0' : 'translate-y-full'
+          }`}
+        >
+          {/* Expanded room list panel */}
+          {cartExpanded && cartItems.length > 0 && (
+            <div className="mx-auto max-w-7xl px-4">
+              <div className="rounded-t-xl border border-b-0 border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg divide-y divide-[var(--color-border)]">
+                {cartItems.map((item, idx) => (
+                  <div key={item.key} className="flex items-center gap-3 px-4 py-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-light)] text-xs font-bold text-primary">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[var(--color-text)]">{item.room.roomName}</p>
+                      <p className="truncate text-xs text-muted">{item.rate.ratePlanName}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-primary">
+                      {formatCurrency(convert(item.rate.prices.sell.amount), dispCur, LOCALE)}
+                    </span>
+                    <button
+                      onClick={() => setCartItems(prev => prev.filter(i => i.key !== item.key))}
+                      aria-label="Remove room"
+                      className="shrink-0 rounded-full p-1 text-muted transition-colors hover:bg-[var(--color-error-light)] hover:text-error"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Main bar */}
+          <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+              {/* Left: room count + names */}
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+                  {cartItems.length}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--color-text)]">
+                    {cartItems.length} of {effectiveMaxRooms} room{effectiveMaxRooms !== 1 ? 's' : ''} selected
+                  </p>
+                  <p className="truncate text-xs text-muted">
+                    {cartItems.map(i => i.room.roomName).join(' · ')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: total + expand + book */}
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm font-bold text-[var(--color-text)]">
+                    {formatCurrency(cartTotal, dispCur, LOCALE)}
+                  </p>
+                  <p className="text-xs text-muted">{nights} night{nights !== 1 ? 's' : ''}</p>
+                </div>
+
+                <button
+                  onClick={() => setCartExpanded(v => !v)}
+                  aria-label={cartExpanded ? 'Collapse cart' : 'Expand cart'}
+                  className="rounded-lg border border-[var(--color-border)] p-2 text-muted transition-colors hover:border-primary hover:text-primary"
+                >
+                  <svg
+                    className={`h-4 w-4 transition-transform duration-200 ${cartExpanded ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                <button
+                  onClick={handleCartBook}
+                  className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)]"
+                >
+                  Book {cartItems.length} room{cartItems.length !== 1 ? 's' : ''} →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
-

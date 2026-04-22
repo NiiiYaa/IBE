@@ -332,11 +332,14 @@ model HotelConfig {
   infantMaxAge                    Int      @default(2)
   childMaxAge                     Int      @default(16)
   roomRatesDefaultExpanded        Boolean  @default(false)
+  roomSearchLayout                String   @default("rows")
   heroStyle                       String   @default("fullpage")
   heroImageMode                   String   @default("fixed")
   heroCarouselInterval            Int      @default(5)
   searchResultsImageMode          String   @default("fixed")
   searchResultsCarouselInterval   Int      @default(5)
+  searchSidebarPosition           String   @default("left")
+  propertyListLayout              String   @default("grid")
   searchResultsExcludedImageIds   String   @default("[]")
   excludedPropertyImageIds        String   @default("[]")
   excludedRoomImageIds            String   @default("[]")
@@ -445,7 +448,10 @@ model OrgDesignDefaults {
   searchResultsImageUrl        String?
   searchResultsImageMode       String?
   searchResultsCarouselInterval Int?
+  searchSidebarPosition        String?
+  propertyListLayout           String?
   roomRatesDefaultExpanded     Boolean?
+  roomSearchLayout             String?
   infantMaxAge                 Int?
   childMaxAge                  Int?
   onlinePaymentEnabled         Boolean?

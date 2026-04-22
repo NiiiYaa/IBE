@@ -214,6 +214,63 @@ export default function ChainPage() {
           )}
         </Section>
 
+        {/* ── Property List Layout ── */}
+        <Section title="Property List Layout">
+          <p className="mb-3 text-xs text-[var(--color-text-muted)]">
+            Choose how hotels are displayed on the chain page.
+          </p>
+          <div className="flex gap-3">
+            {([
+              {
+                value: 'grid',
+                label: 'Cards (grid)',
+                desc: 'Photo cards in a grid — visual, great for a smaller portfolio',
+              },
+              {
+                value: 'list',
+                label: 'Rows (list)',
+                desc: 'Compact rows grouped by city — better for large portfolios',
+              },
+            ] as const).map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => set('propertyListLayout', opt.value)}
+                className={['flex-1 rounded-xl border-2 p-3 text-left transition-all',
+                  (draft.propertyListLayout ?? 'grid') === opt.value
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-primary-light)]',
+                ].join(' ')}
+              >
+                {/* Mini preview */}
+                <div className="mb-2.5 h-14 w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-1.5">
+                  {opt.value === 'grid' ? (
+                    <div className="grid grid-cols-3 gap-1 h-full">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="rounded bg-[var(--color-surface)] border border-[var(--color-border)]" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-1 h-full">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="flex items-center gap-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] px-1" style={{ height: '28%' }}>
+                          <div className="h-full w-5 rounded bg-[var(--color-border)]" />
+                          <div className="flex-1 space-y-0.5">
+                            <div className="h-1 w-3/4 rounded bg-[var(--color-border)]" />
+                            <div className="h-1 w-1/2 rounded bg-[var(--color-border)]" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-[var(--color-text)]">{opt.label}</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
+        </Section>
+
         {/* ── Hero Images ── */}
         <Section title="Hero Images">
           <p className="mb-4 text-xs text-[var(--color-text-muted)]">

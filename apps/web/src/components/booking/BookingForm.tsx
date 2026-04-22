@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
@@ -62,7 +62,7 @@ export function BookingForm({
   const amountMinorUnits = Math.round(rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0) * 100)
 
   const {
-    register, trigger, getValues,
+    register, trigger, getValues, setValue,
     formState: { errors },
   } = useForm<CreateBookingRequestInput>({
     resolver: zodResolver(CreateBookingRequestSchema),
@@ -77,11 +77,11 @@ export function BookingForm({
         title: GuestTitle.Mr,
         firstName: '', lastName: '',
         birthDate: '1990-01-01',
-        email: '', phone: '', country: '',
+        email: '', phone: '', country: 'US',
       },
       rooms: rooms.map(({ room, rate }) => ({
-        roomId: room.roomId,
-        ratePlanId: rate.ratePlanId,
+        roomId: Math.round(room.roomId),
+        ratePlanId: Math.round(rate.ratePlanId),
         roomCode: room.roomTypeCode,
         rateCode: rate.ratePlanCode,
         expectedAmount: rate.prices.sell.amount,
@@ -91,19 +91,26 @@ export function BookingForm({
     },
   })
 
+  // Auto-fill country from browser locale (e.g. "en-US" → "US"), fallback to "US"
+  useEffect(() => {
+    const tag = navigator.language ?? ''
+    const parts = tag.split('-')
+    const code = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).toUpperCase()
+    setValue('leadGuest.country', /^[A-Z]{2}$/.test(code) ? code : 'US')
+  }, [setValue])
+
   const { mutate, isPending, error: bookingError } = useMutation({
     mutationFn: (data: CreateBookingRequestInput) => apiClient.createBooking(data),
     onSuccess: (c: BookingConfirmation) => {
       try {
         sessionStorage.setItem(`ibe_confirm_${c.bookingId}`, JSON.stringify({
-          cancellationFrames: c.rooms.flatMap(r => r.cancellationFrames),
           totalAmount: c.totalAmount,
           currency: c.currency,
           propertyId,
           checkIn: c.checkIn,
           checkOut: c.checkOut,
           leadGuest: c.leadGuest,
-          rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board })),
+          rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board, cancellationFrames: r.cancellationFrames })),
           hyperGuestBookingId: c.hyperGuestBookingId,
         }))
       } catch {}
@@ -205,24 +212,6 @@ export function BookingForm({
             </FormField>
             <FormField label="Phone" error={errors.leadGuest?.phone?.message}>
               <input type="tel" {...register('leadGuest.phone')} className={inputCls} placeholder="+1 234 567 890" />
-            </FormField>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              label="Country"
-              hint="2-letter code (US, DE, GB…)"
-              error={errors.leadGuest?.country?.message}
-            >
-              <input
-                {...register('leadGuest.country')}
-                className={`${inputCls} uppercase`}
-                placeholder="US"
-                maxLength={2}
-              />
-            </FormField>
-            <FormField label="Date of birth" error={errors.leadGuest?.birthDate?.message}>
-              <input type="date" {...register('leadGuest.birthDate')} className={inputCls} />
             </FormField>
           </div>
 

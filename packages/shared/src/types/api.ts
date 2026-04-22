@@ -284,6 +284,9 @@ export interface HotelDesignConfig {
   infantMaxAge: number   // ages 0–infantMaxAge are infants
   childMaxAge: number    // ages (infantMaxAge+1)–childMaxAge are children; above are adults
   roomRatesDefaultExpanded: boolean
+  roomSearchLayout: 'rows' | 'cards'
+  searchSidebarPosition: 'left' | 'right'
+  propertyListLayout: 'grid' | 'list'
   heroStyle: 'fullpage' | 'rectangle' | 'quilt'
   heroImageMode: 'fixed' | 'carousel'
   heroCarouselInterval: number
@@ -331,6 +334,9 @@ export interface UpdateDesignConfigRequest {
   infantMaxAge?: number | null
   childMaxAge?: number | null
   roomRatesDefaultExpanded?: boolean | null
+  roomSearchLayout?: 'rows' | 'cards' | null
+  searchSidebarPosition?: 'left' | 'right' | null
+  propertyListLayout?: 'grid' | 'list' | null
   heroStyle?: 'fullpage' | 'rectangle' | 'quilt' | null
   heroImageMode?: 'fixed' | 'carousel' | null
   heroCarouselInterval?: number | null
@@ -384,6 +390,9 @@ export interface OrgDesignDefaultsConfig {
   searchResultsImageMode: 'fixed' | 'carousel' | null
   searchResultsCarouselInterval: number | null
   roomRatesDefaultExpanded: boolean | null
+  roomSearchLayout: 'rows' | 'cards' | null
+  searchSidebarPosition: 'left' | 'right' | null
+  propertyListLayout: 'grid' | 'list' | null
   infantMaxAge: number | null
   childMaxAge: number | null
   onlinePaymentEnabled: boolean | null

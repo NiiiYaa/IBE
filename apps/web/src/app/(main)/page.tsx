@@ -8,6 +8,7 @@ import { buildCssVars } from '@/lib/theme'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { QuiltHero } from '@/components/home/QuiltHero'
 import { PropertyCard } from '@/components/home/PropertyCard'
+import { PropertyRow } from '@/components/home/PropertyRow'
 import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 
@@ -266,24 +267,65 @@ export default async function HomePage({
   const cssVars = config ? buildCssVars(config) : ''
   const PageStyle = cssVars ? <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} /> : null
 
+  const propertyListLayout = config?.propertyListLayout ?? 'grid'
+
   const PropertyGrid = multiProperties && multiProperties.length > 1 ? (
     <div className="bg-[var(--color-background)] px-4 py-10">
       <div className="mx-auto max-w-6xl">
         <h2 className="mb-6 text-2xl font-bold text-[var(--color-text)]">Our Properties</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {multiProperties.map(p => (
-            <PropertyCard
-              key={p.id}
-              id={p.id}
-              name={p.name}
-              starRating={p.starRating}
-              imageUrl={p.imageUrl}
-              city={p.city}
-              address={p.address}
-              description={p.description}
-            />
-          ))}
-        </div>
+
+        {propertyListLayout === 'list' ? (() => {
+          // Group by city, ungrouped city goes to a catch-all
+          const groups = new Map<string, typeof multiProperties>()
+          for (const p of multiProperties) {
+            const key = p.city || ''
+            if (!groups.has(key)) groups.set(key, [])
+            groups.get(key)!.push(p)
+          }
+          const hasMultipleCities = groups.size > 1
+          return (
+            <div className="divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm overflow-hidden">
+              {Array.from(groups.entries()).map(([city, props]) => (
+                <div key={city || '__none__'}>
+                  {hasMultipleCities && city && (
+                    <div className="bg-[var(--color-background)] px-4 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{city}</p>
+                    </div>
+                  )}
+                  <div className="px-4">
+                    {props.map(p => (
+                      <PropertyRow
+                        key={p.id}
+                        id={p.id}
+                        name={p.name}
+                        starRating={p.starRating}
+                        imageUrl={p.imageUrl}
+                        city={p.city}
+                        address={p.address}
+                        description={p.description}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })() : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {multiProperties.map(p => (
+              <PropertyCard
+                key={p.id}
+                id={p.id}
+                name={p.name}
+                starRating={p.starRating}
+                imageUrl={p.imageUrl}
+                city={p.city}
+                address={p.address}
+                description={p.description}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   ) : null

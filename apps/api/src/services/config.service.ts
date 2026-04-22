@@ -95,6 +95,9 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     infantMaxAge: config?.infantMaxAge ?? o?.infantMaxAge ?? 2,
     childMaxAge: config?.childMaxAge ?? o?.childMaxAge ?? 16,
     roomRatesDefaultExpanded: config?.roomRatesDefaultExpanded ?? o?.roomRatesDefaultExpanded ?? false,
+    roomSearchLayout: ((config?.roomSearchLayout ?? o?.roomSearchLayout ?? 'rows') as 'rows' | 'cards'),
+    searchSidebarPosition: ((config?.searchSidebarPosition ?? o?.searchSidebarPosition ?? 'left') as 'left' | 'right'),
+    propertyListLayout: ((config?.propertyListLayout ?? o?.propertyListLayout ?? 'grid') as 'grid' | 'list'),
     heroStyle: (config?.heroStyle ?? o?.heroStyle ?? 'fullpage') as 'fullpage' | 'rectangle' | 'quilt',
     heroImageMode: (config?.heroImageMode ?? o?.heroImageMode ?? 'fixed') as 'fixed' | 'carousel',
     heroCarouselInterval: config?.heroCarouselInterval ?? o?.heroCarouselInterval ?? 5,
@@ -151,6 +154,9 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     infantMaxAge:  o?.infantMaxAge  ?? 2,
     childMaxAge:   o?.childMaxAge   ?? 16,
     roomRatesDefaultExpanded: o?.roomRatesDefaultExpanded ?? false,
+    roomSearchLayout: ((o?.roomSearchLayout ?? 'rows') as 'rows' | 'cards'),
+    searchSidebarPosition: ((o?.searchSidebarPosition ?? 'left') as 'left' | 'right'),
+    propertyListLayout: ((o?.propertyListLayout ?? 'grid') as 'grid' | 'list'),
     heroStyle:             (o?.heroStyle    ?? 'fullpage') as 'fullpage' | 'rectangle' | 'quilt',
     heroImageMode:         (o?.heroImageMode ?? 'fixed')  as 'fixed' | 'carousel',
     heroCarouselInterval:   o?.heroCarouselInterval   ?? 5,
@@ -205,6 +211,9 @@ export async function upsertHotelDesignConfig(
     ...(updates.infantMaxAge != null && { infantMaxAge: updates.infantMaxAge }),
     ...(updates.childMaxAge != null && { childMaxAge: updates.childMaxAge }),
     ...(updates.roomRatesDefaultExpanded != null && { roomRatesDefaultExpanded: updates.roomRatesDefaultExpanded }),
+    ...(updates.roomSearchLayout != null && { roomSearchLayout: updates.roomSearchLayout }),
+    ...(updates.searchSidebarPosition != null && { searchSidebarPosition: updates.searchSidebarPosition }),
+    ...(updates.propertyListLayout != null && { propertyListLayout: updates.propertyListLayout }),
     ...(updates.heroStyle != null && { heroStyle: updates.heroStyle }),
     ...(updates.heroImageMode != null && { heroImageMode: updates.heroImageMode }),
     ...(updates.heroCarouselInterval != null && { heroCarouselInterval: updates.heroCarouselInterval }),
@@ -316,7 +325,7 @@ export async function upsertOrgDesignDefaults(
     'defaultCurrency', 'defaultLocale', 'textDirection',
     'heroStyle', 'heroImageMode', 'heroCarouselInterval',
     'searchResultsImageUrl', 'searchResultsImageMode', 'searchResultsCarouselInterval',
-    'roomRatesDefaultExpanded', 'infantMaxAge', 'childMaxAge',
+    'searchSidebarPosition', 'propertyListLayout', 'roomRatesDefaultExpanded', 'roomSearchLayout', 'infantMaxAge', 'childMaxAge',
     'onlinePaymentEnabled', 'payAtHotelEnabled', 'payAtHotelCardGuaranteeRequired',
     'chainHeroImageUrl',
   ]
@@ -350,6 +359,7 @@ function rowToOrgDefaults(row: {
   searchResultsImageUrl: string | null; searchResultsImageMode: string | null; searchResultsCarouselInterval: number | null
   roomRatesDefaultExpanded: boolean | null; infantMaxAge: number | null; childMaxAge: number | null
   onlinePaymentEnabled: boolean | null; payAtHotelEnabled: boolean | null; payAtHotelCardGuaranteeRequired: boolean | null
+  searchSidebarPosition?: string | null; propertyListLayout?: string | null; roomSearchLayout?: string | null
   chainHeroImageUrl?: string | null
   chainExcludedPropertyImageIds?: string | null
 } | null): OrgDesignDefaultsConfig {
@@ -383,7 +393,10 @@ function rowToOrgDefaults(row: {
     searchResultsImageUrl: row?.searchResultsImageUrl ?? null,
     searchResultsImageMode: (row?.searchResultsImageMode ?? null) as OrgDesignDefaultsConfig['searchResultsImageMode'],
     searchResultsCarouselInterval: row?.searchResultsCarouselInterval ?? null,
+    searchSidebarPosition: (row?.searchSidebarPosition ?? null) as OrgDesignDefaultsConfig['searchSidebarPosition'],
+    propertyListLayout: (row?.propertyListLayout ?? null) as OrgDesignDefaultsConfig['propertyListLayout'],
     roomRatesDefaultExpanded: row?.roomRatesDefaultExpanded ?? null,
+    roomSearchLayout: (row?.roomSearchLayout ?? null) as OrgDesignDefaultsConfig['roomSearchLayout'],
     infantMaxAge: row?.infantMaxAge ?? null,
     childMaxAge: row?.childMaxAge ?? null,
     onlinePaymentEnabled: row?.onlinePaymentEnabled ?? null,

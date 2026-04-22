@@ -24,6 +24,8 @@ interface SearchSidebarProps {
   initialNationality?: string | undefined
   infantMaxAge?: number
   childMaxAge?: number
+  isCollapsed?: boolean
+  onToggle?: () => void
 }
 
 const MAX_CHILDREN_PER_ROOM = 6
@@ -39,6 +41,14 @@ function roomSummary(room: GuestRoom): string {
   return parts.join(' · ')
 }
 
+function compactDate(iso: string): string {
+  if (!iso) return '—'
+  const parts = iso.split('-')
+  if (parts.length < 3) return '—'
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${parseInt(parts[2]!)} ${months[parseInt(parts[1]!) - 1]}`
+}
+
 export function SearchSidebar({
   propertyId,
   initialCheckIn,
@@ -47,6 +57,8 @@ export function SearchSidebar({
   initialNationality,
   infantMaxAge = 2,
   childMaxAge = 16,
+  isCollapsed = false,
+  onToggle,
 }: SearchSidebarProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -163,15 +175,64 @@ export function SearchSidebar({
     router.push(`/search?${qs.toString()}`)
   }
 
+  // ── Collapsed strip ───────────────────────────────────────────────────────────
+  if (isCollapsed) {
+    return (
+      <div className="sticky top-20 flex flex-col items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-card overflow-hidden">
+        {/* Toggle button */}
+        <button
+          onClick={onToggle}
+          title="Expand search panel"
+          className="flex w-full flex-col items-center gap-1 px-2 py-3 text-primary hover:bg-[var(--color-primary-light)] transition-colors"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted" style={{ writingMode: 'vertical-rl' }}>
+            Search
+          </span>
+        </button>
+
+        {/* Date summary */}
+        {checkIn && checkOut && (
+          <div className="flex flex-col items-center gap-0.5 pb-3 text-center">
+            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkIn)}</span>
+            <svg className="h-3 w-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkOut)}</span>
+            {nights > 0 && (
+              <span className="mt-0.5 text-[10px] font-semibold text-primary">{nights}n</span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Full panel ────────────────────────────────────────────────────────────────
   return (
-    <div ref={containerRef} className="sticky top-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-card overflow-hidden" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
-      {/* Header */}
-      <div className="bg-primary px-5 py-3">
-        <p className="text-xs font-medium uppercase tracking-wider text-white/70">Book directly</p>
-        <p className="text-base font-semibold text-white">Check availability</p>
+    <div ref={containerRef} className="sticky top-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-card overflow-hidden" style={{ maxHeight: 'calc(100vh - 5.5rem)' }}>
+      {/* Header with collapse toggle */}
+      <div className="flex items-center justify-between bg-primary px-5 py-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-white/70">Book directly</p>
+          <p className="text-base font-semibold text-white">Check availability</p>
+        </div>
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            title="Collapse search panel"
+            className="rounded-md p-1 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      <div className="overflow-y-auto p-5 space-y-4" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
+      <div className="overflow-y-auto p-5 space-y-4" style={{ maxHeight: 'calc(100vh - 9.5rem)' }}>
 
         {/* Dates + calendar inline */}
         <div>
@@ -232,7 +293,7 @@ export function SearchSidebar({
           )}
         </div>
 
-        {/* Rooms & Guests — collapsed summaries, expand to edit */}
+        {/* Rooms & Guests */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
             Rooms &amp; Guests
