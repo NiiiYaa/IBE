@@ -38,7 +38,6 @@ export default function SearchDesignPage() {
 
 function GlobalSearchEditor() {
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
-  const b2bOrigin = useB2bOrigin()
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -52,6 +51,8 @@ function GlobalSearchEditor() {
     queryFn: () => apiClient.getOrgSettings(),
     staleTime: Infinity,
   })
+
+  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
 
   if (isLoading) return <Spinner />
 
@@ -185,7 +186,6 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<SearchDraft>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
-  const b2bOrigin = useB2bOrigin()
 
   const { data: property } = useProperty(propertyId)
 
@@ -194,6 +194,8 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.getOrgSettings(),
     staleTime: Infinity,
   })
+
+  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],

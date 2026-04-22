@@ -21,6 +21,15 @@ function B2BLoginForm() {
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const [sellerBranding, setSellerBranding] = useState<{ logoUrl: string | null; displayName: string | null } | null>(null)
+
+  // Load seller branding
+  useEffect(() => {
+    if (!sellerSlug) return
+    apiClient.getSellerConfig(sellerSlug)
+      .then(data => setSellerBranding(data))
+      .catch(() => {})
+  }, [sellerSlug])
 
   // If already logged in, redirect immediately
   useEffect(() => {
@@ -47,6 +56,10 @@ function B2BLoginForm() {
         setAccounts(result.accounts)
         setSelectedAdminId(result.accounts[0]?.adminId ?? null)
         setIsPending(false)
+        return
+      }
+      if (result.mustChangePassword) {
+        router.replace('/b2b/force-change-password')
         return
       }
       router.replace(returnTo)
@@ -79,7 +92,11 @@ function B2BLoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)]">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
         <div className="mb-6 flex flex-col items-center gap-3">
-          <Image src="/hyperguest-logo.png" alt="HyperGuest" width={160} height={38} priority />
+          {sellerBranding?.logoUrl ? (
+            <Image src={sellerBranding.logoUrl} alt={sellerBranding.displayName ?? 'Logo'} width={160} height={48} priority className="object-contain" />
+          ) : (
+            <Image src="/hyperguest-logo.png" alt="HyperGuest" width={160} height={38} priority />
+          )}
           <p className="text-sm text-[var(--color-text-muted)]">Agent Portal</p>
         </div>
 

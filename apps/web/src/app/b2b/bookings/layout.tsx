@@ -1,12 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useB2BAgentAuth } from '@/hooks/use-b2b-agent-auth'
+import { useEffect } from 'react'
 
 export default function B2BBookingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { agent, isLoading, isAuthenticated, logout } = useB2BAgentAuth()
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && agent?.mustChangePassword) {
+      router.replace('/b2b/force-change-password')
+    }
+  }, [isLoading, isAuthenticated, agent, router])
 
   if (isLoading) {
     return (
@@ -17,6 +25,7 @@ export default function B2BBookingsLayout({ children }: { children: React.ReactN
   }
 
   if (!isAuthenticated) return null
+  if (agent?.mustChangePassword) return null
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">

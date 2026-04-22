@@ -898,6 +898,10 @@ export const apiClient = {
     return apiRequest<{ pixels: Array<{ id: number; code: string }> }>(`/api/v1/pixels?propertyId=${propertyId}&page=${page}`)
   },
 
+  getSellerConfig(slug: string): Promise<{ logoUrl: string | null; displayName: string | null }> {
+    return apiRequest(`/api/v1/config/seller/${encodeURIComponent(slug)}`)
+  },
+
   // ── B2B Auth ────────────────────────────────────────────────────────────────
 
   b2bLogin(
@@ -907,7 +911,7 @@ export const apiClient = {
     adminId?: number,
     rememberMe?: boolean,
   ): Promise<
-    | { ok: true; organizationId: number; role: string; requiresSelection?: never }
+    | { ok: true; organizationId: number; role: string; mustChangePassword?: boolean; requiresSelection?: never }
     | { requiresSelection: true; accounts: Array<{ adminId: number; name: string; organizationName: string; role: string }>; ok?: never }
   > {
     return apiRequest('/api/v1/b2b/auth/login', {
@@ -916,11 +920,18 @@ export const apiClient = {
     })
   },
 
+  b2bChangePassword(newPassword: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/b2b/auth/change-password', {
+      method: 'PUT',
+      body: JSON.stringify({ newPassword }),
+    })
+  },
+
   b2bLogout(): Promise<{ ok: boolean }> {
     return apiRequest('/api/v1/b2b/auth/logout', { method: 'POST' })
   },
 
-  b2bMe(): Promise<{ id: number; email: string; name: string; role: string; organizationId: number; organizationName: string | null; sellerOrgId: number }> {
+  b2bMe(): Promise<{ id: number; email: string; name: string; role: string; organizationId: number; organizationName: string | null; sellerOrgId: number; mustChangePassword: boolean }> {
     return apiRequest('/api/v1/b2b/auth/me')
   },
 

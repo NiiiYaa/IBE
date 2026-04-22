@@ -60,7 +60,6 @@ export default function ChainPage() {
   const { isLoading, draft, set, save, isPending, isDirty, saveError } = useGlobalConfig()
   const { admin } = useAdminAuth()
   const orgId = admin?.organizationId
-  const b2bOrigin = useB2bOrigin()
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -74,6 +73,8 @@ export default function ChainPage() {
     staleTime: Infinity,
     enabled: !!orgId,
   })
+
+  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
 
   const showCitySelector = propertiesData?.showCitySelector ?? false
 

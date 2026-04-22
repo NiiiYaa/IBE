@@ -73,7 +73,6 @@ export default function HomepageDesignPage() {
 function GlobalHomepageEditor() {
   const qc = useQueryClient()
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
-  const b2bOrigin = useB2bOrigin()
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -86,6 +85,8 @@ function GlobalHomepageEditor() {
     queryFn: () => apiClient.getOrgSettings(),
     staleTime: Infinity,
   })
+
+  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
   const showCitySelector = propertiesData?.showCitySelector ?? false
@@ -347,7 +348,6 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<HomepageDraft>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
-  const b2bOrigin = useB2bOrigin()
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -375,6 +375,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.getOrgSettings(),
     staleTime: Infinity,
   })
+
+  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
 
   useEffect(() => {
     if (designData && config && !initialized) {

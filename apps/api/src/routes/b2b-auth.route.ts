@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { resolveB2BLogin, resolveSellerOrg, getB2BAdminById } from '../services/b2b-auth.service.js'
 import { cancelBooking as hgCancelBooking } from '../adapters/hyperguest/booking.js'
 import { getOrgSettings } from '../services/org.service.js'
+import { updateAdminProfile } from '../services/auth.service.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 
@@ -58,8 +59,30 @@ export async function b2bAuthRoutes(fastify: FastifyInstance) {
           path: '/',
           maxAge,
         })
-        return reply.send({ ok: true, organizationId: result.payload.organizationId, role: result.payload.role })
+        return reply.send({ ok: true, organizationId: result.payload.organizationId, role: result.payload.role, mustChangePassword: result.mustChangePassword })
       }
+    }
+  })
+
+  // ── Change password (force-change flow) ────────────────────────────────────
+
+  fastify.put('/b2b/auth/change-password', async (request, reply) => {
+    const token = (request.cookies as Record<string, string>)[B2B_COOKIE_NAME]
+    if (!token) return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
+    let payload: { adminId: number; b2b: boolean }
+    try {
+      payload = fastify.jwt.verify<{ adminId: number; b2b: boolean }>(token)
+      if (!payload.b2b) return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
+    } catch {
+      return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
+    }
+    const { newPassword } = request.body as { newPassword?: string }
+    if (!newPassword) return reply.status(400).send({ error: 'newPassword is required', code: 'IBE.VALIDATION.001' })
+    try {
+      await updateAdminProfile(payload.adminId, { newPassword })
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(400).send({ error: err instanceof Error ? err.message : 'Failed to change password' })
     }
   })
 

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { IBE_ERROR_VALIDATION } from '@ibe/shared'
 import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getOrgDesignDefaults, upsertOrgDesignDefaults, getPropertyDesignAdmin } from '../services/config.service.js'
 import { getOrgIdForProperty, listProperties } from '../services/property-registry.service.js'
+import { resolveSellerOrg } from '../services/b2b-auth.service.js'
 import { getOrgSettings } from '../services/org.service.js'
 import { getEffectiveOffersSettings } from '../services/offers.service.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
@@ -75,6 +76,16 @@ export async function configRoutes(fastify: FastifyInstance) {
     if (!org) return reply.status(404).send({ error: 'Organization not found', code: 'IBE.ORG.001' })
     void reply.header('Cache-Control', 'public, max-age=3600, s-maxage=3600')
     return reply.send({ id: org.id })
+  })
+
+  // GET /config/seller/:slug — public: seller org branding for B2B login page
+  fastify.get('/config/seller/:slug', async (request, reply) => {
+    const { slug } = request.params as { slug: string }
+    const orgId = await resolveSellerOrg(slug)
+    if (!orgId) return reply.status(404).send({ error: 'Seller not found' })
+    const config = await getOrgDesignConfig(orgId)
+    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    return reply.send({ logoUrl: config.logoUrl, displayName: config.displayName })
   })
 
   // GET /config/org/:orgId — public org-level design config for chain page

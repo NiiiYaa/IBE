@@ -11,7 +11,7 @@ export interface B2BPayload {
 }
 
 export type B2BLoginResult =
-  | { type: 'ok'; payload: B2BPayload }
+  | { type: 'ok'; payload: B2BPayload; mustChangePassword: boolean }
   | { type: 'choices'; accounts: AccountChoice[] }
   | { type: 'invalid_credentials' }
   | { type: 'no_access' }
@@ -70,6 +70,8 @@ export async function resolveB2BLogin(
   const admin = result.direct!
   const buyerOrgId = admin.organizationId
 
+  const mustChangePassword = !!admin.mustChangePassword
+
   // Super admins bypass B2B access checks
   if (admin.role === 'super' || buyerOrgId === null) {
     return {
@@ -81,6 +83,7 @@ export async function resolveB2BLogin(
         sellerOrgId,
         b2b: true,
       },
+      mustChangePassword,
     }
   }
 
@@ -89,6 +92,7 @@ export async function resolveB2BLogin(
     return {
       type: 'ok',
       payload: { adminId: admin.adminId, organizationId: buyerOrgId, role: admin.role, sellerOrgId, b2b: true },
+      mustChangePassword,
     }
   }
 
@@ -98,6 +102,7 @@ export async function resolveB2BLogin(
   return {
     type: 'ok',
     payload: { adminId: admin.adminId, organizationId: buyerOrgId, role: admin.role, sellerOrgId, b2b: true },
+    mustChangePassword,
   }
 }
 
@@ -125,5 +130,6 @@ export async function getB2BAdminById(id: number) {
     role: user.role,
     organizationId: user.organizationId,
     organizationName: user.organization?.name ?? null,
+    mustChangePassword: user.mustChangePassword,
   }
 }
