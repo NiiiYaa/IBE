@@ -70,7 +70,7 @@ export function BookingForm({
       propertyId, checkIn, checkOut,
       paymentMethod: onlinePaymentEnabled ? PaymentMethodType.CreditCard : PaymentMethodType.AtHotel,
       paymentFlow,
-      isTest: true,
+      isTest: process.env.NEXT_PUBLIC_IS_TEST === 'true',
       searchId,
       affiliateId,
       leadGuest: {
@@ -99,6 +99,12 @@ export function BookingForm({
           cancellationFrames: c.rooms.flatMap(r => r.cancellationFrames),
           totalAmount: c.totalAmount,
           currency: c.currency,
+          propertyId,
+          checkIn: c.checkIn,
+          checkOut: c.checkOut,
+          leadGuest: c.leadGuest,
+          rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board })),
+          hyperGuestBookingId: c.hyperGuestBookingId,
         }))
       } catch {}
       router.push(`/booking/confirmation/${c.bookingId}`)

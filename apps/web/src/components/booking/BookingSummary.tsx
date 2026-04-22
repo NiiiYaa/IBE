@@ -1,5 +1,8 @@
+'use client'
+
+import { useState } from 'react'
 import type { RoomOption, RateOption } from '@ibe/shared'
-import { formatCurrency, nightsBetween } from '@ibe/shared'
+import { formatCurrency, nightsBetween, TaxRelation } from '@ibe/shared'
 import { MealBadge } from '@/components/search/MealBadge'
 
 export interface SelectedRoom { room: RoomOption; rate: RateOption }
@@ -13,6 +16,7 @@ interface BookingSummaryProps {
 
 export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSummaryProps) {
   const nights = nightsBetween(checkIn, checkOut)
+  const [showNightly, setShowNightly] = useState(false)
 
   const formatDateShort = (d: string) => {
     const [year, month, day] = d.split('-').map(Number) as [number, number, number]
@@ -20,9 +24,19 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
     return `${day}-${MONTHS[month - 1]}-${year}`
   }
 
+  const formatDateNight = (d: string) => {
+    const [, month, day] = d.split('-').map(Number) as [number, number, number]
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    return `${day} ${MONTHS[month - 1]}`
+  }
+
   const currency = rooms[0]?.rate.prices.sell.currency ?? 'USD'
   const total = rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0)
-  const allDisplayFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation === 'display'))
+  const allDisplayFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation === TaxRelation.Display))
+  const allAddFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation === TaxRelation.Add))
+  const includedTaxes = rooms.flatMap(({ rate }) => rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Included))
+  const allNightly = rooms.flatMap(({ rate }) => rate.nightlyBreakdown)
+  const hasNightly = allNightly.length > 0
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-card">
@@ -78,16 +92,64 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
           ))}
         </div>
 
+        {/* Nightly breakdown toggle */}
+        {hasNightly && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowNightly(v => !v)}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <svg
+                className={`h-3 w-3 transition-transform ${showNightly ? 'rotate-90' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+              {showNightly ? 'Hide' : 'Show'} nightly breakdown
+            </button>
+
+            {showNightly && (
+              <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 space-y-1">
+                {allNightly.map((n, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-muted">{formatDateNight(n.date)}</span>
+                    <span className="text-[var(--color-text)]">{formatCurrency(n.sell, n.currency, locale)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="border-t border-[var(--color-border)]" />
 
-        {/* Total */}
+        {/* Price breakdown */}
         <div className="space-y-1.5 text-sm">
+          {/* Included taxes */}
+          {includedTaxes.map((t, i) => (
+            <div key={i} className="flex justify-between text-xs">
+              <span className="text-muted">{t.description} <span className="text-success/80">(included)</span></span>
+              <span className="text-muted">{formatCurrency(t.amount, t.currency, locale)}</span>
+            </div>
+          ))}
+
+          {/* Additional taxes added to price */}
+          {allAddFees.map((fee, i) => (
+            <div key={i} className="flex justify-between text-xs">
+              <span className="text-muted">{fee.description}</span>
+              <span className="text-muted">+{formatCurrency(fee.amount, fee.currency, locale)}</span>
+            </div>
+          ))}
+
+          {/* Fees payable at hotel */}
           {allDisplayFees.map((fee, i) => (
             <div key={i} className="flex justify-between text-xs">
               <span className="text-muted">{fee.description} <span className="text-amber-600">(at hotel)</span></span>
               <span className="text-muted">{formatCurrency(fee.amount, fee.currency, locale)}</span>
             </div>
           ))}
+
           <div className="flex justify-between font-semibold">
             <span>Total</span>
             <span className="text-primary text-base">{formatCurrency(total, currency, locale)}</span>

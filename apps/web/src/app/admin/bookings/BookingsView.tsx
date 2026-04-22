@@ -153,7 +153,7 @@ interface Filters {
 
 export const EMPTY_FILTERS: Filters = {
   search: '', status: '', datePivot: 'bookingDate', dateFrom: '', dateTo: '',
-  hasAffiliate: '', hasPromo: '', isTest: 'false',
+  hasAffiliate: '', hasPromo: '', isTest: '',
 }
 
 function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
