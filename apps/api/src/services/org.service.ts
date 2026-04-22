@@ -3,6 +3,18 @@ import { invalidateCredentialsCache } from './credentials.service.js'
 
 export type PropertyMode = 'single' | 'multi'
 
+export type SellModel = 'b2c' | 'b2b'
+export const ALL_SELL_MODELS: SellModel[] = ['b2c', 'b2b']
+const DEFAULT_ENABLED_MODELS: SellModel[] = ['b2c', 'b2b']
+
+function parseModels(raw: string | null | undefined): SellModel[] {
+  try {
+    const parsed = JSON.parse(raw ?? '[]')
+    if (Array.isArray(parsed)) return parsed as SellModel[]
+  } catch { /* fall through */ }
+  return DEFAULT_ENABLED_MODELS
+}
+
 export interface OrgSettingsData {
   propertyMode: PropertyMode
   showCitySelector: boolean
@@ -15,6 +27,7 @@ export interface OrgSettingsData {
   webDomain: string | null
   tlsCert: string | null
   tlsKey: string | null
+  enabledModels: SellModel[]
 }
 
 export async function getOrgSettings(organizationId: number): Promise<OrgSettingsData> {
@@ -31,14 +44,19 @@ export async function getOrgSettings(organizationId: number): Promise<OrgSetting
     webDomain: row?.webDomain ?? null,
     tlsCert: row?.tlsCert ?? null,
     tlsKey: row?.tlsKey ?? null,
+    enabledModels: parseModels(row?.enabledModels),
   }
 }
 
 export async function updateOrgSettings(organizationId: number, data: Partial<OrgSettingsData>): Promise<OrgSettingsData> {
+  const { enabledModels, ...rest } = data
+  const dbData: Record<string, unknown> = { ...rest }
+  if (enabledModels !== undefined) dbData['enabledModels'] = JSON.stringify(enabledModels)
+
   const row = await prisma.orgSettings.upsert({
     where: { organizationId },
-    create: { organizationId, ...data },
-    update: data,
+    create: { organizationId, ...dbData },
+    update: dbData,
   })
   invalidateCredentialsCache(organizationId)
   return {
@@ -53,6 +71,7 @@ export async function updateOrgSettings(organizationId: number, data: Partial<Or
     webDomain: row.webDomain,
     tlsCert: row.tlsCert,
     tlsKey: row.tlsKey,
+    enabledModels: parseModels(row.enabledModels),
   }
 }
 

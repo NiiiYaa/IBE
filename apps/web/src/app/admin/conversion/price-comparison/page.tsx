@@ -32,44 +32,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-function EnableSection({ propertyId }: { propertyId: number }) {
-  const qc = useQueryClient()
-
-  const { data: config } = useQuery({
-    queryKey: ['admin-config', propertyId],
-    queryFn: () => apiClient.getHotelConfigAdmin(propertyId),
-    staleTime: Infinity,
-  })
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: (enabled: boolean) =>
-      apiClient.updateHotelConfig(propertyId, { priceComparisonEnabled: enabled }),
-    onSuccess: (fresh) => {
-      qc.setQueryData(['admin-config', propertyId], fresh)
-      qc.setQueryData(['hotel-config', propertyId], fresh)
-    },
-  })
-
-  const enabled = config?.priceComparisonEnabled ?? true
-
-  return (
-    <div className="mb-6 flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-      <div>
-        <p className="text-sm font-semibold text-[var(--color-text)]">Price Comparison Widget</p>
-        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-          When enabled, guests see live OTA prices next to your direct rate on the search results page.
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3 ml-6">
-        {isPending && <span className="text-xs text-[var(--color-text-muted)]">Saving…</span>}
-        <Toggle checked={enabled} onChange={(v) => mutate(v)} />
-        <span className={`text-sm font-medium ${enabled ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]'}`}>
-          {enabled ? 'Enabled' : 'Disabled'}
-        </span>
-      </div>
-    </div>
-  )
-}
 
 function TripAdvisorSection({ propertyId }: { propertyId: number }) {
   const qc = useQueryClient()
@@ -407,8 +369,6 @@ export default function PriceComparisonPage() {
           Show guests how your direct rate compares to OTAs in real time.
         </p>
       </div>
-
-      <EnableSection propertyId={propertyId} />
 
       <TripAdvisorSection propertyId={propertyId} />
 

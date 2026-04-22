@@ -67,6 +67,16 @@ export async function getHGCredentialsForProperty(propertyId: number): Promise<H
   return value
 }
 
+/**
+ * Resolves credentials for a B2B buyer: buyer org token if configured,
+ * otherwise falls back to the property's credentials (seller side).
+ */
+export async function getBuyerHGCredentials(buyerOrgId: number, propertyId: number): Promise<HGCredentials> {
+  const buyerCreds = await getHGCredentials(buyerOrgId)
+  if (buyerCreds.bearerToken) return buyerCreds
+  return getHGCredentialsForProperty(propertyId)
+}
+
 export function invalidateCredentialsCache(organizationId?: number) {
   if (organizationId !== undefined) {
     orgCache.delete(organizationId)

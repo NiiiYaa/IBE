@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
-import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel } from '@ibe/shared'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminProperty } from '../../property-context'
+import { useB2bOrigin } from '@/hooks/use-b2b-origin'
 import { apiClient } from '@/lib/api-client'
 import { PropertyImageManager } from '../components/PropertyImageManager'
 import {
@@ -72,11 +73,18 @@ export default function HomepageDesignPage() {
 function GlobalHomepageEditor() {
   const qc = useQueryClient()
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const b2bOrigin = useB2bOrigin()
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
     queryFn: () => apiClient.listProperties(),
     staleTime: 30_000,
+  })
+
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
   })
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
@@ -115,18 +123,16 @@ function GlobalHomepageEditor() {
       <div className="mb-2">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Homepage</h1>
-          <a
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            title="Open hotel page"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            View
-          </a>
+          {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
+            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}/` : null) : '/'
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            return (
+              <a key={model} href={href} target="_blank" rel="noopener noreferrer"
+                className={viewLinkCls} title={`Open ${model.toUpperCase()} homepage`}>
+                {externalIcon} View {model.toUpperCase()}
+              </a>
+            )
+          })}
         </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Chain defaults — apply to all hotels unless overridden at the hotel level.
@@ -341,6 +347,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<HomepageDraft>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const b2bOrigin = useB2bOrigin()
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -362,6 +369,12 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     staleTime: 30_000,
   })
   const isChainMode = (propertiesData?.properties ?? []).filter(p => !p.isDemo).length > 1
+
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
+  })
 
   useEffect(() => {
     if (designData && config && !initialized) {
@@ -479,18 +492,17 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
       <div className="mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Homepage</h1>
-          <a
-            href={`/?hotelId=${propertyId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            title="Open hotel page"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            View
-          </a>
+          {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
+            const path = `/?hotelId=${propertyId}`
+            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            return (
+              <a key={model} href={href} target="_blank" rel="noopener noreferrer"
+                className={viewLinkCls} title={`Open ${model.toUpperCase()} hotel page`}>
+                {externalIcon} View {model.toUpperCase()}
+              </a>
+            )
+          })}
         </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Hotel overrides — inherit from chain or set a custom value for this hotel.
@@ -827,6 +839,14 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   )
 }
 
+
+const viewLinkCls = 'flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
+const viewLinkDisabledCls = 'flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] opacity-40 cursor-not-allowed'
+const externalIcon = (
+  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+)
 
 function HgBadge() {
   return (

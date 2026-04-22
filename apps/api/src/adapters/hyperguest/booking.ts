@@ -14,7 +14,7 @@ import { GuestTitle } from '@ibe/shared'
 import { logger } from '../../utils/logger.js'
 import { hgGet, hgPost } from './client.js'
 import { mockCreateBooking } from './mock/mock-adapter.js'
-import { getHGCredentials, getHGCredentialsForProperty } from '../../services/credentials.service.js'
+import { getBuyerHGCredentials, getHGCredentials, getHGCredentialsForProperty } from '../../services/credentials.service.js'
 
 const MOCK = process.env['HYPERGUEST_MOCK'] === 'true'
 
@@ -84,7 +84,7 @@ export async function createBooking(input: CreateBookingInput, buyerOrgId?: numb
   if (MOCK) return mockCreateBooking(input)
 
   const creds = buyerOrgId
-    ? await getHGCredentials(buyerOrgId)
+    ? await getBuyerHGCredentials(buyerOrgId, input.propertyId)
     : await getHGCredentialsForProperty(input.propertyId)
   const CREATE_URL = `https://${creds.bookingDomain}/2.0/booking/create`
 

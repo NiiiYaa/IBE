@@ -13,6 +13,7 @@ interface HeaderProps {
   enabledCurrencies?: string[]
   defaultLocale?: string
   defaultCurrency?: string
+  isB2BMode?: boolean
 }
 
 export function Header({
@@ -23,6 +24,7 @@ export function Header({
   enabledCurrencies = [],
   defaultLocale = 'en',
   defaultCurrency = 'USD',
+  isB2BMode,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
@@ -32,7 +34,7 @@ export function Header({
             {displayName ?? 'Hotel Booking'}
           </span>
         }>
-          <DynamicBrand fallbackLogoUrl={logoUrl} fallbackDisplayName={displayName} />
+          <DynamicBrand fallbackLogoUrl={logoUrl} fallbackDisplayName={displayName} isB2BMode={isB2BMode} />
         </Suspense>
 
         <div className="flex items-center gap-4">
@@ -47,6 +49,7 @@ export function Header({
               enabledCurrencies={enabledCurrencies}
               defaultLocale={defaultLocale}
               defaultCurrency={defaultCurrency}
+              isB2BMode={isB2BMode}
             />
           </Suspense>
         </div>

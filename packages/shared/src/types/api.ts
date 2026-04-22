@@ -642,10 +642,13 @@ export interface PropertyUserAssignment {
   assigned: boolean
 }
 
+export type SellModel = 'b2c' | 'b2b'
+
 export interface PropertyListResponse {
   mode: PropertyMode
   showCitySelector: boolean
   showDemoProperty: boolean
+  enabledModels?: SellModel[]
   properties: PropertyRecord[]
   orgId?: number
 }
@@ -671,16 +674,16 @@ export interface ImportSummary {
 export type OnsitePage = 'chain' | 'hotel' | 'room'
 
 export interface OnsiteConversionSettings {
-  presenceEnabled: boolean
+  presenceEnabledModels: SellModel[]
   presenceMinViewers: number
   presenceMessage: string
   presencePages: OnsitePage[]
-  bookingsEnabled: boolean
+  bookingsEnabledModels: SellModel[]
   bookingsWindowHours: number
   bookingsMinCount: number
   bookingsMessage: string
   bookingsPages: OnsitePage[]
-  popupEnabled: boolean
+  popupEnabledModels: SellModel[]
   popupDelaySeconds: number
   popupMessage: string | null
   popupPromoCode: string | null
@@ -691,16 +694,16 @@ export type UpdateOnsiteConversionRequest = Partial<OnsiteConversionSettings>
 
 // All fields nullable — null means "inherit from org default"
 export interface OnsiteConversionOverrides {
-  presenceEnabled: boolean | null
+  presenceEnabledModels: SellModel[] | null
   presenceMinViewers: number | null
   presenceMessage: string | null
   presencePages: OnsitePage[] | null
-  bookingsEnabled: boolean | null
+  bookingsEnabledModels: SellModel[] | null
   bookingsWindowHours: number | null
   bookingsMinCount: number | null
   bookingsMessage: string | null
   bookingsPages: OnsitePage[] | null
-  popupEnabled: boolean | null
+  popupEnabledModels: SellModel[] | null
   popupDelaySeconds: number | null
   popupMessage: string | null
   popupPromoCode: string | null
@@ -751,6 +754,7 @@ export interface OrgSettingsResponse {
   tlsCert: string | null
   tlsCertSet: boolean
   tlsKeySet: boolean
+  enabledModels: SellModel[]
 }
 
 export interface UpdateOrgSettingsRequest {
@@ -763,6 +767,7 @@ export interface UpdateOrgSettingsRequest {
   webDomain?: string
   tlsCert?: string
   tlsKey?: string
+  enabledModels?: SellModel[]
 }
 
 // ── Payment ───────────────────────────────────────────────────────────────────
@@ -1191,3 +1196,24 @@ export interface UpdateTrackingPixelRequest {
   pages?: TrackingPage[]
   isActive?: boolean
 }
+
+// ── Marketing Module Settings ─────────────────────────────────────────────────
+
+export type MarketingFeature = 'promoCodes' | 'priceComparison' | 'affiliates' | 'campaigns' | 'onsiteConversion'
+
+export interface MarketingSettings {
+  promoCodes: SellModel[]
+  priceComparison: SellModel[]
+  affiliates: SellModel[]
+  campaigns: SellModel[]
+  onsiteConversion: SellModel[]
+}
+
+export interface PropertyMarketingSettingsResponse {
+  orgDefaults: MarketingSettings
+  overrides: Partial<Record<MarketingFeature, SellModel[] | null>>
+  effective: MarketingSettings
+}
+
+export type UpdateMarketingSettingsRequest = Partial<MarketingSettings>
+export type UpdatePropertyMarketingSettingsRequest = Partial<Record<MarketingFeature, SellModel[] | null>>

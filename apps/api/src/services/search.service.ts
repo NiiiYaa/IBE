@@ -31,6 +31,7 @@ import { getEffectiveOffersSettings, type ResolvedOffersSettings } from './offer
 import { getActivePromoCode } from './promo.service.js'
 import { getActiveAffiliate } from './affiliate.service.js'
 import { getExchangeRates } from './rates.service.js'
+import { isMarketingFeatureEnabled } from './marketing.service.js'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 
@@ -62,7 +63,9 @@ export async function search(params: SearchParams, buyerOrgId?: number): Promise
     select: { organizationId: true },
   })
 
-  const [hgResponse, activePromo, activeAffiliate] = await Promise.all([
+  const sellModel = buyerOrgId ? 'b2b' : 'b2c'
+
+  const [hgResponse, activePromo, activeAffiliate, promoEnabled, affiliateEnabled] = await Promise.all([
     searchAvailability(params, undefined, buyerOrgId),
     params.promoCode && property
       ? getActivePromoCode(params.promoCode, property.organizationId, params.hotelId, params.checkIn)
@@ -70,6 +73,8 @@ export async function search(params: SearchParams, buyerOrgId?: number): Promise
     params.affiliateCode && property
       ? getActiveAffiliate(params.affiliateCode, property.organizationId, params.hotelId)
       : Promise.resolve(null),
+    isMarketingFeatureEnabled('promoCodes', sellModel, params.hotelId),
+    isMarketingFeatureEnabled('affiliates', sellModel, params.hotelId),
   ])
 
   // Fetch exchange rates if the min-offer filter uses a different currency than HG returns
@@ -94,8 +99,8 @@ export async function search(params: SearchParams, buyerOrgId?: number): Promise
   const results: PropertySearchResult[] = hgResponse.results
     .map((r) => transformPropertyResult(r, params.checkIn))
     .map((result) => applyOffersFilter(result, offers, fxRates))
-    .map((result) => activePromo ? applyPromoDiscount(result, activePromo.code, activePromo.discountValue) : result)
-    .map((result) => activeAffiliate
+    .map((result) => (promoEnabled && activePromo) ? applyPromoDiscount(result, activePromo.code, activePromo.discountValue) : result)
+    .map((result) => (affiliateEnabled && activeAffiliate)
       ? applyAffiliateDiscount(result, activeAffiliate.code, activeAffiliate.discountRate ?? 0, activeAffiliate.displayText)
       : result)
 

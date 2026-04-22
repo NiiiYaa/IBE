@@ -11,7 +11,7 @@ import { cacheGet, cacheSet } from '../../utils/cache.js'
 import { logger } from '../../utils/logger.js'
 import { hgGet } from './client.js'
 import { mockSearchAvailability } from './mock/mock-adapter.js'
-import { getHGCredentials, getHGCredentialsForProperty } from '../../services/credentials.service.js'
+import { getBuyerHGCredentials, getHGCredentialsForProperty } from '../../services/credentials.service.js'
 
 const MOCK = process.env['HYPERGUEST_MOCK'] === 'true'
 
@@ -81,7 +81,7 @@ export async function searchAvailability(
   }
 
   const creds = buyerOrgId
-    ? await getHGCredentials(buyerOrgId)
+    ? await getBuyerHGCredentials(buyerOrgId, params.hotelId)
     : await getHGCredentialsForProperty(params.hotelId)
   const url = await buildSearchUrl(params, creds.searchDomain)
   logger.info({ hotelId: params.hotelId, checkIn: params.checkIn, nights: nightsBetween(params.checkIn, params.checkOut) }, '[Search] Calling HyperGuest')

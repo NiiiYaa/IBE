@@ -30,14 +30,14 @@ function buildMessages(
 ): Message[] {
   const msgs: Message[] = []
   if (
-    settings.presenceEnabled &&
+    settings.presenceEnabledModels.length > 0 &&
     settings.presencePages.includes(page) &&
     viewerCount >= settings.presenceMinViewers
   ) {
     msgs.push({ id: 'presence', text: applyTemplate(settings.presenceMessage, viewerCount) })
   }
   if (
-    settings.bookingsEnabled &&
+    settings.bookingsEnabledModels.length > 0 &&
     settings.bookingsPages.includes(page) &&
     recentBookingsCount >= settings.bookingsMinCount
   ) {
@@ -202,7 +202,7 @@ export function OnsiteConversionOverlay({ propertyId, page }: Props) {
   const [showPopup, setShowPopup] = useState(false)
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const popupOnThisPage = settings?.popupEnabled && settings.popupPages.includes(page)
+  const popupOnThisPage = settings && settings.popupEnabledModels.length > 0 && settings.popupPages.includes(page)
 
   useEffect(() => {
     if (!loaded || !popupOnThisPage || popupDismissed) return

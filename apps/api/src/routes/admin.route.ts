@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { getOrgSettings, updateOrgSettings, setPropertyMode, setShowCitySelector, setShowDemoProperty, setRateProvider } from '../services/org.service.js'
-import type { PropertyMode } from '../services/org.service.js'
+import type { PropertyMode, SellModel } from '../services/org.service.js'
 import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers } from '../services/property-registry.service.js'
 import { runImport } from '../services/import.service.js'
 import { parseColumnFromBuffer } from '../utils/file-parser.js'
@@ -55,6 +55,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       tlsCert: settings.tlsCert,
       tlsCertSet: !!settings.tlsCert,
       tlsKeySet: !!settings.tlsKey,
+      enabledModels: settings.enabledModels,
     })
   })
 
@@ -75,6 +76,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       webDomain?: string
       tlsCert?: string
       tlsKey?: string
+      enabledModels?: SellModel[]
     }
 
     const updates: Promise<unknown>[] = []
@@ -96,7 +98,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (body.hyperGuestBearerToken !== undefined && !body.hyperGuestBearerToken.startsWith('****')) {
       data['hyperGuestBearerToken'] = body.hyperGuestBearerToken || null
     }
-    if (Object.keys(data).length > 0) updates.push(updateOrgSettings(organizationId, data))
+    if (body.enabledModels !== undefined) (data as Record<string, unknown>)['enabledModels'] = body.enabledModels
+    if (Object.keys(data).length > 0) updates.push(updateOrgSettings(organizationId, data as Parameters<typeof updateOrgSettings>[1]))
 
     await Promise.all(updates)
     return reply.send({ ok: true })

@@ -10,7 +10,7 @@ import { AdminPropertyProvider, useAdminProperty } from './property-context'
 import { apiClient } from '@/lib/api-client'
 
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean }
-type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean }
+type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean }
 
 const SECTIONS: Section[] = [
   {
@@ -27,7 +27,9 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Marketing',
+    sellerOnly: true,
     items: [
+      { href: '/admin/config/marketing', label: 'Channels' },
       { href: '/admin/conversion/promo-codes', label: 'Promo Codes' },
       { href: '/admin/conversion/price-comparison', label: 'Price Comparison', propertyOnly: true },
       { href: '/admin/conversion/onsite', label: 'Onsite Conversion' },
@@ -37,6 +39,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Display & Design',
+    sellerOnly: true,
     items: [
       { href: '/admin/design/chain', label: 'Chain-page', multiPropertyOnly: true },
       { href: '/admin/design/homepage', label: 'Hotel-page' },
@@ -49,6 +52,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Guests',
+    sellerOnly: true,
     items: [
       { href: '/admin/guests', label: 'All Guests' },
       { href: '/admin/communication/messages', label: 'Messages' },
@@ -56,11 +60,13 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Configuration',
+    sellerOnly: true,
     items: [
       { href: '/admin/config/properties', label: 'Properties' },
       { href: '/admin/config/org', label: 'Organization', minRole: 'admin' },
       { href: '/admin/config/domain', label: 'Domain' },
       { href: '/admin/config/offers', label: 'Offers' },
+      { href: '/admin/config/models', label: 'Channels' },
       { href: '/admin/config/pixels', label: 'Tracking & Analytics' },
       { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin' },
       { href: '/admin/communication/emails', label: 'Emails' },
@@ -79,14 +85,15 @@ const SECTIONS: Section[] = [
     ],
   },
   { title: 'Dashboards', comingSoon: true, items: [] },
-  { title: 'AI', comingSoon: true, items: [] },
+  { title: 'AI', comingSoon: true, sellerOnly: true, items: [] },
 ]
 
 const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0 }
 
-function filterSections(sections: Section[], role: string): Section[] {
+function filterSections(sections: Section[], role: string, isBuyerOrg: boolean): Section[] {
   const level = ROLE_LEVEL[role] ?? 0
   return sections
+    .filter(s => !s.sellerOnly || !isBuyerOrg)
     .filter(s => s.comingSoon || !s.minRole || level >= (s.minRole === 'super' ? 2 : 1))
     .map(s => ({
       ...s,
@@ -118,7 +125,6 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const { admin, isLoading, isAuthenticated, logout } = useAdminAuth()
   const { propertyId, setPropertyId } = useAdminProperty()
   const role = admin?.role ?? 'admin'
-  const visibleSections = filterSections(SECTIONS, role)
 
   const [collapsed, setCollapsed] = useState(false)
 
@@ -147,6 +153,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const showPropertySelector = isSuper
     ? properties.length > 1
     : propertyMode === 'multi' && realProperties.length > 1
+
+  // A buyer-only org has no owned properties (travel agent using B2B portal)
+  const isBuyerOrg = !isSuper && propertiesData !== undefined && realProperties.length === 0
+
+  const visibleSections = filterSections(SECTIONS, role, isBuyerOrg)
 
   const nameQueries = useQueries({
     queries: properties

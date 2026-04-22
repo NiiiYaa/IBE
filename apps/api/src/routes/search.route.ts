@@ -3,6 +3,8 @@ import { SearchParamsSchema } from '@ibe/shared'
 import { search } from '../services/search.service.js'
 import { IBE_ERROR_VALIDATION } from '@ibe/shared'
 import { extractB2BContext } from '../utils/b2b-context.js'
+import { getOrgSettings } from '../services/org.service.js'
+import { prisma } from '../db/client.js'
 
 export async function searchRoutes(fastify: FastifyInstance) {
   fastify.get('/search', async (request, reply) => {
@@ -34,6 +36,18 @@ export async function searchRoutes(fastify: FastifyInstance) {
     }
 
     const b2b = extractB2BContext(fastify, request)
+
+    // Enforce enabled sell models for this org
+    const hotelId = (parseResult.data as { hotelId: number }).hotelId
+    const prop = await prisma.property.findUnique({ where: { id: hotelId }, select: { organizationId: true } })
+    if (prop?.organizationId) {
+      const orgSettings = await getOrgSettings(prop.organizationId)
+      const model = b2b ? 'b2b' : 'b2c'
+      if (!orgSettings.enabledModels.includes(model)) {
+        return reply.status(403).send({ error: `${model.toUpperCase()} bookings are not available for this property`, code: 'IBE.MODEL.001' })
+      }
+    }
+
     const results = await search(parseResult.data as import('@ibe/shared').SearchParams, b2b?.buyerOrgId)
     return reply.send(results)
   })

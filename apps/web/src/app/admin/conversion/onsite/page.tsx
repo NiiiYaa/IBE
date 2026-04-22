@@ -9,6 +9,7 @@ import type {
   OnsiteConversionSettings,
   OnsiteConversionOverrides,
   OnsitePage,
+  SellModel,
   PropertyOnsiteConversionAdminResponse,
   PromoCode,
 } from '@ibe/shared'
@@ -134,21 +135,69 @@ function SaveBar({ isDirty, isSaving, onSave }: { isDirty: boolean; isSaving: bo
   )
 }
 
+const CHANNEL_LABELS: Record<SellModel, string> = { b2c: 'B2C', b2b: 'B2B' }
+const ALL_CHANNELS: SellModel[] = ['b2c', 'b2b']
+
+// Always renders both channels. Channels absent from activeChannels are forced unchecked,
+// greyed out, and non-interactive — they are governed by Global Channel Settings.
+function EnabledModelsControl({
+  value,
+  onChange,
+  activeChannels,
+}: {
+  value: SellModel[]
+  onChange: (v: SellModel[]) => void
+  activeChannels: SellModel[]
+}) {
+  return (
+    <div className="flex items-center gap-4">
+      {ALL_CHANNELS.map(ch => {
+        const globallyEnabled = activeChannels.includes(ch)
+        const checked = globallyEnabled && value.includes(ch)
+        return (
+          <label
+            key={ch}
+            title={!globallyEnabled ? `${CHANNEL_LABELS[ch]} is disabled in Global Channel Settings` : undefined}
+            className={[
+              'flex items-center gap-1.5 text-sm select-none',
+              globallyEnabled ? 'cursor-pointer text-[var(--color-text)]' : 'cursor-not-allowed opacity-40',
+            ].join(' ')}
+          >
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={!globallyEnabled}
+              onChange={e => {
+                const next = e.target.checked
+                  ? [...value.filter(m => m !== ch), ch]
+                  : value.filter(m => m !== ch)
+                onChange(next)
+              }}
+              className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)] disabled:cursor-not-allowed"
+            />
+            {CHANNEL_LABELS[ch]}
+          </label>
+        )
+      })}
+    </div>
+  )
+}
+
 function mergeEffective(
   ov: OnsiteConversionOverrides,
   org: OnsiteConversionSettings,
 ): OnsiteConversionSettings {
   return {
-    presenceEnabled: ov.presenceEnabled ?? org.presenceEnabled,
+    presenceEnabledModels: ov.presenceEnabledModels ?? org.presenceEnabledModels,
     presenceMinViewers: ov.presenceMinViewers ?? org.presenceMinViewers,
     presenceMessage: ov.presenceMessage ?? org.presenceMessage,
     presencePages: ov.presencePages ?? org.presencePages,
-    bookingsEnabled: ov.bookingsEnabled ?? org.bookingsEnabled,
+    bookingsEnabledModels: ov.bookingsEnabledModels ?? org.bookingsEnabledModels,
     bookingsWindowHours: ov.bookingsWindowHours ?? org.bookingsWindowHours,
     bookingsMinCount: ov.bookingsMinCount ?? org.bookingsMinCount,
     bookingsMessage: ov.bookingsMessage ?? org.bookingsMessage,
     bookingsPages: ov.bookingsPages ?? org.bookingsPages,
-    popupEnabled: ov.popupEnabled ?? org.popupEnabled,
+    popupEnabledModels: ov.popupEnabledModels ?? org.popupEnabledModels,
     popupDelaySeconds: ov.popupDelaySeconds ?? org.popupDelaySeconds,
     popupMessage: ov.popupMessage ?? org.popupMessage,
     popupPromoCode: ov.popupPromoCode ?? org.popupPromoCode,
@@ -167,6 +216,13 @@ function GlobalEditor({ promoCodes }: { promoCodes: PromoCode[] }) {
     staleTime: 30_000,
   })
 
+  const { data: marketingSettings } = useQuery({
+    queryKey: ['admin-marketing-settings'],
+    queryFn: () => apiClient.getOrgMarketingSettings(),
+    staleTime: 60_000,
+  })
+  const activeChannels = marketingSettings?.onsiteConversion ?? ['b2c', 'b2b']
+
   const mutation = useMutation({
     mutationFn: (draft: OnsiteConversionSettings) => apiClient.updateOnsiteConversionGlobal(draft),
     onSuccess: (updated) => {
@@ -181,7 +237,7 @@ function GlobalEditor({ promoCodes }: { promoCodes: PromoCode[] }) {
     if (data && !draft) setDraft(data)
   }, [data, draft])
 
-  if (isLoading || !data || !draft) {
+  if (isLoading || !data || !draft || !marketingSettings) {
     return <div className="space-y-4">{[1, 2, 3].map(i => <div key={i} className="h-36 animate-pulse rounded-xl bg-[var(--color-border)]" />)}</div>
   }
 
@@ -193,6 +249,7 @@ function GlobalEditor({ promoCodes }: { promoCodes: PromoCode[] }) {
         settings={draft}
         onUpdate={patch => setDraft(prev => ({ ...prev!, ...patch }))}
         promoCodes={promoCodes}
+        activeChannels={activeChannels}
       />
       <SaveBar isDirty={isDirty} isSaving={mutation.isPending} onSave={() => mutation.mutate(draft)} />
     </div>
@@ -211,6 +268,13 @@ function PropertyEditor({ propertyId, promoCodes }: { propertyId: number; promoC
     staleTime: 30_000,
   })
 
+  const { data: orgMarketingSettings } = useQuery({
+    queryKey: ['admin-marketing-settings'],
+    queryFn: () => apiClient.getOrgMarketingSettings(),
+    staleTime: 60_000,
+  })
+  const activeChannels = orgMarketingSettings?.onsiteConversion ?? ['b2c', 'b2b']
+
   const mutation = useMutation({
     mutationFn: (ov: OnsiteConversionOverrides) => apiClient.updateOnsiteConversionProperty(propertyId, ov),
     onSuccess: (updated) => {
@@ -225,7 +289,7 @@ function PropertyEditor({ propertyId, promoCodes }: { propertyId: number; promoC
     if (data && !draftOverrides) setDraftOverrides(data.overrides)
   }, [data, draftOverrides])
 
-  if (isLoading || !data || !draftOverrides) {
+  if (isLoading || !data || !draftOverrides || !orgMarketingSettings) {
     return <div className="space-y-4">{[1, 2, 3].map(i => <div key={i} className="h-36 animate-pulse rounded-xl bg-[var(--color-border)]" />)}</div>
   }
 
@@ -246,7 +310,7 @@ function PropertyEditor({ propertyId, promoCodes }: { propertyId: number; promoC
 
   return (
     <div className="space-y-5">
-      <PropertySettingsForm data={draftData} onUpdate={update} onReset={reset} promoCodes={promoCodes} />
+      <PropertySettingsForm data={draftData} onUpdate={update} onReset={reset} promoCodes={promoCodes} activeChannels={activeChannels} />
       <SaveBar isDirty={isDirty} isSaving={mutation.isPending} onSave={() => mutation.mutate(draftOverrides)} />
     </div>
   )
@@ -258,16 +322,18 @@ function SettingsForm({
   settings,
   onUpdate,
   promoCodes,
+  activeChannels,
 }: {
   settings: OnsiteConversionSettings
   onUpdate: (patch: Partial<OnsiteConversionSettings>) => void
   promoCodes: PromoCode[]
+  activeChannels: SellModel[]
 }) {
   return (
     <div className="space-y-5">
       <SectionCard title="Live Viewers" description="Shows how many people are currently viewing the property.">
         <SettingRow label="Enable" hint="Show live viewer count to guests.">
-          <Toggle checked={settings.presenceEnabled} onChange={v => onUpdate({ presenceEnabled: v })} />
+          <EnabledModelsControl value={settings.presenceEnabledModels} onChange={v => onUpdate({ presenceEnabledModels: v })} activeChannels={activeChannels} />
         </SettingRow>
         <SettingRow label="Minimum viewers to show" hint="Only display when at least this many guests are active.">
           <NumberInput value={settings.presenceMinViewers} min={2} max={99} onChange={v => onUpdate({ presenceMinViewers: v })} />
@@ -285,7 +351,7 @@ function SettingsForm({
 
       <SectionCard title="Recent Bookings" description="Shows how many times the property was recently booked.">
         <SettingRow label="Enable">
-          <Toggle checked={settings.bookingsEnabled} onChange={v => onUpdate({ bookingsEnabled: v })} />
+          <EnabledModelsControl value={settings.bookingsEnabledModels} onChange={v => onUpdate({ bookingsEnabledModels: v })} activeChannels={activeChannels} />
         </SettingRow>
         <SettingRow label="Time window" hint="Count bookings within this period.">
           <NumberInput value={settings.bookingsWindowHours} min={1} max={168} suffix="hours" onChange={v => onUpdate({ bookingsWindowHours: v })} />
@@ -306,7 +372,7 @@ function SettingsForm({
 
       <SectionCard title="Timed Promo Popup" description="Shown after the guest has been on the page for a set time.">
         <SettingRow label="Enable">
-          <Toggle checked={settings.popupEnabled} onChange={v => onUpdate({ popupEnabled: v })} />
+          <EnabledModelsControl value={settings.popupEnabledModels} onChange={v => onUpdate({ popupEnabledModels: v })} activeChannels={activeChannels} />
         </SettingRow>
         <SettingRow label="Show after">
           <NumberInput value={settings.popupDelaySeconds} min={5} max={300} suffix="seconds" onChange={v => onUpdate({ popupDelaySeconds: v })} />
@@ -334,23 +400,25 @@ function PropertySettingsForm({
   onUpdate,
   onReset,
   promoCodes,
+  activeChannels,
 }: {
   data: PropertyOnsiteConversionAdminResponse
   onUpdate: (patch: Partial<OnsiteConversionOverrides>) => void
   onReset: (keys: (keyof OnsiteConversionOverrides)[]) => void
   promoCodes: PromoCode[]
+  activeChannels: SellModel[]
 }) {
   const { overrides: ov, orgDefaults: org, effective: eff } = data
 
   return (
     <div className="space-y-5">
       <SectionCard title="Live Viewers" description="Shows how many people are currently viewing the property.">
-        <SettingRow label="Enable" inherited={ov.presenceEnabled === null}>
+        <SettingRow label="Enable" inherited={ov.presenceEnabledModels === null}>
           <div className="flex items-center gap-3">
-            {ov.presenceEnabled !== null && (
-              <button onClick={() => onReset(['presenceEnabled'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>
+            {ov.presenceEnabledModels !== null && (
+              <button onClick={() => onReset(['presenceEnabledModels'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>
             )}
-            <Toggle checked={eff.presenceEnabled} onChange={v => onUpdate({ presenceEnabled: v })} />
+            <EnabledModelsControl value={eff.presenceEnabledModels} onChange={v => onUpdate({ presenceEnabledModels: v })} activeChannels={activeChannels} />
           </div>
         </SettingRow>
         <SettingRow label="Minimum viewers" inherited={ov.presenceMinViewers === null}>
@@ -385,10 +453,10 @@ function PropertySettingsForm({
       </SectionCard>
 
       <SectionCard title="Recent Bookings" description="Shows how many times the property was recently booked.">
-        <SettingRow label="Enable" inherited={ov.bookingsEnabled === null}>
+        <SettingRow label="Enable" inherited={ov.bookingsEnabledModels === null}>
           <div className="flex items-center gap-3">
-            {ov.bookingsEnabled !== null && <button onClick={() => onReset(['bookingsEnabled'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>}
-            <Toggle checked={eff.bookingsEnabled} onChange={v => onUpdate({ bookingsEnabled: v })} />
+            {ov.bookingsEnabledModels !== null && <button onClick={() => onReset(['bookingsEnabledModels'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>}
+            <EnabledModelsControl value={eff.bookingsEnabledModels} onChange={v => onUpdate({ bookingsEnabledModels: v })} activeChannels={activeChannels} />
           </div>
         </SettingRow>
         <SettingRow label="Time window" inherited={ov.bookingsWindowHours === null}>
@@ -427,10 +495,10 @@ function PropertySettingsForm({
       </SectionCard>
 
       <SectionCard title="Timed Promo Popup" description="Shown after the guest has been on the page for a set time.">
-        <SettingRow label="Enable" inherited={ov.popupEnabled === null}>
+        <SettingRow label="Enable" inherited={ov.popupEnabledModels === null}>
           <div className="flex items-center gap-3">
-            {ov.popupEnabled !== null && <button onClick={() => onReset(['popupEnabled'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>}
-            <Toggle checked={eff.popupEnabled} onChange={v => onUpdate({ popupEnabled: v })} />
+            {ov.popupEnabledModels !== null && <button onClick={() => onReset(['popupEnabledModels'])} className="text-xs text-[var(--color-text-muted)] underline">Reset</button>}
+            <EnabledModelsControl value={eff.popupEnabledModels} onChange={v => onUpdate({ popupEnabledModels: v })} activeChannels={activeChannels} />
           </div>
         </SettingRow>
         <SettingRow label="Show after" inherited={ov.popupDelaySeconds === null}>

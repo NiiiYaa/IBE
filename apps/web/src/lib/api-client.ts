@@ -72,6 +72,10 @@ import type {
   TrackingPixel,
   CreateTrackingPixelRequest,
   UpdateTrackingPixelRequest,
+  MarketingSettings,
+  PropertyMarketingSettingsResponse,
+  UpdateMarketingSettingsRequest,
+  UpdatePropertyMarketingSettingsRequest,
   ApiError,
 } from '@ibe/shared'
 
@@ -920,6 +924,35 @@ export const apiClient = {
     return apiRequest('/api/v1/b2b/auth/me')
   },
 
+  b2bBookings(): Promise<Array<{
+    id: number; hyperGuestBookingId: number; propertyId: number; status: string
+    checkIn: string; checkOut: string; nights: number
+    leadGuestFirstName: string; leadGuestLastName: string
+    totalAmount: number; currency: string; createdAt: string
+    cancellationDeadline: string | null; canCancel: boolean; roomCount: number
+  }>> {
+    return apiRequest('/api/v1/b2b/bookings')
+  },
+
+  b2bGetBooking(id: number): Promise<{
+    id: number; hyperGuestBookingId: number; propertyId: number; status: string
+    checkIn: string; checkOut: string; nights: number
+    leadGuestFirstName: string; leadGuestLastName: string; leadGuestEmail: string
+    totalAmount: number; originalPrice: number | null; currency: string
+    promoCode: string | null; agencyReference: string | null
+    cancellationDeadline: string | null; canCancel: boolean
+    cancellationFrames: Array<{ from: string; to: string | null; penaltyAmount: number; currency: string }>
+    isRefundable: boolean
+    rooms: Array<{ roomCode: string; rateCode: string; board: string; status: string }>
+    createdAt: string
+  }> {
+    return apiRequest(`/api/v1/b2b/bookings/${id}`)
+  },
+
+  cancelB2BBooking(id: number): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/b2b/bookings/${id}/cancel`, { method: 'POST' })
+  },
+
   // ── B2B Access Management (super only) ─────────────────────────────────────
 
   listB2BAccess(): Promise<Array<{
@@ -946,6 +979,34 @@ export const apiClient = {
 
   deleteB2BAccess(id: number): Promise<void> {
     return apiRequest(`/api/v1/admin/super/b2b-access/${id}`, { method: 'DELETE' })
+  },
+
+  // ── Marketing Module Settings ───────────────────────────────────────────────
+
+  getOrgMarketingSettings(): Promise<MarketingSettings> {
+    return apiRequest('/api/v1/admin/marketing/settings')
+  },
+
+  updateOrgMarketingSettings(data: UpdateMarketingSettingsRequest): Promise<MarketingSettings> {
+    return apiRequest('/api/v1/admin/marketing/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  getPropertyMarketingSettings(propertyId: number): Promise<PropertyMarketingSettingsResponse> {
+    return apiRequest(`/api/v1/admin/marketing/settings/property/${propertyId}`)
+  },
+
+  updatePropertyMarketingSettings(propertyId: number, data: UpdatePropertyMarketingSettingsRequest): Promise<PropertyMarketingSettingsResponse> {
+    return apiRequest(`/api/v1/admin/marketing/settings/property/${propertyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  getEffectiveMarketingSettings(propertyId: number): Promise<MarketingSettings> {
+    return apiRequest(`/api/v1/marketing/settings/effective?propertyId=${propertyId}`)
   },
 }
 

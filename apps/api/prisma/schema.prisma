@@ -39,6 +39,7 @@ model Organization {
   trackingPixels              TrackingPixel[]
   b2bAsBuyer                  OrgB2BAccess[] @relation("B2BBuyer")
   b2bAsSeller                 OrgB2BAccess[] @relation("B2BSeller")
+  orgMarketingSettings        OrgMarketingSettings?
 }
 
 // roles: super | admin | observer | user
@@ -488,6 +489,7 @@ model OrgSettings {
   webDomain               String?
   tlsCert                 String?
   tlsKey                  String?
+  enabledModels           String       @default("[\"b2c\",\"b2b\"]")
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 }
@@ -593,22 +595,22 @@ model OnsiteConversionSettings {
   organizationId Int          @unique
   organization   Organization @relation(fields: [organizationId], references: [id])
 
-  presenceEnabled     Boolean @default(true)
-  presenceMinViewers  Int     @default(3)
-  presenceMessage     String  @default("[xx] people are viewing this property right now")
-  presencePages       String  @default("[\"hotel\",\"room\"]")
+  presenceEnabledModels String  @default("[\"b2c\",\"b2b\"]")
+  presenceMinViewers    Int     @default(3)
+  presenceMessage       String  @default("[xx] people are viewing this property right now")
+  presencePages         String  @default("[\"hotel\",\"room\"]")
 
-  bookingsEnabled     Boolean @default(true)
-  bookingsWindowHours Int     @default(24)
-  bookingsMinCount    Int     @default(1)
-  bookingsMessage     String  @default("[xx] rooms booked in the last [hh] hours")
-  bookingsPages       String  @default("[\"hotel\",\"room\"]")
+  bookingsEnabledModels String  @default("[\"b2c\",\"b2b\"]")
+  bookingsWindowHours   Int     @default(24)
+  bookingsMinCount      Int     @default(1)
+  bookingsMessage       String  @default("[xx] rooms booked in the last [hh] hours")
+  bookingsPages         String  @default("[\"hotel\",\"room\"]")
 
-  popupEnabled      Boolean @default(false)
-  popupDelaySeconds Int     @default(30)
-  popupMessage      String?
-  popupPromoCode    String?
-  popupPages        String  @default("[\"hotel\",\"room\"]")
+  popupEnabledModels String  @default("[]")
+  popupDelaySeconds  Int     @default(30)
+  popupMessage       String?
+  popupPromoCode     String?
+  popupPages         String  @default("[\"hotel\",\"room\"]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -618,22 +620,22 @@ model PropertyOnsiteConversionSettings {
   id         Int @id @default(autoincrement())
   propertyId Int @unique
 
-  presenceEnabled     Boolean?
-  presenceMinViewers  Int?
-  presenceMessage     String?
-  presencePages       String?
+  presenceEnabledModels String?
+  presenceMinViewers    Int?
+  presenceMessage       String?
+  presencePages         String?
 
-  bookingsEnabled     Boolean?
-  bookingsWindowHours Int?
-  bookingsMinCount    Int?
-  bookingsMessage     String?
-  bookingsPages       String?
+  bookingsEnabledModels String?
+  bookingsWindowHours   Int?
+  bookingsMinCount      Int?
+  bookingsMessage       String?
+  bookingsPages         String?
 
-  popupEnabled      Boolean?
-  popupDelaySeconds Int?
-  popupMessage      String?
-  popupPromoCode    String?
-  popupPages        String?
+  popupEnabledModels String?
+  popupDelaySeconds  Int?
+  popupMessage       String?
+  popupPromoCode     String?
+  popupPages         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -739,4 +741,37 @@ model TrackingPixel {
 
   @@index([organizationId])
   @@index([propertyId])
+}
+
+// ── Marketing Module Settings ─────────────────────────────────────────────────
+
+model OrgMarketingSettings {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // JSON array of enabled sell models per feature, e.g. ["b2c","b2b"]
+  promoCodesModels       String @default("[\"b2c\",\"b2b\"]")
+  priceComparisonModels  String @default("[\"b2c\",\"b2b\"]")
+  affiliatesModels       String @default("[\"b2c\",\"b2b\"]")
+  campaignsModels        String @default("[\"b2c\",\"b2b\"]")
+  onsiteConversionModels String @default("[\"b2c\",\"b2b\"]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PropertyMarketingSettings {
+  id         Int     @id @default(autoincrement())
+  propertyId Int     @unique
+
+  // null = inherit from org
+  promoCodesModels       String?
+  priceComparisonModels  String?
+  affiliatesModels       String?
+  campaignsModels        String?
+  onsiteConversionModels String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

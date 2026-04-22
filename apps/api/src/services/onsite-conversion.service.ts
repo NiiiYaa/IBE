@@ -3,22 +3,23 @@ import type {
   OnsiteConversionSettings,
   OnsiteConversionOverrides,
   OnsitePage,
+  SellModel,
   PropertyOnsiteConversionAdminResponse,
 } from '@ibe/shared'
 
 const DEFAULT_PAGES: OnsitePage[] = ['hotel', 'room']
 
 export const ORG_DEFAULTS: OnsiteConversionSettings = {
-  presenceEnabled: true,
+  presenceEnabledModels: ['b2c', 'b2b'],
   presenceMinViewers: 3,
   presenceMessage: '[xx] people are viewing this property right now',
   presencePages: DEFAULT_PAGES,
-  bookingsEnabled: true,
+  bookingsEnabledModels: ['b2c', 'b2b'],
   bookingsWindowHours: 24,
   bookingsMinCount: 1,
   bookingsMessage: '[xx] rooms booked in the last [hh] hours',
   bookingsPages: DEFAULT_PAGES,
-  popupEnabled: false,
+  popupEnabledModels: [],
   popupDelaySeconds: 30,
   popupMessage: null,
   popupPromoCode: null,
@@ -63,16 +64,16 @@ export async function getPropertyOnsiteConversionAdmin(propertyId: number): Prom
     : emptyOverrides()
 
   const effective: OnsiteConversionSettings = {
-    presenceEnabled: overrides.presenceEnabled ?? orgDefaults.presenceEnabled,
+    presenceEnabledModels: overrides.presenceEnabledModels ?? orgDefaults.presenceEnabledModels,
     presenceMinViewers: overrides.presenceMinViewers ?? orgDefaults.presenceMinViewers,
     presenceMessage: overrides.presenceMessage ?? orgDefaults.presenceMessage,
     presencePages: overrides.presencePages ?? orgDefaults.presencePages,
-    bookingsEnabled: overrides.bookingsEnabled ?? orgDefaults.bookingsEnabled,
+    bookingsEnabledModels: overrides.bookingsEnabledModels ?? orgDefaults.bookingsEnabledModels,
     bookingsWindowHours: overrides.bookingsWindowHours ?? orgDefaults.bookingsWindowHours,
     bookingsMinCount: overrides.bookingsMinCount ?? orgDefaults.bookingsMinCount,
     bookingsMessage: overrides.bookingsMessage ?? orgDefaults.bookingsMessage,
     bookingsPages: overrides.bookingsPages ?? orgDefaults.bookingsPages,
-    popupEnabled: overrides.popupEnabled ?? orgDefaults.popupEnabled,
+    popupEnabledModels: overrides.popupEnabledModels ?? orgDefaults.popupEnabledModels,
     popupDelaySeconds: overrides.popupDelaySeconds ?? orgDefaults.popupDelaySeconds,
     popupMessage: overrides.popupMessage ?? orgDefaults.popupMessage,
     popupPromoCode: overrides.popupPromoCode ?? orgDefaults.popupPromoCode,
@@ -117,22 +118,27 @@ function parsePages(raw: string | null | undefined): OnsitePage[] | null {
   try { return JSON.parse(raw) as OnsitePage[] } catch { return DEFAULT_PAGES }
 }
 
+function parseModels(raw: string | null | undefined): SellModel[] | null {
+  if (raw == null) return null
+  try { return JSON.parse(raw) as SellModel[] } catch { return [] }
+}
+
 function rowToSettings(row: {
-  presenceEnabled: boolean; presenceMinViewers: number; presenceMessage: string; presencePages: string
-  bookingsEnabled: boolean; bookingsWindowHours: number; bookingsMinCount: number; bookingsMessage: string; bookingsPages: string
-  popupEnabled: boolean; popupDelaySeconds: number; popupMessage: string | null; popupPromoCode: string | null; popupPages: string
+  presenceEnabledModels: string; presenceMinViewers: number; presenceMessage: string; presencePages: string
+  bookingsEnabledModels: string; bookingsWindowHours: number; bookingsMinCount: number; bookingsMessage: string; bookingsPages: string
+  popupEnabledModels: string; popupDelaySeconds: number; popupMessage: string | null; popupPromoCode: string | null; popupPages: string
 }): OnsiteConversionSettings {
   return {
-    presenceEnabled: row.presenceEnabled,
+    presenceEnabledModels: parseModels(row.presenceEnabledModels) ?? ['b2c', 'b2b'],
     presenceMinViewers: row.presenceMinViewers,
     presenceMessage: row.presenceMessage,
     presencePages: parsePages(row.presencePages) ?? DEFAULT_PAGES,
-    bookingsEnabled: row.bookingsEnabled,
+    bookingsEnabledModels: parseModels(row.bookingsEnabledModels) ?? ['b2c', 'b2b'],
     bookingsWindowHours: row.bookingsWindowHours,
     bookingsMinCount: row.bookingsMinCount,
     bookingsMessage: row.bookingsMessage,
     bookingsPages: parsePages(row.bookingsPages) ?? DEFAULT_PAGES,
-    popupEnabled: row.popupEnabled,
+    popupEnabledModels: parseModels(row.popupEnabledModels) ?? [],
     popupDelaySeconds: row.popupDelaySeconds,
     popupMessage: row.popupMessage,
     popupPromoCode: row.popupPromoCode,
@@ -141,21 +147,21 @@ function rowToSettings(row: {
 }
 
 function rowToOverrides(row: {
-  presenceEnabled: boolean | null; presenceMinViewers: number | null; presenceMessage: string | null; presencePages: string | null
-  bookingsEnabled: boolean | null; bookingsWindowHours: number | null; bookingsMinCount: number | null; bookingsMessage: string | null; bookingsPages: string | null
-  popupEnabled: boolean | null; popupDelaySeconds: number | null; popupMessage: string | null; popupPromoCode: string | null; popupPages: string | null
+  presenceEnabledModels: string | null; presenceMinViewers: number | null; presenceMessage: string | null; presencePages: string | null
+  bookingsEnabledModels: string | null; bookingsWindowHours: number | null; bookingsMinCount: number | null; bookingsMessage: string | null; bookingsPages: string | null
+  popupEnabledModels: string | null; popupDelaySeconds: number | null; popupMessage: string | null; popupPromoCode: string | null; popupPages: string | null
 }): OnsiteConversionOverrides {
   return {
-    presenceEnabled: row.presenceEnabled,
+    presenceEnabledModels: parseModels(row.presenceEnabledModels),
     presenceMinViewers: row.presenceMinViewers,
     presenceMessage: row.presenceMessage,
     presencePages: parsePages(row.presencePages),
-    bookingsEnabled: row.bookingsEnabled,
+    bookingsEnabledModels: parseModels(row.bookingsEnabledModels),
     bookingsWindowHours: row.bookingsWindowHours,
     bookingsMinCount: row.bookingsMinCount,
     bookingsMessage: row.bookingsMessage,
     bookingsPages: parsePages(row.bookingsPages),
-    popupEnabled: row.popupEnabled,
+    popupEnabledModels: parseModels(row.popupEnabledModels),
     popupDelaySeconds: row.popupDelaySeconds,
     popupMessage: row.popupMessage,
     popupPromoCode: row.popupPromoCode,
@@ -165,25 +171,30 @@ function rowToOverrides(row: {
 
 function emptyOverrides(): OnsiteConversionOverrides {
   return {
-    presenceEnabled: null, presenceMinViewers: null, presenceMessage: null, presencePages: null,
-    bookingsEnabled: null, bookingsWindowHours: null, bookingsMinCount: null, bookingsMessage: null, bookingsPages: null,
-    popupEnabled: null, popupDelaySeconds: null, popupMessage: null, popupPromoCode: null, popupPages: null,
+    presenceEnabledModels: null, presenceMinViewers: null, presenceMessage: null, presencePages: null,
+    bookingsEnabledModels: null, bookingsWindowHours: null, bookingsMinCount: null, bookingsMessage: null, bookingsPages: null,
+    popupEnabledModels: null, popupDelaySeconds: null, popupMessage: null, popupPromoCode: null, popupPages: null,
   }
 }
 
-// Serialize pages arrays to JSON strings for Prisma writes
 function serializeSettings(data: Partial<OnsiteConversionSettings>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data }
+  if (data.presenceEnabledModels !== undefined) out['presenceEnabledModels'] = JSON.stringify(data.presenceEnabledModels)
   if (data.presencePages !== undefined) out['presencePages'] = JSON.stringify(data.presencePages)
+  if (data.bookingsEnabledModels !== undefined) out['bookingsEnabledModels'] = JSON.stringify(data.bookingsEnabledModels)
   if (data.bookingsPages !== undefined) out['bookingsPages'] = JSON.stringify(data.bookingsPages)
+  if (data.popupEnabledModels !== undefined) out['popupEnabledModels'] = JSON.stringify(data.popupEnabledModels)
   if (data.popupPages !== undefined) out['popupPages'] = JSON.stringify(data.popupPages)
   return out
 }
 
 function serializeOverrides(data: Partial<OnsiteConversionOverrides>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data }
+  if (data.presenceEnabledModels !== undefined) out['presenceEnabledModels'] = data.presenceEnabledModels !== null ? JSON.stringify(data.presenceEnabledModels) : null
   if (data.presencePages !== undefined) out['presencePages'] = data.presencePages !== null ? JSON.stringify(data.presencePages) : null
+  if (data.bookingsEnabledModels !== undefined) out['bookingsEnabledModels'] = data.bookingsEnabledModels !== null ? JSON.stringify(data.bookingsEnabledModels) : null
   if (data.bookingsPages !== undefined) out['bookingsPages'] = data.bookingsPages !== null ? JSON.stringify(data.bookingsPages) : null
+  if (data.popupEnabledModels !== undefined) out['popupEnabledModels'] = data.popupEnabledModels !== null ? JSON.stringify(data.popupEnabledModels) : null
   if (data.popupPages !== undefined) out['popupPages'] = data.popupPages !== null ? JSON.stringify(data.popupPages) : null
   return out
 }

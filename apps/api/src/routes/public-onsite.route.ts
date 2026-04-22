@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { trackPresence, getViewerCount } from '../services/presence.service.js'
 import { getPropertyOnsiteConversionAdmin, getRecentBookingsCount, getPromoDiscount } from '../services/onsite-conversion.service.js'
+import { isMarketingFeatureEnabled } from '../services/marketing.service.js'
+import { extractB2BContext } from '../utils/b2b-context.js'
 import type { OnsiteStats } from '@ibe/shared'
 
 export async function publicOnsiteRoutes(fastify: FastifyInstance) {
@@ -26,14 +28,21 @@ export async function publicOnsiteRoutes(fastify: FastifyInstance) {
       const propertyId = parseInt(request.params.propertyId, 10)
       if (isNaN(propertyId) || propertyId <= 0) return reply.status(400).send({ error: 'Invalid property ID' })
 
+      const b2b = extractB2BContext(fastify, request)
+      const sellModel = b2b ? 'b2b' : 'b2c'
+      const onsiteEnabled = await isMarketingFeatureEnabled('onsiteConversion', sellModel, propertyId)
+      if (!onsiteEnabled) {
+        return reply.send({ settings: null, viewerCount: 0, recentBookingsCount: 0, popupPromoDiscount: null })
+      }
+
       const { effective: settings } = await getPropertyOnsiteConversionAdmin(propertyId)
 
       const [viewerCount, recentBookingsCount, popupPromoDiscount] = await Promise.all([
         getViewerCount(propertyId),
-        settings.bookingsEnabled
+        settings.bookingsEnabledModels.includes(sellModel)
           ? getRecentBookingsCount(propertyId, settings.bookingsWindowHours)
           : Promise.resolve(0),
-        settings.popupEnabled && settings.popupPromoCode
+        settings.popupEnabledModels.includes(sellModel) && settings.popupPromoCode
           ? getPromoDiscount(settings.popupPromoCode)
           : Promise.resolve(null),
       ])

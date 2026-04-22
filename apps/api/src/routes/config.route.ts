@@ -120,6 +120,7 @@ export async function configRoutes(fastify: FastifyInstance) {
       mode: settings.propertyMode,
       showCitySelector: settings.showCitySelector,
       showDemoProperty: settings.showDemoProperty,
+      enabledModels: settings.enabledModels,
       properties,
     })
   })

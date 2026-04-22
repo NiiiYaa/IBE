@@ -105,7 +105,13 @@ export async function adminBookingsRoutes(fastify: FastifyInstance) {
     const where: Record<string, unknown> = {}
 
     if (orgProperties) {
-      where['propertyId'] = { in: orgProperties.map(p => p.propertyId) }
+      if (orgProperties.length > 0) {
+        // Seller/hotel org: show bookings for their owned properties
+        where['propertyId'] = { in: orgProperties.map(p => p.propertyId) }
+      } else {
+        // Buyer-only org: show only bookings they placed as an agent
+        where['agentOrgId'] = organizationId
+      }
     }
     if (q.status) where['status'] = q.status
     if (q.propertyId) where['propertyId'] = parseInt(q.propertyId, 10)

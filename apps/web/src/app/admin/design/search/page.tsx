@@ -2,16 +2,25 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel } from '@ibe/shared'
 import { addDays, todayIso } from '@ibe/shared'
 import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminProperty } from '../../property-context'
+import { useB2bOrigin } from '@/hooks/use-b2b-origin'
 import { apiClient } from '@/lib/api-client'
-import { AgeTag, FormRow, SaveBar, Section, Toggle } from '../components'
+import { AgeTag, FormRow, SaveBar, Section, Toggle, TextInput } from '../components'
 import { OverrideToggleRow, OverrideNumberRow, SourceBadge, sourceLabel } from '../override-helpers'
 import { RoomImageManager } from '../components/RoomImageManager'
 import { PropertyImageManager } from '../components/PropertyImageManager'
+
+const viewLinkCls = 'flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
+const viewLinkDisabledCls = 'flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] opacity-40 cursor-not-allowed'
+const externalIcon = (
+  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+)
 
 function previewSearchUrl(propertyId: number): string {
   const checkIn = addDays(todayIso(), 60)
@@ -29,6 +38,7 @@ export default function SearchDesignPage() {
 
 function GlobalSearchEditor() {
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const b2bOrigin = useB2bOrigin()
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -37,6 +47,12 @@ function GlobalSearchEditor() {
   })
   const firstPropertyId = (propertiesData?.properties ?? []).find(p => !p.isDemo)?.propertyId
 
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
+  })
+
   if (isLoading) return <Spinner />
 
   return (
@@ -44,20 +60,17 @@ function GlobalSearchEditor() {
       <div className="mb-2">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Search Results</h1>
-          {firstPropertyId && (
-            <a
-              href={previewSearchUrl(firstPropertyId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              title="Open search results page"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              View
-            </a>
-          )}
+          {firstPropertyId && (orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
+            const path = previewSearchUrl(firstPropertyId)
+            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            return (
+              <a key={model} href={href} target="_blank" rel="noopener noreferrer"
+                className={viewLinkCls} title={`Open ${model.toUpperCase()} search page`}>
+                {externalIcon} View {model.toUpperCase()}
+              </a>
+            )
+          })}
         </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Chain defaults — apply to all hotels unless overridden at the hotel level.
@@ -172,8 +185,15 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<SearchDraft>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const b2bOrigin = useB2bOrigin()
 
   const { data: property } = useProperty(propertyId)
+
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
+  })
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -253,18 +273,17 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
       <div className="mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Search Results</h1>
-          <a
-            href={previewSearchUrl(propertyId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            title="Open search results page"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            View
-          </a>
+          {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
+            const path = previewSearchUrl(propertyId)
+            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            return (
+              <a key={model} href={href} target="_blank" rel="noopener noreferrer"
+                className={viewLinkCls} title={`Open ${model.toUpperCase()} search page`}>
+                {externalIcon} View {model.toUpperCase()}
+              </a>
+            )
+          })}
         </div>
       </div>
 
