@@ -44,7 +44,8 @@ function GlobalSearchEditor() {
     queryFn: () => apiClient.listProperties(),
     staleTime: Infinity,
   })
-  const firstPropertyId = (propertiesData?.properties ?? []).find(p => !p.isDemo)?.propertyId
+  const realSearchProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
+  const firstPropertyId = realSearchProperties[0]?.propertyId
 
   const { data: orgSettings } = useQuery({
     queryKey: ['admin-org'],
@@ -52,7 +53,8 @@ function GlobalSearchEditor() {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
+  const searchSingleSubdomain = realSearchProperties.length === 1 ? realSearchProperties[0].subdomain : null
+  const b2bOrigin = useB2bOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
 
   if (isLoading) return <Spinner />
 
@@ -189,13 +191,21 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
 
   const { data: property } = useProperty(propertyId)
 
+  const { data: propertiesDataForSearch } = useQuery({
+    queryKey: ['admin-properties'],
+    queryFn: () => apiClient.listProperties(),
+    staleTime: Infinity,
+  })
+
   const { data: orgSettings } = useQuery({
     queryKey: ['admin-org'],
     queryFn: () => apiClient.getOrgSettings(),
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
+  const propSearchReal = (propertiesDataForSearch?.properties ?? []).filter(p => !p.isDemo)
+  const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0].subdomain : null
+  const b2bOrigin = useB2bOrigin(propSearchSingleSubdomain ?? orgSettings?.orgSlug)
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],

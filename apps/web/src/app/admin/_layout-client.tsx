@@ -9,8 +9,8 @@ import { useAdminAuth } from '../../hooks/use-admin-auth'
 import { AdminPropertyProvider, useAdminProperty } from './property-context'
 import { apiClient } from '@/lib/api-client'
 
-type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean }
-type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean }
+type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean }
+type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 
 const SECTIONS: Section[] = [
   {
@@ -60,24 +60,24 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Configuration',
-    sellerOnly: true,
     items: [
-      { href: '/admin/config/properties', label: 'Properties' },
+      { href: '/admin/config/properties', label: 'Properties', sellerOnly: true },
       { href: '/admin/config/org', label: 'Organization', minRole: 'admin' },
-      { href: '/admin/config/domain', label: 'Domain' },
-      { href: '/admin/config/offers', label: 'Offers' },
-      { href: '/admin/config/models', label: 'Channels' },
-      { href: '/admin/config/pixels', label: 'Tracking & Analytics' },
-      { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin' },
-      { href: '/admin/communication/emails', label: 'Emails' },
-      { href: '/admin/communication/whatsapp', label: 'WhatsApp' },
-      { href: '/admin/communication/sms', label: 'SMS' },
+      { href: '/admin/config/domain', label: 'Domain', sellerOnly: true },
+      { href: '/admin/config/offers', label: 'Offers', sellerOnly: true },
+      { href: '/admin/config/models', label: 'Channels', sellerOnly: true },
+      { href: '/admin/config/pixels', label: 'Tracking & Analytics', sellerOnly: true },
+      { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin', sellerOnly: true },
+      { href: '/admin/communication/emails', label: 'Emails', sellerOnly: true },
+      { href: '/admin/communication/whatsapp', label: 'WhatsApp', sellerOnly: true },
+      { href: '/admin/communication/sms', label: 'SMS', sellerOnly: true },
       { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],
   },
   {
     title: 'Team',
     minRole: 'admin',
+    buyerAccessible: true,
     items: [
       { href: '/admin/organizations', label: 'Organizations', minRole: 'super' },
       { href: '/admin/users', label: 'Users' },
@@ -94,10 +94,13 @@ function filterSections(sections: Section[], role: string, isBuyerOrg: boolean):
   const level = ROLE_LEVEL[role] ?? 0
   return sections
     .filter(s => !s.sellerOnly || !isBuyerOrg)
-    .filter(s => s.comingSoon || !s.minRole || level >= (s.minRole === 'super' ? 2 : 1))
+    .filter(s => s.comingSoon || (isBuyerOrg && s.buyerAccessible) || !s.minRole || level >= (s.minRole === 'super' ? 2 : 1))
     .map(s => ({
       ...s,
-      items: s.items.filter(i => !i.minRole || level >= (i.minRole === 'super' ? 2 : 1)),
+      items: s.items.filter(i =>
+        (!i.minRole || level >= (i.minRole === 'super' ? 2 : 1)) &&
+        (!i.sellerOnly || !isBuyerOrg)
+      ),
     }))
     .filter(s => s.comingSoon || s.items.length > 0)
 }
@@ -228,7 +231,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, admin?.mustChangePassword, isAuthPage, isOnboarding, pathname, router])
 
   useEffect(() => {
-    if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super') {
+    if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super' && orgData.orgType !== 'buyer') {
       router.replace('/admin/onboarding')
     }
   }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])

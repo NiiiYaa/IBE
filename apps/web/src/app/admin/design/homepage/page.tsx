@@ -86,9 +86,10 @@ function GlobalHomepageEditor() {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
+  const singlePropertySubdomain = realProperties.length === 1 ? realProperties[0].subdomain : null
+  const b2bOrigin = useB2bOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
   const citySelectorMutation = useMutation({
@@ -368,7 +369,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.listProperties(),
     staleTime: 30_000,
   })
-  const isChainMode = (propertiesData?.properties ?? []).filter(p => !p.isDemo).length > 1
+  const realPropertiesForHotel = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
+  const isChainMode = realPropertiesForHotel.length > 1
 
   const { data: orgSettings } = useQuery({
     queryKey: ['admin-org'],
@@ -376,7 +378,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
+  const hotelB2bSubdomain = realPropertiesForHotel.length === 1 ? realPropertiesForHotel[0].subdomain : null
+  const b2bOrigin = useB2bOrigin(hotelB2bSubdomain ?? orgSettings?.orgSlug)
 
   useEffect(() => {
     if (designData && config && !initialized) {

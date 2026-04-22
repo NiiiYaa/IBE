@@ -19,7 +19,10 @@ export function useB2BAgentAuth() {
     mutationFn: () => apiClient.b2bLogout(),
     onSettled: () => {
       queryClient.clear()
-      router.push('/b2b/login')
+      const sub = typeof window !== 'undefined' ? window.location.hostname.split('.')[0] : ''
+      const sellerSlug = sub?.endsWith('-b2b') ? sub.slice(0, -4) : null
+      const loginUrl = sellerSlug ? `/b2b/login?seller=${encodeURIComponent(sellerSlug)}` : '/b2b/login'
+      router.push(loginUrl)
     },
   })
 

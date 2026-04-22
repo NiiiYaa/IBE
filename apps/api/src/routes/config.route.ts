@@ -78,13 +78,22 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send({ id: org.id })
   })
 
-  // GET /config/seller/:slug — public: seller org branding for B2B login page
+  // GET /config/seller/:slug — public: seller branding for B2B login page
+  // Individual hotel subdomain → property-level logo; org slug → chain-level logo
   fastify.get('/config/seller/:slug', async (request, reply) => {
     const { slug } = request.params as { slug: string }
+    const property = await prisma.property.findFirst({
+      where: { subdomain: slug, deletedAt: null },
+      select: { propertyId: true },
+    })
+    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    if (property) {
+      const config = await getHotelDesignConfig(property.propertyId)
+      return reply.send({ logoUrl: config.logoUrl, displayName: config.displayName })
+    }
     const orgId = await resolveSellerOrg(slug)
     if (!orgId) return reply.status(404).send({ error: 'Seller not found' })
     const config = await getOrgDesignConfig(orgId)
-    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
     return reply.send({ logoUrl: config.logoUrl, displayName: config.displayName })
   })
 

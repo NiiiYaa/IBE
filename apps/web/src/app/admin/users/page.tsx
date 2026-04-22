@@ -259,40 +259,38 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* B2B connections — only for non-super with an orgType */}
-      {!isSuper && connections && (connections.asSeller.length > 0 || connections.asBuyer.length > 0) && (
+      {/* B2B connections — always visible for buyer/seller orgs */}
+      {!isSuper && (orgSettings?.orgType === 'buyer' || orgSettings?.orgType === 'seller') && (
         <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
           <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">
             {orgSettings?.orgType === 'buyer' ? 'Selling partners' : orgSettings?.orgType === 'seller' ? 'Buying partners' : 'B2B Connections'}
           </h2>
           <div className="space-y-5">
-            {connections.asSeller.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                  Organizations that can book your properties
-                </p>
+            {orgSettings?.orgType === 'seller' && (
+              (connections?.asSeller.length ?? 0) > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {connections.asSeller.map(c => (
+                  {connections!.asSeller.map(c => (
                     <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
                       {c.org.name}
                     </span>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-[var(--color-text-muted)]">No buyer organizations connected yet.</p>
+              )
             )}
-            {connections.asBuyer.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                  Organizations whose properties you can book
-                </p>
+            {orgSettings?.orgType === 'buyer' && (
+              (connections?.asBuyer.length ?? 0) > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {connections.asBuyer.map(c => (
+                  {connections!.asBuyer.map(c => (
                     <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
                       {c.org.name}
                     </span>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-[var(--color-text-muted)]">No seller organizations connected yet.</p>
+              )
             )}
           </div>
         </div>
