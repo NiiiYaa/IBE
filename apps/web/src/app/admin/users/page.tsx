@@ -259,43 +259,6 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* B2B connections — always visible for buyer/seller orgs */}
-      {!isSuper && (orgSettings?.orgType === 'buyer' || orgSettings?.orgType === 'seller') && (
-        <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-          <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">
-            {orgSettings?.orgType === 'buyer' ? 'Selling partners' : orgSettings?.orgType === 'seller' ? 'Buying partners' : 'B2B Connections'}
-          </h2>
-          <div className="space-y-5">
-            {orgSettings?.orgType === 'seller' && (
-              (connections?.asSeller.length ?? 0) > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {connections!.asSeller.map(c => (
-                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
-                      {c.org.name}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-[var(--color-text-muted)]">No buyer organizations connected yet.</p>
-              )
-            )}
-            {orgSettings?.orgType === 'buyer' && (
-              (connections?.asBuyer.length ?? 0) > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {connections!.asBuyer.map(c => (
-                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
-                      {c.org.name}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-[var(--color-text-muted)]">No seller organizations connected yet.</p>
-              )
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Users table */}
       <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         {isLoading ? (
@@ -515,6 +478,43 @@ export default function UsersPage() {
           </table>
         )}
       </div>
+
+      {/* B2B connections — always visible for buyer/seller orgs */}
+      {!isSuper && (orgSettings?.orgType === 'buyer' || orgSettings?.orgType === 'seller') && (
+        <div className="mt-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+          <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">
+            {orgSettings?.orgType === 'buyer' ? 'Selling partners' : 'Buying partners'}
+          </h2>
+          <div className="space-y-5">
+            {orgSettings?.orgType === 'seller' && (
+              (connections?.asSeller.length ?? 0) > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {connections!.asSeller.map(c => (
+                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
+                      {c.org.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--color-text-muted)]">No buyer organizations connected yet.</p>
+              )
+            )}
+            {orgSettings?.orgType === 'buyer' && (
+              (connections?.asBuyer.length ?? 0) > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {connections!.asBuyer.map(c => (
+                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
+                      {c.org.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--color-text-muted)]">No seller organizations connected yet.</p>
+              )
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
