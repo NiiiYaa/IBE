@@ -37,6 +37,20 @@ export default function UsersPage() {
   const { admin: me } = useAdminAuth()
   const isSuper = me?.role === 'super'
 
+  const { data: orgSettings } = useQuery({
+    queryKey: ['admin-org'],
+    queryFn: () => apiClient.getOrgSettings(),
+    staleTime: Infinity,
+    enabled: !isSuper,
+  })
+
+  const { data: connections } = useQuery({
+    queryKey: ['admin-b2b-connections'],
+    queryFn: () => apiClient.getB2BConnections(),
+    staleTime: 60_000,
+    enabled: !isSuper,
+  })
+
   // invite form
   const [form, setForm] = useState<CreateAdminUserRequest>({ email: '', name: '', role: 'admin' })
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -242,6 +256,45 @@ export default function UsersPage() {
       {deleteError && (
         <div className="mb-4 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 px-4 py-2 text-sm text-[var(--color-error)]">
           {deleteError}
+        </div>
+      )}
+
+      {/* B2B connections — only for non-super with an orgType */}
+      {!isSuper && connections && (connections.asSeller.length > 0 || connections.asBuyer.length > 0) && (
+        <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+          <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">
+            {orgSettings?.orgType === 'buyer' ? 'Selling partners' : orgSettings?.orgType === 'seller' ? 'Buying partners' : 'B2B Connections'}
+          </h2>
+          <div className="space-y-5">
+            {connections.asSeller.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  Organizations that can book your properties
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {connections.asSeller.map(c => (
+                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
+                      {c.org.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {connections.asBuyer.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  Organizations whose properties you can book
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {connections.asBuyer.map(c => (
+                    <span key={c.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)]">
+                      {c.org.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

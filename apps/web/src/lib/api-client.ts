@@ -324,6 +324,13 @@ export const apiClient = {
     return apiRequest<OrgSettingsResponse>('/api/v1/admin/org')
   },
 
+  getB2BConnections(): Promise<{
+    asSeller: Array<{ id: number; org: { id: number; name: string; slug: string } }>
+    asBuyer: Array<{ id: number; org: { id: number; name: string; slug: string } }>
+  }> {
+    return apiRequest('/api/v1/admin/b2b-connections')
+  },
+
   updateOrgSettings(data: UpdateOrgSettingsRequest): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>('/api/v1/admin/org', {
       method: 'PUT',

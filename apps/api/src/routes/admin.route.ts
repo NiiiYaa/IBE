@@ -312,4 +312,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
     await setPropertyUsers(id, request.admin.organizationId, userIds)
     return reply.send({ ok: true })
   })
+
+  // ── B2B Connections (org-scoped) ──────────────────────────────────────────
+
+  fastify.get('/admin/b2b-connections', async (request, reply) => {
+    const organizationId = request.admin.organizationId
+    if (!organizationId) return reply.send({ asSeller: [], asBuyer: [] })
+
+    const [asSeller, asBuyer] = await Promise.all([
+      prisma.orgB2BAccess.findMany({
+        where: { sellerOrgId: organizationId },
+        include: { buyerOrg: { select: { id: true, name: true, slug: true } } },
+        orderBy: { buyerOrg: { name: 'asc' } },
+      }),
+      prisma.orgB2BAccess.findMany({
+        where: { buyerOrgId: organizationId },
+        include: { sellerOrg: { select: { id: true, name: true, slug: true } } },
+        orderBy: { sellerOrg: { name: 'asc' } },
+      }),
+    ])
+
+    return reply.send({
+      asSeller: asSeller.map(r => ({ id: r.id, org: r.buyerOrg })),
+      asBuyer: asBuyer.map(r => ({ id: r.id, org: r.sellerOrg })),
+    })
+  })
 }
