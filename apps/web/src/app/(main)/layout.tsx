@@ -209,20 +209,24 @@ export default async function MainLayout({ children }: { children: React.ReactNo
     <>
       {cssVars && <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />}
       {fontUrl && <link rel="stylesheet" href={fontUrl} />}
-      <Header
-        logoUrl={logoUrl}
-        displayName={displayName}
-        navItems={headerItems}
-        enabledLocales={localeConfig?.enabledLocales ?? []}
-        enabledCurrencies={localeConfig?.enabledCurrencies ?? []}
-        defaultLocale={localeConfig?.defaultLocale ?? 'en'}
-        defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
-        isB2BMode={isB2BMode}
-      />
+      <div className="print:hidden">
+        <Header
+          logoUrl={logoUrl}
+          displayName={displayName}
+          navItems={headerItems}
+          enabledLocales={localeConfig?.enabledLocales ?? []}
+          enabledCurrencies={localeConfig?.enabledCurrencies ?? []}
+          defaultLocale={localeConfig?.defaultLocale ?? 'en'}
+          defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
+          isB2BMode={isB2BMode}
+        />
+      </div>
       <div className="flex flex-1 flex-col">
         {pageContent}
       </div>
-      <Footer navItems={footerItems} displayName={displayName} />
+      <div className="print:hidden">
+        <Footer navItems={footerItems} displayName={displayName} />
+      </div>
     </>
   )
 

@@ -236,6 +236,7 @@ export default async function HomePage({
             city: detail?.location.city ?? '',
             address: detail?.location.address ?? '',
             description: firstDesc?.text ?? '',
+            facilities: detail?.facilities ?? [],
             isDefault: r.isDefault,
           }
         })
@@ -303,6 +304,7 @@ export default async function HomePage({
                         city={p.city}
                         address={p.address}
                         description={p.description}
+                        facilities={p.facilities}
                       />
                     ))}
                   </div>
@@ -322,6 +324,7 @@ export default async function HomePage({
                 city={p.city}
                 address={p.address}
                 description={p.description}
+                facilities={p.facilities}
               />
             ))}
           </div>

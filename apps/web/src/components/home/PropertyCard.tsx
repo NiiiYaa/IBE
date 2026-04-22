@@ -1,4 +1,9 @@
+'use client'
+
+import { useState } from 'react'
 import Image from 'next/image'
+import type { PropertyFacility } from '@ibe/shared'
+import { PropertyDetailModal } from './PropertyDetailModal'
 
 interface PropertyCardProps {
   id: number
@@ -8,6 +13,7 @@ interface PropertyCardProps {
   city: string
   address: string
   description: string
+  facilities: PropertyFacility[]
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -23,46 +29,96 @@ function StarRating({ rating }: { rating: number }) {
   )
 }
 
-export function PropertyCard({ id, name, starRating, imageUrl, city, address, description }: PropertyCardProps) {
-  return (
-    <a
-      href={`/?hotelId=${id}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition-shadow hover:shadow-md"
-    >
-      <div className="relative h-48 w-full shrink-0 overflow-hidden bg-[var(--color-background)]">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={name}
-            fill
-            unoptimized
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-slate-300 to-slate-400" />
-        )}
-      </div>
+export function PropertyCard({ id, name, starRating, imageUrl, city, address, description, facilities }: PropertyCardProps) {
+  const [modalOpen, setModalOpen] = useState(false)
+  const topFacilities = [
+    ...facilities.filter(f => f.popular),
+    ...facilities.filter(f => !f.popular),
+  ].slice(0, 5)
 
-      <div className="flex flex-1 flex-col p-4">
-        {starRating > 0 && (
-          <div className="mb-1.5">
-            <StarRating rating={starRating} />
+  return (
+    <>
+      <div className="group flex flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition-shadow hover:shadow-md">
+        <a
+          href={`/?hotelId=${id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={name}
+          className="relative block h-48 w-full shrink-0 overflow-hidden bg-[var(--color-background)]"
+        >
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={name}
+              fill
+              unoptimized
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-slate-300 to-slate-400" />
+          )}
+        </a>
+
+        <div className="flex flex-1 flex-col p-4">
+          {starRating > 0 && (
+            <div className="mb-1.5">
+              <StarRating rating={starRating} />
+            </div>
+          )}
+          <a href={`/?hotelId=${id}`} target="_blank" rel="noopener noreferrer">
+            <h3 className="line-clamp-1 text-sm font-semibold leading-snug text-[var(--color-text)] transition-colors hover:text-primary">
+              {name}
+            </h3>
+          </a>
+          <p className="mt-0.5 truncate text-xs text-muted">{city || address}</p>
+          {description && (
+            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted">{description}</p>
+          )}
+
+          {topFacilities.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {topFacilities.map(f => (
+                <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => setModalOpen(true)}
+            className="mt-1.5 self-start text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            See more
+          </button>
+
+          <div className="mt-auto pt-3">
+            <a
+              href={`/?hotelId=${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full rounded-[var(--radius-md)] border border-[var(--color-primary)] px-4 py-2 text-center text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white"
+            >
+              Check Availability
+            </a>
           </div>
-        )}
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-[var(--color-text)]">{name}</h3>
-        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{city || address}</p>
-        {description && (
-          <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-[var(--color-text-muted)]">{description}</p>
-        )}
-        <div className="mt-auto pt-4">
-          <span className="block w-full rounded-[var(--radius-md)] border border-[var(--color-primary)] px-4 py-2 text-center text-xs font-semibold text-[var(--color-primary)] transition-colors group-hover:bg-[var(--color-primary)] group-hover:text-white">
-            Check Availability
-          </span>
         </div>
       </div>
-    </a>
+
+      {modalOpen && (
+        <PropertyDetailModal
+          id={id}
+          name={name}
+          starRating={starRating}
+          imageUrl={imageUrl}
+          city={city}
+          address={address}
+          description={description}
+          facilities={facilities}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+    </>
   )
 }
