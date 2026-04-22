@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { SearchParamsSchema } from '@ibe/shared'
 import { search } from '../services/search.service.js'
 import { IBE_ERROR_VALIDATION } from '@ibe/shared'
+import { extractB2BContext } from '../utils/b2b-context.js'
 
 export async function searchRoutes(fastify: FastifyInstance) {
   fastify.get('/search', async (request, reply) => {
@@ -32,7 +33,8 @@ export async function searchRoutes(fastify: FastifyInstance) {
       })
     }
 
-    const results = await search(parseResult.data as import('@ibe/shared').SearchParams)
+    const b2b = extractB2BContext(fastify, request)
+    const results = await search(parseResult.data as import('@ibe/shared').SearchParams, b2b?.buyerOrgId)
     return reply.send(results)
   })
 }

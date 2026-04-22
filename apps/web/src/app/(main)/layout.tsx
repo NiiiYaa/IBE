@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { buildCssVars } from '@/lib/theme'
+import { B2BAuthGate } from '@/components/b2b/B2BAuthGate'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
@@ -171,6 +172,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   const { config, hotelConfig, navItems, property, isChain } = await resolveTenantConfig()
+  const reqHeaders = headers()
+  const isB2BMode = reqHeaders.get('x-b2b-mode') === 'true'
+  const b2bSellerSlug = reqHeaders.get('x-b2b-seller-slug') ?? ''
 
   const headerItems = navItems.filter(n => n.section === 'header')
   const footerItems = navItems.filter(n => n.section === 'footer')
@@ -181,7 +185,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   // For locale/currency, use hotelConfig in chain mode — it already merges org defaults
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
 
-  return (
+  const content = (
     <>
       {cssVars && <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />}
       {fontUrl && <link rel="stylesheet" href={fontUrl} />}
@@ -200,4 +204,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       <Footer navItems={footerItems} displayName={displayName} />
     </>
   )
+
+  if (isB2BMode) {
+    return <B2BAuthGate sellerSlug={b2bSellerSlug}>{content}</B2BAuthGate>
+  }
+
+  return content
 }

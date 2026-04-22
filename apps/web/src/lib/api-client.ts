@@ -893,6 +893,60 @@ export const apiClient = {
   getPublicPixels(propertyId: number, page: string): Promise<{ pixels: Array<{ id: number; code: string }> }> {
     return apiRequest<{ pixels: Array<{ id: number; code: string }> }>(`/api/v1/pixels?propertyId=${propertyId}&page=${page}`)
   },
+
+  // ── B2B Auth ────────────────────────────────────────────────────────────────
+
+  b2bLogin(
+    email: string,
+    password: string,
+    sellerSlug: string,
+    adminId?: number,
+    rememberMe?: boolean,
+  ): Promise<
+    | { ok: true; organizationId: number; role: string; requiresSelection?: never }
+    | { requiresSelection: true; accounts: Array<{ adminId: number; name: string; organizationName: string; role: string }>; ok?: never }
+  > {
+    return apiRequest('/api/v1/b2b/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, sellerSlug, ...(adminId !== undefined && { adminId }), rememberMe }),
+    })
+  },
+
+  b2bLogout(): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/b2b/auth/logout', { method: 'POST' })
+  },
+
+  b2bMe(): Promise<{ id: number; email: string; name: string; role: string; organizationId: number; organizationName: string | null; sellerOrgId: number }> {
+    return apiRequest('/api/v1/b2b/auth/me')
+  },
+
+  // ── B2B Access Management (super only) ─────────────────────────────────────
+
+  listB2BAccess(): Promise<Array<{
+    id: number
+    buyerOrgId: number
+    sellerOrgId: number
+    createdAt: string
+    buyerOrg: { id: number; name: string; slug: string }
+    sellerOrg: { id: number; name: string; slug: string }
+  }>> {
+    return apiRequest('/api/v1/admin/super/b2b-access')
+  },
+
+  createB2BAccess(buyerOrgId: number, sellerOrgId: number): Promise<{
+    id: number
+    buyerOrg: { id: number; name: string; slug: string }
+    sellerOrg: { id: number; name: string; slug: string }
+  }> {
+    return apiRequest('/api/v1/admin/super/b2b-access', {
+      method: 'POST',
+      body: JSON.stringify({ buyerOrgId, sellerOrgId }),
+    })
+  },
+
+  deleteB2BAccess(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/super/b2b-access/${id}`, { method: 'DELETE' })
+  },
 }
 
 export { ApiClientError }

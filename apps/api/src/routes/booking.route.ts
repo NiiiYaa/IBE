@@ -2,9 +2,10 @@ import type { FastifyInstance } from 'fastify'
 import { CreateBookingRequestSchema, IBE_ERROR_VALIDATION } from '@ibe/shared'
 import { book, BookingError } from '../services/booking.service.js'
 import { logger } from '../utils/logger.js'
+import { extractB2BContext } from '../utils/b2b-context.js'
+import { getB2BAdminById } from '../services/b2b-auth.service.js'
 
 export async function bookingRoutes(fastify: FastifyInstance) {
-  // POST /bookings — create a new booking
   fastify.post('/bookings', async (request, reply) => {
     const parseResult = CreateBookingRequestSchema.safeParse(request.body)
 
@@ -19,8 +20,21 @@ export async function bookingRoutes(fastify: FastifyInstance) {
       })
     }
 
+    // Resolve B2B attribution if this is a B2B request
+    const b2bCtx = extractB2BContext(fastify, request)
+    let b2bAttribution = undefined
+    if (b2bCtx) {
+      const admin = await getB2BAdminById(b2bCtx.adminId)
+      b2bAttribution = {
+        buyerOrgId: b2bCtx.buyerOrgId,
+        buyerUserId: b2bCtx.adminId,
+        buyerOrgName: admin?.organizationName ?? undefined,
+        buyerUserName: admin?.name ?? undefined,
+      }
+    }
+
     try {
-      const confirmation = await book(parseResult.data)
+      const confirmation = await book(parseResult.data, b2bAttribution)
       return reply.status(201).send(confirmation)
     } catch (err) {
       if (err instanceof BookingError) {

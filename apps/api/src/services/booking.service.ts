@@ -51,7 +51,14 @@ export class BookingError extends Error {
   }
 }
 
-export async function book(request: CreateBookingRequest): Promise<BookingConfirmation> {
+export interface B2BAttribution {
+  buyerOrgId: number
+  buyerUserId: number
+  buyerOrgName?: string
+  buyerUserName?: string
+}
+
+export async function book(request: CreateBookingRequest, b2b?: B2BAttribution): Promise<BookingConfirmation> {
   const { paymentFlow, stripePaymentIntentId, stripeSetupIntentId } = request
 
   logger.info(
@@ -81,7 +88,7 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
       paymentMethod: hgPaymentMethod,
       agencyReference: request.agencyReference,
       isTest: request.isTest,
-    })
+    }, b2b?.buyerOrgId)
   } catch (err) {
     // HyperGuest failed — release any Stripe authorization
     if (paymentFlow === PaymentFlow.OnlineCharge && stripePaymentIntentId) {
@@ -107,7 +114,7 @@ export async function book(request: CreateBookingRequest): Promise<BookingConfir
   const isConfirmed = booking.status === BookingStatus.Confirmed
 
   // Persist booking locally
-  const persisted = await persistBooking(request, booking, paymentFlow, stripePaymentIntentId ?? stripeSetupIntentId)
+  const persisted = await persistBooking(request, booking, paymentFlow, stripePaymentIntentId ?? stripeSetupIntentId, b2b)
 
   // Record affiliate commission if an affiliate code was submitted
   if (request.affiliateId) {
@@ -219,6 +226,7 @@ async function persistBooking(
   booking: Awaited<ReturnType<typeof createBooking>>['content'],
   paymentFlow: PaymentFlow,
   stripeIntentId: string | undefined,
+  b2b?: B2BAttribution,
 ) {
   return prisma.booking.create({
     data: {
@@ -243,6 +251,11 @@ async function persistBooking(
       paymentFlow,
       stripeIntentId,
       isTest: request.isTest ?? false,
+      bookingChannel: b2b ? 'b2b' : 'b2c',
+      agentOrgId: b2b?.buyerOrgId ?? null,
+      agentUserId: b2b?.buyerUserId ?? null,
+      agentOrgName: b2b?.buyerOrgName ?? null,
+      agentUserName: b2b?.buyerUserName ?? null,
       rawResponse: JSON.stringify(booking),
       rooms: {
         create: booking.rooms.map((r) => ({

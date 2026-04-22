@@ -75,6 +75,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: '/admin/organizations', label: 'Organizations', minRole: 'super' },
       { href: '/admin/users', label: 'Users' },
+      { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
   },
   { title: 'Dashboards', comingSoon: true, items: [] },

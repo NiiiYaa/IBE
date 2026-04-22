@@ -78,11 +78,14 @@ export interface CreateBookingInput {
 
 /**
  * Creates a booking via HyperGuest.
+ * Pass buyerOrgId to use a B2B buyer org's token instead of the property's token.
  */
-export async function createBooking(input: CreateBookingInput): Promise<HGBookingResponse> {
+export async function createBooking(input: CreateBookingInput, buyerOrgId?: number): Promise<HGBookingResponse> {
   if (MOCK) return mockCreateBooking(input)
 
-  const creds = await getHGCredentialsForProperty(input.propertyId)
+  const creds = buyerOrgId
+    ? await getHGCredentials(buyerOrgId)
+    : await getHGCredentialsForProperty(input.propertyId)
   const CREATE_URL = `https://${creds.bookingDomain}/2.0/booking/create`
 
   const payload: HGBookingRequest = {

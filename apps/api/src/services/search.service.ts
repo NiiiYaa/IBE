@@ -37,7 +37,7 @@ import { logger } from '../utils/logger.js'
 /**
  * Executes a search and returns the transformed IBE response.
  */
-export async function search(params: SearchParams): Promise<SearchResponse> {
+export async function search(params: SearchParams, buyerOrgId?: number): Promise<SearchResponse> {
   const nights = nightsBetween(params.checkIn, params.checkOut)
 
   const offers = await getEffectiveOffersSettings(params.hotelId)
@@ -63,7 +63,7 @@ export async function search(params: SearchParams): Promise<SearchResponse> {
   })
 
   const [hgResponse, activePromo, activeAffiliate] = await Promise.all([
-    searchAvailability(params),
+    searchAvailability(params, undefined, buyerOrgId),
     params.promoCode && property
       ? getActivePromoCode(params.promoCode, property.organizationId, params.hotelId, params.checkIn)
       : Promise.resolve(null),

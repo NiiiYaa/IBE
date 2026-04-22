@@ -11,7 +11,7 @@ import { cacheGet, cacheSet } from '../../utils/cache.js'
 import { logger } from '../../utils/logger.js'
 import { hgGet } from './client.js'
 import { mockSearchAvailability } from './mock/mock-adapter.js'
-import { getHGCredentialsForProperty } from '../../services/credentials.service.js'
+import { getHGCredentials, getHGCredentialsForProperty } from '../../services/credentials.service.js'
 
 const MOCK = process.env['HYPERGUEST_MOCK'] === 'true'
 
@@ -61,29 +61,35 @@ function buildCacheKey(params: SearchParams): string {
 /**
  * Searches for availability via HyperGuest.
  * Returns the raw HyperGuest search response.
+ * Pass buyerOrgId to use a B2B buyer org's token instead of the property's token.
  */
 export async function searchAvailability(
   params: SearchParams,
   meta?: Array<{ key: string; value: string }>,
+  buyerOrgId?: number,
 ): Promise<HGSearchResponse> {
   if (MOCK) return mockSearchAvailability(params)
 
+  // B2B: skip cache so each buyer org sees their own rates
   const cacheKey = buildCacheKey(params)
-
-  const cached = await cacheGet<HGSearchResponse>(cacheKey)
-  if (cached) {
-    logger.debug({ hotelId: params.hotelId, checkIn: params.checkIn }, '[Search] Cache hit')
-    return cached
+  if (!buyerOrgId) {
+    const cached = await cacheGet<HGSearchResponse>(cacheKey)
+    if (cached) {
+      logger.debug({ hotelId: params.hotelId, checkIn: params.checkIn }, '[Search] Cache hit')
+      return cached
+    }
   }
 
-  const creds = await getHGCredentialsForProperty(params.hotelId)
+  const creds = buyerOrgId
+    ? await getHGCredentials(buyerOrgId)
+    : await getHGCredentialsForProperty(params.hotelId)
   const url = await buildSearchUrl(params, creds.searchDomain)
   logger.info({ hotelId: params.hotelId, checkIn: params.checkIn, nights: nightsBetween(params.checkIn, params.checkOut) }, '[Search] Calling HyperGuest')
 
   const response = await hgGet<HGSearchResponse>(url, creds)
 
-  // Only cache responses with actual results
-  if (response.results.length > 0) {
+  // Only cache B2C responses — B2B results are buyer-specific
+  if (!buyerOrgId && response.results.length > 0) {
     await cacheSet(cacheKey, response, env.SEARCH_CACHE_TTL)
   }
 

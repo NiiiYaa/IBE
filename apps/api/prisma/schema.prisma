@@ -37,6 +37,8 @@ model Organization {
   onsiteConversionSettings    OnsiteConversionSettings?
   guests                      Guest[]
   trackingPixels              TrackingPixel[]
+  b2bAsBuyer                  OrgB2BAccess[] @relation("B2BBuyer")
+  b2bAsSeller                 OrgB2BAccess[] @relation("B2BSeller")
 }
 
 // roles: super | admin | observer | user
@@ -93,6 +95,11 @@ model Booking {
   paymentFlow         String
   stripeIntentId      String?
   isTest              Boolean  @default(false)
+  bookingChannel      String   @default("b2c")
+  agentOrgId          Int?
+  agentUserId         Int?
+  agentOrgName        String?
+  agentUserName       String?
   rawResponse         Json
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -109,6 +116,8 @@ model Booking {
   @@index([affiliateId])
   @@index([campaignId])
   @@index([createdAt])
+  @@index([bookingChannel])
+  @@index([agentOrgId])
 }
 
 model Guest {
@@ -697,6 +706,21 @@ model PriceComparisonCache {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+// ── B2B Access ────────────────────────────────────────────────────────────────
+
+model OrgB2BAccess {
+  id           Int          @id @default(autoincrement())
+  buyerOrgId   Int
+  sellerOrgId  Int
+  buyerOrg     Organization @relation("B2BBuyer", fields: [buyerOrgId], references: [id])
+  sellerOrg    Organization @relation("B2BSeller", fields: [sellerOrgId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@unique([buyerOrgId, sellerOrgId])
+  @@index([buyerOrgId])
+  @@index([sellerOrgId])
 }
 
 // ── Tracking Pixels ───────────────────────────────────────────────────────────

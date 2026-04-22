@@ -41,14 +41,34 @@ export function middleware(request: NextRequest) {
   if (host.endsWith(`.${PLATFORM_HOST}`)) {
     const subdomain = host.slice(0, -(PLATFORM_HOST.length + 1))
     if (subdomain && !SKIP_SUBDOMAINS.has(subdomain)) {
-      headers.set('x-tenant-host', host)
+      // Detect B2B subdomain: ends with -b2b (e.g. grandhotel-b2b.hyperguest.net)
+      if (subdomain.endsWith('-b2b')) {
+        const sellerSlug = subdomain.slice(0, -4) // strip "-b2b"
+        headers.set('x-b2b-mode', 'true')
+        headers.set('x-b2b-seller-slug', sellerSlug)
+        // Use the seller slug for tenant resolution (same property/chain as B2C)
+        headers.set('x-tenant-host', `${sellerSlug}.${PLATFORM_HOST}`)
+      } else {
+        headers.set('x-tenant-host', host)
+      }
       return NextResponse.next({ request: { headers } })
     }
     return NextResponse.next({ request: { headers } })
   }
 
   // Custom domain (e.g. book.grandhotel.com)
-  headers.set('x-tenant-host', host)
+  // Check for B2B custom domain convention: subdomain ending in -b2b
+  const parts = host.split('.')
+  if (parts.length >= 3 && parts[0]?.endsWith('-b2b')) {
+    const sellerSubdomain = parts[0].slice(0, -4)
+    const baseDomain = parts.slice(1).join('.')
+    headers.set('x-b2b-mode', 'true')
+    headers.set('x-b2b-seller-slug', sellerSubdomain)
+    headers.set('x-tenant-host', `${sellerSubdomain}.${baseDomain}`)
+  } else {
+    headers.set('x-tenant-host', host)
+  }
+
   return NextResponse.next({ request: { headers } })
 }
 

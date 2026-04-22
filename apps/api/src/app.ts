@@ -35,6 +35,8 @@ import { guestRoutes } from './routes/guest.route.js'
 import { adminGuestsRoutes } from './routes/admin-guests.route.js'
 import { trackingPixelRoutes, publicTrackingPixelRoutes } from './routes/tracking-pixel.route.js'
 import { manualRoutes } from './routes/manual.route.js'
+import { b2bAuthRoutes } from './routes/b2b-auth.route.js'
+import { b2bAccessRoutes } from './routes/b2b-access.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -119,6 +121,7 @@ export async function buildApp() {
   await app.register(navRoutes, { prefix: '/api/v1' })
   await app.register(ratesRoutes, { prefix: '/api/v1' })
   await app.register(authRoutes, { prefix: '/api/v1' })
+  await app.register(b2bAuthRoutes, { prefix: '/api/v1' })
 
   // Price comparison results endpoint is public (guest-facing)
   await app.register(priceComparisonRoutes, { prefix: '/api/v1' })
@@ -151,6 +154,7 @@ export async function buildApp() {
     await adminApp.register(adminGuestsRoutes, { prefix: '/api/v1' })
     await adminApp.register(trackingPixelRoutes, { prefix: '/api/v1' })
     await adminApp.register(manualRoutes, { prefix: '/api/v1' })
+    await adminApp.register(b2bAccessRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────
