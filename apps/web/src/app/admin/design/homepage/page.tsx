@@ -86,7 +86,7 @@ function GlobalHomepageEditor() {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
+  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
   const showCitySelector = propertiesData?.showCitySelector ?? false
@@ -376,7 +376,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
+  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
 
   useEffect(() => {
     if (designData && config && !initialized) {

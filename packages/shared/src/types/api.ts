@@ -728,6 +728,7 @@ export interface OnsiteStats {
 
 export interface OrgSettingsResponse {
   orgName: string | null
+  orgSlug: string | null
   hyperGuestOrgId: string | null
   orgType: OrgType
   hyperGuestBearerToken: string | null       // masked as ****xxxx when set

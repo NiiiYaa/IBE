@@ -74,7 +74,7 @@ export default function ChainPage() {
     enabled: !!orgId,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
+  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
 
   const showCitySelector = propertiesData?.showCitySelector ?? false
 

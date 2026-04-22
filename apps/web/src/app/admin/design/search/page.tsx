@@ -52,7 +52,7 @@ function GlobalSearchEditor() {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
+  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
 
   if (isLoading) return <Spinner />
 
@@ -195,7 +195,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
     staleTime: Infinity,
   })
 
-  const b2bOrigin = useB2bOrigin(orgSettings?.hyperGuestOrgId)
+  const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
