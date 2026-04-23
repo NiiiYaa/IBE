@@ -7,8 +7,7 @@ import type { HotelDesignConfig, PropertyDetail, PropertyListResponse } from '@i
 import { buildCssVars } from '@/lib/theme'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { QuiltHero } from '@/components/home/QuiltHero'
-import { PropertyCard } from '@/components/home/PropertyCard'
-import { PropertyRow } from '@/components/home/PropertyRow'
+import { PropertyGridClient } from '@/components/home/PropertyGridClient'
 import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 
@@ -225,12 +224,26 @@ export default async function HomePage({
 
   const aiEnabled = propertyId ? await fetchAIEnabled(propertyId) : false
 
-  // For org tenants: fetch ALL property details + configs in one parallel batch.
-  // This avoids a serial waterfall (previously: fetch default → then fetch all others).
+  // For org tenants: fetch only the first INITIAL_BATCH property details server-side.
+  // Remaining properties are loaded client-side on demand via PropertyGridClient.
+  const INITIAL_BATCH = 4
   const isMulti = tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 1
-  const multiProperties = (tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 0)
+
+  // Ensure the default property is always in the initial batch
+  const allOrgProperties = propertyList?.properties ?? []
+  const defaultIdx = allOrgProperties.findIndex(p => p.propertyId === propertyId)
+  const orderedProperties = defaultIdx > 0
+    ? [allOrgProperties[defaultIdx]!, ...allOrgProperties.filter((_, i) => i !== defaultIdx)]
+    : allOrgProperties
+  const initialBatch = orderedProperties.slice(0, INITIAL_BATCH)
+  const remainingEntries = orderedProperties.slice(INITIAL_BATCH).map(p => ({
+    propertyId: p.propertyId,
+    name: p.name ?? `Property ${p.propertyId}`,
+  }))
+
+  const multiProperties = (tenant.type === 'org' && orderedProperties.length > 0)
     ? await Promise.all(
-        propertyList!.properties.map(async r => {
+        initialBatch.map(async r => {
           const [detail, hotelConfig] = await Promise.all([
             fetchProperty(r.propertyId),
             fetchConfig(r.propertyId),
@@ -253,6 +266,19 @@ export default async function HomePage({
         })
       )
     : null
+
+  // Fetch names for remaining properties (beyond initial batch) so the search bar
+  // shows real hotel names for all properties, not just the first four.
+  // Uses the same cached endpoint (revalidate: 3600) — warm loads are instant.
+  const remainingNameMap = new Map(
+    await Promise.all(
+      orderedProperties.slice(INITIAL_BATCH).map(async p => {
+        if (p.name) return [p.propertyId, p.name] as const
+        const detail = await fetchProperty(p.propertyId)
+        return [p.propertyId, detail?.name ?? null] as const
+      })
+    )
+  )
 
   const heroStyle = config?.heroStyle ?? 'fullpage'
   const heroImageMode = config?.heroImageMode ?? 'fixed'
@@ -285,67 +311,35 @@ export default async function HomePage({
     <div className="bg-[var(--color-background)] px-4 py-10">
       <div className="mx-auto max-w-6xl">
         <h2 className="mb-6 text-2xl font-bold text-[var(--color-text)]">Our Properties</h2>
-
-        {propertyListLayout === 'list' ? (() => {
-          // Group by city, ungrouped city goes to a catch-all
-          const groups = new Map<string, typeof multiProperties>()
-          for (const p of multiProperties) {
-            const key = p.city || ''
-            if (!groups.has(key)) groups.set(key, [])
-            groups.get(key)!.push(p)
-          }
-          const hasMultipleCities = groups.size > 1
-          return (
-            <div className="divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm overflow-hidden">
-              {Array.from(groups.entries()).map(([city, props]) => (
-                <div key={city || '__none__'}>
-                  {hasMultipleCities && city && (
-                    <div className="bg-[var(--color-background)] px-4 py-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{city}</p>
-                    </div>
-                  )}
-                  <div className="px-4">
-                    {props.map(p => (
-                      <PropertyRow
-                        key={p.id}
-                        id={p.id}
-                        name={p.name}
-                        starRating={p.starRating}
-                        imageUrl={p.imageUrl}
-                        city={p.city}
-                        address={p.address}
-                        description={p.description}
-                        facilities={p.facilities}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        })() : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {multiProperties.map(p => (
-              <PropertyCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                starRating={p.starRating}
-                imageUrl={p.imageUrl}
-                city={p.city}
-                address={p.address}
-                description={p.description}
-                facilities={p.facilities}
-              />
-            ))}
-          </div>
-        )}
+        <PropertyGridClient
+          initial={multiProperties}
+          remaining={remainingEntries}
+          layout={propertyListLayout}
+        />
       </div>
     </div>
   ) : null
 
-  const multiCities = multiProperties
-    ? new Set(multiProperties.map(p => p.city).filter(Boolean)).size
+  // All properties as lightweight options for the search bar — available immediately.
+  // Name and city come from the full-detail fetch (multiProperties) when available,
+  // falling back to the lightweight PropertyRecord for the rest.
+  const loadedDetailMap = new Map(multiProperties?.map(p => [p.id, p]) ?? [])
+  const allPropertyOptions = tenant.type === 'org'
+    ? orderedProperties.map(p => {
+        const loaded = loadedDetailMap.get(p.propertyId)
+        const name = loaded?.name ?? remainingNameMap.get(p.propertyId) ?? p.name ?? `Property ${p.propertyId}`
+        const city = loaded?.city
+        return {
+          id: p.propertyId,
+          name,
+          ...(city ? { city } : {}),
+          isDefault: p.isDefault,
+        }
+      })
+    : null
+
+  const multiCities = allPropertyOptions
+    ? new Set(allPropertyOptions.map(p => p.city).filter(Boolean)).size
     : 0
 
   const searchBarProps = {
@@ -354,8 +348,8 @@ export default async function HomePage({
     childMaxAge: config?.childMaxAge ?? 16,
     aiEnabled,
     ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
-    ...(multiProperties ? {
-      properties: multiProperties,
+    ...(allPropertyOptions ? {
+      properties: allPropertyOptions,
       showCitySelector: multiCities > 1,
     } : {}),
   }

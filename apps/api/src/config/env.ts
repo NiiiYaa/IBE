@@ -47,6 +47,9 @@ const EnvSchema = z.object({
 
   // AI config encryption — if unset, API keys are stored unencrypted (dev only)
   AI_CONFIG_ENCRYPTION_KEY: z.string().optional(),
+
+  // WhatsApp Cloud API webhook verification token
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('ibe-whatsapp-verify'),
 })
 
 function loadEnv() {

@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { useAdminAuth } from '../../hooks/use-admin-auth'
 import { AdminPropertyProvider, useAdminProperty } from './property-context'
+import { PropertySelector } from './PropertySelector'
 import { apiClient } from '@/lib/api-client'
 
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
@@ -133,7 +134,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { admin, isLoading, isAuthenticated, logout } = useAdminAuth()
-  const { propertyId, setPropertyId } = useAdminProperty()
+  const { propertyId, orgId, setPropertyId, setSelection } = useAdminProperty()
   const role = admin?.role ?? 'admin'
 
   const [collapsed, setCollapsed] = useState(false)
@@ -342,40 +343,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
                 Property
               </p>
-              <select
-                value={propertyId ?? ''}
-                onChange={e => setPropertyId(e.target.value === '' ? null : Number(e.target.value))}
-                className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-xs text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)]"
-              >
-                <option value="">⛓ Chain (all properties)</option>
-                {isSuper ? (
-                  Object.entries(
-                    properties.reduce<Record<string, typeof properties>>((acc, p) => {
-                      const key = p.isDemo ? 'Demo' : (p.orgName ?? 'Unknown')
-                      ;(acc[key] ??= []).push(p)
-                      return acc
-                    }, {})
-                  ).map(([groupName, groupProps]) => (
-                    <optgroup key={groupName} label={groupName}>
-                      {groupProps.map(p => (
-                        <option key={p.propertyId} value={p.propertyId}>
-                          {p.isDemo
-                            ? `Demo Hotel (${p.propertyId})`
-                            : `${propertyNameMap[p.propertyId] ?? `Property ${p.propertyId}`} (${p.propertyId})`}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))
-                ) : (
-                  properties.map(p => (
-                    <option key={p.propertyId} value={p.propertyId}>
-                      {p.isDemo
-                        ? `Demo Hotel (${p.propertyId})`
-                        : `${propertyNameMap[p.propertyId] ?? `Property ${p.propertyId}`} (${p.propertyId})`}
-                    </option>
-                  ))
-                )}
-              </select>
+              <PropertySelector
+                properties={properties}
+                isSuper={isSuper}
+                selected={{ propertyId, orgId }}
+                onSelect={s => setSelection(s.propertyId, s.orgId)}
+                propertyNameMap={propertyNameMap}
+              />
             </div>
           )}
 
@@ -485,8 +459,19 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </svg>
             {propertyId === null ? (
               <span className="text-amber-800">
-                Configuring: <span className="font-semibold">Chain level</span>
-                <span className="ml-1 text-amber-600">— changes apply to all properties</span>
+                {isSuper && orgId !== null ? (
+                  <>
+                    Configuring: <span className="font-semibold">
+                      {properties.find(p => p.orgId === orgId)?.orgName ?? `Org ${orgId}`}
+                    </span>
+                    <span className="ml-1 text-amber-600">— chain level</span>
+                  </>
+                ) : (
+                  <>
+                    Configuring: <span className="font-semibold">Chain level</span>
+                    <span className="ml-1 text-amber-600">— changes apply to all properties</span>
+                  </>
+                )}
               </span>
             ) : (
               <span className="text-amber-800">

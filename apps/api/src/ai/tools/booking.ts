@@ -8,13 +8,13 @@ export const prepareBookingTool: ToolDefinition = {
     properties: {
       propertyId: { type: 'number', description: 'Hotel property ID' },
       roomId: { type: 'number', description: 'Room ID from the search results' },
-      ratePlanCode: { type: 'string', description: 'Rate plan code from the search results' },
+      ratePlanId: { type: 'number', description: 'Numeric rate plan ID from the search results' },
       searchId: { type: 'string', description: 'Search ID from the search_availability result' },
       checkIn: { type: 'string', description: 'Check-in date YYYY-MM-DD' },
       checkOut: { type: 'string', description: 'Check-out date YYYY-MM-DD' },
       adults: { type: 'number', description: 'Number of adults' },
     },
-    required: ['propertyId', 'roomId', 'ratePlanCode', 'searchId', 'checkIn', 'checkOut', 'adults'],
+    required: ['propertyId', 'roomId', 'ratePlanId', 'searchId', 'checkIn', 'checkOut', 'adults'],
   },
 }
 
@@ -22,7 +22,7 @@ export interface BookingHandoff {
   url: string
   propertyId: number
   roomId: number
-  ratePlanCode: string
+  ratePlanId: number
   searchId: string
   checkIn: string
   checkOut: string
@@ -32,26 +32,27 @@ export interface BookingHandoff {
 export function executePrepareBooking(args: Record<string, unknown>): BookingHandoff {
   const propertyId = args.propertyId as number
   const roomId = args.roomId as number
-  const ratePlanCode = args.ratePlanCode as string
+  const ratePlanId = args.ratePlanId as number
   const searchId = args.searchId as string
   const checkIn = args.checkIn as string
   const checkOut = args.checkOut as string
   const adults = args.adults as number
 
   const params = new URLSearchParams({
+    hotelId: String(propertyId),
     searchId,
-    selectedRoom: String(roomId),
-    selectedRate: ratePlanCode,
+    roomId: String(roomId),
+    ratePlanId: String(ratePlanId),
     checkIn,
     checkOut,
-    rooms: JSON.stringify([{ adults }]),
+    'rooms[0][adults]': String(adults),
   })
 
   return {
-    url: `/booking?propertyId=${propertyId}&${params.toString()}`,
+    url: `/booking?${params.toString()}`,
     propertyId,
     roomId,
-    ratePlanCode,
+    ratePlanId,
     searchId,
     checkIn,
     checkOut,

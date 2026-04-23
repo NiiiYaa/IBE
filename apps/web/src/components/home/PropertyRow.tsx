@@ -70,7 +70,7 @@ export function PropertyRow({ id, name, starRating, imageUrl, city, address, des
               rel="noopener noreferrer"
               className="truncate text-sm font-semibold text-[var(--color-text)] transition-colors group-hover:text-[var(--color-primary)]"
             >
-              {name}
+              {name} <span className="font-normal text-[var(--color-text-muted)]">({id})</span>
             </a>
             {starRating > 0 && <StarRating rating={starRating} />}
           </div>

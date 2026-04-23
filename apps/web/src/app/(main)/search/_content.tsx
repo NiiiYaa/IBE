@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useProperty } from '@/hooks/use-property'
@@ -15,6 +16,8 @@ import { RoomCardGrid } from '@/components/search/RoomCardGrid'
 import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
+import { ConversationalSearchPanel } from '@/components/conversational-search/conversational-search-panel'
+import { apiClient } from '@/lib/api-client'
 import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
@@ -46,6 +49,14 @@ export function SearchContent() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cartExpanded, setCartExpanded] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
+
+  const { data: aiStatus } = useQuery({
+    queryKey: ['ai-enabled', searchParams?.hotelId],
+    queryFn: () => apiClient.isAIEnabled(searchParams?.hotelId),
+    enabled: !!searchParams?.hotelId,
+    staleTime: 60_000,
+  })
 
   if (!searchParams) {
     return (
@@ -168,6 +179,15 @@ export function SearchContent() {
             {nights} night{nights !== 1 ? 's' : ''} · {searchParams.rooms.reduce((s, r) => s + r.adults, 0)} adult{searchParams.rooms.reduce((s, r) => s + r.adults, 0) !== 1 ? 's' : ''}
           </p>
         </div>
+        {aiStatus?.enabled && (
+          <button
+            onClick={() => setAiOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-light)] px-3 py-2 text-sm font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white"
+          >
+            <span className="text-base leading-none">✦</span>
+            Ask AI
+          </button>
+        )}
       </div>
 
       {data && displayCurrency && displayCurrency !== nativeCurrency && (
@@ -285,6 +305,23 @@ export function SearchContent() {
       </main>
 
       {/* Sticky bottom cart bar — multi-room mode only */}
+      {/* AI chat drawer */}
+      {aiOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+            onClick={() => setAiOpen(false)}
+          />
+          <div className="fixed bottom-0 right-0 top-0 z-50 flex w-full flex-col shadow-2xl sm:w-[420px]">
+            <ConversationalSearchPanel
+              propertyId={searchParams.hotelId}
+              onClose={() => setAiOpen(false)}
+              className="h-full"
+            />
+          </div>
+        </>
+      )}
+
       {isMultiMode && (
         <div
           className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${

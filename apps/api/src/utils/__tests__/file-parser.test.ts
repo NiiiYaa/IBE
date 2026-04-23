@@ -59,4 +59,11 @@ describe('parseColumnFromBuffer', () => {
     const values = parseColumnFromBuffer(buf, 'data.csv')
     expect(values).toEqual([])
   })
+
+  it('skips text header even when xlsx does not detect it as a header row', () => {
+    // Simulates a single-column CSV where isHeaderRow detection might miss the header
+    const buf = csvBuffer('Hotel IDs\n100\n200\n300\n')
+    const values = parseColumnFromBuffer(buf, 'data.csv')
+    expect(values).toEqual(['100', '200', '300'])
+  })
 })

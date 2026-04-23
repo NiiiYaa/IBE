@@ -68,7 +68,7 @@ export function PropertyCard({ id, name, starRating, imageUrl, city, address, de
           )}
           <a href={`/?hotelId=${id}`} target="_blank" rel="noopener noreferrer">
             <h3 className="line-clamp-1 text-sm font-semibold leading-snug text-[var(--color-text)] transition-colors hover:text-primary">
-              {name}
+              {name} <span className="font-normal text-[var(--color-text-muted)]">({id})</span>
             </h3>
           </a>
           <p className="mt-0.5 truncate text-xs text-muted">{city || address}</p>

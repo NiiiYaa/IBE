@@ -685,6 +685,10 @@ export const apiClient = {
     })
   },
 
+  getWhatsAppWebhookInfo(): Promise<{ webhookUrl: string; verifyToken: string }> {
+    return apiRequest<{ webhookUrl: string; verifyToken: string }>('/api/v1/admin/communication/whatsapp-webhook')
+  },
+
   // ── Admin: Message Rules ───────────────────────────────────────────────────
 
   listMessageRules(propertyId?: number | null): Promise<MessageRule[]> {

@@ -29,25 +29,40 @@ export interface RoomSummary {
   boardType: string
   boardLabel: string
   isRefundable: boolean
+  ratePlanId: number
   ratePlanCode: string
-  rateCode: string
   availableCount: number
+  refundablePrice: number | null
+  refundableRatePlanId: number | null
+  refundableRatePlanCode: string | null
 }
 
 export interface SearchResult {
   searchId: string
+  propertyId: number
   checkIn: string
   checkOut: string
   nights: number
+  adults: number
   currency: string
   rooms: RoomSummary[]
   found: number
 }
 
+function pushToFuture(dateStr: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  if (d >= today) return dateStr
+  d.setFullYear(d.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 export async function executeSearchAvailability(args: Record<string, unknown>): Promise<SearchResult | { error: string }> {
   const propertyId = args.propertyId as number
-  const checkIn = args.checkIn as string
-  const checkOut = args.checkOut as string
+  const checkIn = pushToFuture(args.checkIn as string)
+  const checkOut = pushToFuture(args.checkOut as string)
   const adults = (args.adults as number | undefined) ?? 2
   const childAges = (args.childAges as number[] | undefined) ?? []
   const currency = (args.currency as string | undefined) ?? 'EUR'
@@ -69,6 +84,10 @@ export async function executeSearchAvailability(args: Record<string, unknown>): 
         r.prices.sell.amount < min.prices.sell.amount ? r : min
       )
       const bedding = room.bedding.map(b => `${b.quantity} ${b.type}`).join(', ') || 'Standard'
+      const refundableRates = room.rates.filter(r => r.isRefundable)
+      const cheapestRefundable = refundableRates.length > 0
+        ? refundableRates.reduce((min, r) => r.prices.sell.amount < min.prices.sell.amount ? r : min)
+        : null
       return {
         roomId: room.roomId,
         roomName: room.roomName,
@@ -79,17 +98,22 @@ export async function executeSearchAvailability(args: Record<string, unknown>): 
         boardType: cheapestRate.board,
         boardLabel: cheapestRate.boardLabel,
         isRefundable: cheapestRate.isRefundable,
+        ratePlanId: cheapestRate.ratePlanId,
         ratePlanCode: cheapestRate.ratePlanCode,
-        rateCode: cheapestRate.ratePlanCode,
         availableCount: room.availableCount,
+        refundablePrice: cheapestRefundable ? cheapestRefundable.prices.sell.amount : null,
+        refundableRatePlanId: cheapestRefundable ? cheapestRefundable.ratePlanId : null,
+        refundableRatePlanCode: cheapestRefundable ? cheapestRefundable.ratePlanCode : null,
       }
     })
 
     return {
       searchId: response.searchId,
+      propertyId,
       checkIn: response.checkIn,
       checkOut: response.checkOut,
       nights: response.nights,
+      adults,
       currency: response.currency,
       rooms,
       found: rooms.length,

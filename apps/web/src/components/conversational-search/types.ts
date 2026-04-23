@@ -8,16 +8,18 @@ export interface RoomSummary {
   boardType: string
   boardLabel: string
   isRefundable: boolean
+  ratePlanId: number
   ratePlanCode: string
-  rateCode: string
   availableCount: number
 }
 
 export interface SearchResult {
   searchId: string
+  propertyId: number
   checkIn: string
   checkOut: string
   nights: number
+  adults: number
   currency: string
   rooms: RoomSummary[]
   found: number
@@ -27,7 +29,7 @@ export interface BookingHandoff {
   url: string
   propertyId: number
   roomId: number
-  ratePlanCode: string
+  ratePlanId: number
   searchId: string
   checkIn: string
   checkOut: string

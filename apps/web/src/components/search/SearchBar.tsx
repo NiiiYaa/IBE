@@ -407,7 +407,7 @@ export function SearchBar({
             {(() => {
               const pairs: (typeof aiMessages[number])[][] = []
               for (let i = 0; i < aiMessages.length; i += 2) pairs.push(aiMessages.slice(i, i + 2))
-              return pairs.reverse().flat().map((msg, i) => <AiMessageBubble key={i} msg={msg} />)
+              return pairs.reverse().flat().map((msg, i) => <AiMessageBubble key={i} msg={msg} {...(selectedPropertyId ? { fallbackPropertyId: selectedPropertyId } : {})} />)
             })()}
           </div>
         </div>
@@ -628,7 +628,7 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
   )
 }
 
-function AiMessageBubble({ msg }: { msg: GuestChatMessage }) {
+function AiMessageBubble({ msg, fallbackPropertyId }: { msg: GuestChatMessage; fallbackPropertyId?: number }) {
   const isUser = msg.role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -647,7 +647,7 @@ function AiMessageBubble({ msg }: { msg: GuestChatMessage }) {
           if (tr.tool === 'search_availability' || tr.tool === 'filter_results') {
             const data = tr.data as SearchResult & { error?: string }
             if (data.error) return <p key={i} className="mt-1 text-xs text-red-400">{data.error}</p>
-            return <SearchResultCards key={i} data={data} />
+            return <SearchResultCards key={i} data={data} {...(fallbackPropertyId ? { fallbackPropertyId } : {})} />
           }
           if (tr.tool === 'prepare_booking') {
             return <BookingHandoffCard key={i} data={tr.data as BookingHandoff} />

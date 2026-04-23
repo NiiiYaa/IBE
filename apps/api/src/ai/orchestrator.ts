@@ -28,11 +28,16 @@ export interface OrchestratorResult {
 }
 
 function buildSystemPrompt(custom?: string, propertyIds?: number[]): string {
+  const today = new Date().toISOString().slice(0, 10)
   const base = `You are a helpful hotel booking assistant. Your role is to:
 1. Help guests find available rooms based on their dates, preferences, and budget
 2. Answer questions about properties and room types
 3. Guide guests through selecting and booking a room
 4. Be concise, friendly, and professional
+
+Today's date is ${today}.
+When a guest mentions a date without a year (e.g. "August 6", "Feb 22", "next Friday"), always resolve it to the next occurrence within the next 12 months from today. Never assume the current year if that date has already passed — use the following year instead.
+Examples (assuming today is ${today}): "Aug 6" → pick whichever of this year or next year puts Aug 6 at least 1 day in the future. "Feb 22" → if Feb 22 this year has passed, use next year's Feb 22.
 
 When searching, always confirm the dates with the guest before searching.
 When presenting rooms, highlight the most relevant options clearly.
@@ -48,7 +53,11 @@ Never invent prices or availability — always use the search_availability tool 
   if (propertyIds && propertyIds.length === 1) {
     context = `\n\nProperty context: You are embedded in the booking engine for property ID ${propertyIds[0]}. Always use propertyId ${propertyIds[0]} in all tool calls. Never ask the user which hotel — the property is already known.`
   } else if (propertyIds && propertyIds.length > 1) {
-    context = `\n\nProperty context: You are embedded in a hotel chain booking engine with ${propertyIds.length} hotels. The property IDs are: ${propertyIds.join(', ')}. When the user asks which hotels are available or wants to browse options, call list_chain_hotels with ALL ${propertyIds.length} property IDs. Once the user selects a hotel, use that property ID for search_availability and get_property_info.`
+    const isLargeChain = propertyIds.length > 20
+    const chainInstruction = isLargeChain
+      ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool.`
+      : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with ALL ${propertyIds.length} property IDs.`
+    context = `\n\nProperty context: You are embedded in a hotel chain booking engine with ${propertyIds.length} hotels. The property IDs are: ${propertyIds.join(', ')}. ${chainInstruction} Once the user selects a hotel, use that property ID for search_availability and get_property_info.`
   }
 
   const parts = [base, context, resolved ? `Additional instructions:\n${resolved}` : ''].filter(Boolean)

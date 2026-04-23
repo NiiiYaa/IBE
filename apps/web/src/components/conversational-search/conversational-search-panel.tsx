@@ -21,11 +21,11 @@ const SUGGESTIONS = [
   'I want a room with breakfast included',
 ]
 
-function ToolResultRenderer({ tool, data }: { tool: string; data: unknown }) {
+function ToolResultRenderer({ tool, data, propertyId }: { tool: string; data: unknown; propertyId?: number }) {
   if (tool === 'search_availability' || tool === 'filter_results') {
     const result = data as SearchResult & { error?: string }
     if (result.error) return <p className="mt-1 text-xs text-[var(--color-error)]">{result.error}</p>
-    return <SearchResultCards data={result} />
+    return <SearchResultCards data={result} {...(propertyId ? { fallbackPropertyId: propertyId } : {})} />
   }
   if (tool === 'prepare_booking') {
     const result = data as BookingHandoff
@@ -34,7 +34,7 @@ function ToolResultRenderer({ tool, data }: { tool: string; data: unknown }) {
   return null
 }
 
-function MessageBubble({ msg }: { msg: GuestChatMessage }) {
+function MessageBubble({ msg, propertyId }: { msg: GuestChatMessage; propertyId?: number }) {
   const isUser = msg.role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -50,7 +50,7 @@ function MessageBubble({ msg }: { msg: GuestChatMessage }) {
             : <div className="text-sm"><MarkdownContent content={msg.content} /></div>
         )}
         {msg.toolResults?.map((tr, i) => (
-          <ToolResultRenderer key={i} tool={tr.tool} data={tr.data} />
+          <ToolResultRenderer key={i} tool={tr.tool} data={tr.data} {...(propertyId ? { propertyId } : {})} />
         ))}
       </div>
     </div>
@@ -87,6 +87,10 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
   useEffect(() => {
     topRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
+
+  useEffect(() => {
+    if (!isLoading) inputRef.current?.focus()
+  }, [isLoading])
 
   function handleSend() {
     const text = input.trim()
@@ -159,7 +163,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
         {(() => {
           const pairs: GuestChatMessage[][] = []
           for (let i = 0; i < messages.length; i += 2) pairs.push(messages.slice(i, i + 2))
-          return pairs.reverse().flat().map((msg, i) => <MessageBubble key={i} msg={msg} />)
+          return pairs.reverse().flat().map((msg, i) => <MessageBubble key={i} msg={msg} {...(propertyId ? { propertyId } : {})} />)
         })()}
       </div>
 

@@ -46,9 +46,16 @@ export function PriceComparisonBar({ checkin, checkout, adults, children, rooms,
   // Don't render if the only result is a nameless Xotelo pending placeholder
   const showSkeleton = isLoading || (isPending && okResults.length === 0)
 
+  // Xotelo returns per-night rates — multiply by nights to get total-stay price
+  // so we compare apples-to-apples with our total directPrice
+  const msPerDay = 24 * 60 * 60 * 1000
+  const nights = Math.max(1, Math.round((new Date(checkout).getTime() - new Date(checkin).getTime()) / msPerDay))
+  const otaTotalPrice = (r: { price: number | null; currency: string }) =>
+    r.price !== null ? toSelected(r.price * nights, r.currency) : null
+
   // Compute savings % against cheapest OTA — compare in the selected currency
   const lowestOta = okResults.length > 0
-    ? Math.min(...okResults.map(r => toSelected(r.price!, r.currency)))
+    ? Math.min(...okResults.map(r => otaTotalPrice(r)!))
     : null
   const savings = directPrice && lowestOta && lowestOta > directPrice
     ? Math.round(((lowestOta - directPrice) / lowestOta) * 100)
@@ -76,7 +83,7 @@ export function PriceComparisonBar({ checkin, checkout, adults, children, rooms,
               className="flex items-center gap-1.5 rounded-full bg-pink-50 px-3 py-1 text-pink-800 ring-1 ring-inset ring-pink-200"
             >
               <span className="font-medium">{r.otaName}</span>
-              <span>{fmt(toSelected(r.price!, r.currency), currency)}</span>
+              <span>{fmt(otaTotalPrice(r)!, currency)}</span>
             </div>
           ))}
         </>

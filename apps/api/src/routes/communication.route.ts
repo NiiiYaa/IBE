@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { getCommSettings, updateCommSettings } from '../services/communication.service.js'
+import { env } from '../config/env.js'
 
 export async function communicationRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/communication', async (request, reply) => {
@@ -33,6 +34,13 @@ export async function communicationRoutes(fastify: FastifyInstance) {
       smsAwsAccessKey: s.smsAwsAccessKey,
       smsAwsSecretKeySet: !!s.smsAwsSecretKey,
       smsAwsRegion: s.smsAwsRegion,
+    })
+  })
+
+  fastify.get('/admin/communication/whatsapp-webhook', async (_request, reply) => {
+    return reply.send({
+      webhookUrl: `${env.WEB_BASE_URL}/api/v1/webhooks/whatsapp`,
+      verifyToken: env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
     })
   })
 

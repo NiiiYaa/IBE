@@ -637,6 +637,7 @@ export interface PropertyRecord {
   isDemo?: boolean
   orgId?: number
   orgName?: string
+  hyperGuestOrgId?: string | null
   subdomain?: string | null
   hyperGuestBearerToken?: string | null
   hyperGuestStaticDomain?: string | null

@@ -3,7 +3,27 @@
 import { useRouter } from 'next/navigation'
 import type { SearchResult, BookingHandoff } from './types'
 
-export function SearchResultCards({ data, currency }: { data: SearchResult; currency?: string }) {
+function fmtDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/ /g, '-')
+}
+
+function buildBookingUrl(data: SearchResult, roomId: number, ratePlanId: number, fallbackPropertyId?: number): string {
+  const hotelId = data.propertyId ?? fallbackPropertyId
+  const adults = data.adults ?? 2
+  const params = new URLSearchParams({
+    hotelId: String(hotelId),
+    searchId: data.searchId,
+    roomId: String(roomId),
+    ratePlanId: String(ratePlanId),
+    checkIn: data.checkIn,
+    checkOut: data.checkOut,
+    'rooms[0][adults]': String(adults),
+  })
+  return `/booking?${params.toString()}`
+}
+
+export function SearchResultCards({ data, currency, fallbackPropertyId }: { data: SearchResult; currency?: string; fallbackPropertyId?: number }) {
   const router = useRouter()
   const cur = data.currency ?? currency ?? 'EUR'
   const fmt = (n: number) => new Intl.NumberFormat('en', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n)
@@ -15,7 +35,7 @@ export function SearchResultCards({ data, currency }: { data: SearchResult; curr
   return (
     <div className="mt-3 space-y-2">
       <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
-        {data.found} room{data.found !== 1 ? 's' : ''} · {data.checkIn} → {data.checkOut} ({data.nights} night{data.nights !== 1 ? 's' : ''})
+        {data.found} room{data.found !== 1 ? 's' : ''} · {fmtDate(data.checkIn)} → {fmtDate(data.checkOut)} ({data.nights} night{data.nights !== 1 ? 's' : ''})
       </p>
       {data.rooms.map(room => (
         <div key={room.roomId} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
@@ -35,6 +55,12 @@ export function SearchResultCards({ data, currency }: { data: SearchResult; curr
               <p className="text-[10px] text-[var(--color-text-muted)]">per night</p>
             </div>
           </div>
+          <button
+            onClick={() => router.push(buildBookingUrl(data, room.roomId, room.ratePlanId, fallbackPropertyId))}
+            className="mt-2.5 w-full rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+          >
+            Book · {fmt(room.lowestPrice * data.nights)}
+          </button>
         </div>
       ))}
     </div>

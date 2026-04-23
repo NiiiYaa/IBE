@@ -46,7 +46,13 @@ export function parseColumnFromBuffer(
   }
 
   // No header row — use first column of all rows
-  return rawRows
+  const all = rawRows
     .map(row => String(row[0] ?? '').trim())
     .filter(v => v !== '')
+
+  // Belt-and-suspenders: skip first value if it's non-numeric (text header not caught above)
+  if (all.length > 0 && !/^\d+(\.\d+)?$/.test(all[0]!)) {
+    return all.slice(1)
+  }
+  return all
 }

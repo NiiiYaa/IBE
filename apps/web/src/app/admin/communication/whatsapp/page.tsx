@@ -6,6 +6,33 @@ import type { WhatsAppProvider } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
 
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 truncate rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-xs font-mono text-[var(--color-text)]">
+          {value}
+        </code>
+        <button
+          type="button"
+          onClick={copy}
+          className="shrink-0 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const PROVIDERS: { value: WhatsAppProvider; label: string; hint: string }[] = [
   { value: 'meta', label: 'Meta (Cloud API)', hint: 'Official WhatsApp Business Cloud API — no middleware required' },
   { value: 'twilio', label: 'Twilio', hint: "Send WhatsApp messages via Twilio's WhatsApp Business API" },
@@ -28,6 +55,11 @@ export default function WhatsAppPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-communication'],
     queryFn: () => apiClient.getCommunicationSettings(),
+  })
+
+  const { data: webhookInfo } = useQuery({
+    queryKey: ['whatsapp-webhook-info'],
+    queryFn: () => apiClient.getWhatsAppWebhookInfo(),
   })
 
   useEffect(() => {
@@ -124,6 +156,7 @@ export default function WhatsAppPage() {
                   placeholder={data?.whatsappAccessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
                   className={inputCls} />
               </div>
+
             </div>
           )}
 
@@ -160,6 +193,20 @@ export default function WhatsAppPage() {
           </ul>
         </div>
       </fieldset>
+
+      {provider === 'meta' && webhookInfo && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Webhook configuration</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            In Meta Business Manager → WhatsApp → Configuration, paste these values:
+          </p>
+          <CopyField label="Callback URL" value={webhookInfo.webhookUrl} />
+          <CopyField label="Verify Token" value={webhookInfo.verifyToken} />
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Then subscribe to the <span className="font-mono font-medium">messages</span> field under Webhook Fields.
+          </p>
+        </div>
+      )}
 
       {error && <ErrorBanner message={error} />}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />

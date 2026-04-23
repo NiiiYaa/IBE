@@ -41,6 +41,7 @@ import { marketingRoutes, publicMarketingRoutes } from './routes/marketing.route
 import { aiConfigRoutes } from './routes/ai-config.route.js'
 import { aiChannelsRoutes } from './routes/ai-channels.route.js'
 import { aiChatRoutes } from './routes/ai-chat.route.js'
+import { whatsappRoutes } from './routes/whatsapp.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -144,6 +145,9 @@ export async function buildApp() {
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
+
+  // WhatsApp Cloud API webhook (public — called by Meta, verified by token)
+  await app.register(whatsappRoutes, { prefix: '/api/v1' })
 
   // ── Protected admin routes ─────────────────────────────────────────────────
 

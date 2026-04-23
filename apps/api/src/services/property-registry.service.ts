@@ -25,6 +25,7 @@ export function makeDemoRecord(): PropertyRecord {
 export interface PropertyRecordWithOrg extends PropertyRecord {
   orgId: number
   orgName: string
+  hyperGuestOrgId: string | null
 }
 
 export interface PropertyUserRecord {
@@ -229,7 +230,7 @@ export async function setPropertyActive(organizationId: number | null, id: numbe
 export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
   const rows = await prisma.property.findMany({
     where: { deletedAt: null },
-    include: { organization: { select: { id: true, name: true } } },
+    include: { organization: { select: { id: true, name: true, hyperGuestOrgId: true } } },
     orderBy: [{ organizationId: 'asc' }, { createdAt: 'asc' }],
   })
   return rows.map(r => ({
@@ -243,5 +244,6 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     subdomain: r.subdomain ?? null,
     orgId: r.organization.id,
     orgName: r.organization.name,
+    hyperGuestOrgId: r.organization.hyperGuestOrgId ?? null,
   }))
 }
