@@ -44,6 +44,9 @@ const EnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+
+  // AI config encryption — if unset, API keys are stored unencrypted (dev only)
+  AI_CONFIG_ENCRYPTION_KEY: z.string().optional(),
 })
 
 function loadEnv() {

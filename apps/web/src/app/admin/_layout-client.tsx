@@ -85,7 +85,13 @@ const SECTIONS: Section[] = [
     ],
   },
   { title: 'Dashboards', comingSoon: true, items: [] },
-  { title: 'AI', comingSoon: true, sellerOnly: true, items: [] },
+  {
+    title: 'AI',
+    sellerOnly: true,
+    items: [
+      { href: '/admin/config/ai', label: 'AI Assistant' },
+    ],
+  },
 ]
 
 const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0 }

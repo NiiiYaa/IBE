@@ -38,6 +38,8 @@ import { manualRoutes } from './routes/manual.route.js'
 import { b2bAuthRoutes } from './routes/b2b-auth.route.js'
 import { b2bAccessRoutes } from './routes/b2b-access.route.js'
 import { marketingRoutes, publicMarketingRoutes } from './routes/marketing.route.js'
+import { aiConfigRoutes } from './routes/ai-config.route.js'
+import { aiChatRoutes } from './routes/ai-chat.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -139,6 +141,9 @@ export async function buildApp() {
   // Public pixel endpoint (no auth)
   await app.register(publicTrackingPixelRoutes, { prefix: '/api/v1' })
 
+  // AI conversational search (public — guest-facing, no auth)
+  await app.register(aiChatRoutes, { prefix: '/api/v1' })
+
   // ── Protected admin routes ─────────────────────────────────────────────────
 
   await app.register(async (adminApp) => {
@@ -160,6 +165,7 @@ export async function buildApp() {
     await adminApp.register(manualRoutes, { prefix: '/api/v1' })
     await adminApp.register(b2bAccessRoutes, { prefix: '/api/v1' })
     await adminApp.register(marketingRoutes, { prefix: '/api/v1' })
+    await adminApp.register(aiConfigRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

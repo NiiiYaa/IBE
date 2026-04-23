@@ -12,6 +12,10 @@ import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
 import { NationalityDropdown } from './NationalityDropdown'
+import { useChat } from '@/components/conversational-search/use-chat'
+import { SearchResultCards, BookingHandoffCard } from '@/components/conversational-search/room-cards'
+import type { GuestChatMessage } from '@ibe/shared'
+import type { SearchResult, BookingHandoff } from '@/components/conversational-search/types'
 
 export interface PropertyOption {
   id: number
@@ -30,6 +34,7 @@ interface SearchBarProps {
   childMaxAge?: number
   properties?: PropertyOption[]
   showCitySelector?: boolean
+  aiEnabled?: boolean
 }
 
 type ActivePanel = 'city' | 'property' | 'calendar' | 'guests' | 'nationality' | null
@@ -49,9 +54,43 @@ export function SearchBar({
   childMaxAge = 16,
   properties,
   showCitySelector = false,
+  aiEnabled = false,
 }: SearchBarProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // ── AI Mode ──────────────────────────────────────────────────────────────────
+  const [aiMode, setAiMode] = useState(false)
+  const [aiInput, setAiInput] = useState('')
+  const aiInputRef = useRef<HTMLInputElement>(null)
+  const aiThreadRef = useRef<HTMLDivElement>(null)
+  const { messages: aiMessages, isLoading: aiLoading, send: aiSend, reset: aiReset } = useChat({ propertyId })
+
+  useEffect(() => {
+    if (aiMode) aiInputRef.current?.focus()
+  }, [aiMode])
+
+  useEffect(() => {
+    aiThreadRef.current?.scrollTo({ top: aiThreadRef.current.scrollHeight, behavior: 'smooth' })
+  }, [aiMessages, aiLoading])
+
+  function handleAiSend() {
+    const text = aiInput.trim()
+    if (!text || aiLoading) return
+    setAiInput('')
+    void aiSend(text)
+  }
+
+  function handleAiKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') handleAiSend()
+  }
+
+  function toggleAiMode() {
+    setAiMode(v => {
+      if (v) aiReset()
+      return !v
+    })
+  }
 
   const [selectedPropertyId, setSelectedPropertyId] = useState(propertyId)
 
@@ -174,93 +213,161 @@ export function SearchBar({
   return (
     <div ref={containerRef} className="relative mx-auto w-full max-w-5xl">
       {/* Pill bar */}
-      <div className="flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {showCitySelector && cities.length > 1 && (
+      <div className={[
+        'flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200',
+        aiMode ? 'ring-2 ring-[var(--color-primary)]' : '',
+      ].join(' ')}>
+        {aiMode ? (
+          /* ── AI Mode bar ──────────────────────────────────────────────────── */
           <>
+            <div className="flex flex-1 items-center gap-2 px-4 py-3">
+              <span className="shrink-0 text-[var(--color-primary)]">
+                <SparkleIcon />
+              </span>
+              <input
+                ref={aiInputRef}
+                type="text"
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={handleAiKeyDown}
+                placeholder="Ask about rooms, dates, availability…"
+                disabled={aiLoading}
+                className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-50"
+              />
+            </div>
+            <div className="flex items-center gap-2 py-2 pl-1 pr-3">
+              <button
+                onClick={handleAiSend}
+                disabled={aiLoading || !aiInput.trim()}
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {aiLoading ? '…' : 'Ask'}
+              </button>
+              <AiModeButton active={aiMode} onClick={toggleAiMode} />
+            </div>
+          </>
+        ) : (
+          /* ── Standard bar ─────────────────────────────────────────────────── */
+          <>
+            {showCitySelector && cities.length > 1 && (
+              <>
+                <Segment
+                  label="City"
+                  value={selectedCity || 'All'}
+                  active={activePanel === 'city'}
+                  onClick={() => setActivePanel(p => (p === 'city' ? null : 'city'))}
+                />
+                <Divider />
+              </>
+            )}
+
+            {properties && properties.length > 1 && (
+              <>
+                <Segment
+                  label="Property"
+                  value={selectedProperty?.name ?? 'Select property'}
+                  active={activePanel === 'property'}
+                  onClick={() => setActivePanel(p => (p === 'property' ? null : 'property'))}
+                />
+                <Divider />
+              </>
+            )}
+
             <Segment
-              label="City"
-              value={selectedCity || 'All'}
-              active={activePanel === 'city'}
-              onClick={() => setActivePanel(p => (p === 'city' ? null : 'city'))}
+              label="Check-in"
+              value={displayDate(checkIn) || 'Select date'}
+              active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
+              onClick={() => openCalendar('checkin')}
             />
+
             <Divider />
+
+            <Segment
+              label="Check-out"
+              value={displayDate(checkOut) || 'Select date'}
+              active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
+              onClick={() => openCalendar('checkout')}
+            />
+
+            <Divider />
+
+            <div className="flex shrink-0 flex-col items-center justify-center px-4 py-3">
+              <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
+                Nights
+              </span>
+              <span className="text-sm font-semibold text-[var(--color-text)]">
+                {nights > 0 ? nights : '—'}
+              </span>
+            </div>
+
+            <Divider />
+
+            <Segment
+              label="Guests"
+              value={guestSummary}
+              active={activePanel === 'guests'}
+              onClick={() => setActivePanel(p => (p === 'guests' ? null : 'guests'))}
+            />
+
+            <Divider />
+
+            <Segment
+              label="Nationality"
+              value={nationalityLabel}
+              active={activePanel === 'nationality'}
+              onClick={() => setActivePanel(p => (p === 'nationality' ? null : 'nationality'))}
+            />
+
+            {/* CTA */}
+            <div className="flex flex-col items-center justify-center gap-1.5 py-2 pl-1 pr-3">
+              <button
+                onClick={handleSearch}
+                disabled={nights <= 0}
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Check availability
+              </button>
+              <button
+                onClick={() => setShowPromo(v => !v)}
+                className="text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              >
+                {showPromo ? 'Hide promo code ▴' : 'I have a promo code ▾'}
+              </button>
+            </div>
+            {aiEnabled && (
+              <div className="flex items-center pr-3">
+                <AiModeButton active={aiMode} onClick={toggleAiMode} />
+              </div>
+            )}
           </>
         )}
-
-        {properties && properties.length > 1 && (
-          <>
-            <Segment
-              label="Property"
-              value={selectedProperty?.name ?? 'Select property'}
-              active={activePanel === 'property'}
-              onClick={() => setActivePanel(p => (p === 'property' ? null : 'property'))}
-            />
-            <Divider />
-          </>
-        )}
-
-        <Segment
-          label="Check-in"
-          value={displayDate(checkIn) || 'Select date'}
-          active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
-          onClick={() => openCalendar('checkin')}
-        />
-
-        <Divider />
-
-        <Segment
-          label="Check-out"
-          value={displayDate(checkOut) || 'Select date'}
-          active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
-          onClick={() => openCalendar('checkout')}
-        />
-
-        <Divider />
-
-        <div className="flex shrink-0 flex-col items-center justify-center px-4 py-3">
-          <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
-            Nights
-          </span>
-          <span className="text-sm font-semibold text-[var(--color-text)]">
-            {nights > 0 ? nights : '—'}
-          </span>
-        </div>
-
-        <Divider />
-
-        <Segment
-          label="Guests"
-          value={guestSummary}
-          active={activePanel === 'guests'}
-          onClick={() => setActivePanel(p => (p === 'guests' ? null : 'guests'))}
-        />
-
-        <Divider />
-
-        <Segment
-          label="Nationality"
-          value={nationalityLabel}
-          active={activePanel === 'nationality'}
-          onClick={() => setActivePanel(p => (p === 'nationality' ? null : 'nationality'))}
-        />
-
-        {/* CTA */}
-        <div className="flex flex-col items-center justify-center gap-1.5 py-2 pl-1 pr-3">
-          <button
-            onClick={handleSearch}
-            disabled={nights <= 0}
-            className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Check availability
-          </button>
-          <button
-            onClick={() => setShowPromo(v => !v)}
-            className="text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
-          >
-            {showPromo ? 'Hide promo code ▴' : 'I have a promo code ▾'}
-          </button>
-        </div>
       </div>
+
+      {/* AI chat thread — slides in below the bar when AI Mode is active */}
+      {aiMode && aiMessages.length > 0 && (
+        <div
+          ref={aiThreadRef}
+          className="mt-3 max-h-96 overflow-y-auto rounded-2xl bg-white shadow-2xl"
+        >
+          <div className="space-y-3 p-4">
+            {aiMessages.map((msg, i) => (
+              <AiMessageBubble key={i} msg={msg} />
+            ))}
+            {aiLoading && aiMessages[aiMessages.length - 1]?.role === 'user' && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl border border-[var(--color-border)] bg-gray-50 px-4 py-3">
+                  <span className="flex gap-1">
+                    {[0, 1, 2].map(i => (
+                      <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-muted)]"
+                        style={{ animationDelay: `${i * 150}ms` }} />
+                    ))}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Promo input — floats below the box, aligned under the CTA */}
       {showPromo && (
@@ -396,4 +503,57 @@ function Segment({
 
 function Divider() {
   return <div className="my-3 w-px shrink-0 bg-[var(--color-border)]" />
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+    </svg>
+  )
+}
+
+function AiModeButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        'flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-all duration-200',
+        active
+          ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-sm'
+          : 'border-[var(--color-border)] bg-white text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+      ].join(' ')}
+      title={active ? 'Exit AI Mode' : 'Switch to AI Mode'}
+    >
+      <SparkleIcon />
+      AI Mode
+    </button>
+  )
+}
+
+function AiMessageBubble({ msg }: { msg: GuestChatMessage }) {
+  const isUser = msg.role === 'user'
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={[
+        'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm',
+        isUser
+          ? 'bg-[var(--color-primary)] text-white'
+          : 'border border-[var(--color-border)] bg-gray-50 text-[var(--color-text)]',
+      ].join(' ')}>
+        {msg.content && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+        {msg.toolResults?.map((tr, i) => {
+          if (tr.tool === 'search_availability' || tr.tool === 'filter_results') {
+            const data = tr.data as SearchResult & { error?: string }
+            if (data.error) return <p key={i} className="mt-1 text-xs text-red-400">{data.error}</p>
+            return <SearchResultCards key={i} data={data} />
+          }
+          if (tr.tool === 'prepare_booking') {
+            return <BookingHandoffCard key={i} data={tr.data as BookingHandoff} />
+          }
+          return null
+        })}
+      </div>
+    </div>
+  )
 }

@@ -41,6 +41,7 @@ model Organization {
   b2bAsBuyer                  OrgB2BAccess[] @relation("B2BBuyer")
   b2bAsSeller                 OrgB2BAccess[] @relation("B2BSeller")
   orgMarketingSettings        OrgMarketingSettings?
+  orgAIConfig                 OrgAIConfig?
 }
 
 // roles: super | admin | observer | user
@@ -781,4 +782,46 @@ model PropertyMarketingSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ── AI Configuration ──────────────────────────────────────────────────────────
+// Three-tier: System (singleton) → Org/Chain → Property
+// Org and Property levels have a useInherited flag to fall back to the parent.
+
+model SystemAIConfig {
+  id           Int      @id @default(autoincrement())
+  provider     String   // openai | gemini | anthropic | grok
+  model        String
+  apiKey       String   // AES-256-CBC encrypted via AI_CONFIG_ENCRYPTION_KEY
+  systemPrompt String?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model OrgAIConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  useInherited   Boolean      @default(true)
+  provider       String?      // openai | gemini | anthropic | grok
+  model          String?
+  apiKey         String?      // AES-256-CBC encrypted
+  systemPrompt   String?
+  enabled        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PropertyAIConfig {
+  id           Int      @id @default(autoincrement())
+  propertyId   Int      @unique
+  useInherited Boolean  @default(true)
+  provider     String?  // openai | gemini | anthropic | grok
+  model        String?
+  apiKey       String?  // AES-256-CBC encrypted
+  systemPrompt String?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

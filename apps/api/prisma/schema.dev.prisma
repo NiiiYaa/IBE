@@ -39,6 +39,7 @@ model Organization {
   guests                      Guest[]
   trackingPixels              TrackingPixel[]
   orgMarketingSettings        OrgMarketingSettings?
+  orgAIConfig                 OrgAIConfig?
 }
 
 // roles: super | admin | observer | user
@@ -745,4 +746,44 @@ model PropertyMarketingSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ── AI Configuration ──────────────────────────────────────────────────────────
+
+model SystemAIConfig {
+  id           Int      @id @default(autoincrement())
+  provider     String
+  model        String
+  apiKey       String
+  systemPrompt String?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model OrgAIConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  useInherited   Boolean      @default(true)
+  provider       String?
+  model          String?
+  apiKey         String?
+  systemPrompt   String?
+  enabled        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PropertyAIConfig {
+  id           Int      @id @default(autoincrement())
+  propertyId   Int      @unique
+  useInherited Boolean  @default(true)
+  provider     String?
+  model        String?
+  apiKey       String?
+  systemPrompt String?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

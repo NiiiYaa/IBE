@@ -63,6 +63,15 @@ async function fetchOrgPropertyList(orgId: number): Promise<PropertyListResponse
   } catch { return null }
 }
 
+async function fetchAIEnabled(propertyId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/ai/enabled?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    if (!res.ok) return false
+    const data = await res.json() as { enabled: boolean }
+    return data.enabled
+  } catch { return false }
+}
+
 const SearchBar = dynamic(
   () => import('@/components/search/SearchBar').then(m => ({ default: m.SearchBar })),
   {
@@ -214,6 +223,8 @@ export default async function HomePage({
     ])
   }
 
+  const aiEnabled = propertyId ? await fetchAIEnabled(propertyId) : false
+
   // For org tenants: fetch ALL property details + configs in one parallel batch.
   // This avoids a serial waterfall (previously: fetch default → then fetch all others).
   const isMulti = tenant.type === 'org' && (propertyList?.properties.length ?? 0) > 1
@@ -341,6 +352,7 @@ export default async function HomePage({
     propertyId: defaultPropertyId,
     infantMaxAge: config?.infantMaxAge ?? 2,
     childMaxAge: config?.childMaxAge ?? 16,
+    aiEnabled,
     ...(multiProperties ? {
       properties: multiProperties,
       showCitySelector: multiCities > 1,

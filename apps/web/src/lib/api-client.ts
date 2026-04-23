@@ -77,6 +77,14 @@ import type {
   UpdateMarketingSettingsRequest,
   UpdatePropertyMarketingSettingsRequest,
   ApiError,
+  AIProvider,
+  AIConfigResponse,
+  OrgAIConfigResponse,
+  PropertyAIConfigResponse,
+  AIConfigUpdate,
+  OrgAIConfigUpdate,
+  PropertyAIConfigUpdate,
+  AITestResult,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1025,6 +1033,42 @@ export const apiClient = {
 
   getEffectiveMarketingSettings(propertyId: number): Promise<MarketingSettings> {
     return apiRequest(`/api/v1/marketing/settings/effective?propertyId=${propertyId}`)
+  },
+
+  // ── AI Configuration ────────────────────────────────────────────────────────
+
+  isAIEnabled(propertyId?: number): Promise<{ enabled: boolean }> {
+    const qs = propertyId ? `?propertyId=${propertyId}` : ''
+    return apiRequest(`/api/v1/ai/enabled${qs}`)
+  },
+
+  getSystemAIConfig(): Promise<AIConfigResponse> {
+    return apiRequest('/api/v1/admin/ai/system')
+  },
+
+  updateSystemAIConfig(data: AIConfigUpdate): Promise<AIConfigResponse> {
+    return apiRequest('/api/v1/admin/ai/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getOrgAIConfig(orgId?: number): Promise<OrgAIConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/org${qs}`)
+  },
+
+  updateOrgAIConfig(data: OrgAIConfigUpdate & { orgId?: number }): Promise<OrgAIConfigResponse> {
+    return apiRequest('/api/v1/admin/ai/org', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPropertyAIConfig(propertyId: number): Promise<PropertyAIConfigResponse> {
+    return apiRequest(`/api/v1/admin/ai/property/${propertyId}`)
+  },
+
+  updatePropertyAIConfig(propertyId: number, data: PropertyAIConfigUpdate): Promise<PropertyAIConfigResponse> {
+    return apiRequest(`/api/v1/admin/ai/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  testAIConnection(provider: AIProvider, apiKey: string, model: string): Promise<AITestResult> {
+    return apiRequest('/api/v1/admin/ai/test', { method: 'POST', body: JSON.stringify({ provider, apiKey, model }) })
   },
 }
 
