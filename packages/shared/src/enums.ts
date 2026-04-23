@@ -50,6 +50,7 @@ export enum TaxRelation {
   Included = 'included',
   Display = 'display',
   Add = 'add',
+  Optional = 'optional',
   Ignore = 'ignore',
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import type { RateOption, RoomOption } from '@ibe/shared'
-import { formatCurrency, formatDate } from '@ibe/shared'
+import { formatCurrency, formatDate, TaxRelation } from '@ibe/shared'
 import { MealBadge } from './MealBadge'
 
 interface RateRowProps {
@@ -22,7 +22,14 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
   const price = conv(rate.prices.sell.amount)
   const perNight = nights > 0 ? price / nights : price
   const deadline = rate.cancellationDeadlines[0]
-  const displayFees = rate.prices.fees.filter(f => f.relation === 'display')
+  const displayFees = [
+    ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Display),
+    ...rate.prices.fees.filter(f => f.relation === TaxRelation.Display),
+  ]
+  const optionalFees = [
+    ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Optional),
+    ...rate.prices.fees.filter(f => f.relation === TaxRelation.Optional),
+  ]
 
   return (
     <div className="group flex items-stretch border-t border-[var(--color-border)] first:border-t-0 hover:bg-[var(--color-background)] transition-colors">
@@ -70,8 +77,15 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
 
         {/* Display fees (mandatory, paid at hotel) */}
         {displayFees.length > 0 && (
-          <p className="text-xs text-muted">
-            + {displayFees.map(f => `${formatCurrency(conv(f.amount), dispCur, locale)} ${f.description}`).join(' · ')} (at hotel)
+          <p className="text-xs text-amber-700">
+            {displayFees.map(f => `${formatCurrency(conv(f.amount), dispCur, locale)} ${f.description}`).join(' · ')} — not included, paid at hotel
+          </p>
+        )}
+
+        {/* Optional fees */}
+        {optionalFees.length > 0 && (
+          <p className="text-xs text-blue-600">
+            {optionalFees.map(f => `${formatCurrency(conv(f.amount), dispCur, locale)} ${f.description}`).join(' · ')} — not included, optionally paid at hotel
           </p>
         )}
 

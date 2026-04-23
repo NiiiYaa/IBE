@@ -1,7 +1,7 @@
 'use client'
 
 import type { RateOption } from '@ibe/shared'
-import { formatCurrency, formatDate } from '@ibe/shared'
+import { formatCurrency, formatDate, TaxRelation } from '@ibe/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -16,7 +16,14 @@ export function RateCard({ rate, currency, locale, onSelect }: RateCardProps) {
   const displayPrice = rate.prices.sell.amount
   const displayCurrency = rate.prices.sell.currency
 
-  const displayFees = rate.prices.fees.filter((f) => f.relation === 'display')
+  const displayFees = [
+    ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Display),
+    ...rate.prices.fees.filter(f => f.relation === TaxRelation.Display),
+  ]
+  const optionalFees = [
+    ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Optional),
+    ...rate.prices.fees.filter(f => f.relation === TaxRelation.Optional),
+  ]
   const hasMandatoryFees = displayFees.length > 0
 
   const deadline = rate.cancellationDeadlines[0]
@@ -52,7 +59,18 @@ export function RateCard({ rate, currency, locale, onSelect }: RateCardProps) {
             <div className="space-y-0.5">
               {displayFees.map((fee, i) => (
                 <p key={i} className="text-xs text-amber-700">
-                  + {formatCurrency(fee.amount, fee.currency, locale)} {fee.description} (paid at hotel)
+                  {formatCurrency(fee.amount, fee.currency, locale)} {fee.description} — not included, paid at hotel
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Optional fees */}
+          {optionalFees.length > 0 && (
+            <div className="space-y-0.5">
+              {optionalFees.map((fee, i) => (
+                <p key={i} className="text-xs text-blue-700">
+                  {formatCurrency(fee.amount, fee.currency, locale)} {fee.description} — not included, optionally paid at hotel
                 </p>
               ))}
             </div>

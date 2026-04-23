@@ -18,6 +18,7 @@ import type { CreateBookingRequestInput } from '@ibe/shared'
 import type { PaymentStepResult } from '@/components/payment/PaymentStep'
 import { PaymentStep } from '@/components/payment/PaymentStep'
 import { apiClient, ApiClientError } from '@/lib/api-client'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { SelectedRoom } from './BookingSummary'
 
 interface BookingFormProps {
@@ -112,6 +113,12 @@ export function BookingForm({
           leadGuest: c.leadGuest,
           rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board, cancellationFrames: r.cancellationFrames })),
           hyperGuestBookingId: c.hyperGuestBookingId,
+          selectedRooms: rooms.map(({ room, rate }) => ({
+            roomName: room.roomName,
+            nightlyBreakdown: rate.nightlyBreakdown,
+            sellTaxes: rate.prices.sell.taxes,
+            fees: rate.prices.fees,
+          })),
         }))
       } catch {}
       router.push(`/booking/confirmation/${c.bookingId}`)
@@ -149,11 +156,52 @@ export function BookingForm({
     } as CreateBookingRequestInput)
   }
 
+  const { admin } = useAdminAuth()
+  const isSuper = admin?.role === 'super'
+
   const apiError = bookingError instanceof ApiClientError ? bookingError : null
   const currentStepIndex = STEPS.indexOf(step)
 
+  function skipToConfirmation() {
+    const bookingId = `DEMO${Date.now()}`
+    sessionStorage.setItem(`ibe_confirm_${bookingId}`, JSON.stringify({
+      totalAmount: rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0),
+      currency: rooms[0]?.rate.prices.sell.currency ?? 'USD',
+      propertyId,
+      checkIn,
+      checkOut,
+      leadGuest: { firstName: 'Demo', lastName: 'Guest', email: 'demo@example.com' },
+      rooms: rooms.map(({ room, rate }) => ({
+        roomCode: room.roomName,
+        board: rate.boardLabel,
+        cancellationFrames: [],
+      })),
+      selectedRooms: rooms.map(({ room, rate }) => ({
+        roomName: room.roomName,
+        nightlyBreakdown: rate.nightlyBreakdown,
+        sellTaxes: rate.prices.sell.taxes,
+        fees: rate.prices.fees,
+      })),
+    }))
+    router.push(`/booking/confirmation/${bookingId}`)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Super-user shortcut */}
+      {isSuper && (
+        <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-2.5">
+          <span className="text-xs font-medium text-amber-700">Super admin</span>
+          <button
+            type="button"
+            onClick={skipToConfirmation}
+            className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
+          >
+            Skip to confirmation →
+          </button>
+        </div>
+      )}
+
       {/* Step indicator */}
       <div className="flex items-center gap-0">
         {STEPS.map((s, i) => {

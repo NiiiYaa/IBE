@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
-import type { BookingCancellationFrame } from '@ibe/shared'
+import type { BookingCancellationFrame, TaxEntry, NightlyEntry } from '@ibe/shared'
+import { TaxRelation } from '@ibe/shared'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
@@ -11,6 +12,13 @@ interface StoredRoom {
   roomCode: string
   board: string
   cancellationFrames?: BookingCancellationFrame[]
+}
+
+interface StoredSelectedRoom {
+  roomName: string
+  nightlyBreakdown: NightlyEntry[]
+  sellTaxes: TaxEntry[]
+  fees: TaxEntry[]
 }
 
 interface StoredConfirmation {
@@ -22,6 +30,7 @@ interface StoredConfirmation {
   leadGuest?: { firstName: string; lastName: string; email: string }
   rooms?: StoredRoom[]
   hyperGuestBookingId?: number
+  selectedRooms?: StoredSelectedRoom[]
 }
 
 function fmtDate(iso: string): string {
@@ -30,6 +39,32 @@ function fmtDate(iso: string): string {
 
 function fmtAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+}
+
+function ConfirmTaxLine({ item, fmtAmount }: { item: TaxEntry; fmtAmount: (n: number, c: string) => string }) {
+  const amountStr = (item.relation === TaxRelation.Add ? '+' : '') + fmtAmount(item.amount, item.currency)
+  if (item.relation === TaxRelation.Display) {
+    return (
+      <div className="flex justify-between text-xs">
+        <span className="text-amber-700">{item.description} <span className="font-medium">(mandatory — paid at hotel)</span></span>
+        <span className="text-amber-700">{amountStr}</span>
+      </div>
+    )
+  }
+  if (item.relation === TaxRelation.Optional) {
+    return (
+      <div className="flex justify-between text-xs">
+        <span className="text-blue-700">{item.description} <span className="font-medium">(optional — paid at hotel)</span></span>
+        <span className="text-blue-700">{amountStr}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex justify-between text-xs">
+      <span className="text-muted">{item.description}</span>
+      <span className="text-muted">{amountStr}</span>
+    </div>
+  )
 }
 
 function nights(checkIn: string, checkOut: string): number {
@@ -184,6 +219,56 @@ export default function ConfirmationPage({ params }: PageProps) {
                         {r.board && <span className="ml-2">· {r.board}</span>}
                       </p>
                     ))}
+                  </div>
+                )}
+
+                {/* Nightly breakdown */}
+                {confirmation.selectedRooms?.some(r => r.nightlyBreakdown.length > 0) && (
+                  <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted">Nightly breakdown</p>
+                    {confirmation.selectedRooms.map((sr, ri) => (
+                      <div key={ri} className="space-y-1">
+                        {confirmation.selectedRooms!.length > 1 && (
+                          <p className="text-xs font-medium text-[var(--color-text)]">{sr.roomName}</p>
+                        )}
+                        {sr.nightlyBreakdown.map((n, ni) => (
+                          <div key={ni} className="flex justify-between text-xs">
+                            <span className="text-muted">{new Date(n.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
+                            <span className="text-[var(--color-text)]">{fmtAmount(n.sell, n.currency)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Taxes & Fees */}
+                {confirmation.selectedRooms?.some(r => r.sellTaxes.length > 0 || r.fees.length > 0) && (
+                  <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-3">
+                    {confirmation.selectedRooms.map((sr, ri) => {
+                      const taxes = sr.sellTaxes.filter(t => t.relation !== TaxRelation.Ignore)
+                      const fees = sr.fees.filter(f => f.relation !== TaxRelation.Ignore)
+                      if (!taxes.length && !fees.length) return null
+                      return (
+                        <div key={ri} className="space-y-2">
+                          {confirmation.selectedRooms!.length > 1 && (
+                            <p className="text-xs font-medium text-[var(--color-text)]">{sr.roomName}</p>
+                          )}
+                          {taxes.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Taxes</p>
+                              {taxes.map((t, i) => <ConfirmTaxLine key={i} item={t} fmtAmount={fmtAmount} />)}
+                            </div>
+                          )}
+                          {fees.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Fees</p>
+                              {fees.map((f, i) => <ConfirmTaxLine key={i} item={f} fmtAmount={fmtAmount} />)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 

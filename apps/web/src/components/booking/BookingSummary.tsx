@@ -7,6 +7,35 @@ import { MealBadge } from '@/components/search/MealBadge'
 
 export interface SelectedRoom { room: RoomOption; rate: RateOption }
 
+import type { TaxEntry } from '@ibe/shared'
+
+function TaxLine({ item, locale }: { item: TaxEntry; locale: string }) {
+  const amountStr = (item.relation === TaxRelation.Add ? '+' : '') + formatCurrency(item.amount, item.currency, locale)
+
+  if (item.relation === TaxRelation.Display) {
+    return (
+      <div className="flex justify-between text-xs">
+        <span className="text-amber-700">{item.description} <span className="font-medium">(mandatory — paid at hotel)</span></span>
+        <span className="text-amber-700">{amountStr}</span>
+      </div>
+    )
+  }
+  if (item.relation === TaxRelation.Optional) {
+    return (
+      <div className="flex justify-between text-xs">
+        <span className="text-blue-700">{item.description} <span className="font-medium">(optional — paid at hotel)</span></span>
+        <span className="text-blue-700">{amountStr}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex justify-between text-xs">
+      <span className="text-muted">{item.description}</span>
+      <span className="text-muted">{amountStr}</span>
+    </div>
+  )
+}
+
 interface BookingSummaryProps {
   rooms: SelectedRoom[]
   checkIn: string
@@ -32,11 +61,13 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
 
   const currency = rooms[0]?.rate.prices.sell.currency ?? 'USD'
   const total = rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0)
-  const allDisplayFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation === TaxRelation.Display))
-  const allAddFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation === TaxRelation.Add))
-  const includedTaxes = rooms.flatMap(({ rate }) => rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Included))
+  const allTaxes = rooms.flatMap(({ rate }) => rate.prices.sell.taxes.filter(t => t.relation !== TaxRelation.Ignore))
+  const allFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation !== TaxRelation.Ignore))
+  const hasDisplay = [...allTaxes, ...allFees].some(t => t.relation === TaxRelation.Display)
   const allNightly = rooms.flatMap(({ rate }) => rate.nightlyBreakdown)
   const hasNightly = allNightly.length > 0
+  const hasTaxesOrFees = allTaxes.length > 0 || allFees.length > 0
+  const [showTaxes, setShowTaxes] = useState(false)
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-card">
@@ -124,37 +155,55 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
 
         <div className="border-t border-[var(--color-border)]" />
 
-        {/* Price breakdown */}
-        <div className="space-y-1.5 text-sm">
-          {/* Included taxes */}
-          {includedTaxes.map((t, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className="text-muted">{t.description} <span className="text-success/80">(included)</span></span>
-              <span className="text-muted">{formatCurrency(t.amount, t.currency, locale)}</span>
-            </div>
-          ))}
+        {/* Taxes & Fees toggle */}
+        {hasTaxesOrFees && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowTaxes(v => !v)}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <svg
+                className={`h-3 w-3 transition-transform ${showTaxes ? 'rotate-90' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+              {showTaxes ? 'Hide' : 'Show'} taxes & fees
+            </button>
 
-          {/* Additional taxes added to price */}
-          {allAddFees.map((fee, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className="text-muted">{fee.description}</span>
-              <span className="text-muted">+{formatCurrency(fee.amount, fee.currency, locale)}</span>
-            </div>
-          ))}
+            {showTaxes && (
+              <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 space-y-3">
+                {allTaxes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Taxes</p>
+                    {allTaxes.map((t, i) => (
+                      <TaxLine key={i} item={t} locale={locale} />
+                    ))}
+                  </div>
+                )}
+                {allFees.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Fees</p>
+                    {allFees.map((f, i) => (
+                      <TaxLine key={i} item={f} locale={locale} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* Fees payable at hotel */}
-          {allDisplayFees.map((fee, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className="text-muted">{fee.description} <span className="text-amber-600">(at hotel)</span></span>
-              <span className="text-muted">{formatCurrency(fee.amount, fee.currency, locale)}</span>
-            </div>
-          ))}
+        <div className="border-t border-[var(--color-border)]" />
 
+        {/* Total */}
+        <div className="space-y-1 text-sm">
           <div className="flex justify-between font-semibold">
             <span>Total</span>
             <span className="text-primary text-base">{formatCurrency(total, currency, locale)}</span>
           </div>
-          {allDisplayFees.length > 0 && (
+          {hasDisplay && (
             <p className="text-xs text-muted">Excluding fees paid at hotel</p>
           )}
         </div>
