@@ -14,6 +14,7 @@ import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
 import { NationalityDropdown } from './NationalityDropdown'
 import { useChat } from '@/components/conversational-search/use-chat'
 import { SearchResultCards, BookingHandoffCard } from '@/components/conversational-search/room-cards'
+import { MarkdownContent } from '@/components/conversational-search/markdown-content'
 import type { GuestChatMessage } from '@ibe/shared'
 import type { SearchResult, BookingHandoff } from '@/components/conversational-search/types'
 
@@ -637,7 +638,11 @@ function AiMessageBubble({ msg }: { msg: GuestChatMessage }) {
           ? 'bg-[var(--color-primary)] text-white'
           : 'border border-[var(--color-border)] bg-gray-50 text-[var(--color-text)]',
       ].join(' ')}>
-        {msg.content && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+        {msg.content && (
+          isUser
+            ? <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+            : <div className="text-sm"><MarkdownContent content={msg.content} /></div>
+        )}
         {msg.toolResults?.map((tr, i) => {
           if (tr.tool === 'search_availability' || tr.tool === 'filter_results') {
             const data = tr.data as SearchResult & { error?: string }

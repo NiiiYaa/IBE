@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChat } from './use-chat'
 import { SearchResultCards, BookingHandoffCard } from './room-cards'
+import { MarkdownContent } from './markdown-content'
 import type { GuestChatMessage } from '@ibe/shared'
 import type { SearchResult, BookingHandoff } from './types'
 
@@ -44,7 +45,9 @@ function MessageBubble({ msg }: { msg: GuestChatMessage }) {
           : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]',
       ].join(' ')}>
         {msg.content && (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+          isUser
+            ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+            : <div className="text-sm"><MarkdownContent content={msg.content} /></div>
         )}
         {msg.toolResults?.map((tr, i) => (
           <ToolResultRenderer key={i} tool={tr.tool} data={tr.data} />

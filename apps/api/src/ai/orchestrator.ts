@@ -30,7 +30,7 @@ export interface OrchestratorResult {
 function buildSystemPrompt(custom?: string, propertyIds?: number[]): string {
   const base = `You are a helpful hotel booking assistant. Your role is to:
 1. Help guests find available rooms based on their dates, preferences, and budget
-2. Answer questions about the hotel and room types
+2. Answer questions about properties and room types
 3. Guide guests through selecting and booking a room
 4. Be concise, friendly, and professional
 
@@ -48,7 +48,7 @@ Never invent prices or availability — always use the search_availability tool 
   if (propertyIds && propertyIds.length === 1) {
     context = `\n\nProperty context: You are embedded in the booking engine for property ID ${propertyIds[0]}. Always use propertyId ${propertyIds[0]} in all tool calls. Never ask the user which hotel — the property is already known.`
   } else if (propertyIds && propertyIds.length > 1) {
-    context = `\n\nProperty context: You are embedded in a hotel chain booking engine. The available property IDs are: ${propertyIds.join(', ')}. Ask the user which hotel they are interested in, then use the corresponding property ID in tool calls.`
+    context = `\n\nProperty context: You are embedded in a hotel chain booking engine with ${propertyIds.length} hotels. The property IDs are: ${propertyIds.join(', ')}. When the user asks which hotels are available or wants to browse options, call list_chain_hotels with ALL ${propertyIds.length} property IDs. Once the user selects a hotel, use that property ID for search_availability and get_property_info.`
   }
 
   const parts = [base, context, resolved ? `Additional instructions:\n${resolved}` : ''].filter(Boolean)

@@ -230,7 +230,6 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
 }
 
 export async function resolveContextPropertyIds(propertyId?: number, orgId?: number): Promise<number[]> {
-  if (propertyId) return [propertyId]
   if (orgId) {
     const props = await prisma.property.findMany({
       where: { organizationId: orgId, deletedAt: null },
@@ -238,6 +237,7 @@ export async function resolveContextPropertyIds(propertyId?: number, orgId?: num
     })
     return props.map(p => p.propertyId)
   }
+  if (propertyId) return [propertyId]
   return []
 }
 
