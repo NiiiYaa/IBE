@@ -1,4 +1,4 @@
-import { resolveAIConfig } from '../services/ai-config.service.js'
+import { resolveAIConfig, resolveContextPropertyIds } from '../services/ai-config.service.js'
 import { getProviderAdapter } from './adapters/index.js'
 import { ALL_TOOLS, executeTool } from './tools/index.js'
 import { logger } from '../utils/logger.js'
@@ -27,7 +27,7 @@ export interface OrchestratorResult {
   error?: string
 }
 
-function buildSystemPrompt(custom?: string): string {
+function buildSystemPrompt(custom?: string, propertyIds?: number[]): string {
   const base = `You are a helpful hotel booking assistant. Your role is to:
 1. Help guests find available rooms based on their dates, preferences, and budget
 2. Answer questions about the hotel and room types
@@ -39,7 +39,20 @@ When presenting rooms, highlight the most relevant options clearly.
 When the guest is ready to book, use prepare_booking to generate the booking link.
 Never invent prices or availability — always use the search_availability tool to get real data.`
 
-  return custom ? `${base}\n\nAdditional instructions:\n${custom}` : base
+  let resolved = custom
+  if (resolved && propertyIds && propertyIds.length > 0) {
+    resolved = resolved.replace(/\[hotel\]/gi, propertyIds.join(', '))
+  }
+
+  let context = ''
+  if (propertyIds && propertyIds.length === 1) {
+    context = `\n\nProperty context: You are embedded in the booking engine for property ID ${propertyIds[0]}. Always use propertyId ${propertyIds[0]} in all tool calls. Never ask the user which hotel — the property is already known.`
+  } else if (propertyIds && propertyIds.length > 1) {
+    context = `\n\nProperty context: You are embedded in a hotel chain booking engine. The available property IDs are: ${propertyIds.join(', ')}. Ask the user which hotel they are interested in, then use the corresponding property ID in tool calls.`
+  }
+
+  const parts = [base, context, resolved ? `Additional instructions:\n${resolved}` : ''].filter(Boolean)
+  return parts.join('\n\n')
 }
 
 export async function runOrchestrator(input: OrchestratorInput): Promise<OrchestratorResult> {
@@ -56,7 +69,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   }
 
   const adapter = getProviderAdapter(aiConfig.provider)
-  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt)
+  const propertyIds = await resolveContextPropertyIds(propertyId, input.orgId)
+  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, propertyIds)
 
   const history = await session.load(sessionId)
   const userMessage: ChatMessage = { role: 'user', content: message }

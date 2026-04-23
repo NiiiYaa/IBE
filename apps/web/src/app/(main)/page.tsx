@@ -353,6 +353,7 @@ export default async function HomePage({
     infantMaxAge: config?.infantMaxAge ?? 2,
     childMaxAge: config?.childMaxAge ?? 16,
     aiEnabled,
+    ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
     ...(multiProperties ? {
       properties: multiProperties,
       showCitySelector: multiCities > 1,

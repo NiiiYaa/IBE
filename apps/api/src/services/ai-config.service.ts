@@ -229,6 +229,18 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
   return null
 }
 
+export async function resolveContextPropertyIds(propertyId?: number, orgId?: number): Promise<number[]> {
+  if (propertyId) return [propertyId]
+  if (orgId) {
+    const props = await prisma.property.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { propertyId: true },
+    })
+    return props.map(p => p.propertyId)
+  }
+  return []
+}
+
 // ── Connection test ───────────────────────────────────────────────────────────
 
 export async function testAIConnection(provider: AIProvider, apiKey: string, model: string): Promise<{ ok: boolean; error?: string }> {

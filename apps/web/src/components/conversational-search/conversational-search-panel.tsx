@@ -78,11 +78,11 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
     ...(orgId ? { orgId } : {}),
   })
   const [input, setInput] = useState('')
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const topRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    topRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
   function handleSend() {
@@ -145,9 +145,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} />
-        ))}
+        <div ref={topRef} />
 
         {isLoading && messages[messages.length - 1]?.role === 'user' && <TypingIndicator />}
 
@@ -155,7 +153,11 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
           <p className="text-center text-xs text-[var(--color-error)]">{error}</p>
         )}
 
-        <div ref={bottomRef} />
+        {(() => {
+          const pairs: GuestChatMessage[][] = []
+          for (let i = 0; i < messages.length; i += 2) pairs.push(messages.slice(i, i + 2))
+          return pairs.reverse().flat().map((msg, i) => <MessageBubble key={i} msg={msg} />)
+        })()}
       </div>
 
       {/* Input */}

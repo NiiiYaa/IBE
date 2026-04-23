@@ -35,6 +35,7 @@ interface SearchBarProps {
   properties?: PropertyOption[]
   showCitySelector?: boolean
   aiEnabled?: boolean
+  orgId?: number
 }
 
 type ActivePanel = 'city' | 'property' | 'calendar' | 'guests' | 'nationality' | null
@@ -55,6 +56,7 @@ export function SearchBar({
   properties,
   showCitySelector = false,
   aiEnabled = false,
+  orgId,
 }: SearchBarProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -75,7 +77,7 @@ export function SearchBar({
   const [aiInput, setAiInput] = useState('')
   const aiInputRef = useRef<HTMLInputElement>(null)
   const aiThreadRef = useRef<HTMLDivElement>(null)
-  const { messages: aiMessages, isLoading: aiLoading, send: aiSend, reset: aiReset } = useChat({ propertyId })
+  const { messages: aiMessages, isLoading: aiLoading, send: aiSend, reset: aiReset } = useChat({ propertyId, ...(orgId ? { orgId } : {}) })
 
   useEffect(() => {
     if (aiMode) aiInputRef.current?.focus()
@@ -83,8 +85,8 @@ export function SearchBar({
 
   useEffect(() => {
     if (!aiThreadRef.current) return
-    // Scroll internal content to bottom
-    aiThreadRef.current.scrollTo({ top: aiThreadRef.current.scrollHeight, behavior: 'smooth' })
+    // Scroll internal content to top so newest messages are visible
+    aiThreadRef.current.scrollTo({ top: 0, behavior: 'smooth' })
     // Scroll page so bar reaches viewport top; thread ends up ~80px from top
     const rect = aiThreadRef.current.getBoundingClientRect()
     if (rect.top > 80) {
@@ -389,9 +391,6 @@ export function SearchBar({
           className="mt-3 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl bg-white shadow-2xl"
         >
           <div className="space-y-3 p-4">
-            {aiMessages.map((msg, i) => (
-              <AiMessageBubble key={i} msg={msg} />
-            ))}
             {aiLoading && aiMessages[aiMessages.length - 1]?.role === 'user' && (
               <div className="flex justify-start">
                 <div className="rounded-2xl border border-[var(--color-border)] bg-gray-50 px-4 py-3">
@@ -404,6 +403,11 @@ export function SearchBar({
                 </div>
               </div>
             )}
+            {(() => {
+              const pairs: (typeof aiMessages[number])[][] = []
+              for (let i = 0; i < aiMessages.length; i += 2) pairs.push(aiMessages.slice(i, i + 2))
+              return pairs.reverse().flat().map((msg, i) => <AiMessageBubble key={i} msg={msg} />)
+            })()}
           </div>
         </div>
       )}
