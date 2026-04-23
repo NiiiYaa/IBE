@@ -374,13 +374,13 @@ export default async function HomePage({
           />
         </div>
 
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <div className="mb-8 text-center">
+        <div className="mx-auto max-w-5xl px-4 py-6">
+          <div className="mb-4 text-center">
             <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">
               {displayName}
             </h1>
             {tagline && (
-              <p className="mt-3 text-lg text-[var(--color-text-muted)]">{tagline}</p>
+              <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>
             )}
           </div>
           <SearchBar {...searchBarProps} />
@@ -414,8 +414,8 @@ export default async function HomePage({
           )}
         </div>
 
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <div className="mb-8 text-center">
+        <div className="mx-auto max-w-5xl px-4 py-6">
+          <div className="mb-4 text-center">
             <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">
               {displayName}
             </h1>
@@ -455,16 +455,16 @@ export default async function HomePage({
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/65" />
         </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-center px-4 pb-12">
+        <div className="relative flex flex-1 flex-col items-center justify-center px-4">
           <div className="w-full text-center">
             <h1 className="text-4xl font-bold text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
               {displayName}
             </h1>
             {tagline && (
-              <p className="mt-4 text-lg text-white/80 drop-shadow sm:text-xl">{tagline}</p>
+              <p className="mt-2 text-lg text-white/80 drop-shadow sm:text-xl">{tagline}</p>
             )}
           </div>
-          <div className="mt-8 w-full">
+          <div className="mt-4 w-full">
             <SearchBar {...searchBarProps} />
           </div>
         </div>

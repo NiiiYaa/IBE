@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { addDays, nightsBetween, todayIso } from '@ibe/shared'
 import { displayDate } from '@/lib/calendar-utils'
@@ -58,6 +58,17 @@ export function SearchBar({
 }: SearchBarProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
+  const guestsPanelRef = useRef<HTMLDivElement>(null)
+  const checkBtnRef = useRef<HTMLButtonElement>(null)
+  const [promoLeft, setPromoLeft] = useState(0)
+
+  function getSegmentLeft(panelId: string): number {
+    const button = containerRef.current?.querySelector(`[data-segment="${panelId}"]`)
+    if (!button || !containerRef.current) return 0
+    const rect = button.getBoundingClientRect()
+    const containerRect = containerRef.current.getBoundingClientRect()
+    return rect.left - containerRect.left
+  }
 
   // ── AI Mode ──────────────────────────────────────────────────────────────────
   const [aiMode, setAiMode] = useState(false)
@@ -71,8 +82,19 @@ export function SearchBar({
   }, [aiMode])
 
   useEffect(() => {
-    aiThreadRef.current?.scrollTo({ top: aiThreadRef.current.scrollHeight, behavior: 'smooth' })
+    if (!aiThreadRef.current) return
+    // Scroll internal content to bottom
+    aiThreadRef.current.scrollTo({ top: aiThreadRef.current.scrollHeight, behavior: 'smooth' })
+    // Scroll page so bar reaches viewport top; thread ends up ~80px from top
+    const rect = aiThreadRef.current.getBoundingClientRect()
+    if (rect.top > 80) {
+      window.scrollTo({ top: window.scrollY + rect.top - 80, behavior: 'smooth' })
+    }
   }, [aiMessages, aiLoading])
+
+  useEffect(() => {
+    if (!aiLoading && aiMode && aiMessages.length > 0) aiInputRef.current?.focus()
+  }, [aiLoading])
 
   function handleAiSend() {
     const text = aiInput.trim()
@@ -88,9 +110,17 @@ export function SearchBar({
   function toggleAiMode() {
     setAiMode(v => {
       if (v) aiReset()
+      else setShowPromo(false)
       return !v
     })
   }
+
+  useLayoutEffect(() => {
+    if (aiMode || !checkBtnRef.current || !containerRef.current) return
+    const rect = checkBtnRef.current.getBoundingClientRect()
+    const containerRect = containerRef.current.getBoundingClientRect()
+    setPromoLeft(rect.left - containerRect.left + rect.width / 2)
+  }, [aiMode])
 
   const [selectedPropertyId, setSelectedPropertyId] = useState(propertyId)
 
@@ -137,6 +167,22 @@ export function SearchBar({
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [activePanel])
+
+  useEffect(() => {
+    if (activePanel) {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [activePanel])
+
+  const prevRoomsLen = useRef(rooms.length)
+  useEffect(() => {
+    if (rooms.length > prevRoomsLen.current) {
+      guestsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    } else if (rooms.length < prevRoomsLen.current) {
+      guestsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    prevRoomsLen.current = rooms.length
+  }, [rooms.length])
 
   const nights = nightsBetween(checkIn, checkOut)
   const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
@@ -215,13 +261,13 @@ export function SearchBar({
       {/* Pill bar */}
       <div className={[
         'flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200',
-        aiMode ? 'ring-2 ring-[var(--color-primary)]' : '',
+        aiMode ? 'ring-2 ring-violet-400' : '',
       ].join(' ')}>
         {aiMode ? (
           /* ── AI Mode bar ──────────────────────────────────────────────────── */
           <>
-            <div className="flex flex-1 items-center gap-2 px-4 py-3">
-              <span className="shrink-0 text-[var(--color-primary)]">
+            <div className="flex flex-1 items-center gap-2 px-4 py-2">
+              <span className="shrink-0">
                 <SparkleIcon />
               </span>
               <input
@@ -239,7 +285,7 @@ export function SearchBar({
               <button
                 onClick={handleAiSend}
                 disabled={aiLoading || !aiInput.trim()}
-                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-6 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {aiLoading ? '…' : 'Ask'}
               </button>
@@ -291,7 +337,7 @@ export function SearchBar({
 
             <Divider />
 
-            <div className="flex shrink-0 flex-col items-center justify-center px-4 py-3">
+            <div className="flex shrink-0 flex-col items-center justify-center px-4 py-2">
               <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
                 Nights
               </span>
@@ -307,6 +353,7 @@ export function SearchBar({
               value={guestSummary}
               active={activePanel === 'guests'}
               onClick={() => setActivePanel(p => (p === 'guests' ? null : 'guests'))}
+              panelId="guests"
             />
 
             <Divider />
@@ -316,29 +363,21 @@ export function SearchBar({
               value={nationalityLabel}
               active={activePanel === 'nationality'}
               onClick={() => setActivePanel(p => (p === 'nationality' ? null : 'nationality'))}
+              panelId="nationality"
             />
 
             {/* CTA */}
-            <div className="flex flex-col items-center justify-center gap-1.5 py-2 pl-1 pr-3">
+            <div className="flex items-center gap-2 py-2 pl-1 pr-3">
               <button
+                ref={checkBtnRef}
                 onClick={handleSearch}
                 disabled={nights <= 0}
-                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Check availability
               </button>
-              <button
-                onClick={() => setShowPromo(v => !v)}
-                className="text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
-              >
-                {showPromo ? 'Hide promo code ▴' : 'I have a promo code ▾'}
-              </button>
+              {aiEnabled && <AiModeButton active={aiMode} onClick={toggleAiMode} />}
             </div>
-            {aiEnabled && (
-              <div className="flex items-center pr-3">
-                <AiModeButton active={aiMode} onClick={toggleAiMode} />
-              </div>
-            )}
           </>
         )}
       </div>
@@ -347,7 +386,7 @@ export function SearchBar({
       {aiMode && aiMessages.length > 0 && (
         <div
           ref={aiThreadRef}
-          className="mt-3 max-h-96 overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          className="mt-3 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl bg-white shadow-2xl"
         >
           <div className="space-y-3 p-4">
             {aiMessages.map((msg, i) => (
@@ -369,9 +408,19 @@ export function SearchBar({
         </div>
       )}
 
-      {/* Promo input — floats below the box, aligned under the CTA */}
-      {showPromo && (
-        <div className="absolute right-3 top-full z-10 mt-2">
+      {/* Promo toggle + input — outside pill, centered below check button */}
+      {!aiMode && (
+      <div
+        className="absolute top-full z-10 mt-2 flex -translate-x-1/2 flex-col items-center gap-1.5"
+        style={{ left: promoLeft }}
+      >
+        <button
+          onClick={() => setShowPromo(v => !v)}
+          className="text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+        >
+          {showPromo ? 'Hide promo code ▴' : 'I have Promo code ▾'}
+        </button>
+        {showPromo && (
           <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-lg ring-1 ring-black/10">
             <input
               type="text"
@@ -390,7 +439,8 @@ export function SearchBar({
               </button>
             )}
           </div>
-        </div>
+        )}
+      </div>
       )}
 
       {activePanel === 'city' && cities.length > 0 && (
@@ -450,21 +500,32 @@ export function SearchBar({
       )}
 
       {activePanel === 'guests' && (
-        <GuestsDropdown
-          rooms={rooms}
-          onChange={setRooms}
-          infantMaxAge={infantMaxAge}
-          childMaxAge={childMaxAge}
-          minRooms={minRooms}
-          maxRooms={maxRooms}
-        />
+        <div
+          ref={guestsPanelRef}
+          className="absolute top-full z-50 mt-2"
+          style={{ left: getSegmentLeft('guests') }}
+        >
+          <GuestsDropdown
+            rooms={rooms}
+            onChange={setRooms}
+            infantMaxAge={infantMaxAge}
+            childMaxAge={childMaxAge}
+            minRooms={minRooms}
+            maxRooms={maxRooms}
+          />
+        </div>
       )}
 
       {activePanel === 'nationality' && (
-        <NationalityDropdown
-          value={nationality}
-          onChange={handleNationalitySelect}
-        />
+        <div
+          className="absolute top-full z-50 mt-2"
+          style={{ left: getSegmentLeft('nationality') }}
+        >
+          <NationalityDropdown
+            value={nationality}
+            onChange={handleNationalitySelect}
+          />
+        </div>
       )}
     </div>
   )
@@ -477,17 +538,20 @@ function Segment({
   value,
   active,
   onClick,
+  panelId,
 }: {
   label: string
   value: string
   active: boolean
   onClick: () => void
+  panelId?: string
 }) {
   return (
     <button
       onClick={onClick}
+      data-segment={panelId}
       className={[
-        'flex min-w-0 flex-1 flex-col items-start justify-center px-4 py-3 transition-colors',
+        'flex min-w-0 flex-1 flex-col items-start justify-center px-4 py-2 transition-colors',
         active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
       ].join(' ')}
     >
@@ -505,29 +569,57 @@ function Divider() {
   return <div className="my-3 w-px shrink-0 bg-[var(--color-border)]" />
 }
 
-function SparkleIcon() {
+function SparkleIcon({ white }: { white?: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 1 L7.8 5.2 L12 6 L7.8 6.8 L7 11 L6.2 6.8 L2 6 L6.2 5.2 Z"
+        fill={white ? 'white' : 'url(#ai-spark-grad)'}
+      />
+      <circle cx="11.2" cy="2.8" r="1.1" fill={white ? 'white' : '#a78bfa'} />
+      <defs>
+        <linearGradient id="ai-spark-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="50%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#ec4899" />
+        </linearGradient>
+      </defs>
     </svg>
   )
 }
 
+const AI_GRADIENT = 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 40%, #ec4899 70%, #f97316 100%)'
+
 function AiModeButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  if (active) {
+    return (
+      <button
+        onClick={onClick}
+        className="flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-light)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] transition-all duration-200 hover:bg-[var(--color-border)]"
+        title="Exit AI Mode"
+      >
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <circle cx="5.5" cy="5.5" r="4" />
+          <line x1="8.5" y1="8.5" x2="12" y2="12" />
+        </svg>
+        Standard
+      </button>
+    )
+  }
   return (
-    <button
-      onClick={onClick}
-      className={[
-        'flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-all duration-200',
-        active
-          ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-sm'
-          : 'border-[var(--color-border)] bg-white text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-      ].join(' ')}
-      title={active ? 'Exit AI Mode' : 'Switch to AI Mode'}
+    <div
+      className="rounded-full p-[2px] transition-all duration-200"
+      style={{ background: AI_GRADIENT }}
     >
-      <SparkleIcon />
-      AI Mode
-    </button>
+      <button
+        onClick={onClick}
+        className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-all duration-200 hover:bg-white/90"
+        title="Switch to AI Mode"
+      >
+        <SparkleIcon white={false} />
+        AI Mode
+      </button>
+    </div>
   )
 }
 

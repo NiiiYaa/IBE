@@ -770,6 +770,7 @@ export interface OrgSettingsResponse {
 
 export interface UpdateOrgSettingsRequest {
   orgName?: string
+  orgSlug?: string
   hyperGuestOrgId?: string
   hyperGuestBearerToken?: string
   hyperGuestStaticDomain?: string

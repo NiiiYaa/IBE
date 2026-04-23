@@ -94,9 +94,9 @@ function B2BLoginForm() {
         <div className="mb-6 flex flex-col items-center gap-3">
           {sellerBranding?.logoUrl ? (
             <Image src={sellerBranding.logoUrl} alt={sellerBranding.displayName ?? 'Logo'} width={160} height={48} priority className="object-contain" />
-          ) : (
-            <Image src="/hyperguest-logo.png" alt="HyperGuest" width={160} height={38} priority />
-          )}
+          ) : sellerBranding?.displayName ? (
+            <p className="text-lg font-semibold text-[var(--color-text)]">{sellerBranding.displayName}</p>
+          ) : null}
           <p className="text-sm text-[var(--color-text-muted)]">Agent Portal</p>
         </div>
 

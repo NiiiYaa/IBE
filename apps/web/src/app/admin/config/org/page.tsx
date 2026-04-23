@@ -95,6 +95,7 @@ function DomainField({
 
 export default function OrgPage() {
   const qc = useQueryClient()
+  const [orgSlug, setOrgSlug] = useState('')
   const [hgOrgId, setHgOrgId] = useState('')
   const [token, setToken] = useState('')
   const [tokenVisible, setTokenVisible] = useState(false)
@@ -105,6 +106,7 @@ export default function OrgPage() {
   const [bookingDomain, setBookingDomain] = useState('')
   const [bookingLocked, setBookingLocked] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [slugError, setSlugError] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-org'],
@@ -113,6 +115,7 @@ export default function OrgPage() {
 
   useEffect(() => {
     if (data) {
+      setOrgSlug(data.orgSlug ?? '')
       setHgOrgId(data.hyperGuestOrgId ?? '')
       setToken(data.hyperGuestBearerToken ?? '')
       setStaticDomain(data.hyperGuestStaticDomain ?? '')
@@ -127,6 +130,7 @@ export default function OrgPage() {
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
       apiClient.updateOrgSettings({
+        orgSlug,
         hyperGuestOrgId: hgOrgId,
         hyperGuestBearerToken: token,
         hyperGuestStaticDomain: staticLocked ? '' : staticDomain,
@@ -134,9 +138,15 @@ export default function OrgPage() {
         hyperGuestBookingDomain: bookingLocked ? '' : bookingDomain,
       }),
     onSuccess: () => {
+      setSlugError(null)
       void qc.invalidateQueries({ queryKey: ['admin-org'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+    },
+    onError: (err: Error) => {
+      if (err.message.includes('subdomain is already in use')) {
+        setSlugError('This subdomain is already in use by another organization.')
+      }
     },
   })
 
@@ -192,6 +202,27 @@ export default function OrgPage() {
       )}
 
       <div className="space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+        <Field
+          label="B2B Subdomain"
+          hint="Used for the agent portal URL. Lowercase letters, numbers, and hyphens only."
+        >
+          <input
+            type="text"
+            value={orgSlug}
+            onChange={e => { setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setSlugError(null) }}
+            placeholder="e.g. grand-hotel"
+            className={inputCls}
+          />
+          {orgSlug && (
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Agent portal: <span className="font-mono">https://{orgSlug}-b2b.hyperguest.net</span>
+            </p>
+          )}
+          {slugError && <p className="mt-1 text-xs text-[var(--color-error)]">{slugError}</p>}
+        </Field>
+
+        <div className="border-t border-[var(--color-border)]" />
+
         <Field
           label="HyperGuest Org ID"
           hint="Your demand organization ID in HyperGuest — required for admin login."

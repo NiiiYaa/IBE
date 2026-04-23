@@ -24,7 +24,7 @@ export function NationalityDropdown({ value, onChange }: NationalityDropdownProp
     : COUNTRIES
 
   return (
-    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
+    <div className="w-64 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
       {/* Search input */}
       <div className="border-b border-[var(--color-border)] p-3">
         <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2">

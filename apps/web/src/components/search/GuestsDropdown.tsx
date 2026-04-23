@@ -53,7 +53,7 @@ export function GuestsDropdown({
   }
 
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
+    <div className="w-80 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
         <p className="text-sm font-semibold text-[var(--color-text)]">Guests</p>
         {rooms.length < maxRooms && (

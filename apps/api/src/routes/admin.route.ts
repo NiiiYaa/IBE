@@ -70,6 +70,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
     const body = request.body as {
       orgName?: string
+      orgSlug?: string
       hyperGuestOrgId?: string
       hyperGuestBearerToken?: string
       hyperGuestStaticDomain?: string
@@ -86,6 +87,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const orgUpdate: Record<string, string | null> = {}
     if (body.orgName !== undefined) orgUpdate['name'] = body.orgName.trim() || null
     if (body.hyperGuestOrgId !== undefined) orgUpdate['hyperGuestOrgId'] = body.hyperGuestOrgId.trim() || null
+    if (body.orgSlug !== undefined) {
+      const slug = body.orgSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      if (!slug) return reply.status(400).send({ error: 'Slug cannot be empty', code: 'IBE.VALIDATION.001' })
+      const existing = await prisma.organization.findUnique({ where: { slug } })
+      if (existing && existing.id !== organizationId) {
+        return reply.status(409).send({ error: 'This subdomain is already in use', code: 'IBE.VALIDATION.002' })
+      }
+      orgUpdate['slug'] = slug
+    }
     if (Object.keys(orgUpdate).length > 0) {
       updates.push(prisma.organization.update({ where: { id: organizationId }, data: orgUpdate }))
     }
