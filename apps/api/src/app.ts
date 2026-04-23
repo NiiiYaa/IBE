@@ -39,6 +39,7 @@ import { b2bAuthRoutes } from './routes/b2b-auth.route.js'
 import { b2bAccessRoutes } from './routes/b2b-access.route.js'
 import { marketingRoutes, publicMarketingRoutes } from './routes/marketing.route.js'
 import { aiConfigRoutes } from './routes/ai-config.route.js'
+import { aiChannelsRoutes } from './routes/ai-channels.route.js'
 import { aiChatRoutes } from './routes/ai-chat.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
@@ -166,6 +167,7 @@ export async function buildApp() {
     await adminApp.register(b2bAccessRoutes, { prefix: '/api/v1' })
     await adminApp.register(marketingRoutes, { prefix: '/api/v1' })
     await adminApp.register(aiConfigRoutes, { prefix: '/api/v1' })
+    await adminApp.register(aiChannelsRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

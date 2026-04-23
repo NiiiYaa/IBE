@@ -1,3 +1,32 @@
+import type { SellModel } from './api.js'
+
+// ── AI Channels ───────────────────────────────────────────────────────────────
+
+export type AIChannel = 'aiSearchBar' | 'whatsapp' | 'mcp'
+export const AI_CHANNELS: AIChannel[] = ['aiSearchBar', 'whatsapp', 'mcp']
+
+export const AI_CHANNEL_LABELS: Record<AIChannel, string> = {
+  aiSearchBar: 'AI Search Bar',
+  whatsapp: 'WhatsApp',
+  mcp: 'MCP',
+}
+
+export const AI_CHANNEL_DESCRIPTIONS: Record<AIChannel, string> = {
+  aiSearchBar: 'Conversational search bar on the booking engine — guests can ask in natural language.',
+  whatsapp: 'AI assistant via WhatsApp — guests can book and enquire through chat.',
+  mcp: 'Model Context Protocol server — allows external AI clients (Claude Desktop, Cursor, etc.) to access hotel data.',
+}
+
+export interface AIChannelSettings {
+  aiSearchBar: SellModel[]
+  whatsapp: SellModel[]
+  mcp: SellModel[]
+}
+
+export type UpdateAIChannelSettingsRequest = Partial<AIChannelSettings>
+
+// ── AI Provider / Config ──────────────────────────────────────────────────────
+
 export type AIProvider = 'openai' | 'gemini' | 'anthropic' | 'grok' | 'deepseek' | 'openrouter' | 'fake'
 
 export const AI_PROVIDERS: AIProvider[] = ['openai', 'gemini', 'anthropic', 'grok', 'deepseek', 'openrouter', 'fake']

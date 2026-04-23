@@ -85,6 +85,8 @@ import type {
   OrgAIConfigUpdate,
   PropertyAIConfigUpdate,
   AITestResult,
+  AIChannelSettings,
+  UpdateAIChannelSettingsRequest,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1069,6 +1071,21 @@ export const apiClient = {
 
   testAIConnection(provider: AIProvider, apiKey: string, model: string): Promise<AITestResult> {
     return apiRequest('/api/v1/admin/ai/test', { method: 'POST', body: JSON.stringify({ provider, apiKey, model }) })
+  },
+
+  // ── AI Channels ─────────────────────────────────────────────────────────────
+
+  getOrgAIChannels(orgId?: number): Promise<AIChannelSettings> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/channels${qs}`)
+  },
+
+  updateOrgAIChannels(data: UpdateAIChannelSettingsRequest, orgId?: number): Promise<AIChannelSettings> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/channels${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
   },
 }
 

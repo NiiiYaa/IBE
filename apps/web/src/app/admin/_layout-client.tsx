@@ -90,6 +90,7 @@ const SECTIONS: Section[] = [
     sellerOnly: true,
     items: [
       { href: '/admin/config/ai', label: 'AI Assistant' },
+      { href: '/admin/config/ai/channels', label: 'AI Channels' },
     ],
   },
 ]
@@ -346,7 +347,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 onChange={e => setPropertyId(e.target.value === '' ? null : Number(e.target.value))}
                 className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-xs text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)]"
               >
-                <option value="">All Properties</option>
+                <option value="">⛓ Chain (all properties)</option>
                 {isSuper ? (
                   Object.entries(
                     properties.reduce<Record<string, typeof properties>>((acc, p) => {
@@ -379,6 +380,16 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           )}
 
           <nav className="space-y-1 px-3 pb-4 pt-2">
+            {openSections.size > 0 && (
+              <div className="flex justify-end px-2 pb-1">
+                <button
+                  onClick={() => setOpenSections(new Set())}
+                  className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                >
+                  Collapse all ▴
+                </button>
+              </div>
+            )}
             {visibleSections.map(({ title, items: rawItems, minRole, comingSoon }) => {
               if (comingSoon) {
                 return (
@@ -452,7 +463,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content + expand button when collapsed */}
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1 flex flex-col">
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
@@ -464,7 +475,37 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
         )}
-        <main className="h-full overflow-y-auto bg-[var(--color-background)]">
+
+        {/* Context bar — visible whenever a property selector is shown, so context is never ambiguous */}
+        {showPropertySelector && !isAuthPage && !isOnboarding && (
+          <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs shrink-0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-500">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+            </svg>
+            {propertyId === null ? (
+              <span className="text-amber-800">
+                Configuring: <span className="font-semibold">Chain level</span>
+                <span className="ml-1 text-amber-600">— changes apply to all properties</span>
+              </span>
+            ) : (
+              <span className="text-amber-800">
+                Configuring: <span className="font-semibold">
+                  {propertyNameMap[propertyId] ?? `Property ${propertyId}`}
+                </span>
+                {(() => {
+                  const prop = properties.find(p => p.propertyId === propertyId)
+                  return prop?.orgName ? (
+                    <span className="ml-1 text-amber-600">· {prop.orgName}</span>
+                  ) : null
+                })()}
+                <span className="ml-1.5 font-mono text-amber-500">#{propertyId}</span>
+              </span>
+            )}
+          </div>
+        )}
+
+        <main className="min-h-0 flex-1 overflow-y-auto bg-[var(--color-background)]">
           {children}
         </main>
       </div>

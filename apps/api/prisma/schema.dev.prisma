@@ -40,6 +40,7 @@ model Organization {
   trackingPixels              TrackingPixel[]
   orgMarketingSettings        OrgMarketingSettings?
   orgAIConfig                 OrgAIConfig?
+  orgAIChannels               OrgAIChannels?
 }
 
 // roles: super | admin | observer | user
@@ -786,4 +787,19 @@ model PropertyAIConfig {
   enabled      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// ── AI Channels ───────────────────────────────────────────────────────────────
+
+model OrgAIChannels {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  aiSearchBarModels String @default("[\"b2c\",\"b2b\"]")
+  whatsappModels    String @default("[]")
+  mcpModels         String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
