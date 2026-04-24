@@ -53,7 +53,6 @@ export default function HyperGuestLanding() {
 
       {/* Links */}
       <section className="mx-auto w-full max-w-2xl px-6 pb-20">
-        <h2 className="mb-6 text-xs font-semibold uppercase tracking-widest text-gray-400">Our Product</h2>
         <div className="flex flex-col gap-4">
           <a href="https://www.hyperguest.com/" target="_blank" rel="noopener noreferrer" className={cardCls}>
             <div>
