@@ -5,6 +5,7 @@ import { ZohoForm } from './ZohoForm'
 export const metadata: Metadata = {
   title: 'HyperGuest — The Native AI Booking Engine',
   description: 'The Native AI Booking Engine. Book directly with the hotels you love.',
+  icons: { icon: '/hg-favicon.png' },
 }
 
 export default function HyperGuestLanding() {
