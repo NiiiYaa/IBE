@@ -84,7 +84,11 @@ export async function generateMetadata({
     let faviconUrl: string | null = null
 
     if (tenantHost) {
-      const tenant = await resolveTenant(tenantHost)
+      let tenant = await resolveTenant(tenantHost)
+      if (tenant?.type === 'org' && searchParams.hotelId) {
+        const pid = Number(searchParams.hotelId) || 0
+        if (pid) tenant = { type: 'property', propertyId: pid, orgId: tenant.orgId }
+      }
       if (tenant?.type === 'org') {
         const [orgConfig, pid] = await Promise.all([
           fetchOrgConfig(tenant.orgId),
@@ -161,6 +165,12 @@ export default async function HomePage({
   // Resolve tenant from subdomain/custom domain (set by middleware)
   const tenantHost = headers().get('x-tenant-host')
   let tenant: TenantResolution | null = tenantHost ? await resolveTenant(tenantHost) : null
+
+  // org subdomain + ?hotelId deeplink → show specific property page
+  if (tenant?.type === 'org' && searchParams.hotelId) {
+    const pid = Number(searchParams.hotelId) || 0
+    if (pid) tenant = { type: 'property', propertyId: pid, orgId: tenant.orgId }
+  }
 
   // Fall back to query params (local dev / legacy)
   // ?chain= accepts the HyperGuest Org ID (string); resolve to internal DB org id

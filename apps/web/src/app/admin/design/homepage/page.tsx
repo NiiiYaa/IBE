@@ -424,7 +424,9 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
   const b2bOrigin = useB2bOrigin(propertySubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(propertySubdomain)
-  const devB2cUrl = propertySubdomain ? `https://${propertySubdomain}.hyperguest.net` : null
+  const devB2cUrl = propertySubdomain
+    ? `https://${propertySubdomain}.hyperguest.net`
+    : (orgSettings?.orgSlug && propertyId ? `https://${orgSettings.orgSlug}.hyperguest.net/?hotelId=${propertyId}` : null)
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   useEffect(() => {

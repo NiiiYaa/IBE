@@ -324,8 +324,10 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
-  const _devSubdomainProp = propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug
-  const devB2cUrl = _devSubdomainProp ? `https://${_devSubdomainProp}.hyperguest.net` : null
+  const _devSubdomainProp = propertySubdomain ?? propSearchSingleSubdomain
+  const devB2cUrl = _devSubdomainProp
+    ? `https://${_devSubdomainProp}.hyperguest.net`
+    : (orgSettings?.orgSlug && propertyId ? `https://${orgSettings.orgSlug}.hyperguest.net/?hotelId=${propertyId}` : null)
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
