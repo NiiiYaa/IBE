@@ -18,6 +18,7 @@ import {
   SaveBar,
   Section,
   TextInput,
+  Toggle,
   selectCls,
 } from '../components'
 import {
@@ -26,6 +27,7 @@ import {
   OverrideColorRow,
   OverrideTextRow,
   OverrideSelectRow,
+  OverrideToggleRow,
 } from '../override-helpers'
 import { HeroThumbnail } from '../HeroThumbnail'
 import { compressImage } from '@/lib/compress-image'
@@ -216,6 +218,15 @@ function GlobalHomepageEditor() {
               </div>
             </div>
           )}
+
+          <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+            <Toggle
+              label="AI Layout default"
+              hint="When enabled, the homepage opens in AI mode by default — hero and visuals are hidden; only the AI chat box is shown."
+              checked={draft.aiLayoutDefault ?? false}
+              onChange={v => set('aiLayoutDefault', v)}
+            />
+          </div>
         </Section>
 
         <Section title="Branding">
@@ -477,6 +488,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string | null) => void
   const setStrOnly = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
+  const setB = set as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void
+  const resetO = reset as (key: keyof OrgDesignDefaultsConfig) => void
 
   // ── Hero style override ────────────────────────────────────────────────────
   const heroStyleRaw = draft.heroStyle
@@ -657,6 +670,16 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
               </div>
             </div>
           )}
+
+          <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+            <OverrideToggleRow
+              label="AI Layout default"
+              description="When enabled, the hotel homepage opens in AI mode by default — hero and visuals are hidden; only the AI chat box is shown."
+              fieldKey="aiLayoutDefault"
+              systemDefault={false}
+              draft={draft} orgDefaults={orgDefaults} onSet={setB} onReset={resetO}
+            />
+          </div>
         </Section>
 
         <Section title="Branding">

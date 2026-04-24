@@ -16,10 +16,10 @@ const MCP_TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        checkIn:  { type: 'string', description: 'Check-in date (YYYY-MM-DD)' },
-        checkOut: { type: 'string', description: 'Check-out date (YYYY-MM-DD)' },
-        adults:   { type: 'integer', description: 'Number of adults', default: 2 },
-        children: { type: 'integer', description: 'Number of children', default: 0 },
+        checkIn:    { type: 'string',  description: 'Check-in date (YYYY-MM-DD)' },
+        checkOut:   { type: 'string',  description: 'Check-out date (YYYY-MM-DD)' },
+        adults:     { type: 'integer', description: 'Number of adults', default: 2 },
+        children:   { type: 'integer', description: 'Number of children', default: 0 },
         propertyId: { type: 'integer', description: 'Property ID (required for chain-level connections)' },
       },
       required: ['checkIn', 'checkOut'],
@@ -54,18 +54,29 @@ const MCP_TOOLS = [
       type: 'object',
       properties: {
         propertyId: { type: 'integer', description: 'Property ID' },
-        checkIn:    { type: 'string', description: 'Check-in date (YYYY-MM-DD)' },
-        checkOut:   { type: 'string', description: 'Check-out date (YYYY-MM-DD)' },
+        checkIn:    { type: 'string',  description: 'Check-in date (YYYY-MM-DD)' },
+        checkOut:   { type: 'string',  description: 'Check-out date (YYYY-MM-DD)' },
         adults:     { type: 'integer', description: 'Number of adults', default: 2 },
         children:   { type: 'integer', description: 'Number of children', default: 0 },
         roomId:     { type: 'integer', description: 'Room ID to pre-select (optional)' },
         ratePlanId: { type: 'integer', description: 'Rate plan ID to pre-select (optional)' },
-        searchId:   { type: 'string', description: 'Search ID from search_availability (optional)' },
+        searchId:   { type: 'string',  description: 'Search ID from search_availability (optional)' },
       },
       required: ['propertyId', 'checkIn', 'checkOut'],
     },
   },
 ]
+
+// ── SSE session store ─────────────────────────────────────────────────────────
+// Maps sessionId → { raw response stream, resolved default property }
+interface SseSession {
+  write: (data: string) => void
+  end: () => void
+  defaultPropertyId: number | null
+}
+const sseSessions = new Map<string, SseSession>()
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function mcpResult(content: string) {
   return { content: [{ type: 'text', text: content }] }
@@ -73,6 +84,17 @@ function mcpResult(content: string) {
 
 function mcpError(message: string) {
   return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
+}
+
+async function resolveDefaultProperty(scope: Awaited<ReturnType<typeof validateApiKey>>): Promise<number | null> {
+  if (!scope) return null
+  if (scope.kind === 'property') return scope.propertyId
+  const first = await prisma.property.findFirst({
+    where: { organizationId: scope.orgId, isActive: true },
+    orderBy: { propertyId: 'asc' },
+    select: { propertyId: true },
+  })
+  return first?.propertyId ?? null
 }
 
 async function handleToolCall(
@@ -164,16 +186,14 @@ async function handleToolCall(
     const checkIn  = args['checkIn']  as string | undefined
     const checkOut = args['checkOut'] as string | undefined
     if (!checkIn || !checkOut) return mcpError('checkIn and checkOut are required')
-    const adults   = (args['adults']   as number | undefined) ?? 2
-    const children = (args['children'] as number | undefined) ?? 0
+    const adults     = (args['adults']     as number | undefined) ?? 2
+    const children   = (args['children']   as number | undefined) ?? 0
     const roomId     = args['roomId']     as number | undefined
     const ratePlanId = args['ratePlanId'] as number | undefined
     const searchId   = args['searchId']   as string | undefined
 
     const params = new URLSearchParams({
-      hotelId: String(pid),
-      checkIn,
-      checkOut,
+      hotelId: String(pid), checkIn, checkOut,
       'rooms[0][adults]': String(adults),
       ...(children > 0 ? { 'rooms[0][children]': String(children) } : {}),
     })
@@ -188,73 +208,130 @@ async function handleToolCall(
   return mcpError(`Unknown tool: ${toolName}`)
 }
 
+async function dispatchJsonRpc(
+  body: { jsonrpc: string; method: string; params?: unknown; id?: string | number | null },
+  defaultPropertyId: number | null,
+): Promise<object | null> {
+  if (body.jsonrpc !== '2.0') {
+    return { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid JSON-RPC version' }, id: body.id ?? null }
+  }
+
+  if (body.method === 'initialize') {
+    return {
+      jsonrpc: '2.0',
+      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO },
+      id: body.id ?? null,
+    }
+  }
+
+  if (body.method === 'notifications/initialized') return null // 204 / 202
+
+  if (body.method === 'tools/list') {
+    return { jsonrpc: '2.0', result: { tools: MCP_TOOLS }, id: body.id ?? null }
+  }
+
+  if (body.method === 'tools/call') {
+    const p = body.params as { name?: string; arguments?: Record<string, unknown> } | undefined
+    const result = await handleToolCall(p?.name ?? '', p?.arguments ?? {}, defaultPropertyId)
+    return { jsonrpc: '2.0', result, id: body.id ?? null }
+  }
+
+  return { jsonrpc: '2.0', error: { code: -32601, message: `Method not found: ${body.method}` }, id: body.id ?? null }
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
 export async function mcpRoutes(fastify: FastifyInstance) {
-  // Single endpoint — handles both org-level and property-level via API key lookup
+
+  // ── Streamable HTTP (Claude Desktop, Cursor, Windsurf, OpenAI, Gemini, Grok) ──
   fastify.post('/mcp', async (request, reply) => {
     const authHeader = (request.headers['authorization'] as string | undefined) ?? ''
     const apiKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
-
     const scope = apiKey ? await validateApiKey(apiKey) : null
     if (!scope) {
       return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
     }
 
-    const defaultPropertyId = scope.kind === 'property' ? scope.propertyId : null
+    const defaultPropertyId = await resolveDefaultProperty(scope)
+    const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
-    // If org-level, resolve a default property for single-property orgs
-    let resolvedDefaultPropertyId = defaultPropertyId
-    if (scope.kind === 'org' && !resolvedDefaultPropertyId) {
-      const first = await prisma.property.findFirst({
-        where: { organizationId: scope.orgId, isActive: true },
-        orderBy: { propertyId: 'asc' },
-        select: { propertyId: true },
-      })
-      resolvedDefaultPropertyId = first?.propertyId ?? null
+    try {
+      const response = await dispatchJsonRpc(body, defaultPropertyId)
+      if (!response) return reply.status(204).send()
+      return reply.send(response)
+    } catch (err) {
+      logger.error({ err }, '[MCP] Unhandled error')
+      return reply.send({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: body.id ?? null })
+    }
+  })
+
+  // ── SSE transport — GET (n8n connects here) ───────────────────────────────
+  fastify.get('/mcp', async (request, reply) => {
+    const authHeader = (request.headers['authorization'] as string | undefined) ?? ''
+    // n8n may also pass token as query param ?token=...
+    const queryToken = (request.query as Record<string, string>).token ?? ''
+    const raw = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (authHeader || queryToken)
+    const scope = raw ? await validateApiKey(raw) : null
+    if (!scope) {
+      return reply.status(401).send({ error: 'Unauthorized' })
+    }
+
+    const defaultPropertyId = await resolveDefaultProperty(scope)
+    const sessionId = crypto.randomUUID()
+
+    reply.hijack()
+    const res = reply.raw
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+
+    const session: SseSession = {
+      write: (data: string) => { try { res.write(data) } catch { /* client disconnected */ } },
+      end:   () => { try { res.end() } catch { /* already ended */ } },
+      defaultPropertyId,
+    }
+    sseSessions.set(sessionId, session)
+
+    // Send the endpoint URL where n8n should POST messages
+    const messageUrl = `/api/v1/mcp/message?sessionId=${sessionId}`
+    session.write(`event: endpoint\ndata: ${messageUrl}\n\n`)
+
+    // Heartbeat every 25s to keep the connection alive through proxies
+    const heartbeat = setInterval(() => session.write(': ping\n\n'), 25_000)
+
+    request.raw.on('close', () => {
+      clearInterval(heartbeat)
+      sseSessions.delete(sessionId)
+      logger.info({ sessionId }, '[MCP SSE] session closed')
+    })
+
+    // Keep connection open — hijack prevents Fastify from auto-finalizing
+  })
+
+  // ── SSE transport — POST (n8n sends messages here) ───────────────────────
+  fastify.post('/mcp/message', async (request, reply) => {
+    const sessionId = (request.query as Record<string, string>).sessionId ?? ''
+    const session = sseSessions.get(sessionId)
+    if (!session) {
+      return reply.status(404).send({ error: 'Session not found or expired' })
     }
 
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
-    if (body.jsonrpc !== '2.0') {
-      return reply.send({ jsonrpc: '2.0', error: { code: -32600, message: 'Invalid JSON-RPC version' }, id: body.id ?? null })
-    }
-
     try {
-      if (body.method === 'initialize') {
-        return reply.send({
-          jsonrpc: '2.0',
-          result: {
-            protocolVersion: PROTOCOL_VERSION,
-            capabilities: { tools: {} },
-            serverInfo: SERVER_INFO,
-          },
-          id: body.id ?? null,
-        })
+      const response = await dispatchJsonRpc(body, session.defaultPropertyId)
+      if (response) {
+        session.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`)
       }
-
-      if (body.method === 'notifications/initialized') {
-        return reply.status(204).send()
-      }
-
-      if (body.method === 'tools/list') {
-        return reply.send({ jsonrpc: '2.0', result: { tools: MCP_TOOLS }, id: body.id ?? null })
-      }
-
-      if (body.method === 'tools/call') {
-        const p = body.params as { name?: string; arguments?: Record<string, unknown> } | undefined
-        const toolName = p?.name ?? ''
-        const args = p?.arguments ?? {}
-        const result = await handleToolCall(toolName, args, resolvedDefaultPropertyId)
-        return reply.send({ jsonrpc: '2.0', result, id: body.id ?? null })
-      }
-
-      return reply.send({
-        jsonrpc: '2.0',
-        error: { code: -32601, message: `Method not found: ${body.method}` },
-        id: body.id ?? null,
-      })
+      return reply.status(202).send()
     } catch (err) {
-      logger.error({ err }, '[MCP] Unhandled error')
-      return reply.send({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: body.id ?? null })
+      logger.error({ err }, '[MCP SSE] Unhandled error')
+      const errResponse = { jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: body.id ?? null }
+      session.write(`event: message\ndata: ${JSON.stringify(errResponse)}\n\n`)
+      return reply.status(202).send()
     }
   })
 }

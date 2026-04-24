@@ -297,6 +297,8 @@ export interface HotelDesignConfig {
   excludedRoomImageIds: number[]
   roomPrimaryImageIds: Record<number, number>
   chainFeaturedImageIds: number[]
+  aiLayoutDefault: boolean
+  searchAiLayoutDefault: boolean
   tripadvisorHotelKey: string | null
   priceComparisonEnabled: boolean
   chainHeroImageUrl: string | null
@@ -347,6 +349,8 @@ export interface UpdateDesignConfigRequest {
   excludedRoomImageIds?: number[]
   roomPrimaryImageIds?: Record<number, number>
   chainFeaturedImageIds?: number[]
+  aiLayoutDefault?: boolean | null
+  searchAiLayoutDefault?: boolean | null
   tripadvisorHotelKey?: string | null
   priceComparisonEnabled?: boolean
 }
@@ -398,6 +402,8 @@ export interface OrgDesignDefaultsConfig {
   onlinePaymentEnabled: boolean | null
   payAtHotelEnabled: boolean | null
   payAtHotelCardGuaranteeRequired: boolean | null
+  aiLayoutDefault: boolean | null
+  searchAiLayoutDefault: boolean | null
   chainHeroImageUrl: string | null
   chainExcludedPropertyImageIds: number[] | null
 }

@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { buildCssVars } from '@/lib/theme'
 import { B2BAuthGate } from '@/components/b2b/B2BAuthGate'
+import { AiModeProvider } from '@/context/ai-mode'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
@@ -232,12 +233,12 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   // B2B mode — gate behind agent auth regardless of model settings
   if (isB2BMode) {
-    return <B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children)}</B2BAuthGate>
+    return <AiModeProvider><B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children)}</B2BAuthGate></AiModeProvider>
   }
 
   // B2C blocked — show unavailable page instead of the regular content
   if (!enabledModels.includes('b2c')) {
-    return shell(
+    return <AiModeProvider>{shell(
       <div className="flex flex-1 items-center justify-center py-24 px-4 text-center">
         <div className="max-w-sm">
           <p className="text-4xl mb-4">🔒</p>
@@ -249,8 +250,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           </p>
         </div>
       </div>
-    )
+    )}</AiModeProvider>
   }
 
-  return shell(children)
+  return <AiModeProvider>{shell(children)}</AiModeProvider>
 }

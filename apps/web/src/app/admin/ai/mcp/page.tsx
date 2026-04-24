@@ -15,15 +15,16 @@ function getMcpEndpoint(): string {
   return `${window.location.origin}/api/v1/mcp`
 }
 
-type Platform = 'claude' | 'cursor' | 'windsurf' | 'openai' | 'gemini' | 'grok'
+type Platform = 'claude' | 'cursor' | 'windsurf' | 'openai' | 'gemini' | 'grok' | 'n8n'
 
 const PLATFORMS: { id: Platform; label: string }[] = [
-  { id: 'claude', label: 'Claude Desktop' },
-  { id: 'cursor', label: 'Cursor' },
+  { id: 'claude',   label: 'Claude Desktop' },
+  { id: 'cursor',   label: 'Cursor' },
   { id: 'windsurf', label: 'Windsurf' },
-  { id: 'openai', label: 'OpenAI / ChatGPT' },
-  { id: 'gemini', label: 'Gemini' },
-  { id: 'grok', label: 'Grok / X' },
+  { id: 'openai',   label: 'OpenAI / ChatGPT' },
+  { id: 'gemini',   label: 'Gemini' },
+  { id: 'grok',     label: 'Grok / X' },
+  { id: 'n8n',      label: 'n8n' },
 ]
 
 function mcpJsonSnippet(endpoint: string, apiKey: string) {
@@ -59,14 +60,13 @@ function CodeBlock({ code, language = 'json' }: { code: string; language?: strin
   )
 }
 
-function EndpointInfo({ endpoint, apiKey }: { endpoint: string; apiKey: string }) {
+function EndpointInfo({ endpoint, apiKey, protocol = 'MCP JSON-RPC 2.0 (Streamable HTTP)' }: { endpoint: string; apiKey: string; protocol?: string }) {
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2 font-mono text-xs">
       {[
         ['Endpoint', endpoint],
-        ['Method', 'POST'],
         ['Auth header', `Authorization: Bearer ${apiKey}`],
-        ['Protocol', 'MCP JSON-RPC 2.0 (Streamable HTTP)'],
+        ['Protocol', protocol],
       ].map(([label, value]) => (
         <div key={label} className="flex items-center gap-2">
           <span className="text-[var(--color-text-muted)] w-24 shrink-0">{label}</span>
@@ -127,6 +127,21 @@ agent = Agent(
     mcp_servers=[hotel_mcp],
 )`} />
       <p className="text-[var(--color-text-muted)]">For <strong>Custom GPTs</strong>, use the endpoint and API key to create an Action with an OpenAPI schema.</p>
+    </div>
+  )
+
+  if (platform === 'n8n') return (
+    <div className="space-y-3 text-sm">
+      <p className="text-[var(--color-text-muted)]">
+        n8n uses <strong>SSE transport</strong>. In your n8n workflow add an <strong>MCP Client Tool</strong> node and configure:
+      </p>
+      <EndpointInfo endpoint={endpoint} apiKey={apiKey} protocol="SSE (GET + POST)" />
+      <ol className="list-decimal list-inside space-y-1 text-[var(--color-text-muted)] text-xs">
+        <li>Add an <strong>MCP Client Tool</strong> node to your workflow.</li>
+        <li>Set <strong>SSE URL</strong> to the endpoint above.</li>
+        <li>Under <strong>Authentication</strong> choose <em>Header Auth</em>, header name <code className="rounded bg-[var(--color-background)] px-1">Authorization</code>, value <code className="rounded bg-[var(--color-background)] px-1">Bearer {'<your-api-key>'}</code>.</li>
+        <li>Connect the node to an AI Agent node — n8n will discover the available tools automatically.</li>
+      </ol>
     </div>
   )
 

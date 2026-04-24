@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useHotelConfig } from '@/hooks/use-hotel-config'
+import { useProperty } from '@/hooks/use-property'
 import { useB2BAgentAuth } from '@/hooks/use-b2b-agent-auth'
 
 interface DynamicBrandProps {
@@ -28,9 +29,10 @@ export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }
   const hotelId = searchParams.get('hotelId') ? Number(searchParams.get('hotelId')) : null
 
   const { data: config } = useHotelConfig(hotelId)
+  const { data: property } = useProperty(hotelId)
 
   const logoUrl = config?.logoUrl ?? fallbackLogoUrl
-  const displayName = config?.displayName ?? fallbackDisplayName
+  const displayName = config?.displayName ?? property?.name ?? fallbackDisplayName
   const href = hotelId ? `/?hotelId=${hotelId}` : '/'
 
   return (

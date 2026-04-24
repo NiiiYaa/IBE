@@ -8,6 +8,7 @@ import { encodeSearchParams } from '@/lib/search-params'
 import { countryFlag, countryName } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { usePreferences } from '@/context/preferences'
+import { useAiMode } from '@/context/ai-mode'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
@@ -76,6 +77,7 @@ export function SearchBar({
   }
 
   // ── AI Mode ──────────────────────────────────────────────────────────────────
+  const { setAiLayout } = useAiMode()
   const [aiMode, setAiMode] = useState(false)
   const [aiInput, setAiInput] = useState('')
   const aiInputRef = useRef<HTMLInputElement>(null)
@@ -114,8 +116,8 @@ export function SearchBar({
 
   function toggleAiMode() {
     setAiMode(v => {
-      if (v) aiReset()
-      else setShowPromo(false)
+      if (v) { aiReset(); setAiLayout(false) }
+      else { setShowPromo(false); setAiLayout(true) }
       return !v
     })
   }

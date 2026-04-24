@@ -19,6 +19,15 @@ async function fetchConfig(propertyId: number): Promise<HotelDesignConfig | null
   } catch { return null }
 }
 
+async function fetchAIEnabled(propertyId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/ai/enabled?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    if (!res.ok) return false
+    const data = await res.json() as { enabled: boolean }
+    return data.enabled
+  } catch { return false }
+}
+
 const SearchContent = dynamic(
   () => import('./_content').then(m => ({ default: m.SearchContent })),
   {
@@ -47,13 +56,16 @@ export default async function SearchPage({
   searchParams: { hotelId?: string }
 }) {
   const propertyId = searchParams.hotelId ? Number(searchParams.hotelId) || DEFAULT_PROPERTY_ID : DEFAULT_PROPERTY_ID
-  const config = await fetchConfig(propertyId)
+  const [config, aiEnabled] = await Promise.all([
+    fetchConfig(propertyId),
+    fetchAIEnabled(propertyId),
+  ])
   const cssVars = config ? buildCssVars(config) : ''
 
   return (
     <>
       {cssVars && <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />}
-      <SearchContent />
+      <SearchContent aiEnabled={aiEnabled} searchAiLayoutDefault={config?.searchAiLayoutDefault ?? false} />
       <PixelInjector propertyId={propertyId} page="search" />
     </>
   )

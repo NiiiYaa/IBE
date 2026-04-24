@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
@@ -8,6 +8,7 @@ import { useSearch } from '@/hooks/use-search'
 import { useProperty } from '@/hooks/use-property'
 import { useHotelConfig } from '@/hooks/use-hotel-config'
 import { usePreferences } from '@/context/preferences'
+import { useAiMode } from '@/context/ai-mode'
 import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { RoomCard } from '@/components/search/RoomCard'
@@ -32,11 +33,18 @@ const SearchBar = dynamic(
 
 const LOCALE = 'en'
 
-export function SearchContent() {
+export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false }: { aiEnabled?: boolean; searchAiLayoutDefault?: boolean }) {
   const router = useRouter()
   const rawParams = useSearchParams()
   const searchParams = decodeSearchParams(rawParams)
   const { currency: displayCurrency } = usePreferences()
+
+  const { aiLayout, setAiLayout } = useAiMode()
+
+  useEffect(() => {
+    setAiLayout(searchAiLayoutDefault)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const { data, isLoading, isError, error } = useSearch(searchParams)
 
@@ -285,29 +293,32 @@ export function SearchContent() {
           infantMaxAge={infantMaxAge}
           childMaxAge={childMaxAge}
           {...(searchBarInitialRooms ? { initialRooms: searchBarInitialRooms } : {})}
+          aiEnabled={aiEnabled}
         />
       </div>
 
-      <main className={`mx-auto max-w-7xl px-4 py-4 ${showCartBar ? 'pb-24' : ''}`}>
-        <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
+      {!aiLayout && (
+        <main className={`mx-auto max-w-7xl px-4 py-4 ${showCartBar ? 'pb-24' : ''}`}>
+          <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
 
-          {/* Collapsible sidebar — desktop only */}
-          <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
-            <SearchSidebar
-              propertyId={searchParams.hotelId}
-              initialCheckIn={searchParams.checkIn}
-              initialCheckOut={searchParams.checkOut}
-              initialNationality={searchParams.nationality}
-              infantMaxAge={infantMaxAge}
-              childMaxAge={childMaxAge}
-              isCollapsed={!sidebarOpen}
-              onToggle={() => setSidebarOpen(v => !v)}
-            />
-          </aside>
+            {/* Collapsible sidebar — desktop only */}
+            <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
+              <SearchSidebar
+                propertyId={searchParams.hotelId}
+                initialCheckIn={searchParams.checkIn}
+                initialCheckOut={searchParams.checkOut}
+                initialNationality={searchParams.nationality}
+                infantMaxAge={infantMaxAge}
+                childMaxAge={childMaxAge}
+                isCollapsed={!sidebarOpen}
+                onToggle={() => setSidebarOpen(v => !v)}
+              />
+            </aside>
 
-          {roomList}
-        </div>
-      </main>
+            {roomList}
+          </div>
+        </main>
+      )}
 
       {/* Sticky bottom cart bar — multi-room mode only */}
       <ChatWidget propertyId={searchParams.hotelId} />

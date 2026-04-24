@@ -10,7 +10,7 @@ import { useAdminProperty } from '../../property-context'
 import { useB2bOrigin } from '@/hooks/use-b2b-origin'
 import { useIbeOrigin } from '@/hooks/use-ibe-origin'
 import { apiClient } from '@/lib/api-client'
-import { ColorRow, Section, FormRow, TextInput, SaveBar, selectCls } from '../components'
+import { ColorRow, Section, FormRow, TextInput, SaveBar, Toggle, selectCls } from '../components'
 import { compressImage } from '@/lib/compress-image'
 import { HeroThumbnail } from '../HeroThumbnail'
 import { PropertyImageManager } from '../components/PropertyImageManager'
@@ -223,6 +223,15 @@ export default function ChainPage() {
               </div>
             </div>
           )}
+
+          <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+            <Toggle
+              label="AI Layout default"
+              hint="When enabled, the homepage opens in AI mode by default — hero and visuals are hidden; only the AI chat box is shown."
+              checked={draft.aiLayoutDefault ?? false}
+              onChange={v => set('aiLayoutDefault', v)}
+            />
+          </div>
         </Section>
 
         {/* ── Property List Layout ── */}

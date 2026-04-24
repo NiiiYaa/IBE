@@ -110,6 +110,8 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     excludedRoomImageIds: safeParseJson<number[]>(config?.excludedRoomImageIds ?? null, []),
     roomPrimaryImageIds: safeParseJson<Record<number, number>>(config?.roomPrimaryImageIds ?? null, {}),
     chainFeaturedImageIds: safeParseJson<number[]>(config?.chainFeaturedImageIds ?? null, []),
+    aiLayoutDefault: config?.aiLayoutDefault ?? o?.aiLayoutDefault ?? false,
+    searchAiLayoutDefault: config?.searchAiLayoutDefault ?? o?.searchAiLayoutDefault ?? false,
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
     chainHeroImageUrl: orgDefaults?.chainHeroImageUrl ?? null,
@@ -169,6 +171,8 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     excludedRoomImageIds: [],
     roomPrimaryImageIds: {},
     chainFeaturedImageIds: [],
+    aiLayoutDefault: o?.aiLayoutDefault ?? false,
+    searchAiLayoutDefault: o?.searchAiLayoutDefault ?? false,
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
@@ -225,6 +229,8 @@ export async function upsertHotelDesignConfig(
     ...(updates.roomPrimaryImageIds !== undefined && { roomPrimaryImageIds: JSON.stringify(updates.roomPrimaryImageIds) }),
     ...(updates.chainFeaturedImageIds !== undefined && { chainFeaturedImageIds: JSON.stringify(updates.chainFeaturedImageIds) }),
     ...(updates.chainFeaturedImageIds !== undefined && updates.chainFeaturedImageIds.length === 0 && { chainFeaturedImagesJson: '[]' }),
+    ...(updates.aiLayoutDefault != null && { aiLayoutDefault: updates.aiLayoutDefault }),
+    ...(updates.searchAiLayoutDefault != null && { searchAiLayoutDefault: updates.searchAiLayoutDefault }),
     ...(updates.tripadvisorHotelKey !== undefined && { tripadvisorHotelKey: updates.tripadvisorHotelKey }),
     ...(updates.priceComparisonEnabled !== undefined && { priceComparisonEnabled: updates.priceComparisonEnabled }),
   }
@@ -327,6 +333,7 @@ export async function upsertOrgDesignDefaults(
     'searchResultsImageUrl', 'searchResultsImageMode', 'searchResultsCarouselInterval',
     'searchSidebarPosition', 'propertyListLayout', 'roomRatesDefaultExpanded', 'roomSearchLayout', 'infantMaxAge', 'childMaxAge',
     'onlinePaymentEnabled', 'payAtHotelEnabled', 'payAtHotelCardGuaranteeRequired',
+    'aiLayoutDefault', 'searchAiLayoutDefault',
     'chainHeroImageUrl',
   ]
   for (const f of fields) {
@@ -360,6 +367,7 @@ function rowToOrgDefaults(row: {
   roomRatesDefaultExpanded: boolean | null; infantMaxAge: number | null; childMaxAge: number | null
   onlinePaymentEnabled: boolean | null; payAtHotelEnabled: boolean | null; payAtHotelCardGuaranteeRequired: boolean | null
   searchSidebarPosition?: string | null; propertyListLayout?: string | null; roomSearchLayout?: string | null
+  aiLayoutDefault?: boolean | null; searchAiLayoutDefault?: boolean | null
   chainHeroImageUrl?: string | null
   chainExcludedPropertyImageIds?: string | null
 } | null): OrgDesignDefaultsConfig {
@@ -402,6 +410,8 @@ function rowToOrgDefaults(row: {
     onlinePaymentEnabled: row?.onlinePaymentEnabled ?? null,
     payAtHotelEnabled: row?.payAtHotelEnabled ?? null,
     payAtHotelCardGuaranteeRequired: row?.payAtHotelCardGuaranteeRequired ?? null,
+    aiLayoutDefault: row?.aiLayoutDefault ?? null,
+    searchAiLayoutDefault: row?.searchAiLayoutDefault ?? null,
     chainHeroImageUrl: row?.chainHeroImageUrl ?? null,
     chainExcludedPropertyImageIds: safeParseJson<number[]>(row?.chainExcludedPropertyImageIds ?? null, []),
   }

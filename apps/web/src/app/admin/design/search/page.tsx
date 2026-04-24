@@ -228,6 +228,15 @@ function GlobalSearchEditor() {
           />
         </Section>
 
+        <Section title="AI Layout">
+          <Toggle
+            label="AI Layout default"
+            hint="When enabled, the search results page opens in AI mode by default — sidebar and room list are hidden; only the AI chat box is shown."
+            checked={draft.searchAiLayoutDefault ?? false}
+            onChange={v => set('searchAiLayoutDefault', v)}
+          />
+        </Section>
+
         <Section title="Guest Age Groups">
           <p className="text-xs text-[var(--color-text-muted)]">
             Define the age boundaries used to categorise guests in the search form.
@@ -601,6 +610,17 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
             label="Show all offers expanded by default"
             description="When enabled, room rate options unfold automatically on the search results page."
             fieldKey="roomRatesDefaultExpanded"
+            draft={draft} orgDefaults={orgDefaults} systemDefault={false}
+            onSet={setB as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void}
+            onReset={resetO}
+          />
+        </Section>
+
+        <Section title="AI Layout">
+          <OverrideToggleRow
+            label="AI Layout default"
+            description="When enabled, the search results page opens in AI mode by default — sidebar and room list are hidden; only the AI chat box is shown."
+            fieldKey="searchAiLayoutDefault"
             draft={draft} orgDefaults={orgDefaults} systemDefault={false}
             onSet={setB as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void}
             onReset={resetO}

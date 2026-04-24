@@ -349,6 +349,8 @@ model HotelConfig {
   roomPrimaryImageIds             String   @default("{}")
   chainFeaturedImageIds           String   @default("[]")
   chainFeaturedImagesJson         String   @default("[]")
+  aiLayoutDefault                 Boolean  @default(false)
+  searchAiLayoutDefault           Boolean  @default(false)
   tripadvisorHotelKey             String?
   priceComparisonEnabled          Boolean  @default(true)
   isActive                        Boolean  @default(true)
@@ -460,6 +462,8 @@ model OrgDesignDefaults {
   onlinePaymentEnabled         Boolean?
   payAtHotelEnabled            Boolean?
   payAtHotelCardGuaranteeRequired Boolean?
+  aiLayoutDefault              Boolean?
+  searchAiLayoutDefault        Boolean?
   chainHeroImageUrl            String?
   chainExcludedPropertyImageIds String  @default("[]")
 

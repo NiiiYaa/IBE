@@ -1,20 +1,9 @@
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import type { HotelDesignConfig, PropertyDetail, PropertyListResponse } from '@ibe/shared'
 import { buildCssVars } from '@/lib/theme'
-import { HeroCarousel } from '@/components/home/HeroCarousel'
-import { QuiltHero } from '@/components/home/QuiltHero'
-import { PropertyGridClient } from '@/components/home/PropertyGridClient'
-import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
-import { PixelInjector } from '@/components/tracking/PixelInjector'
-
-const ChatWidget = dynamic(
-  () => import('@/components/chat/ChatWidget').then(m => ({ default: m.ChatWidget })),
-  { ssr: false },
-)
+import { HomePageClient } from '@/components/home/HomePageClient'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] || 0)
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
@@ -75,16 +64,6 @@ async function fetchAIEnabled(propertyId: number): Promise<boolean> {
     return data.enabled
   } catch { return false }
 }
-
-const SearchBar = dynamic(
-  () => import('@/components/search/SearchBar').then(m => ({ default: m.SearchBar })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="mx-auto h-[60px] max-w-3xl animate-pulse rounded-full bg-white/30 backdrop-blur-sm" />
-    ),
-  },
-)
 
 async function resolveDefaultPropertyId(orgId: number): Promise<number | null> {
   const list = await fetchOrgPropertyList(orgId)
@@ -310,26 +289,8 @@ export default async function HomePage({
 
   const defaultPropertyId = multiProperties?.find(p => p.isDefault)?.id ?? propertyId
   const cssVars = config ? buildCssVars(config) : ''
-  const PageStyle = cssVars ? <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} /> : null
-
   const propertyListLayout = config?.propertyListLayout ?? 'grid'
 
-  const PropertyGrid = multiProperties && multiProperties.length > 1 ? (
-    <div className="bg-[var(--color-background)] px-4 py-10">
-      <div className="mx-auto max-w-6xl">
-        <h2 className="mb-6 text-2xl font-bold text-[var(--color-text)]">Our Properties</h2>
-        <PropertyGridClient
-          initial={multiProperties}
-          remaining={remainingEntries}
-          layout={propertyListLayout}
-        />
-      </div>
-    </div>
-  ) : null
-
-  // All properties as lightweight options for the search bar — available immediately.
-  // Name and city come from the full-detail fetch (multiProperties) when available,
-  // falling back to the lightweight PropertyRecord for the rest.
   const loadedDetailMap = new Map(multiProperties?.map(p => [p.id, p]) ?? [])
   const allPropertyOptions = tenant.type === 'org'
     ? orderedProperties.map(p => {
@@ -372,165 +333,25 @@ export default async function HomePage({
       : `Hello, I'd like to find out about ${displayName}.`,
   }
 
-  // Shared mobile rectangle hero — always shown on mobile regardless of heroStyle
-  const MobileRectangleHero = (
-    <div className="relative h-52 w-full overflow-hidden sm:hidden">
-      {heroImageMode === 'carousel' ? (
-        <HeroCarousel images={carouselImages} alt={displayName} variant="rectangle" intervalSeconds={heroCarouselInterval} />
-      ) : heroImageUrl ? (
-        <Image
-          src={heroImageUrl}
-          alt={displayName}
-          fill
-          priority
-          unoptimized
-          sizes="100vw"
-          className="object-cover"
-        />
-      ) : (
-        <div className="h-full w-full bg-gradient-to-br from-slate-700 to-slate-500" />
-      )}
-    </div>
-  )
-
-  if (heroStyle === 'quilt') {
-    return (
-      <div className="flex-1 bg-[var(--color-background)]">
-        {PageStyle}
-
-        {/* Mobile: rectangle hero */}
-        {MobileRectangleHero}
-
-        {/* Desktop: quilt mosaic */}
-        <div className="hidden sm:block mx-auto max-w-6xl px-4 pt-6">
-          <QuiltHero
-            images={carouselImages}
-            carousel={heroImageMode === 'carousel'}
-            intervalSeconds={heroCarouselInterval}
-            displayName={displayName}
-          />
-        </div>
-
-        <div className="mx-auto max-w-5xl px-4 py-6">
-          <div className="mb-4 text-center">
-            <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">
-              {displayName}
-            </h1>
-            {tagline && (
-              <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>
-            )}
-          </div>
-          <SearchBar {...searchBarProps} />
-        </div>
-        {PropertyGrid}
-        <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
-        <PixelInjector propertyId={propertyId} page="home" />
-        <ChatWidget {...chatWidgetProps} />
-      </div>
-    )
-  }
-
-  if (heroStyle === 'rectangle') {
-    return (
-      <div className="flex-1 bg-[var(--color-background)]">
-        {PageStyle}
-        {/* Mobile: fixed height; desktop: 50vh */}
-        <div className="relative h-52 sm:h-[50vh] w-full overflow-hidden">
-          {heroImageMode === 'carousel' ? (
-            <HeroCarousel images={carouselImages} alt={displayName} variant="rectangle" intervalSeconds={heroCarouselInterval} />
-          ) : heroImageUrl ? (
-            <Image
-              src={heroImageUrl}
-              alt={displayName}
-              fill
-              priority
-              unoptimized
-              sizes="100vw"
-              className="object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-slate-700 to-slate-500" />
-          )}
-        </div>
-
-        <div className="mx-auto max-w-5xl px-4 py-6">
-          <div className="mb-4 text-center">
-            <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">
-              {displayName}
-            </h1>
-            {tagline && (
-              <p className="mt-3 text-lg text-[var(--color-text-muted)]">{tagline}</p>
-            )}
-          </div>
-          <SearchBar {...searchBarProps} />
-        </div>
-        {PropertyGrid}
-        <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
-        <PixelInjector propertyId={propertyId} page="home" />
-        <ChatWidget {...chatWidgetProps} />
-      </div>
-    )
-  }
-
-  // fullpage style
   return (
-    <>
-      {PageStyle}
-
-      {/* Mobile: rectangle hero + title + search */}
-      <div className="sm:hidden flex-1 bg-[var(--color-background)]">
-        {MobileRectangleHero}
-        <div className="mx-auto max-w-5xl px-4 py-6">
-          <div className="mb-4 text-center">
-            <h1 className="text-3xl font-bold text-[var(--color-text)]">{displayName}</h1>
-            {tagline && (
-              <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>
-            )}
-          </div>
-          <SearchBar {...searchBarProps} />
-        </div>
-      </div>
-
-      {/* Desktop: fullpage hero with centered title + search */}
-      <div className="hidden sm:flex relative min-h-screen flex-col">
-        <div className="absolute inset-0">
-          {heroImageMode === 'carousel' ? (
-            <HeroCarousel images={carouselImages} alt={displayName} variant="fullpage" intervalSeconds={heroCarouselInterval} />
-          ) : heroImageUrl ? (
-            <Image
-              src={heroImageUrl}
-              alt={displayName}
-              fill
-              priority
-              unoptimized
-              sizes="100vw"
-              className="object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-slate-800 to-slate-600" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/65" />
-        </div>
-
-        <div className="relative flex flex-1 flex-col items-center justify-center px-4">
-          <div className="w-full text-center">
-            <h1 className="text-5xl font-bold text-white drop-shadow-lg lg:text-6xl">
-              {displayName}
-            </h1>
-            {tagline && (
-              <p className="mt-2 text-xl text-white/80 drop-shadow">{tagline}</p>
-            )}
-          </div>
-          <div className="mt-4 w-full">
-            <SearchBar {...searchBarProps} />
-          </div>
-        </div>
-      </div>
-
-      {PropertyGrid}
-      <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
-      <PixelInjector propertyId={propertyId} page="home" />
-      <ChatWidget {...chatWidgetProps} />
-    </>
+    <HomePageClient
+      cssVars={cssVars}
+      aiLayoutDefault={config?.aiLayoutDefault ?? false}
+      heroStyle={heroStyle}
+      heroImageMode={heroImageMode}
+      heroCarouselInterval={heroCarouselInterval}
+      displayName={displayName}
+      tagline={tagline ?? null}
+      heroImageUrl={heroImageUrl}
+      carouselImages={carouselImages}
+      propertyId={propertyId}
+      onsitePage={onsitePage}
+      isMulti={isMulti}
+      propertyListLayout={propertyListLayout}
+      multiProperties={multiProperties}
+      remainingEntries={remainingEntries}
+      searchBarProps={searchBarProps}
+      chatWidgetProps={chatWidgetProps}
+    />
   )
 }
