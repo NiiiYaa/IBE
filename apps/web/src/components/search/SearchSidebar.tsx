@@ -26,6 +26,8 @@ interface SearchSidebarProps {
   childMaxAge?: number
   isCollapsed?: boolean
   onToggle?: () => void
+  aiEnabled?: boolean
+  onAiToggle?: () => void
 }
 
 const MAX_CHILDREN_PER_ROOM = 6
@@ -59,6 +61,8 @@ export function SearchSidebar({
   childMaxAge = 16,
   isCollapsed = false,
   onToggle,
+  aiEnabled = false,
+  onAiToggle,
 }: SearchSidebarProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -205,6 +209,18 @@ export function SearchSidebar({
               <span className="mt-0.5 text-[10px] font-semibold text-primary">{nights}n</span>
             )}
           </div>
+        )}
+
+        {/* AI toggle */}
+        {aiEnabled && onAiToggle && (
+          <button
+            onClick={onAiToggle}
+            title="Switch to AI mode"
+            className="ai-mode-btn-wrap flex w-full flex-col items-center gap-1 border-t border-[var(--color-border)] px-2 py-3 text-primary hover:bg-[var(--color-primary-light)] transition-colors"
+          >
+            <span className="ai-spark-icon inline-flex"><AiSparkleIcon className="h-5 w-5" /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted" style={{ writingMode: 'vertical-rl' }}>AI</span>
+          </button>
         )}
       </div>
     )
@@ -412,8 +428,28 @@ export function SearchSidebar({
         >
           {nights > 0 ? `Search — ${nights} night${nights !== 1 ? 's' : ''}` : 'Check Availability'}
         </button>
+
+        {/* AI mode button */}
+        {aiEnabled && onAiToggle && (
+          <button
+            onClick={onAiToggle}
+            className="ai-mode-btn-wrap flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-[var(--color-primary-light)]"
+          >
+            <span className="ai-spark-icon inline-flex"><AiSparkleIcon className="h-4 w-4" /></span>
+            Ask AI instead
+          </button>
+        )}
       </div>
     </div>
+  )
+}
+
+function AiSparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2.5 L13.3 10.7 L21.5 12 L13.3 13.3 L12 21.5 L10.7 13.3 L2.5 12 L10.7 10.7 Z" />
+      <path d="M19 2 L19.7 5.3 L23 6 L19.7 6.7 L19 10 L18.3 6.7 L15 6 L18.3 5.3 Z" />
+    </svg>
   )
 }
 

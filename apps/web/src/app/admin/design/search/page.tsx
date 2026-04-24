@@ -64,6 +64,8 @@ function GlobalSearchEditor() {
   const searchSingleSubdomain = realSearchProperties.length === 1 ? realSearchProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
+  const _devSubdomainGlobal = searchSingleSubdomain ?? orgSettings?.orgSlug
+  const devB2cUrl = _devSubdomainGlobal ? `https://${_devSubdomainGlobal}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   if (isLoading) return <Spinner />
@@ -77,7 +79,7 @@ function GlobalSearchEditor() {
             const path = previewSearchUrl(firstPropertyId)
             const href = model === 'b2b'
               ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
-              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : devB2cUrl)
             if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
@@ -322,6 +324,8 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
+  const _devSubdomainProp = propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug
+  const devB2cUrl = _devSubdomainProp ? `https://${_devSubdomainProp}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
@@ -406,7 +410,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
             const path = previewSearchUrl(propertyId)
             const href = model === 'b2b'
               ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
-              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : devB2cUrl)
             if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"

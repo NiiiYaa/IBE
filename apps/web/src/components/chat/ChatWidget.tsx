@@ -93,7 +93,10 @@ export function ChatWidget({ propertyId, orgId, whatsappPrefilledMessage }: Prop
           ) : menuOpen ? (
             <CloseIcon className="h-6 w-6" />
           ) : aiEnabled && !whatsappNumber ? (
-            <SparkleIcon className="h-6 w-6" />
+            <div className="flex flex-col items-center gap-0.5 leading-none">
+              <SparkleIcon className="h-5 w-5" />
+              <span className="text-[11px] font-bold tracking-widest">AI</span>
+            </div>
           ) : !aiEnabled && whatsappNumber ? (
             <WhatsAppIcon className="h-6 w-6" />
           ) : (
@@ -127,8 +130,13 @@ export function ChatWidget({ propertyId, orgId, whatsappPrefilledMessage }: Prop
 
 function SparkleIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l2.4 7.6H22l-6.4 4.6 2.4 7.6L12 17.2 5.6 21.8 8 14.2 1.6 9.6H9.6z" />
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      {/* Large centre sparkle */}
+      <path d="M9 1 L10.8 7.2 L17 9 L10.8 10.8 L9 17 L7.2 10.8 L1 9 L7.2 7.2 Z" />
+      {/* Medium top-right sparkle */}
+      <path d="M18.5 1 L19.6 4.9 L23.5 6 L19.6 7.1 L18.5 11 L17.4 7.1 L13.5 6 L17.4 4.9 Z" />
+      {/* Small bottom-right sparkle */}
+      <path d="M20 14 L20.8 16.7 L23.5 17.5 L20.8 18.3 L20 21 L19.2 18.3 L16.5 17.5 L19.2 16.7 Z" />
     </svg>
   )
 }

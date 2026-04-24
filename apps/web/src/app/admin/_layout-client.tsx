@@ -85,16 +85,15 @@ const SECTIONS: Section[] = [
       { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
   },
-  { title: 'Dashboards', comingSoon: true, items: [] },
   {
     title: 'AI',
-    sellerOnly: true,
     items: [
       { href: '/admin/config/ai', label: 'AI Assistant' },
       { href: '/admin/config/ai/channels', label: 'AI Channels' },
       { href: '/admin/ai/mcp', label: 'MCPs' },
     ],
   },
+  { title: 'Dashboards', comingSoon: true, items: [] },
 ]
 
 const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0 }

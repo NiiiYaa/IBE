@@ -124,8 +124,15 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
             </button>
           )}
           {onClose && (
-            <button onClick={onClose} className="rounded-lg p-1 hover:bg-[var(--color-background)] text-[var(--color-text-muted)]">
-              ✕
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-light)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-border)]"
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <circle cx="5.5" cy="5.5" r="4" />
+                <line x1="8.5" y1="8.5" x2="12" y2="12" />
+              </svg>
+              Standard
             </button>
           )}
         </div>

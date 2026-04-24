@@ -83,6 +83,7 @@ export default function ChainPage() {
 
   const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(orgSettings?.orgSlug)
+  const devB2cUrl = orgSettings?.orgSlug ? `https://${orgSettings.orgSlug}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   const showCitySelector = propertiesData?.showCitySelector ?? false
@@ -136,7 +137,7 @@ export default function ChainPage() {
             const path = '/'
             const href = model === 'b2b'
               ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
-              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : devB2cUrl)
             if (!href) {
               return (
                 <span key={model} className={viewLinkDisabledCls} title="Not available on this host">

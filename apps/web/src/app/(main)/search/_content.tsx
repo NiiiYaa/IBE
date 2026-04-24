@@ -26,8 +26,8 @@ const SearchSidebar = dynamic(
   { ssr: false },
 )
 
-const SearchBar = dynamic(
-  () => import('@/components/search/SearchBar').then(m => ({ default: m.SearchBar })),
+const ConversationalSearchPanel = dynamic(
+  () => import('@/components/conversational-search/conversational-search-panel').then(m => ({ default: m.ConversationalSearchPanel })),
   { ssr: false },
 )
 
@@ -283,45 +283,42 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
     <>
       <OnsiteConversionOverlay propertyId={searchParams.hotelId} page="room" />
 
-      {/* Search bar — same component as hotel page; pill bar on desktop, tap-card on mobile */}
-      <div className="bg-[var(--color-background)] px-4 pt-4 pb-2">
-        <SearchBar
-          propertyId={searchParams.hotelId}
-          initialCheckIn={searchParams.checkIn}
-          initialCheckOut={searchParams.checkOut}
-          {...(searchParams.nationality ? { initialNationality: searchParams.nationality } : {})}
-          infantMaxAge={infantMaxAge}
-          childMaxAge={childMaxAge}
-          {...(searchBarInitialRooms ? { initialRooms: searchBarInitialRooms } : {})}
-          aiEnabled={aiEnabled}
-        />
-      </div>
-
-      {!aiLayout && (
-        <main className={`mx-auto max-w-7xl px-4 py-4 ${showCartBar ? 'pb-24' : ''}`}>
-          <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
-
-            {/* Collapsible sidebar — desktop only */}
-            <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
-              <SearchSidebar
-                propertyId={searchParams.hotelId}
-                initialCheckIn={searchParams.checkIn}
-                initialCheckOut={searchParams.checkOut}
-                initialNationality={searchParams.nationality}
-                infantMaxAge={infantMaxAge}
-                childMaxAge={childMaxAge}
-                isCollapsed={!sidebarOpen}
-                onToggle={() => setSidebarOpen(v => !v)}
-              />
-            </aside>
-
-            {roomList}
-          </div>
+      {aiLayout ? (
+        <main className="mx-auto max-w-7xl px-4 py-6">
+          <ConversationalSearchPanel
+            propertyId={searchParams.hotelId}
+            onClose={() => setAiLayout(false)}
+            className="min-h-[calc(100vh-10rem)]"
+          />
         </main>
-      )}
+      ) : (
+        <>
+          <main className={`mx-auto max-w-7xl px-4 py-4 ${showCartBar ? 'pb-24' : ''}`}>
+            <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
 
-      {/* Sticky bottom cart bar — multi-room mode only */}
-      <ChatWidget propertyId={searchParams.hotelId} />
+              {/* Collapsible sidebar — desktop only */}
+              <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
+                <SearchSidebar
+                  propertyId={searchParams.hotelId}
+                  initialCheckIn={searchParams.checkIn}
+                  initialCheckOut={searchParams.checkOut}
+                  initialNationality={searchParams.nationality}
+                  infantMaxAge={infantMaxAge}
+                  childMaxAge={childMaxAge}
+                  isCollapsed={!sidebarOpen}
+                  onToggle={() => setSidebarOpen(v => !v)}
+                  aiEnabled={aiEnabled}
+                  onAiToggle={() => setAiLayout(true)}
+                />
+              </aside>
+
+              {roomList}
+            </div>
+          </main>
+
+          <ChatWidget propertyId={searchParams.hotelId} />
+        </>
+      )}
 
       {isMultiMode && (
         <div

@@ -822,20 +822,12 @@ function Divider() {
 }
 
 function SparkleIcon({ white }: { white?: boolean }) {
+  const c1 = white ? 'white' : '#7c3aed'
+  const c2 = white ? 'white' : '#3b82f6'
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path
-        d="M7 1 L7.8 5.2 L12 6 L7.8 6.8 L7 11 L6.2 6.8 L2 6 L6.2 5.2 Z"
-        fill={white ? 'white' : 'url(#ai-spark-grad)'}
-      />
-      <circle cx="11.2" cy="2.8" r="1.1" fill={white ? 'white' : '#a78bfa'} />
-      <defs>
-        <linearGradient id="ai-spark-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="50%" stopColor="#8b5cf6" />
-          <stop offset="100%" stopColor="#ec4899" />
-        </linearGradient>
-      </defs>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 1 L10.5 6.5 L16 8 L10.5 9.5 L9 15 L7.5 9.5 L2 8 L7.5 6.5 Z" fill={c1} />
+      <path d="M19 2 L19.9 4.6 L22.5 5.5 L19.9 6.4 L19 9 L18.1 6.4 L15.5 5.5 L18.1 4.6 Z" fill={c2} />
     </svg>
   )
 }
@@ -860,15 +852,17 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
   }
   return (
     <div
-      className="rounded-full p-[2px] transition-all duration-200"
+      className="ai-mode-btn-wrap rounded-full p-[2px]"
       style={{ background: AI_GRADIENT }}
     >
       <button
         onClick={onClick}
-        className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-all duration-200 hover:bg-white/90"
+        className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-colors hover:bg-white/90"
         title="Switch to AI Mode"
       >
-        <SparkleIcon white={false} />
+        <span className="ai-spark-icon inline-flex">
+          <SparkleIcon white={false} />
+        </span>
         AI Mode
       </button>
     </div>

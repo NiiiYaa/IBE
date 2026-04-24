@@ -72,6 +72,17 @@ const SECTIONS = [
       </svg>
     ),
   },
+  {
+    href: '/admin/config/ai',
+    title: 'AI',
+    description: 'AI-powered tools and automation',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 2.5 L13.3 10.7 L21.5 12 L13.3 13.3 L12 21.5 L10.7 13.3 L2.5 12 L10.7 10.7 Z" />
+        <path d="M19 2 L19.7 5.3 L23 6 L19.7 6.7 L19 10 L18.3 6.7 L15 6 L18.3 5.3 Z" />
+      </svg>
+    ),
+  },
 ]
 
 const COMING_SOON = [
@@ -84,17 +95,6 @@ const COMING_SOON = [
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    title: 'AI',
-    description: 'AI-powered tools and automation',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V12h-4V9.5A4 4 0 0 1 8 6a4 4 0 0 1 4-4z" />
-        <path d="M8 12H5a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h1v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2h1a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2h-3" />
-        <path d="M9 17v-2M15 17v-2" />
       </svg>
     ),
   },

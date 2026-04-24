@@ -101,6 +101,9 @@ function GlobalHomepageEditor() {
   const singlePropertySubdomain = realProperties.length === 1 ? realProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
+  const _singlePropId = realProperties.length === 1 ? realProperties[0]!.propertyId : null
+  const _devSubdomain = singlePropertySubdomain ?? orgSettings?.orgSlug
+  const devB2cUrl = _devSubdomain ? `https://${_devSubdomain}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
@@ -140,7 +143,7 @@ function GlobalHomepageEditor() {
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
             const href = model === 'b2b'
               ? (b2bOrigin ? `${b2bOrigin}/` : null)
-              : (b2cOrigin ? `${b2cOrigin}/` : null)
+              : (b2cOrigin ? `${b2cOrigin}/` : devB2cUrl)
             if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
@@ -421,6 +424,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
 
   const b2bOrigin = useB2bOrigin(propertySubdomain ?? orgSettings?.orgSlug)
   const subdomainOrigin = useIbeOrigin(propertySubdomain)
+  const devB2cUrl = propertySubdomain ? `https://${propertySubdomain}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   useEffect(() => {
@@ -544,7 +548,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
             const href = model === 'b2b'
               ? (b2bOrigin ? `${b2bOrigin}/` : null)
-              : (b2cOrigin ? `${b2cOrigin}/` : null)
+              : (b2cOrigin ? `${b2cOrigin}/` : devB2cUrl)
             if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
