@@ -8,8 +8,12 @@ import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { AIChannelSettings } from '@ibe/shared'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
-const MCP_ENDPOINT = `${API_URL}/api/v1/mcp`
+// Computed client-side from window.location.origin so it reflects the
+// public-facing URL (via Next.js proxy) rather than the internal API host.
+function getMcpEndpoint(): string {
+  if (typeof window === 'undefined') return '/api/v1/mcp'
+  return `${window.location.origin}/api/v1/mcp`
+}
 
 type Platform = 'claude' | 'cursor' | 'windsurf' | 'openai' | 'gemini' | 'grok'
 
@@ -22,12 +26,12 @@ const PLATFORMS: { id: Platform; label: string }[] = [
   { id: 'grok', label: 'Grok / X' },
 ]
 
-function mcpJsonSnippet(apiKey: string) {
+function mcpJsonSnippet(endpoint: string, apiKey: string) {
   return JSON.stringify(
     {
       mcpServers: {
         hotel: {
-          url: MCP_ENDPOINT,
+          url: endpoint,
           headers: { Authorization: `Bearer ${apiKey}` },
         },
       },
@@ -55,11 +59,11 @@ function CodeBlock({ code, language = 'json' }: { code: string; language?: strin
   )
 }
 
-function EndpointInfo({ apiKey }: { apiKey: string }) {
+function EndpointInfo({ endpoint, apiKey }: { endpoint: string; apiKey: string }) {
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2 font-mono text-xs">
       {[
-        ['Endpoint', MCP_ENDPOINT],
+        ['Endpoint', endpoint],
         ['Method', 'POST'],
         ['Auth header', `Authorization: Bearer ${apiKey}`],
         ['Protocol', 'MCP JSON-RPC 2.0 (Streamable HTTP)'],
@@ -73,8 +77,8 @@ function EndpointInfo({ apiKey }: { apiKey: string }) {
   )
 }
 
-function PlatformSnippet({ platform, apiKey }: { platform: Platform; apiKey: string }) {
-  const json = mcpJsonSnippet(apiKey)
+function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; endpoint: string; apiKey: string }) {
+  const json = mcpJsonSnippet(endpoint, apiKey)
 
   if (platform === 'claude') return (
     <div className="space-y-3 text-sm">
@@ -113,7 +117,7 @@ function PlatformSnippet({ platform, apiKey }: { platform: Platform; apiKey: str
       <CodeBlock language="python" code={`from agents import Agent, MCPServerStreamableHTTP
 
 hotel_mcp = MCPServerStreamableHTTP(
-    url="${MCP_ENDPOINT}",
+    url="${endpoint}",
     headers={"Authorization": "Bearer ${apiKey}"},
 )
 
@@ -129,7 +133,7 @@ agent = Agent(
   return (
     <div className="space-y-3 text-sm">
       <p className="text-[var(--color-text-muted)]">Connect via the MCP endpoint:</p>
-      <EndpointInfo apiKey={apiKey} />
+      <EndpointInfo endpoint={endpoint} apiKey={apiKey} />
     </div>
   )
 }
@@ -207,6 +211,9 @@ export default function AdminMcpPage() {
     queryKey: channelsQKey,
     queryFn: () => apiClient.getOrgAIChannels(superOrgId),
   })
+
+  const [mcpEndpoint, setMcpEndpoint] = useState('/api/v1/mcp')
+  useEffect(() => { setMcpEndpoint(getMcpEndpoint()) }, [])
 
   const [enabled, setEnabled] = useState(false)
   const [apiKey, setApiKey] = useState<string | null>(null)
@@ -312,9 +319,9 @@ export default function AdminMcpPage() {
           <label className="text-sm font-medium text-[var(--color-text)]">MCP Endpoint</label>
           <div className="flex items-center gap-2">
             <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-sm text-[var(--color-text)] break-all">
-              {MCP_ENDPOINT}
+              {mcpEndpoint}
             </div>
-            <button type="button" onClick={() => navigator.clipboard.writeText(MCP_ENDPOINT)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+            <button type="button" onClick={() => navigator.clipboard.writeText(mcpEndpoint)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
               Copy
             </button>
           </div>
@@ -405,7 +412,7 @@ export default function AdminMcpPage() {
               </button>
             ))}
           </div>
-          <PlatformSnippet platform={platform} apiKey={apiKey} />
+          <PlatformSnippet platform={platform} endpoint={mcpEndpoint} apiKey={apiKey} />
         </div>
       )}
 
