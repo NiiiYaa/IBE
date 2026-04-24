@@ -35,6 +35,11 @@ export function middleware(request: NextRequest) {
   if (hotelId) headers.set('x-tenant-hotel', hotelId)
 
   if (host === PLATFORM_HOST || host === `www.${PLATFORM_HOST}`) {
+    const { pathname, search } = request.nextUrl
+    const hasIbeParams = search.includes('chain=') || search.includes('hotelId=')
+    if (pathname === '/' && !hasIbeParams) {
+      return NextResponse.rewrite(new URL('/hyperguest-landing', request.url))
+    }
     return NextResponse.next({ request: { headers } })
   }
 

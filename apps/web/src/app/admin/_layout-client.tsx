@@ -92,6 +92,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: '/admin/config/ai', label: 'AI Assistant' },
       { href: '/admin/config/ai/channels', label: 'AI Channels' },
+      { href: '/admin/ai/mcp', label: 'MCPs' },
     ],
   },
 ]

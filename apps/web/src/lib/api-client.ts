@@ -330,8 +330,9 @@ export const apiClient = {
 
   // ── Admin: Org & Properties ─────────────────────────────────────────────────
 
-  getOrgSettings(): Promise<OrgSettingsResponse> {
-    return apiRequest<OrgSettingsResponse>('/api/v1/admin/org')
+  getOrgSettings(orgId?: number): Promise<OrgSettingsResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<OrgSettingsResponse>(`/api/v1/admin/org${qs}`)
   },
 
   getB2BConnections(): Promise<{
@@ -1095,6 +1096,25 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  },
+
+  // ── MCP ──────────────────────────────────────────────────────────────────────
+
+  getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/mcp${qs}`)
+  },
+
+  getPropertyMcpConfig(propertyId: number): Promise<{ enabled: boolean; apiKey: string | null }> {
+    return apiRequest(`/api/v1/admin/ai/mcp/property/${propertyId}`)
+  },
+
+  updateMcpConfig(data: { enabled: boolean; orgId?: number; propertyId?: number }): Promise<{ enabled: boolean; apiKey: string }> {
+    return apiRequest('/api/v1/admin/ai/mcp', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  rotateMcpApiKey(data: { orgId?: number; propertyId?: number }): Promise<{ enabled: boolean; apiKey: string }> {
+    return apiRequest('/api/v1/admin/ai/mcp/rotate', { method: 'POST', body: JSON.stringify(data) })
   },
 }
 

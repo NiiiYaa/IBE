@@ -16,9 +16,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/org', async (request, reply) => {
     let organizationId = request.admin.organizationId
     if (organizationId === null) {
-      const firstOrg = await prisma.organization.findFirst({ orderBy: { id: 'asc' } })
-      if (!firstOrg) return reply.status(404).send({ error: 'No organization found', code: 'IBE.ADMIN.001' })
-      organizationId = firstOrg.id
+      // Super admin: honour ?orgId= to fetch a specific org's settings
+      const rawOrgId = (request.query as Record<string, string>).orgId
+      if (rawOrgId) {
+        organizationId = parseInt(rawOrgId, 10)
+      } else {
+        const firstOrg = await prisma.organization.findFirst({ orderBy: { id: 'asc' } })
+        if (!firstOrg) return reply.status(404).send({ error: 'No organization found', code: 'IBE.ADMIN.001' })
+        organizationId = firstOrg.id
+      }
     }
     const [org, settings, effective] = await Promise.all([
       prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, slug: true, hyperGuestOrgId: true, orgType: true } }),

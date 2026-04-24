@@ -8,6 +8,8 @@ import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminProperty } from '../../property-context'
 import { useB2bOrigin } from '@/hooks/use-b2b-origin'
+import { useIbeOrigin } from '@/hooks/use-ibe-origin'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { apiClient } from '@/lib/api-client'
 import { PropertyImageManager } from '../components/PropertyImageManager'
 import {
@@ -73,6 +75,11 @@ export default function HomepageDesignPage() {
 function GlobalHomepageEditor() {
   const qc = useQueryClient()
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { admin } = useAdminAuth()
+  const { orgId: ctxOrgId } = useAdminProperty()
+  const isSuper = admin?.role === 'super'
+  const resolvedOrgId = isSuper ? (ctxOrgId ?? undefined) : (admin?.organizationId ?? undefined)
+  const orgQKey = isSuper ? ['admin-org', resolvedOrgId ?? null] : ['admin-org']
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -81,15 +88,18 @@ function GlobalHomepageEditor() {
   })
 
   const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
+    queryKey: orgQKey,
+    queryFn: () => apiClient.getOrgSettings(resolvedOrgId),
     staleTime: Infinity,
+    enabled: resolvedOrgId !== undefined,
   })
 
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
   const singlePropertySubdomain = realProperties.length === 1 ? realProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
+  const subdomainOrigin = useIbeOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
+  const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
   const citySelectorMutation = useMutation({
@@ -126,8 +136,10 @@ function GlobalHomepageEditor() {
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Homepage</h1>
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
-            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}/` : null) : '/'
-            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            const href = model === 'b2b'
+              ? (b2bOrigin ? `${b2bOrigin}/` : null)
+              : (b2cOrigin ? `${b2cOrigin}/` : null)
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
                 className={viewLinkCls} title={`Open ${model.toUpperCase()} homepage`}>
@@ -349,6 +361,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<HomepageDraft>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const { admin } = useAdminAuth()
+  const isSuper = admin?.role === 'super'
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -369,17 +383,34 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.listProperties(),
     staleTime: 30_000,
   })
-  const realPropertiesForHotel = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
-  const isChainMode = realPropertiesForHotel.length > 1
+  // Super admin: use the all-properties cache (populated by _layout-client) to find subdomain & orgId
+  const { data: superPropertiesData } = useQuery({
+    queryKey: ['admin-super-properties'],
+    queryFn: () => apiClient.listAllProperties(),
+    staleTime: Infinity,
+    enabled: isSuper,
+  })
+  const allPropsForProperty = isSuper
+    ? (superPropertiesData?.properties ?? [])
+    : (propertiesData?.properties ?? []).filter(p => !p.isDemo)
+  const currentProp = allPropsForProperty.find(p => p.propertyId === propertyId)
+  const propertySubdomain = currentProp?.subdomain
+
+  const isChainMode = allPropsForProperty.filter(p => !p.isDemo).length > 1
+
+  const superPropOrgId = isSuper ? (currentProp?.orgId ?? undefined) : undefined
+  const orgQKey = isSuper ? ['admin-org', superPropOrgId ?? null] : ['admin-org']
 
   const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
+    queryKey: orgQKey,
+    queryFn: () => apiClient.getOrgSettings(superPropOrgId),
     staleTime: Infinity,
+    enabled: !isSuper || superPropOrgId !== undefined,
   })
 
-  const hotelB2bSubdomain = realPropertiesForHotel.length === 1 ? realPropertiesForHotel[0]!.subdomain : null
-  const b2bOrigin = useB2bOrigin(hotelB2bSubdomain ?? orgSettings?.orgSlug)
+  const b2bOrigin = useB2bOrigin(propertySubdomain ?? orgSettings?.orgSlug)
+  const subdomainOrigin = useIbeOrigin(propertySubdomain)
+  const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   useEffect(() => {
     if (designData && config && !initialized) {
@@ -498,9 +529,10 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Homepage</h1>
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
-            const path = `/?hotelId=${propertyId}`
-            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
-            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            const href = model === 'b2b'
+              ? (b2bOrigin ? `${b2bOrigin}/` : null)
+              : (b2cOrigin ? `${b2cOrigin}/` : null)
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
                 className={viewLinkCls} title={`Open ${model.toUpperCase()} hotel page`}>

@@ -8,6 +8,8 @@ import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminProperty } from '../../property-context'
 import { useB2bOrigin } from '@/hooks/use-b2b-origin'
+import { useIbeOrigin } from '@/hooks/use-ibe-origin'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { apiClient } from '@/lib/api-client'
 import { AgeTag, FormRow, SaveBar, Section, Toggle, TextInput } from '../components'
 import { OverrideToggleRow, OverrideNumberRow, SourceBadge, sourceLabel } from '../override-helpers'
@@ -38,6 +40,11 @@ export default function SearchDesignPage() {
 
 function GlobalSearchEditor() {
   const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { admin } = useAdminAuth()
+  const { orgId: ctxOrgId } = useAdminProperty()
+  const isSuper = admin?.role === 'super'
+  const resolvedOrgId = isSuper ? (ctxOrgId ?? undefined) : (admin?.organizationId ?? undefined)
+  const orgQKey = isSuper ? ['admin-org', resolvedOrgId ?? null] : ['admin-org']
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -48,13 +55,16 @@ function GlobalSearchEditor() {
   const firstPropertyId = realSearchProperties[0]?.propertyId
 
   const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
+    queryKey: orgQKey,
+    queryFn: () => apiClient.getOrgSettings(resolvedOrgId),
     staleTime: Infinity,
+    enabled: resolvedOrgId !== undefined,
   })
 
   const searchSingleSubdomain = realSearchProperties.length === 1 ? realSearchProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
+  const subdomainOrigin = useIbeOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
+  const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   if (isLoading) return <Spinner />
 
@@ -65,8 +75,10 @@ function GlobalSearchEditor() {
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Search Results</h1>
           {firstPropertyId && (orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
             const path = previewSearchUrl(firstPropertyId)
-            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
-            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            const href = model === 'b2b'
+              ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
                 className={viewLinkCls} title={`Open ${model.toUpperCase()} search page`}>
@@ -264,23 +276,44 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
+  const { admin } = useAdminAuth()
+  const isSuper = admin?.role === 'super'
+
   const { data: property } = useProperty(propertyId)
+
+  const { data: superProperties } = useQuery({
+    queryKey: ['admin-super-properties'],
+    queryFn: () => apiClient.listProperties(),
+    staleTime: Infinity,
+    enabled: isSuper,
+  })
+
+  const currentProp = isSuper
+    ? (superProperties?.properties ?? []).find(p => p.propertyId === propertyId)
+    : null
+  const propertySubdomain = isSuper ? (currentProp?.subdomain ?? null) : null
+  const superPropOrgId = isSuper ? (currentProp?.orgId ?? undefined) : undefined
 
   const { data: propertiesDataForSearch } = useQuery({
     queryKey: ['admin-properties'],
     queryFn: () => apiClient.listProperties(),
     staleTime: Infinity,
+    enabled: !isSuper,
   })
 
+  const orgQKey = isSuper ? ['admin-org', superPropOrgId ?? null] : ['admin-org']
   const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
+    queryKey: orgQKey,
+    queryFn: () => apiClient.getOrgSettings(superPropOrgId),
     staleTime: Infinity,
+    enabled: isSuper ? superPropOrgId !== undefined : true,
   })
 
   const propSearchReal = (propertiesDataForSearch?.properties ?? []).filter(p => !p.isDemo)
   const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0]!.subdomain : null
-  const b2bOrigin = useB2bOrigin(propSearchSingleSubdomain ?? orgSettings?.orgSlug)
+  const b2bOrigin = useB2bOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
+  const subdomainOrigin = useIbeOrigin(propertySubdomain ?? propSearchSingleSubdomain ?? orgSettings?.orgSlug)
+  const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -362,8 +395,10 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Search Results</h1>
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
             const path = previewSearchUrl(propertyId)
-            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
-            if (!href) return <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">{externalIcon} View B2B</span>
+            const href = model === 'b2b'
+              ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
+            if (!href) return <span key={model} className={viewLinkDisabledCls} title="Not available on this host">{externalIcon} View {model.toUpperCase()}</span>
             return (
               <a key={model} href={href} target="_blank" rel="noopener noreferrer"
                 className={viewLinkCls} title={`Open ${model.toUpperCase()} search page`}>

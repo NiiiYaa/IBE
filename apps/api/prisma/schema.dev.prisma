@@ -41,6 +41,7 @@ model Organization {
   orgMarketingSettings        OrgMarketingSettings?
   orgAIConfig                 OrgAIConfig?
   orgAIChannels               OrgAIChannels?
+  orgMcpConfig                OrgMcpConfig?
 }
 
 // roles: super | admin | observer | user
@@ -802,4 +803,25 @@ model OrgAIChannels {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ── MCP Config ────────────────────────────────────────────────────────────────
+
+model OrgMcpConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  enabled        Boolean      @default(false)
+  apiKey         String       @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PropertyMcpConfig {
+  id         Int      @id @default(autoincrement())
+  propertyId Int      @unique
+  enabled    Boolean  @default(false)
+  apiKey     String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

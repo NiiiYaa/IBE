@@ -42,6 +42,8 @@ import { aiConfigRoutes } from './routes/ai-config.route.js'
 import { aiChannelsRoutes } from './routes/ai-channels.route.js'
 import { aiChatRoutes } from './routes/ai-chat.route.js'
 import { whatsappRoutes } from './routes/whatsapp.route.js'
+import { mcpRoutes } from './routes/mcp.route.js'
+import { adminMcpRoutes } from './routes/admin-mcp.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -149,6 +151,9 @@ export async function buildApp() {
   // WhatsApp Cloud API webhook (public — called by Meta, verified by token)
   await app.register(whatsappRoutes, { prefix: '/api/v1' })
 
+  // MCP server endpoint (public — auth via Bearer API key in JSON-RPC handler)
+  await app.register(mcpRoutes, { prefix: '/api/v1' })
+
   // ── Protected admin routes ─────────────────────────────────────────────────
 
   await app.register(async (adminApp) => {
@@ -172,6 +177,7 @@ export async function buildApp() {
     await adminApp.register(marketingRoutes, { prefix: '/api/v1' })
     await adminApp.register(aiConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(aiChannelsRoutes, { prefix: '/api/v1' })
+    await adminApp.register(adminMcpRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

@@ -6,7 +6,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig, SellModel } from '@ibe/shared'
 import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
+import { useAdminProperty } from '../../property-context'
 import { useB2bOrigin } from '@/hooks/use-b2b-origin'
+import { useIbeOrigin } from '@/hooks/use-ibe-origin'
 import { apiClient } from '@/lib/api-client'
 import { ColorRow, Section, FormRow, TextInput, SaveBar, selectCls } from '../components'
 import { compressImage } from '@/lib/compress-image'
@@ -59,7 +61,12 @@ export default function ChainPage() {
   const qc = useQueryClient()
   const { isLoading, draft, set, save, isPending, isDirty, saveError } = useGlobalConfig()
   const { admin } = useAdminAuth()
-  const orgId = admin?.organizationId
+  const { orgId: ctxOrgId } = useAdminProperty()
+  const isSuper = admin?.role === 'super'
+
+  // For super admin: use the org selected in the context selector; otherwise use own org
+  const resolvedOrgId = isSuper ? (ctxOrgId ?? undefined) : (admin?.organizationId ?? undefined)
+  const orgQKey = isSuper ? ['admin-org', resolvedOrgId ?? null] : ['admin-org']
 
   const { data: propertiesData } = useQuery({
     queryKey: ['admin-properties'],
@@ -68,13 +75,15 @@ export default function ChainPage() {
   })
 
   const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
+    queryKey: orgQKey,
+    queryFn: () => apiClient.getOrgSettings(resolvedOrgId),
     staleTime: Infinity,
-    enabled: !!orgId,
+    enabled: resolvedOrgId !== undefined,
   })
 
   const b2bOrigin = useB2bOrigin(orgSettings?.orgSlug)
+  const subdomainOrigin = useIbeOrigin(orgSettings?.orgSlug)
+  const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
@@ -124,12 +133,14 @@ export default function ChainPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-[var(--color-text)]">Chain-page</h1>
           {(orgSettings?.enabledModels ?? ['b2c'] as SellModel[]).map(model => {
-            const path = orgSettings?.hyperGuestOrgId ? `/?chain=${orgSettings.hyperGuestOrgId}` : '/'
-            const href = model === 'b2b' ? (b2bOrigin ? `${b2bOrigin}${path}` : null) : path
+            const path = '/'
+            const href = model === 'b2b'
+              ? (b2bOrigin ? `${b2bOrigin}${path}` : null)
+              : (b2cOrigin ? `${b2cOrigin}${path}` : null)
             if (!href) {
               return (
-                <span key={model} className={viewLinkDisabledCls} title="B2B subdomain not available on this host">
-                  {externalIcon} View B2B
+                <span key={model} className={viewLinkDisabledCls} title="Not available on this host">
+                  {externalIcon} View {model.toUpperCase()}
                 </span>
               )
             }

@@ -508,22 +508,33 @@ export function SearchBar({
                 label="City"
                 value={selectedCity || 'All cities'}
                 open={mobilePanel === 'city'}
-                onToggle={() => toggleMobilePanel('city')}
+                onToggle={() => { if (mobilePanel === 'city') setCitySearch(''); toggleMobilePanel('city') }}
               >
+                {cities.length > 10 && (
+                  <input
+                    type="text"
+                    placeholder="Search cities…"
+                    value={citySearch}
+                    onChange={e => setCitySearch(e.target.value)}
+                    className="mb-2 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+                  />
+                )}
                 <div className="space-y-1">
-                  {[{ value: '', label: 'All cities' }, ...cities.map(c => ({ value: c, label: c }))].map(({ value, label }) => (
-                    <button
-                      key={value || '__all__'}
-                      onClick={() => { handleCitySelect(value); setMobilePanel(null) }}
-                      className={[
-                        'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
-                        value === selectedCity ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
-                      ].join(' ')}
-                    >
-                      {label}
-                      {value === selectedCity && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
-                    </button>
-                  ))}
+                  {[{ value: '', label: 'All cities' }, ...cities.map(c => ({ value: c, label: c }))]
+                    .filter(({ value, label }) => !citySearch || value === '' || label.toLowerCase().includes(citySearch.toLowerCase()))
+                    .map(({ value, label }) => (
+                      <button
+                        key={value || '__all__'}
+                        onClick={() => { setCitySearch(''); handleCitySelect(value); setMobilePanel(null) }}
+                        className={[
+                          'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                          value === selectedCity ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
+                        ].join(' ')}
+                      >
+                        {label}
+                        {value === selectedCity && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                      </button>
+                    ))}
                 </div>
               </MobileSection>
             )}
@@ -534,22 +545,33 @@ export function SearchBar({
                 label="Property"
                 value={selectedProperty?.name ?? 'Select property'}
                 open={mobilePanel === 'property'}
-                onToggle={() => toggleMobilePanel('property')}
+                onToggle={() => { if (mobilePanel === 'property') setPropertySearch(''); toggleMobilePanel('property') }}
               >
+                {visibleProperties.length > 10 && (
+                  <input
+                    type="text"
+                    placeholder="Search properties…"
+                    value={propertySearch}
+                    onChange={e => setPropertySearch(e.target.value)}
+                    className="mb-2 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+                  />
+                )}
                 <div className="space-y-1">
-                  {visibleProperties.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => { setSelectedPropertyId(p.id); setMobilePanel(null) }}
-                      className={[
-                        'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
-                        p.id === effectivePropertyId ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
-                      ].join(' ')}
-                    >
-                      {p.name}
-                      {p.id === effectivePropertyId && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
-                    </button>
-                  ))}
+                  {visibleProperties
+                    .filter(p => !propertySearch || p.name.toLowerCase().includes(propertySearch.toLowerCase()) || String(p.id).includes(propertySearch))
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setPropertySearch(''); setSelectedPropertyId(p.id); setMobilePanel(null) }}
+                        className={[
+                          'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                          p.id === effectivePropertyId ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
+                        ].join(' ')}
+                      >
+                        {p.name}
+                        {p.id === effectivePropertyId && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                      </button>
+                    ))}
                 </div>
               </MobileSection>
             )}
