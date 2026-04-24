@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description: 'Book your stay directly',
-    icons: config?.faviconUrl ? [{ rel: 'icon', url: config.faviconUrl }] : undefined,
+    ...(config?.faviconUrl ? { icons: [{ rel: 'icon', url: config.faviconUrl }] } : {}),
   }
 }
 

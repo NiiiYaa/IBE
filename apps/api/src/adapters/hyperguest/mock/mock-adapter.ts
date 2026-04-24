@@ -99,7 +99,6 @@ export async function mockCreateBooking(input: CreateBookingInput): Promise<HGBo
         contact: {
           address: 'N/A', city: 'N/A',
           country: input.leadGuest.country ?? 'N/A',
-          nationality: input.leadGuest.country ?? 'N/A',
           email: input.leadGuest.email ?? 'N/A',
           phone: input.leadGuest.phone ?? 'N/A',
           state: 'N/A', zip: 'N/A',

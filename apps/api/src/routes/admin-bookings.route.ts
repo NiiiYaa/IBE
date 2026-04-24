@@ -15,7 +15,7 @@ function maskEmail(email: string): string {
   if (!domain) return '**@**'
   const [host] = domain.split('.')
   const ext = domain.includes('.') ? domain.slice(domain.indexOf('.')) : ''
-  return `${local.slice(0, 2)}**@${(host ?? '').slice(0, 2)}***${ext}`
+  return `${(local ?? '').slice(0, 2)}**@${(host ?? '').slice(0, 2)}***${ext}`
 }
 
 type DatePivot = 'bookingDate' | 'checkIn' | 'checkOut' | 'cancellationDeadline' | 'cancellationDate'

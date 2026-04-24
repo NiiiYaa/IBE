@@ -106,7 +106,7 @@ const mockHGResponse: HGSearchResponse = {
 }
 
 describe('search service', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it('transforms HyperGuest response into IBE SearchResponse shape', async () => {
     const { searchAvailability } = await import('../../adapters/hyperguest/search.js')

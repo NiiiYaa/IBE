@@ -24,7 +24,7 @@ export async function registerGuest(data: {
   organizationId: number
   email: string; password: string
   firstName: string; lastName: string
-  phone?: string; nationality?: string
+  phone?: string | undefined; nationality?: string | undefined
 }) {
   const email = data.email.toLowerCase().trim()
   const existing = await prisma.guest.findUnique({ where: { organizationId_email: { organizationId: data.organizationId, email } } })
@@ -73,10 +73,18 @@ export async function getGuestById(id: number) {
 }
 
 export async function updateGuestProfile(id: number, data: {
-  firstName?: string; lastName?: string
-  phone?: string | null; nationality?: string | null
+  firstName?: string | undefined; lastName?: string | undefined
+  phone?: string | null | undefined; nationality?: string | null | undefined
 }) {
-  return prisma.guest.update({ where: { id }, data })
+  return prisma.guest.update({
+    where: { id },
+    data: {
+      ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
+      ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      ...(data.nationality !== undefined ? { nationality: data.nationality } : {}),
+    },
+  })
 }
 
 export async function updateGuestPassword(id: number, newPassword: string) {
@@ -104,9 +112,20 @@ export async function deleteGuestAccount(id: number) {
 
 // ── Bookings ──────────────────────────────────────────────────────────────────
 
+async function getOrgPropertyIds(organizationId: number): Promise<number[]> {
+  const props = await prisma.property.findMany({
+    where: { organizationId },
+    select: { propertyId: true },
+  })
+  return props.map(p => p.propertyId)
+}
+
 export async function getGuestBookings(guestId: number, email: string) {
+  const guest = await prisma.guest.findUnique({ where: { id: guestId }, select: { organizationId: true } })
+  if (!guest) return []
+  const propertyIds = await getOrgPropertyIds(guest.organizationId)
   return prisma.booking.findMany({
-    where: { leadGuestEmail: email, property: { organizationId: (await prisma.guest.findUnique({ where: { id: guestId }, select: { organizationId: true } }))!.organizationId } },
+    where: { leadGuestEmail: email, propertyId: { in: propertyIds } },
     include: { rooms: true },
     orderBy: { checkIn: 'desc' },
   })
@@ -115,8 +134,9 @@ export async function getGuestBookings(guestId: number, email: string) {
 export async function getGuestBookingById(bookingId: number, guestId: number, email: string) {
   const guest = await prisma.guest.findUnique({ where: { id: guestId }, select: { organizationId: true } })
   if (!guest) return null
+  const propertyIds = await getOrgPropertyIds(guest.organizationId)
   return prisma.booking.findFirst({
-    where: { id: bookingId, leadGuestEmail: email, property: { organizationId: guest.organizationId } },
+    where: { id: bookingId, leadGuestEmail: email, propertyId: { in: propertyIds } },
     include: { rooms: true, affiliateBooking: { include: { affiliate: true } } },
   })
 }
@@ -124,8 +144,9 @@ export async function getGuestBookingById(bookingId: number, guestId: number, em
 export async function cancelGuestBooking(bookingId: number, guestId: number, email: string): Promise<boolean> {
   const guest = await prisma.guest.findUnique({ where: { id: guestId }, select: { organizationId: true } })
   if (!guest) return false
+  const propertyIds = await getOrgPropertyIds(guest.organizationId)
   const booking = await prisma.booking.findFirst({
-    where: { id: bookingId, leadGuestEmail: email, status: { not: 'cancelled' }, property: { organizationId: guest.organizationId } },
+    where: { id: bookingId, leadGuestEmail: email, status: { not: 'cancelled' }, propertyId: { in: propertyIds } },
   })
   if (!booking) return false
   if (booking.cancellationDeadline && new Date() > booking.cancellationDeadline) return false
@@ -138,7 +159,7 @@ export async function cancelGuestBooking(bookingId: number, guestId: number, ema
 
 export async function listGuests(params: {
   organizationId: number
-  search?: string; isBlocked?: boolean; page: number; pageSize: number
+  search?: string | undefined; isBlocked?: boolean | undefined; page: number; pageSize: number
 }) {
   const where: Record<string, unknown> = { organizationId: params.organizationId }
   if (params.isBlocked != null) where['isBlocked'] = params.isBlocked
@@ -166,9 +187,10 @@ export async function listGuests(params: {
 export async function getGuestStats(guestId: number, email: string) {
   const guest = await prisma.guest.findUnique({ where: { id: guestId }, select: { organizationId: true } })
   if (!guest) return { bookingCount: 0, totalSpend: 0, lastStay: null }
+  const propertyIds = await getOrgPropertyIds(guest.organizationId)
 
   const bookings = await prisma.booking.findMany({
-    where: { leadGuestEmail: email, property: { organizationId: guest.organizationId } },
+    where: { leadGuestEmail: email, propertyId: { in: propertyIds } },
     select: { totalAmount: true, checkOut: true, status: true },
   })
   const active = bookings.filter(b => b.status !== 'cancelled')

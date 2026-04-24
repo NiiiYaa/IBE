@@ -24,7 +24,7 @@ vi.mock('../../../utils/logger.js', () => ({
 const mockText = (content: string) => ({ text: () => Promise.resolve(content) })
 
 describe('HyperGuest HTTP client', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   describe('hgGet', () => {
     it('returns parsed JSON on 200', async () => {

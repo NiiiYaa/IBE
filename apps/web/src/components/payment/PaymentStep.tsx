@@ -20,16 +20,16 @@ import { Button } from '@/components/ui/button'
 
 export interface PaymentStepResult {
   paymentFlow: PaymentFlow
-  stripePaymentIntentId?: string
-  stripeSetupIntentId?: string
+  stripePaymentIntentId?: string | undefined
+  stripeSetupIntentId?: string | undefined
 }
 
 interface PaymentStepProps {
   paymentFlow: PaymentFlow
   propertyId: number
   /** Amount in minor units (cents) — required for OnlineCharge */
-  amount?: number
-  currency?: string
+  amount?: number | undefined
+  currency?: string | undefined
   onComplete: (result: PaymentStepResult) => void
 }
 

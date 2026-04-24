@@ -1,11 +1,11 @@
-import Redis from 'ioredis'
+import { Redis } from 'ioredis'
 import { env } from '../config/env.js'
 
 let redisClient: Redis | null = null
 
 export function getRedis(): Redis {
   if (!redisClient) {
-    redisClient = new Redis(env.REDIS_URL, {
+    redisClient = new Redis(env.REDIS_URL ?? '', {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
       enableReadyCheck: true,

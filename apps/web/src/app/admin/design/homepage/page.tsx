@@ -88,7 +88,7 @@ function GlobalHomepageEditor() {
 
   const realProperties = (propertiesData?.properties ?? []).filter(p => !p.isDemo)
   const isMultiProperty = realProperties.length > 1
-  const singlePropertySubdomain = realProperties.length === 1 ? realProperties[0].subdomain : null
+  const singlePropertySubdomain = realProperties.length === 1 ? realProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(singlePropertySubdomain ?? orgSettings?.orgSlug)
   const showCitySelector = propertiesData?.showCitySelector ?? false
 
@@ -378,7 +378,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
     staleTime: Infinity,
   })
 
-  const hotelB2bSubdomain = realPropertiesForHotel.length === 1 ? realPropertiesForHotel[0].subdomain : null
+  const hotelB2bSubdomain = realPropertiesForHotel.length === 1 ? realPropertiesForHotel[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(hotelB2bSubdomain ?? orgSettings?.orgSlug)
 
   useEffect(() => {

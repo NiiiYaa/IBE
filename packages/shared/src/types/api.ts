@@ -12,15 +12,15 @@ export interface SearchParams {
   checkIn: string        // YYYY-MM-DD
   checkOut: string       // YYYY-MM-DD
   rooms: RoomOccupancy[]
-  nationality?: string   // ISO 3166-1 alpha-2
-  currency?: string      // ISO 4217
-  promoCode?: string
-  affiliateCode?: string
+  nationality?: string | undefined   // ISO 3166-1 alpha-2
+  currency?: string | undefined      // ISO 4217
+  promoCode?: string | undefined
+  affiliateCode?: string | undefined
 }
 
 export interface RoomOccupancy {
   adults: number
-  childAges?: number[]
+  childAges?: number[] | undefined
 }
 
 export interface TaxEntry {
@@ -170,13 +170,13 @@ export interface GuestInfo {
   firstName: string
   lastName: string
   birthDate: string
-  email?: string
-  phone?: string
-  address?: string
-  city?: string
-  country?: string
-  state?: string
-  zip?: string
+  email?: string | undefined
+  phone?: string | undefined
+  address?: string | undefined
+  city?: string | undefined
+  country?: string | undefined
+  state?: string | undefined
+  zip?: string | undefined
 }
 
 export interface BookingRoomRequest {
@@ -187,8 +187,8 @@ export interface BookingRoomRequest {
   expectedAmount: number
   expectedCurrency: string
   guests: GuestInfo[]
-  specialRequests?: string[]
-  originalSellAmount?: number
+  specialRequests?: string[] | undefined
+  originalSellAmount?: number | undefined
 }
 
 export interface CreateBookingRequest {
@@ -200,16 +200,16 @@ export interface CreateBookingRequest {
   paymentMethod: PaymentMethodType
   paymentFlow: PaymentFlow
   /** Stripe PaymentIntent ID — required for PaymentFlow.OnlineCharge */
-  stripePaymentIntentId?: string
+  stripePaymentIntentId?: string | undefined
   /** Stripe SetupIntent ID — required for PaymentFlow.PayAtHotelGuarantee */
-  stripeSetupIntentId?: string
-  agencyReference?: string
-  affiliateId?: string
-  campaignId?: string
-  searchId?: string
-  isTest?: boolean
-  promoCode?: string
-  promoDiscount?: number
+  stripeSetupIntentId?: string | undefined
+  agencyReference?: string | undefined
+  affiliateId?: string | undefined
+  campaignId?: string | undefined
+  searchId?: string | undefined
+  isTest?: boolean | undefined
+  promoCode?: string | undefined
+  promoDiscount?: number | undefined
 }
 
 export interface BookingCancellationFrame {
@@ -380,7 +380,7 @@ export interface OrgDesignDefaultsConfig {
   tabTitle: string | null
   defaultCurrency: string | null
   defaultLocale: string | null
-  textDirection: string | null
+  textDirection: 'ltr' | 'rtl' | null
   enabledLocales: string[] | null
   enabledCurrencies: string[] | null
   heroStyle: 'fullpage' | 'rectangle' | 'quilt' | null
@@ -770,17 +770,17 @@ export interface OrgSettingsResponse {
 }
 
 export interface UpdateOrgSettingsRequest {
-  orgName?: string
-  orgSlug?: string
-  hyperGuestOrgId?: string
-  hyperGuestBearerToken?: string
-  hyperGuestStaticDomain?: string
-  hyperGuestSearchDomain?: string
-  hyperGuestBookingDomain?: string
-  webDomain?: string
-  tlsCert?: string
-  tlsKey?: string
-  enabledModels?: SellModel[]
+  orgName?: string | undefined
+  orgSlug?: string | undefined
+  hyperGuestOrgId?: string | undefined
+  hyperGuestBearerToken?: string | undefined
+  hyperGuestStaticDomain?: string | undefined
+  hyperGuestSearchDomain?: string | undefined
+  hyperGuestBookingDomain?: string | undefined
+  webDomain?: string | undefined
+  tlsCert?: string | undefined
+  tlsKey?: string | undefined
+  enabledModels?: SellModel[] | undefined
 }
 
 // ── Payment ───────────────────────────────────────────────────────────────────
@@ -789,9 +789,9 @@ export interface CreatePaymentIntentRequest {
   /** IBE booking flow that determines which Stripe intent to create */
   paymentFlow: PaymentFlow
   /** Amount in minor units (cents). Required for PaymentFlow.OnlineCharge */
-  amount?: number
+  amount?: number | undefined
   /** ISO 4217 currency. Required for PaymentFlow.OnlineCharge */
-  currency?: string
+  currency?: string | undefined
   /** Property ID — used to look up hotel config (guarantee required etc.) */
   propertyId: number
 }
@@ -997,7 +997,7 @@ export interface CreateAdminUserRequest {
   email: string
   name: string
   role: string
-  orgId?: number  // required when creating as super admin
+  orgId?: number | undefined  // required when creating as super admin
 }
 
 export interface CreateAdminUserResponse extends AdminUserRecord {

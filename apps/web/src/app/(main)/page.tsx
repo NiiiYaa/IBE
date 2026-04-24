@@ -11,6 +11,11 @@ import { PropertyGridClient } from '@/components/home/PropertyGridClient'
 import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 
+const ChatWidget = dynamic(
+  () => import('@/components/chat/ChatWidget').then(m => ({ default: m.ChatWidget })),
+  { ssr: false },
+)
+
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] || 0)
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -162,7 +167,7 @@ export async function generateMetadata({
     return {
       title,
       description: 'Book your stay directly',
-      icons: favicon ? [{ rel: 'icon', url: favicon }] : undefined,
+      ...(favicon ? { icons: [{ rel: 'icon', url: favicon }] } : {}),
     }
   } catch {
     return { title: 'Hotel Booking' }
@@ -267,15 +272,17 @@ export default async function HomePage({
       )
     : null
 
-  // Fetch names for remaining properties (beyond initial batch) so the search bar
-  // shows real hotel names for all properties, not just the first four.
+  // Fetch name + city for remaining properties (beyond initial batch) so the search bar
+  // shows real hotel names and cities for all properties immediately.
   // Uses the same cached endpoint (revalidate: 3600) — warm loads are instant.
-  const remainingNameMap = new Map(
+  const remainingMetaMap = new Map(
     await Promise.all(
       orderedProperties.slice(INITIAL_BATCH).map(async p => {
-        if (p.name) return [p.propertyId, p.name] as const
         const detail = await fetchProperty(p.propertyId)
-        return [p.propertyId, detail?.name ?? null] as const
+        return [p.propertyId, {
+          name: detail?.name ?? p.name ?? null,
+          city: detail?.location?.city ?? null,
+        }] as const
       })
     )
   )
@@ -327,8 +334,9 @@ export default async function HomePage({
   const allPropertyOptions = tenant.type === 'org'
     ? orderedProperties.map(p => {
         const loaded = loadedDetailMap.get(p.propertyId)
-        const name = loaded?.name ?? remainingNameMap.get(p.propertyId) ?? p.name ?? `Property ${p.propertyId}`
-        const city = loaded?.city
+        const remaining = remainingMetaMap.get(p.propertyId)
+        const name = loaded?.name ?? remaining?.name ?? p.name ?? `Property ${p.propertyId}`
+        const city = loaded?.city || remaining?.city || undefined
         return {
           id: p.propertyId,
           name,
@@ -356,11 +364,45 @@ export default async function HomePage({
 
   const onsitePage = isMulti ? 'chain' as const : 'hotel' as const
 
+  const chatWidgetProps = {
+    ...(defaultPropertyId ? { propertyId: defaultPropertyId } : {}),
+    ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
+    whatsappPrefilledMessage: isMulti
+      ? `Hello, I'd like to find out about ${displayName}'s properties.`
+      : `Hello, I'd like to find out about ${displayName}.`,
+  }
+
+  // Shared mobile rectangle hero — always shown on mobile regardless of heroStyle
+  const MobileRectangleHero = (
+    <div className="relative h-52 w-full overflow-hidden sm:hidden">
+      {heroImageMode === 'carousel' ? (
+        <HeroCarousel images={carouselImages} alt={displayName} variant="rectangle" intervalSeconds={heroCarouselInterval} />
+      ) : heroImageUrl ? (
+        <Image
+          src={heroImageUrl}
+          alt={displayName}
+          fill
+          priority
+          unoptimized
+          sizes="100vw"
+          className="object-cover"
+        />
+      ) : (
+        <div className="h-full w-full bg-gradient-to-br from-slate-700 to-slate-500" />
+      )}
+    </div>
+  )
+
   if (heroStyle === 'quilt') {
     return (
       <div className="flex-1 bg-[var(--color-background)]">
         {PageStyle}
-        <div className="mx-auto max-w-6xl px-4 pt-6">
+
+        {/* Mobile: rectangle hero */}
+        {MobileRectangleHero}
+
+        {/* Desktop: quilt mosaic */}
+        <div className="hidden sm:block mx-auto max-w-6xl px-4 pt-6">
           <QuiltHero
             images={carouselImages}
             carousel={heroImageMode === 'carousel'}
@@ -383,6 +425,7 @@ export default async function HomePage({
         {PropertyGrid}
         <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
         <PixelInjector propertyId={propertyId} page="home" />
+        <ChatWidget {...chatWidgetProps} />
       </div>
     )
   }
@@ -391,7 +434,8 @@ export default async function HomePage({
     return (
       <div className="flex-1 bg-[var(--color-background)]">
         {PageStyle}
-        <div className="relative h-[50vh] w-full overflow-hidden">
+        {/* Mobile: fixed height; desktop: 50vh */}
+        <div className="relative h-52 sm:h-[50vh] w-full overflow-hidden">
           {heroImageMode === 'carousel' ? (
             <HeroCarousel images={carouselImages} alt={displayName} variant="rectangle" intervalSeconds={heroCarouselInterval} />
           ) : heroImageUrl ? (
@@ -423,14 +467,32 @@ export default async function HomePage({
         {PropertyGrid}
         <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
         <PixelInjector propertyId={propertyId} page="home" />
+        <ChatWidget {...chatWidgetProps} />
       </div>
     )
   }
 
+  // fullpage style
   return (
     <>
       {PageStyle}
-      <div className="relative flex min-h-screen flex-col">
+
+      {/* Mobile: rectangle hero + title + search */}
+      <div className="sm:hidden flex-1 bg-[var(--color-background)]">
+        {MobileRectangleHero}
+        <div className="mx-auto max-w-5xl px-4 py-6">
+          <div className="mb-4 text-center">
+            <h1 className="text-3xl font-bold text-[var(--color-text)]">{displayName}</h1>
+            {tagline && (
+              <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>
+            )}
+          </div>
+          <SearchBar {...searchBarProps} />
+        </div>
+      </div>
+
+      {/* Desktop: fullpage hero with centered title + search */}
+      <div className="hidden sm:flex relative min-h-screen flex-col">
         <div className="absolute inset-0">
           {heroImageMode === 'carousel' ? (
             <HeroCarousel images={carouselImages} alt={displayName} variant="fullpage" intervalSeconds={heroCarouselInterval} />
@@ -452,11 +514,11 @@ export default async function HomePage({
 
         <div className="relative flex flex-1 flex-col items-center justify-center px-4">
           <div className="w-full text-center">
-            <h1 className="text-4xl font-bold text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
+            <h1 className="text-5xl font-bold text-white drop-shadow-lg lg:text-6xl">
               {displayName}
             </h1>
             {tagline && (
-              <p className="mt-2 text-lg text-white/80 drop-shadow sm:text-xl">{tagline}</p>
+              <p className="mt-2 text-xl text-white/80 drop-shadow">{tagline}</p>
             )}
           </div>
           <div className="mt-4 w-full">
@@ -464,9 +526,11 @@ export default async function HomePage({
           </div>
         </div>
       </div>
+
       {PropertyGrid}
       <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />
       <PixelInjector propertyId={propertyId} page="home" />
+      <ChatWidget {...chatWidgetProps} />
     </>
   )
 }

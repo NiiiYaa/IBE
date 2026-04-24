@@ -60,10 +60,10 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
   return (
     <>
       <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-card">
-        <div className="flex">
-          {/* Square image carousel */}
+        <div className="flex flex-col sm:flex-row">
+          {/* Image carousel — full-width on mobile, square sidebar on desktop */}
           {currentImage && (
-            <div className="group relative hidden aspect-square w-56 shrink-0 overflow-hidden sm:block">
+            <div className="group relative aspect-[3/2] w-full overflow-hidden sm:aspect-square sm:w-56 sm:shrink-0">
               <button
                 onClick={() => setModalOpen(true)}
                 className="absolute inset-0 z-10 cursor-pointer"
@@ -76,7 +76,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 alt={currentImage.description || room.roomName}
                 fill
                 unoptimized
-                sizes="224px"
+                sizes="(max-width: 640px) 100vw, 224px"
                 className="object-cover transition-opacity duration-300"
               />
 

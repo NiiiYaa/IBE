@@ -233,7 +233,7 @@ export default function UsersPage() {
               ) : (
                 <select
                   value={form.orgId ?? ''}
-                  onChange={e => setForm(f => ({ ...f, orgId: e.target.value ? Number(e.target.value) : undefined }))}
+                  onChange={e => setForm(f => e.target.value ? { ...f, orgId: Number(e.target.value) } : { email: f.email, name: f.name, role: f.role })}
                   className={inputCls}
                 >
                   <option value="">Select org…</option>

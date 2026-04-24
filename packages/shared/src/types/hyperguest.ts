@@ -317,12 +317,12 @@ export interface HGPaymentDetails {
 }
 
 export interface HGBookingRoom {
-  roomCode?: string
-  roomId?: number
+  roomCode?: string | undefined
+  roomId?: number | undefined
   rateCode: string
   expectedPrice: { amount: number; currency: string }
   guests: HGGuest[]
-  specialRequests?: string[]
+  specialRequests?: string[] | undefined
 }
 
 export interface HGBookingRequest {
@@ -332,7 +332,7 @@ export interface HGBookingRequest {
   reference: { agency: string }
   paymentDetails: HGPaymentDetails
   rooms: HGBookingRoom[]
-  meta?: Array<{ key: string; value: string }>
+  meta?: Array<{ key: string; value: string }> | undefined
   isTest: boolean
   groupBooking: boolean
 }

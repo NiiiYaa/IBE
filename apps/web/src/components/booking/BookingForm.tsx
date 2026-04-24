@@ -94,9 +94,7 @@ export function BookingForm({
 
   // Auto-fill country from browser locale (e.g. "en-US" → "US"), fallback to "US"
   useEffect(() => {
-    const tag = navigator.language ?? ''
-    const parts = tag.split('-')
-    const code = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).toUpperCase()
+    const code = (navigator.language.split('-').at(-1) ?? '').toUpperCase()
     setValue('leadGuest.country', /^[A-Z]{2}$/.test(code) ? code : 'US')
   }, [setValue])
 
@@ -236,7 +234,7 @@ export function BookingForm({
         <form onSubmit={onGuestSubmit} className="space-y-5">
           <h3 className="font-semibold text-[var(--color-text)]">Guest details</h3>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <FormField label="Title" error={errors.leadGuest?.title?.message}>
               <select
                 {...register('leadGuest.title')}
@@ -254,7 +252,7 @@ export function BookingForm({
             <input {...register('leadGuest.lastName')} className={inputCls} placeholder="Smith" />
           </FormField>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="Email" error={errors.leadGuest?.email?.message}>
               <input type="email" {...register('leadGuest.email')} className={inputCls} placeholder="john@example.com" />
             </FormField>
@@ -371,7 +369,7 @@ const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(
 function FormField({
   label, hint, error, children, className = '',
 }: {
-  label: string; hint?: string; error?: string; children: React.ReactNode; className?: string
+  label: string; hint?: string; error?: string | undefined; children: React.ReactNode; className?: string
 }) {
   return (
     <div className={className}>

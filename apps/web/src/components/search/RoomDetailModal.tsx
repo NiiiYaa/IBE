@@ -31,10 +31,10 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 sm:p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-[var(--color-surface)] shadow-2xl">
+      <div className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-[var(--color-surface)] shadow-2xl sm:max-h-[88vh] sm:max-w-3xl sm:flex-row sm:rounded-2xl">
         {/* Close */}
         <button
           onClick={onClose}
@@ -44,9 +44,9 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
           ✕
         </button>
 
-        {/* Left: image carousel */}
-        <div className="flex w-3/5 shrink-0 flex-col">
-          <div className="group relative flex-1 min-h-0">
+        {/* Image section — top on mobile, left column on desktop */}
+        <div className="flex shrink-0 flex-col sm:w-2/5">
+          <div className="group relative aspect-[3/2] w-full sm:aspect-auto sm:flex-1 sm:min-h-0">
             {currentImage ? (
               <Image
                 key={currentImage.id}
@@ -54,7 +54,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
                 alt={currentImage.description || room.roomName}
                 fill
                 unoptimized
-                sizes="60vw"
+                sizes="(max-width: 640px) 100vw, 40vw"
                 className="object-cover"
               />
             ) : (
@@ -65,7 +65,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
               <button
                 onClick={() => setImgIndex(i => i - 1)}
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
+                className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-xl text-white hover:bg-black/70"
               >
                 ‹
               </button>
@@ -74,53 +74,44 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
               <button
                 onClick={() => setImgIndex(i => i + 1)}
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-xl text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
+                className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-xl text-white hover:bg-black/70"
               >
                 ›
               </button>
             )}
 
             {images.length > 1 && (
-              <div className="absolute bottom-3 right-3 rounded-full bg-black/50 px-2 py-0.5 text-xs text-white">
+              <div className="absolute bottom-2 right-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-white">
                 {imgIndex + 1} / {images.length}
               </div>
             )}
           </div>
 
-          {/* Thumbnail strip */}
+          {/* Thumbnail strip — desktop only */}
           {images.length > 1 && (
-            <div className="flex gap-1.5 overflow-x-auto bg-black/10 p-2">
+            <div className="hidden sm:flex gap-1.5 overflow-x-auto bg-black/10 p-2">
               {images.map((img, i) => (
                 <button
                   key={img.id}
                   onClick={() => setImgIndex(i)}
                   className={[
-                    'relative h-14 w-20 shrink-0 overflow-hidden rounded transition-opacity',
-                    i === imgIndex
-                      ? 'ring-2 ring-[var(--color-primary)]'
-                      : 'opacity-60 hover:opacity-100',
+                    'relative h-12 w-16 shrink-0 overflow-hidden rounded transition-opacity',
+                    i === imgIndex ? 'ring-2 ring-[var(--color-primary)]' : 'opacity-60 hover:opacity-100',
                   ].join(' ')}
                 >
-                  <Image
-                    src={img.url}
-                    alt={img.description || `Photo ${i + 1}`}
-                    fill
-                    unoptimized
-                    sizes="80px"
-                    className="object-cover"
-                  />
+                  <Image src={img.url} alt={img.description || `Photo ${i + 1}`} fill unoptimized sizes="64px" className="object-cover" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right: details */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-6">
-          <h2 className="pr-8 text-xl font-bold text-[var(--color-text)]">{room.roomName}</h2>
+        {/* Details — scrollable */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-5 sm:p-6">
+          <h2 className="pr-8 text-lg font-bold text-[var(--color-text)] sm:text-xl">{room.roomName}</h2>
 
           {/* Specs */}
-          <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted">
+          <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted">
             {room.roomSizeM2 > 0 && (
               <span className="flex items-center gap-1">
                 <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,14 +143,11 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
 
           {/* Facilities */}
           {roomDetail?.facilities && roomDetail.facilities.length > 0 && (
-            <div className="mt-5">
-              <h3 className="mb-2.5 text-sm font-semibold text-[var(--color-text)]">Facilities</h3>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-4">
+              <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">Facilities</h3>
+              <div className="flex flex-wrap gap-1.5">
                 {roomDetail.facilities.map(f => (
-                  <span
-                    key={f.id}
-                    className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-xs text-muted"
-                  >
+                  <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-0.5 text-xs text-muted">
                     {f.name}
                   </span>
                 ))}
@@ -169,15 +157,15 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
 
           {/* Description */}
           {description && (
-            <div className="mt-5">
-              <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">Description</h3>
+            <div className="mt-4">
+              <h3 className="mb-1.5 text-sm font-semibold text-[var(--color-text)]">Description</h3>
               <p className="text-sm leading-relaxed text-muted">{description}</p>
             </div>
           )}
 
-          {/* Property remarks (check-in/out times etc.) */}
+          {/* Property remarks */}
           {remarks.length > 0 && (
-            <div className="mt-5 space-y-2">
+            <div className="mt-4 space-y-2">
               {remarks.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-primary-light)] px-3 py-2 text-xs text-primary">
                   <svg className="mt-0.5 h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">

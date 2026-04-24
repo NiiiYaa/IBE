@@ -405,9 +405,8 @@ async function persistSearchSession(
         checkIn: new Date(params.checkIn),
         checkOut: new Date(params.checkOut),
         guestsParam: JSON.stringify(params.rooms),
-        nationality: params.nationality,
-        currency: params.currency,
-        metaJson: null, // meta will be added when promos are implemented
+        nationality: params.nationality ?? null,
+        currency: params.currency ?? null,
         expiresAt,
       },
     })

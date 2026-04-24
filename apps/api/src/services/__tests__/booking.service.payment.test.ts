@@ -78,7 +78,7 @@ const confirmedHGResponse = {
 }
 
 describe('booking service — payment flows', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   describe('OnlineCharge flow', () => {
     it('captures Stripe payment after confirmed booking', async () => {

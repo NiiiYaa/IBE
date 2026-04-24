@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { addDays, nightsBetween, todayIso } from '@ibe/shared'
 import { displayDate } from '@/lib/calendar-utils'
@@ -35,6 +35,7 @@ interface SearchBarProps {
   childMaxAge?: number
   properties?: PropertyOption[]
   showCitySelector?: boolean
+  showPromoCode?: boolean
   aiEnabled?: boolean
   orgId?: number
 }
@@ -56,6 +57,7 @@ export function SearchBar({
   childMaxAge = 16,
   properties,
   showCitySelector = false,
+  showPromoCode = true,
   aiEnabled = false,
   orgId,
 }: SearchBarProps) {
@@ -132,6 +134,8 @@ export function SearchBar({
     ? [...new Set(properties.map(p => p.city ?? '').filter(Boolean))].sort()
     : []
   const [selectedCity, setSelectedCity] = useState('')
+  const [propertySearch, setPropertySearch] = useState('')
+  const [citySearch, setCitySearch] = useState('')
   const [checkIn, setCheckIn] = useState(initialCheckIn ?? '')
   const [checkOut, setCheckOut] = useState(initialCheckOut ?? '')
   const [rooms, setRooms] = useState<GuestRoom[]>(
@@ -141,6 +145,19 @@ export function SearchBar({
   const [promoCode, setPromoCode] = useState('')
   const [showPromo, setShowPromo] = useState(false)
   const [activePanel, setActivePanel] = useState<ActivePanel>(null)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [mobilePanel, setMobilePanel] = useState<ActivePanel>(null)
+
+  function toggleMobilePanel(panel: ActivePanel) {
+    setMobilePanel(prev => prev === panel ? null : panel)
+  }
+
+  const openPanel = useCallback((panel: ActivePanel) => {
+    setActivePanel(prev => {
+      if (prev !== panel) { setPropertySearch(''); setCitySearch('') }
+      return prev === panel ? null : panel
+    })
+  }, [])
   const [calendarInitialField, setCalendarInitialField] = useState<'checkin' | 'checkout'>('checkin')
 
   const detectedCountry = useCountryDetect()
@@ -261,9 +278,9 @@ export function SearchBar({
 
   return (
     <div ref={containerRef} className="relative mx-auto w-full max-w-5xl">
-      {/* Pill bar */}
+      {/* Pill bar — desktop only */}
       <div className={[
-        'flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200',
+        'hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200',
         aiMode ? 'ring-2 ring-violet-400' : '',
       ].join(' ')}>
         {aiMode ? (
@@ -304,7 +321,7 @@ export function SearchBar({
                   label="City"
                   value={selectedCity || 'All'}
                   active={activePanel === 'city'}
-                  onClick={() => setActivePanel(p => (p === 'city' ? null : 'city'))}
+                  onClick={() => openPanel('city')}
                 />
                 <Divider />
               </>
@@ -316,7 +333,7 @@ export function SearchBar({
                   label="Property"
                   value={selectedProperty?.name ?? 'Select property'}
                   active={activePanel === 'property'}
-                  onClick={() => setActivePanel(p => (p === 'property' ? null : 'property'))}
+                  onClick={() => openPanel('property')}
                 />
                 <Divider />
               </>
@@ -385,7 +402,7 @@ export function SearchBar({
         )}
       </div>
 
-      {/* AI chat thread — slides in below the bar when AI Mode is active */}
+      {/* AI chat thread — desktop only */}
       {aiMode && aiMessages.length > 0 && (
         <div
           ref={aiThreadRef}
@@ -414,9 +431,9 @@ export function SearchBar({
       )}
 
       {/* Promo toggle + input — outside pill, centered below check button */}
-      {!aiMode && (
+      {!aiMode && showPromoCode && (
       <div
-        className="absolute top-full z-10 mt-2 flex -translate-x-1/2 flex-col items-center gap-1.5"
+        className="hidden sm:flex absolute top-full z-10 mt-2 -translate-x-1/2 flex-col items-center gap-1.5"
         style={{ left: promoLeft }}
       >
         <button
@@ -448,47 +465,253 @@ export function SearchBar({
       </div>
       )}
 
+      {/* ── Mobile summary card ──────────────────────────────────────── */}
+      <button
+        onClick={() => setMobileDrawerOpen(true)}
+        className="sm:hidden mt-0 flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-5 py-4 shadow-2xl text-left"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-[var(--color-text-muted)]">
+            {checkIn && checkOut
+              ? `${displayDate(checkIn)} – ${displayDate(checkOut)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
+              : 'Select dates'}
+          </p>
+          <p className="truncate text-sm font-semibold text-[var(--color-text)]">{guestSummary}</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow">
+          Search
+        </span>
+      </button>
+
+      {/* ── Mobile full-screen drawer ────────────────────────────────── */}
+      {mobileDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white sm:hidden">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4 py-4">
+            <h2 className="text-base font-semibold text-[var(--color-text)]">Search</h2>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="rounded-full p-2 text-[var(--color-text-muted)] transition-colors hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto">
+            {/* City selector */}
+            {showCitySelector && cities.length > 1 && (
+              <MobileSection
+                label="City"
+                value={selectedCity || 'All cities'}
+                open={mobilePanel === 'city'}
+                onToggle={() => toggleMobilePanel('city')}
+              >
+                <div className="space-y-1">
+                  {[{ value: '', label: 'All cities' }, ...cities.map(c => ({ value: c, label: c }))].map(({ value, label }) => (
+                    <button
+                      key={value || '__all__'}
+                      onClick={() => { handleCitySelect(value); setMobilePanel(null) }}
+                      className={[
+                        'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                        value === selectedCity ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
+                      ].join(' ')}
+                    >
+                      {label}
+                      {value === selectedCity && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                    </button>
+                  ))}
+                </div>
+              </MobileSection>
+            )}
+
+            {/* Property selector */}
+            {properties && properties.length > 1 && (
+              <MobileSection
+                label="Property"
+                value={selectedProperty?.name ?? 'Select property'}
+                open={mobilePanel === 'property'}
+                onToggle={() => toggleMobilePanel('property')}
+              >
+                <div className="space-y-1">
+                  {visibleProperties.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedPropertyId(p.id); setMobilePanel(null) }}
+                      className={[
+                        'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                        p.id === effectivePropertyId ? 'bg-[var(--color-primary-light)] font-semibold text-[var(--color-primary)]' : 'hover:bg-gray-50 text-[var(--color-text)]',
+                      ].join(' ')}
+                    >
+                      {p.name}
+                      {p.id === effectivePropertyId && <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                    </button>
+                  ))}
+                </div>
+              </MobileSection>
+            )}
+
+            {/* Dates */}
+            <MobileSection
+              label="Dates"
+              value={checkIn && checkOut
+                ? `${displayDate(checkIn)} – ${displayDate(checkOut)}${nights > 0 ? ` (${nights} night${nights !== 1 ? 's' : ''})` : ''}`
+                : 'Select dates'}
+              open={mobilePanel === 'calendar'}
+              onToggle={() => toggleMobilePanel('calendar')}
+            >
+              <CalendarDropdown
+                checkIn={checkIn}
+                checkOut={checkOut}
+                initialField="checkin"
+                onDatesChange={(ci, co) => { setCheckIn(ci); setCheckOut(co) }}
+                onClose={() => setMobilePanel(null)}
+                variant="inline"
+                minNights={minNights}
+                maxNights={maxNights}
+              />
+            </MobileSection>
+
+            {/* Guests */}
+            <MobileSection
+              label="Guests"
+              value={guestSummary}
+              open={mobilePanel === 'guests'}
+              onToggle={() => toggleMobilePanel('guests')}
+            >
+              <GuestsDropdown
+                rooms={rooms}
+                onChange={setRooms}
+                infantMaxAge={infantMaxAge}
+                childMaxAge={childMaxAge}
+                minRooms={minRooms}
+                maxRooms={maxRooms}
+              />
+            </MobileSection>
+
+            {/* Nationality */}
+            <MobileSection
+              label="Nationality"
+              value={nationalityLabel}
+              open={mobilePanel === 'nationality'}
+              onToggle={() => toggleMobilePanel('nationality')}
+            >
+              <NationalityDropdown
+                value={nationality}
+                onChange={(code) => { setNationality(code); setMobilePanel(null) }}
+              />
+            </MobileSection>
+
+            {/* Promo code */}
+            <div className="border-b border-[var(--color-border)] px-4 py-4">
+              <p className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">Promo code</p>
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2.5">
+                <input
+                  type="text"
+                  placeholder="Enter promo code"
+                  value={promoCode}
+                  onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                  className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+                />
+                {promoCode && (
+                  <button onClick={() => setPromoCode('')} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">×</button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer CTA */}
+          <div className="shrink-0 border-t border-[var(--color-border)] p-4">
+            <button
+              onClick={() => { handleSearch(); setMobileDrawerOpen(false) }}
+              disabled={nights <= 0}
+              className="w-full rounded-xl bg-[var(--color-primary)] py-3.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Check availability
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Desktop panels (absolute-positioned) ─────────────────────── */}
       {activePanel === 'city' && cities.length > 0 && (
         <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
-          {[{ value: '', label: 'All' }, ...cities.map(c => ({ value: c, label: c }))].map(({ value, label }) => (
-            <button
-              key={value || '__all__'}
-              onClick={() => handleCitySelect(value)}
-              className={[
-                'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
-                value === selectedCity ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
-              ].join(' ')}
-            >
-              <span>{label}</span>
-              {value === selectedCity && (
-                <svg className="h-4 w-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+          {cities.length > 10 && (
+            <div className="border-b border-[var(--color-border)] px-3 py-2">
+              <input
+                autoFocus
+                type="text"
+                value={citySearch}
+                onChange={e => setCitySearch(e.target.value)}
+                placeholder="Search cities…"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+              />
+            </div>
+          )}
+          <div className="max-h-64 overflow-y-auto">
+            {[{ value: '', label: 'All' }, ...cities.map(c => ({ value: c, label: c }))]
+              .filter(({ value, label }) => !citySearch || label === 'All' || label.toLowerCase().includes(citySearch.toLowerCase()))
+              .map(({ value, label }) => (
+                <button
+                  key={value || '__all__'}
+                  onClick={() => { handleCitySelect(value); setCitySearch('') }}
+                  className={[
+                    'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
+                    value === selectedCity ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                  ].join(' ')}
+                >
+                  <span>{label}</span>
+                  {value === selectedCity && (
+                    <svg className="h-4 w-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+          </div>
         </div>
       )}
 
       {activePanel === 'property' && visibleProperties && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
-          {visibleProperties.map(p => (
-            <button
-              key={p.id}
-              onClick={() => { setSelectedPropertyId(p.id); setActivePanel(null) }}
-              className={[
-                'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
-                p.id === effectivePropertyId ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
-              ].join(' ')}
-            >
-              <span>{p.name}</span>
-              {p.id === effectivePropertyId && (
-                <svg className="h-4 w-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+          {visibleProperties.length > 10 && (
+            <div className="border-b border-[var(--color-border)] px-3 py-2">
+              <input
+                autoFocus
+                type="text"
+                value={propertySearch}
+                onChange={e => setPropertySearch(e.target.value)}
+                placeholder="Search by name or ID…"
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+              />
+            </div>
+          )}
+          <div className="max-h-72 overflow-y-auto">
+            {visibleProperties
+              .filter(p => !propertySearch ||
+                p.name.toLowerCase().includes(propertySearch.toLowerCase()) ||
+                String(p.id).includes(propertySearch))
+              .map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { setSelectedPropertyId(p.id); setActivePanel(null); setPropertySearch('') }}
+                  className={[
+                    'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
+                    p.id === effectivePropertyId ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                  ].join(' ')}
+                >
+                  <span>{p.name}</span>
+                  {p.id === effectivePropertyId && (
+                    <svg className="h-4 w-4 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+          </div>
         </div>
       )}
 
@@ -624,6 +847,41 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
         <SparkleIcon white={false} />
         AI Mode
       </button>
+    </div>
+  )
+}
+
+function MobileSection({
+  label,
+  value,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string
+  value: string
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="border-b border-[var(--color-border)]">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-4 py-4 text-left"
+      >
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[var(--color-text-muted)]">{label}</p>
+          <p className="truncate text-sm font-semibold text-[var(--color-text)]">{value}</p>
+        </div>
+        <svg
+          className={['h-5 w-5 shrink-0 text-[var(--color-text-muted)] transition-transform', open ? 'rotate-180' : ''].join(' ')}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   )
 }

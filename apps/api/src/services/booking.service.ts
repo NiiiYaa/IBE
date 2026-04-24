@@ -54,8 +54,8 @@ export class BookingError extends Error {
 export interface B2BAttribution {
   buyerOrgId: number
   buyerUserId: number
-  buyerOrgName?: string
-  buyerUserName?: string
+  buyerOrgName?: string | undefined
+  buyerUserName?: string | undefined
 }
 
 export async function book(request: CreateBookingRequest, b2b?: B2BAttribution): Promise<BookingConfirmation> {
@@ -77,13 +77,13 @@ export async function book(request: CreateBookingRequest, b2b?: B2BAttribution):
       checkOut: request.checkOut,
       leadGuest: request.leadGuest,
       rooms: request.rooms.map((r) => ({
-        roomId: r.roomId,
-        roomCode: r.roomCode,
+        ...(r.roomId !== undefined ? { roomId: r.roomId } : {}),
+        ...(r.roomCode !== undefined ? { roomCode: r.roomCode } : {}),
         rateCode: r.rateCode,
         expectedAmount: r.expectedAmount,
         expectedCurrency: r.expectedCurrency,
         guests: r.guests,
-        specialRequests: r.specialRequests,
+        ...(r.specialRequests ? { specialRequests: r.specialRequests } : {}),
       })),
       paymentMethod: hgPaymentMethod,
       agencyReference: request.agencyReference,
@@ -186,7 +186,7 @@ export async function book(request: CreateBookingRequest, b2b?: B2BAttribution):
         penaltyAmount: cp.price.amount,
         currency: cp.price.currency,
       })),
-      propertyReference: r.reference.property,
+      ...(r.reference.property !== undefined ? { propertyReference: r.reference.property } : {}),
     })),
     totalAmount: booking.payment.chargeAmount.price,
     currency: booking.payment.chargeAmount.currency,
@@ -240,16 +240,16 @@ async function persistBooking(
       leadGuestEmail: booking.leadGuest.contact?.email ?? request.leadGuest.email ?? '',
       totalAmount: booking.payment.chargeAmount.price,
       currency: booking.payment.chargeAmount.currency,
-      agencyReference: request.agencyReference,
-      affiliateId: request.affiliateId,
-      campaignId: request.campaignId,
+      agencyReference: request.agencyReference ?? null,
+      affiliateId: request.affiliateId ?? null,
+      campaignId: request.campaignId ?? null,
       promoCode: request.promoCode ?? null,
       promoDiscountPct: request.promoDiscount ?? null,
       originalPrice: request.rooms[0]?.originalSellAmount ?? null,
       cancellationDeadline: extractCancellationDeadline(booking),
       paymentMethod: request.paymentMethod,
       paymentFlow,
-      stripeIntentId,
+      stripeIntentId: stripeIntentId ?? null,
       isTest: request.isTest ?? false,
       bookingChannel: b2b ? 'b2b' : 'b2c',
       agentOrgId: b2b?.buyerOrgId ?? null,
@@ -264,7 +264,7 @@ async function persistBooking(
           rateCode: r.rateCode,
           board: r.board,
           status: r.status,
-          propertyReference: r.reference.property,
+          propertyReference: r.reference.property ?? null,
         })),
       },
     },

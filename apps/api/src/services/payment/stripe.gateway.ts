@@ -27,7 +27,7 @@ export class StripeGateway implements PaymentGateway {
     if (!env.STRIPE_SECRET_KEY) {
       throw new Error('STRIPE_SECRET_KEY is not configured')
     }
-    return new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' })
+    return new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2026-03-25.dahlia' })
   }
 
   async createIntent(flow: PaymentFlow, options: CreateIntentOptions): Promise<GatewayIntentResult> {
@@ -145,8 +145,8 @@ export class StripeGateway implements PaymentGateway {
           stripeIntentId: data.intentId,
           stripeIntentType: data.intentType,
           paymentFlow: data.flow,
-          amount: data.amount,
-          currency: data.currency,
+          amount: data.amount ?? null,
+          currency: data.currency ?? null,
           status: data.status,
         },
       })

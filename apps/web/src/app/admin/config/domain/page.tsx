@@ -34,7 +34,7 @@ function parseCertExpiry(pem: string): Date | null {
       }
     }
     // The second date in the validity sequence is the "not after" (expiry)
-    return dates.length >= 2 ? dates[1] : null
+    return dates.length >= 2 ? dates[1] ?? null : null
   } catch {
     return null
   }

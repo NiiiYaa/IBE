@@ -13,7 +13,7 @@ vi.mock('../../db/client.js', () => ({
 
 import { addProperty, PropertyConflictError } from '../property-registry.service.js'
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => { vi.clearAllMocks() })
 
 describe('addProperty', () => {
   it('creates a new property when none exists', async () => {

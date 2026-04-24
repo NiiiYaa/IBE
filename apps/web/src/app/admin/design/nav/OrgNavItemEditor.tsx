@@ -54,14 +54,14 @@ export function OrgNavItemEditor({ section, title }: OrgNavItemEditorProps) {
   function moveUp(idx: number) {
     if (idx === 0) return
     const ids = items.map(i => i.id)
-    ;[ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]]
+    ;[ids[idx - 1], ids[idx]] = [ids[idx]!, ids[idx - 1]!]
     reorderMut.mutate(ids)
   }
 
   function moveDown(idx: number) {
     if (idx === items.length - 1) return
     const ids = items.map(i => i.id)
-    ;[ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]]
+    ;[ids[idx], ids[idx + 1]] = [ids[idx + 1]!, ids[idx]!]
     reorderMut.mutate(ids)
   }
 

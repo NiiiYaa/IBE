@@ -56,7 +56,7 @@ export async function getOrgOffersSettings(organizationId: number): Promise<OrgO
       minNights: null, maxNights: null, minRooms: null, maxRooms: null,
       allowedCancellationPolicies: null, allowedBoardTypes: null,
       allowedChargeParties: null, allowedPaymentMethods: null,
-      minOfferValue: null, minOfferCurrency: null, bookingMode: null,
+      minOfferValue: null, minOfferCurrency: null, bookingMode: null, multiRoomLimitBy: null,
     }
   }
   return rowToSettings(row)

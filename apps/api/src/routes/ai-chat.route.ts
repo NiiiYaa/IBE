@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { runOrchestrator } from '../ai/orchestrator.js'
 import { resolveAIConfig } from '../services/ai-config.service.js'
+import { getCommSettings } from '../services/communication.service.js'
+import { getOrgIdForProperty } from '../services/property-registry.service.js'
 import { ClientSession } from '../ai/sessions/client-session.js'
 import type { ChatMessage } from '../ai/sessions/types.js'
 import { logger } from '../utils/logger.js'
@@ -17,6 +19,34 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
     const config = await resolveAIConfig(propertyId && !isNaN(propertyId) ? propertyId : undefined)
     void reply.header('Cache-Control', 'public, max-age=60')
     return reply.send({ enabled: !!config })
+  })
+
+  // GET /api/v1/ai/chat-config?propertyId=X — public: which conversation channels are available?
+  // Returns AI enabled flag + WhatsApp contact number (if configured with Twilio).
+  fastify.get('/ai/chat-config', async (request, reply) => {
+    const { propertyId: rawId } = request.query as { propertyId?: string }
+    const propertyId = rawId ? parseInt(rawId, 10) : NaN
+
+    const pid = !isNaN(propertyId) ? propertyId : undefined
+    const [aiConfig, orgId] = await Promise.all([
+      resolveAIConfig(pid),
+      pid ? getOrgIdForProperty(pid) : Promise.resolve(undefined),
+    ])
+
+    let whatsappNumber: string | null = null
+    if (orgId) {
+      const comms = await getCommSettings(orgId)
+      if (comms.whatsappEnabled && comms.whatsappProvider === 'twilio' && comms.whatsappTwilioNumber) {
+        whatsappNumber = comms.whatsappTwilioNumber
+      } else if (comms.whatsappEnabled && comms.whatsappProvider === 'meta' && comms.whatsappPhoneNumberId) {
+        // Meta phoneNumberId is not the consumer-facing number; surface it only if it looks like a phone number
+        const cleaned = comms.whatsappPhoneNumberId.replace(/\D/g, '')
+        if (cleaned.length >= 10 && cleaned.length <= 15) whatsappNumber = comms.whatsappPhoneNumberId
+      }
+    }
+
+    void reply.header('Cache-Control', 'public, max-age=60')
+    return reply.send({ aiEnabled: !!aiConfig, whatsappNumber })
   })
 
   // POST /api/v1/ai/chat — guest-facing conversational search

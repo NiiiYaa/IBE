@@ -425,7 +425,7 @@ export const apiClient = {
 
   setPropertyHGCredentials(
     id: number,
-    creds: { bearerToken?: string; staticDomain?: string; searchDomain?: string; bookingDomain?: string },
+    creds: { bearerToken?: string | undefined; staticDomain?: string | undefined; searchDomain?: string | undefined; bookingDomain?: string | undefined },
   ): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/properties/${id}/hg-credentials`, {
       method: 'PUT',
@@ -827,7 +827,7 @@ export const apiClient = {
     return apiRequest<AdminGuestProfile>(`/api/v1/admin/guests/${id}`)
   },
 
-  updateAdminGuest(id: number, data: { firstName?: string; lastName?: string; phone?: string | null; nationality?: string | null }): Promise<AdminGuestRow> {
+  updateAdminGuest(id: number, data: { firstName?: string | undefined; lastName?: string | undefined; phone?: string | null | undefined; nationality?: string | null | undefined }): Promise<AdminGuestRow> {
     return apiRequest<AdminGuestRow>(`/api/v1/admin/guests/${id}`, { method: 'PUT', body: JSON.stringify(data) })
   },
 
@@ -1046,6 +1046,11 @@ export const apiClient = {
   isAIEnabled(propertyId?: number): Promise<{ enabled: boolean }> {
     const qs = propertyId ? `?propertyId=${propertyId}` : ''
     return apiRequest(`/api/v1/ai/enabled${qs}`)
+  },
+
+  getChatConfig(propertyId?: number): Promise<{ aiEnabled: boolean; whatsappNumber: string | null }> {
+    const qs = propertyId ? `?propertyId=${propertyId}` : ''
+    return apiRequest(`/api/v1/ai/chat-config${qs}`)
   },
 
   getSystemAIConfig(): Promise<AIConfigResponse> {

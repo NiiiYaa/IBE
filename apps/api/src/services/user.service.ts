@@ -41,8 +41,7 @@ export async function listAllUsers(): Promise<UserRecord[]> {
   })
   return users.map(u => ({
     id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive, createdAt: u.createdAt,
-    orgId: u.organization?.id,
-    orgName: u.organization?.name ?? undefined,
+    ...(u.organization ? { orgId: u.organization.id, orgName: u.organization.name } : {}),
     orgHyperGuestOrgId: u.organization?.hyperGuestOrgId ?? null,
     propertyIds: u.adminUserProperties.map(p => p.propertyId),
   }))
@@ -88,7 +87,7 @@ export async function listOrgs(): Promise<OrgServiceRecord[]> {
 
 export async function updateOrg(
   id: number,
-  data: { name?: string; hyperGuestOrgId?: string | null; orgType?: string },
+  data: { name?: string | undefined; hyperGuestOrgId?: string | null | undefined; orgType?: string | undefined },
 ): Promise<OrgServiceRecord> {
   if (data.hyperGuestOrgId) {
     const existing = await prisma.organization.findUnique({ where: { hyperGuestOrgId: data.hyperGuestOrgId } })
@@ -118,7 +117,7 @@ function slugify(name: string): string {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-export async function createOrg(data: { name: string; hyperGuestOrgId?: string | null; orgType?: string }): Promise<OrgServiceRecord> {
+export async function createOrg(data: { name: string; hyperGuestOrgId?: string | null | undefined; orgType?: string | undefined }): Promise<OrgServiceRecord> {
   const name = data.name.trim()
   if (!name) throw new Error('name is required')
 

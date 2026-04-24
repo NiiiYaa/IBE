@@ -64,7 +64,7 @@ function parseRoomsFromQuery(query: Record<string, unknown>) {
       : rawChildren
         ? [Number(rawChildren)]
         : undefined
-    rooms.push({ adults, childAges })
+    rooms.push({ adults, ...(childAges ? { childAges } : {}) })
     i++
   }
   // Fallback: single room shorthand ?adults=2

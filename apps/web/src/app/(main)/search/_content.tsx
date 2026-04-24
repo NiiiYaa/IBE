@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useProperty } from '@/hooks/use-property'
@@ -16,14 +15,18 @@ import { RoomCardGrid } from '@/components/search/RoomCardGrid'
 import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
-import { ConversationalSearchPanel } from '@/components/conversational-search/conversational-search-panel'
-import { apiClient } from '@/lib/api-client'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
+  { ssr: false },
+)
+
+const SearchBar = dynamic(
+  () => import('@/components/search/SearchBar').then(m => ({ default: m.SearchBar })),
   { ssr: false },
 )
 
@@ -49,14 +52,6 @@ export function SearchContent() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cartExpanded, setCartExpanded] = useState(false)
-  const [aiOpen, setAiOpen] = useState(false)
-
-  const { data: aiStatus } = useQuery({
-    queryKey: ['ai-enabled', searchParams?.hotelId],
-    queryFn: () => apiClient.isAIEnabled(searchParams?.hotelId),
-    enabled: !!searchParams?.hotelId,
-    staleTime: 60_000,
-  })
 
   if (!searchParams) {
     return (
@@ -128,6 +123,14 @@ export function SearchContent() {
   const cartTotal = cartItems.reduce((sum, item) => sum + convert(item.rate.prices.sell.amount), 0)
   const showCartBar = isMultiMode && cartItems.length > 0
 
+  const infantMaxAge = hotelConfig?.infantMaxAge ?? 2
+  const childMaxAge = hotelConfig?.childMaxAge ?? 16
+  const searchBarInitialRooms = searchParams?.rooms.map(r => ({
+    adults: r.adults,
+    children: (r.childAges ?? []).filter(age => age > infantMaxAge).length,
+    infants: (r.childAges ?? []).filter(age => age <= infantMaxAge).length,
+  }))
+
   const roomList = (
     <div className="min-w-0 flex-1 space-y-4">
       {propertyData && hotelConfig && (!!hotelConfig.searchResultsImageUrl || hotelConfig.searchResultsImageMode === 'carousel') && (() => {
@@ -168,26 +171,15 @@ export function SearchContent() {
         />
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--color-text)]">
-            {isLoading ? 'Searching…' : data
-              ? `${allRooms.length} room type${allRooms.length !== 1 ? 's' : ''} available`
-              : 'Available rooms'}
-          </h2>
-          <p className="text-sm text-muted">
-            {nights} night{nights !== 1 ? 's' : ''} · {searchParams.rooms.reduce((s, r) => s + r.adults, 0)} adult{searchParams.rooms.reduce((s, r) => s + r.adults, 0) !== 1 ? 's' : ''}
-          </p>
-        </div>
-        {aiStatus?.enabled && (
-          <button
-            onClick={() => setAiOpen(true)}
-            className="flex items-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-light)] px-3 py-2 text-sm font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white"
-          >
-            <span className="text-base leading-none">✦</span>
-            Ask AI
-          </button>
-        )}
+      <div>
+        <h2 className="text-lg font-semibold text-[var(--color-text)]">
+          {isLoading ? 'Searching…' : data
+            ? `${allRooms.length} room type${allRooms.length !== 1 ? 's' : ''} available`
+            : 'Available rooms'}
+        </h2>
+        <p className="text-sm text-muted">
+          {nights} night{nights !== 1 ? 's' : ''} · {searchParams.rooms.reduce((s, r) => s + r.adults, 0)} adult{searchParams.rooms.reduce((s, r) => s + r.adults, 0) !== 1 ? 's' : ''}
+        </p>
       </div>
 
       {data && displayCurrency && displayCurrency !== nativeCurrency && (
@@ -283,18 +275,31 @@ export function SearchContent() {
     <>
       <OnsiteConversionOverlay propertyId={searchParams.hotelId} page="room" />
 
-      <main className={`mx-auto max-w-7xl px-4 py-6 ${showCartBar ? 'pb-24' : ''}`}>
+      {/* Search bar — same component as hotel page; pill bar on desktop, tap-card on mobile */}
+      <div className="bg-[var(--color-background)] px-4 pt-4 pb-2">
+        <SearchBar
+          propertyId={searchParams.hotelId}
+          initialCheckIn={searchParams.checkIn}
+          initialCheckOut={searchParams.checkOut}
+          {...(searchParams.nationality ? { initialNationality: searchParams.nationality } : {})}
+          infantMaxAge={infantMaxAge}
+          childMaxAge={childMaxAge}
+          {...(searchBarInitialRooms ? { initialRooms: searchBarInitialRooms } : {})}
+        />
+      </div>
+
+      <main className={`mx-auto max-w-7xl px-4 py-4 ${showCartBar ? 'pb-24' : ''}`}>
         <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
 
-          {/* Collapsible sidebar */}
+          {/* Collapsible sidebar — desktop only */}
           <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
             <SearchSidebar
               propertyId={searchParams.hotelId}
               initialCheckIn={searchParams.checkIn}
               initialCheckOut={searchParams.checkOut}
               initialNationality={searchParams.nationality}
-              infantMaxAge={hotelConfig?.infantMaxAge ?? 2}
-              childMaxAge={hotelConfig?.childMaxAge ?? 16}
+              infantMaxAge={infantMaxAge}
+              childMaxAge={childMaxAge}
               isCollapsed={!sidebarOpen}
               onToggle={() => setSidebarOpen(v => !v)}
             />
@@ -305,22 +310,7 @@ export function SearchContent() {
       </main>
 
       {/* Sticky bottom cart bar — multi-room mode only */}
-      {/* AI chat drawer */}
-      {aiOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-            onClick={() => setAiOpen(false)}
-          />
-          <div className="fixed bottom-0 right-0 top-0 z-50 flex w-full flex-col shadow-2xl sm:w-[420px]">
-            <ConversationalSearchPanel
-              propertyId={searchParams.hotelId}
-              onClose={() => setAiOpen(false)}
-              className="h-full"
-            />
-          </div>
-        </>
-      )}
+      <ChatWidget propertyId={searchParams.hotelId} />
 
       {isMultiMode && (
         <div

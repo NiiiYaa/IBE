@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   HGBookingRequest,
+  HGBookingRoom,
   HGBookingResponse,
   HGBookingContent,
   GuestInfo,
@@ -62,18 +63,18 @@ export interface CreateBookingInput {
   checkOut: string
   leadGuest: GuestInfo
   rooms: Array<{
-    roomCode?: string
-    roomId?: number
+    roomCode?: string | undefined
+    roomId?: number | undefined
     rateCode: string
     expectedAmount: number
     expectedCurrency: string
     guests: GuestInfo[]
-    specialRequests?: string[]
+    specialRequests?: string[] | undefined
   }>
   paymentMethod: string
-  agencyReference?: string
-  meta?: Array<{ key: string; value: string }>
-  isTest?: boolean
+  agencyReference?: string | undefined
+  meta?: Array<{ key: string; value: string }> | undefined
+  isTest?: boolean | undefined
 }
 
 /**
@@ -103,8 +104,8 @@ export async function createBooking(input: CreateBookingInput, buyerOrgId?: numb
       rateCode: room.rateCode,
       expectedPrice: { amount: room.expectedAmount, currency: room.expectedCurrency },
       guests: room.guests.map((g) => mapGuest(g, false)),
-      specialRequests: room.specialRequests,
-    })),
+      ...(room.specialRequests ? { specialRequests: room.specialRequests } : {}),
+    })) as HGBookingRoom[],
     meta: input.meta,
     isTest: input.isTest ?? false,
     groupBooking: false,

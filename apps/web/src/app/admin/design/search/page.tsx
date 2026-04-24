@@ -53,7 +53,7 @@ function GlobalSearchEditor() {
     staleTime: Infinity,
   })
 
-  const searchSingleSubdomain = realSearchProperties.length === 1 ? realSearchProperties[0].subdomain : null
+  const searchSingleSubdomain = realSearchProperties.length === 1 ? realSearchProperties[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(searchSingleSubdomain ?? orgSettings?.orgSlug)
 
   if (isLoading) return <Spinner />
@@ -279,7 +279,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   })
 
   const propSearchReal = (propertiesDataForSearch?.properties ?? []).filter(p => !p.isDemo)
-  const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0].subdomain : null
+  const propSearchSingleSubdomain = propSearchReal.length === 1 ? propSearchReal[0]!.subdomain : null
   const b2bOrigin = useB2bOrigin(propSearchSingleSubdomain ?? orgSettings?.orgSlug)
 
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
@@ -387,7 +387,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
                 ] as const).map(opt => (
                   <button key={String(opt.value)} type="button"
                     onClick={() => {
-                      set('searchResultsImageMode', opt.value as string | null)
+                      set('searchResultsImageMode', opt.value)
                       if (!opt.value) { set('searchResultsImageUrl', null); set('searchResultsExcludedImageIds', []) }
                     }}
                     className={['flex-1 rounded-xl border-2 p-3 text-left transition-all',

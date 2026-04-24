@@ -1,24 +1,25 @@
-import type { FastifyInstance } from 'fastify'
-import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile } from '../services/auth.service.js'
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile, type AdminPayload } from '../services/auth.service.js'
 import { env } from '../config/env.js'
 import { cookieDomain } from '../utils/cookie.js'
 
 const COOKIE_NAME = 'ibe_admin_token'
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 // 7 days in seconds
 
+const _adminCookieDomain = cookieDomain()
 function setCookieAndRespond(
   fastify: FastifyInstance,
-  reply: Parameters<Parameters<FastifyInstance['get']>[1]>[1],
-  payload: { adminId: number; organizationId: number | null; role: string; propertyIds?: number[] },
+  reply: FastifyReply,
+  payload: AdminPayload & { organizationId: number | null },
 ) {
-  const token = fastify.jwt.sign(payload, { expiresIn: env.JWT_EXPIRES_IN })
+  const token = fastify.jwt.sign(payload)
   reply.setCookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: COOKIE_MAX_AGE,
-    domain: cookieDomain(),
+    ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}),
   })
 }
 
@@ -75,7 +76,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   // ── Logout ─────────────────────────────────────────────────────────────────
 
   fastify.post('/auth/logout', async (_request, reply) => {
-    reply.clearCookie(COOKIE_NAME, { path: '/', domain: cookieDomain() })
+    reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
     return reply.send({ ok: true })
   })
 
@@ -84,7 +85,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/me', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const admin = await getAdminById(request.admin.adminId)
     if (!admin || !admin.isActive) {
-      reply.clearCookie(COOKIE_NAME, { path: '/', domain: cookieDomain() })
+      reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
       return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
     }
     return reply.send(admin)
@@ -114,7 +115,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     const { default: oauth2 } = await import('@fastify/oauth2')
 
-    await fastify.register(oauth2, {
+    await fastify.register(oauth2 as never, {
       name: 'googleOAuth2',
       scope: ['profile', 'email'],
       credentials: {
@@ -126,8 +127,8 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     type GoogleOAuth2Instance = {
       googleOAuth2: {
-        generateAuthorizationUri: (req: typeof request, reply: typeof reply) => Promise<string>
-        getAccessTokenFromAuthorizationCodeFlow: (req: typeof request, reply: typeof reply) => Promise<{ token: { access_token: string } }>
+        generateAuthorizationUri: (req: FastifyRequest, reply: FastifyReply) => Promise<string>
+        getAccessTokenFromAuthorizationCodeFlow: (req: FastifyRequest, reply: FastifyReply) => Promise<{ token: { access_token: string } }>
       }
     }
 

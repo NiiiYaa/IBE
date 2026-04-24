@@ -12,9 +12,9 @@ import type { PaymentFlow, StripeIntentType } from '@ibe/shared'
 
 export interface CreateIntentOptions {
   /** Amount in minor units (e.g. cents). Required for OnlineCharge flow. */
-  amount?: number
+  amount?: number | undefined
   /** ISO 4217 currency code. Required for OnlineCharge flow. */
-  currency?: string
+  currency?: string | undefined
   /** Property ID — passed as metadata for traceability. */
   propertyId: number
 }

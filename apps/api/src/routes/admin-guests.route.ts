@@ -95,7 +95,8 @@ export async function adminGuestsRoutes(fastify: FastifyInstance) {
     const { content } = request.body as { content: string }
     if (!content?.trim()) return reply.status(400).send({ error: 'content is required' })
     const admin = request.admin
-    const note = await addGuestNote(guestId, admin.id, admin.name, content.trim())
+    const adminUser = await prisma.adminUser.findUnique({ where: { id: admin.adminId }, select: { name: true } })
+    const note = await addGuestNote(guestId, admin.adminId, adminUser?.name ?? 'Admin', content.trim())
     return reply.status(201).send(note)
   })
 

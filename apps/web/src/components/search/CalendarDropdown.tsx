@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { nightsBetween, todayIso, addDays } from '@ibe/shared'
 import {
   addMonths,
@@ -63,6 +63,25 @@ export function CalendarDropdown({
 
   const [hovered, setHovered] = useState<string | null>(null)
 
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0]?.clientX ?? 0
+    touchStartY.current = e.touches[0]?.clientY ?? 0
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current
+    const dy = (e.changedTouches[0]?.clientY ?? 0) - touchStartY.current
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return
+    if (dx < 0) {
+      setViewMonth(m => addMonths(m, 1))
+    } else if (canGoPrev) {
+      setViewMonth(m => addMonths(m, -1))
+    }
+  }
+
   const rangeEnd = selecting === 'checkout' ? hovered ?? checkOut : checkOut
   const canGoPrev = viewMonth > currentYearMonth()
   const nights = nightsBetween(checkIn, checkOut)
@@ -113,7 +132,7 @@ export function CalendarDropdown({
 
   if (variant === 'inline') {
     return (
-      <div className="select-none">
+      <div className="select-none" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {/* Navigation */}
         <div className="mb-3 flex items-center justify-between">
           <NavBtn
@@ -172,7 +191,7 @@ export function CalendarDropdown({
   const rightMonth = addMonths(viewMonth, 1)
 
   return (
-    <div className="absolute left-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl">
+    <div className="absolute left-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
         {selecting === 'checkin' ? 'Select check-in date' : 'Select check-out date'}
       </p>

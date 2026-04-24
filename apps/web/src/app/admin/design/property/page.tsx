@@ -78,7 +78,7 @@ function OverrideColorRow({
   label, hint, fieldKey, draft, orgDefaults,
   onSet, onReset,
 }: {
-  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig
+  label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig
   draft: Draft; orgDefaults: OrgDesignDefaultsConfig
   onSet: (key: keyof OrgDesignDefaultsConfig, val: string) => void
   onReset: (key: keyof OrgDesignDefaultsConfig) => void
@@ -311,7 +311,7 @@ type OverrideProps = {
 }
 
 function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft, orgDefaults, onSet, onReset }: OverrideProps & {
-  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig; placeholder?: string; hgFallback?: string | null
+  label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; placeholder?: string | undefined; hgFallback?: string | null | undefined
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
@@ -348,7 +348,7 @@ function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft
 }
 
 function OverrideSelectRow({ label, hint, fieldKey, options, draft, orgDefaults, onSet, onReset }: OverrideProps & {
-  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig; options: { value: string; label: string }[]
+  label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; options: { value: string; label: string }[]
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
@@ -384,7 +384,7 @@ function OverrideSelectRow({ label, hint, fieldKey, options, draft, orgDefaults,
 }
 
 function OverrideNumberRow({ label, hint, fieldKey, min, max, draft, orgDefaults, onSet, onReset }: OverrideProps & {
-  label: string; hint?: string; fieldKey: keyof OrgDesignDefaultsConfig; min: number; max: number
+  label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; min: number; max: number
 }) {
   const raw = draft[fieldKey] as number | null | undefined
   const isOverriding = raw != null

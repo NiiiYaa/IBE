@@ -62,7 +62,7 @@ declare module '@fastify/jwt' {
 
 export async function buildApp() {
   const app = Fastify({
-    loggerInstance: logger,
+    logger: logger,
     disableRequestLogging: env.NODE_ENV === 'production',
     bodyLimit: 50 * 1024 * 1024, // 50 MB — needed for base64-encoded image uploads
   })

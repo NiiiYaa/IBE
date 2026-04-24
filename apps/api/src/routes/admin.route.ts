@@ -52,7 +52,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         bookingDomain: !!env.HYPERGUEST_BOOKING_DOMAIN,
       },
       rateProvider: settings.rateProvider,
-      defaultPropertyId: env.NEXT_PUBLIC_DEFAULT_HOTEL_ID ?? Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID']),
+      defaultPropertyId: Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] ?? 0),
       webDomain: settings.webDomain,
       tlsCert: settings.tlsCert,
       tlsCertSet: !!settings.tlsCert,

@@ -87,7 +87,7 @@ export function TextInput({
 }: {
   value: string
   onChange: (v: string) => void
-  placeholder?: string
+  placeholder?: string | undefined
 }) {
   return (
     <input

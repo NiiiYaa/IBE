@@ -13,13 +13,14 @@ import { cookieDomain } from '../utils/cookie.js'
 
 const GUEST_COOKIE = 'ibe_guest_token'
 
+const _cookieDomain = cookieDomain()
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env['NODE_ENV'] === 'production',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 24 * 30, // 30 days
-  domain: cookieDomain(),
+  ...(_cookieDomain ? { domain: _cookieDomain } : {}),
 }
 
 interface GuestPayload { guestId: number; type: 'guest' }
@@ -63,7 +64,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
 
     try {
       const guest = await registerGuest({ organizationId, email, password, firstName, lastName, phone, nationality })
-      const token = fastify.jwt.sign({ guestId: guest.id, type: 'guest' })
+      const token = fastify.jwt.sign({ guestId: guest.id, type: 'guest' } as unknown as Parameters<typeof fastify.jwt.sign>[0])
       reply.setCookie(GUEST_COOKIE, token, COOKIE_OPTS)
       return reply.status(201).send({ id: guest.id, email: guest.email, firstName: guest.firstName, lastName: guest.lastName })
     } catch (err) {
@@ -87,7 +88,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
 
     try {
       const guest = await loginGuest(organizationId, email, password)
-      const token = fastify.jwt.sign({ guestId: guest.id, type: 'guest' })
+      const token = fastify.jwt.sign({ guestId: guest.id, type: 'guest' } as unknown as Parameters<typeof fastify.jwt.sign>[0])
       reply.setCookie(GUEST_COOKIE, token, COOKIE_OPTS)
       return reply.send({ id: guest.id, email: guest.email, firstName: guest.firstName, lastName: guest.lastName })
     } catch (err) {
@@ -100,7 +101,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/guest/auth/logout', async (request, reply) => {
-    reply.clearCookie(GUEST_COOKIE, { path: '/', domain: cookieDomain() })
+    reply.clearCookie(GUEST_COOKIE, { path: '/', ...(_cookieDomain ? { domain: _cookieDomain } : {}) })
     return reply.send({ ok: true })
   })
 
@@ -149,7 +150,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
     const payload = await requireGuest(fastify, request, reply)
     if (!payload) return
     await deleteGuestAccount(payload.guestId)
-    reply.clearCookie(GUEST_COOKIE, { path: '/', domain: cookieDomain() })
+    reply.clearCookie(GUEST_COOKIE, { path: '/', ...(_cookieDomain ? { domain: _cookieDomain } : {}) })
     return reply.send({ ok: true })
   })
 
@@ -235,7 +236,7 @@ export async function guestRoutes(fastify: FastifyInstance) {
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     const { default: oauth2 } = await import('@fastify/oauth2')
 
-    await fastify.register(oauth2, {
+    await fastify.register(oauth2 as never, {
       name: 'guestGoogleOAuth2',
       scope: ['profile', 'email'],
       credentials: {
@@ -289,11 +290,11 @@ export async function guestRoutes(fastify: FastifyInstance) {
         const guest = await findOrCreateGoogleGuest({
           organizationId,
           email: profile.email,
-          firstName: profile.given_name || profile.email.split('@')[0],
+          firstName: profile.given_name || profile.email.split('@').at(0) || profile.email,
           lastName: profile.family_name || '',
         })
 
-        const jwtToken = fastify.jwt.sign({ guestId: guest.id, type: 'guest' })
+        const jwtToken = fastify.jwt.sign({ guestId: guest.id, type: 'guest' } as unknown as Parameters<typeof fastify.jwt.sign>[0])
         reply.setCookie(GUEST_COOKIE, jwtToken, COOKIE_OPTS)
         return reply.redirect(`${env.WEB_BASE_URL}/account/oauth-success?propertyId=${propertyId}`)
       } catch (err) {

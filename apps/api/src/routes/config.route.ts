@@ -124,7 +124,7 @@ export async function configRoutes(fastify: FastifyInstance) {
       if (isNaN(propertyId) || propertyId <= 0) {
         return reply.status(400).send({ error: 'propertyId or orgId is required', code: IBE_ERROR_VALIDATION })
       }
-      orgId = await getOrgIdForProperty(propertyId)
+      orgId = await getOrgIdForProperty(propertyId) ?? null
     }
 
     if (!orgId) {

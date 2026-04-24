@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
-import type { BookingCancellationFrame, TaxEntry, NightlyEntry } from '@ibe/shared'
+import type { BookingCancellationFrame, TaxEntry, HGNightlyEntry as NightlyEntry } from '@ibe/shared'
 import { TaxRelation } from '@ibe/shared'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
@@ -234,7 +234,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                         {sr.nightlyBreakdown.map((n, ni) => (
                           <div key={ni} className="flex justify-between text-xs">
                             <span className="text-muted">{new Date(n.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
-                            <span className="text-[var(--color-text)]">{fmtAmount(n.sell, n.currency)}</span>
+                            <span className="text-[var(--color-text)]">{fmtAmount(n.prices.sell.price, n.prices.sell.currency)}</span>
                           </div>
                         ))}
                       </div>

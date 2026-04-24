@@ -13,7 +13,7 @@ async function seed() {
   // ── Superadmin ────────────────────────────────────────────────────────────
   const passwordHash = await bcrypt.hash('niribe', 10)
   const admin = await prisma.adminUser.upsert({
-    where: { email: 'nir@hyperguest.com' },
+    where: { organizationId_email: { organizationId: org.id, email: 'nir@hyperguest.com' } },
     create: {
       organizationId: org.id,
       email: 'nir@hyperguest.com',
