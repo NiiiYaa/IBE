@@ -13,11 +13,7 @@ import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
 import { NationalityDropdown } from './NationalityDropdown'
-import { useChat } from '@/components/conversational-search/use-chat'
-import { SearchResultCards, BookingHandoffCard } from '@/components/conversational-search/room-cards'
-import { MarkdownContent } from '@/components/conversational-search/markdown-content'
-import type { GuestChatMessage } from '@ibe/shared'
-import type { SearchResult, BookingHandoff } from '@/components/conversational-search/types'
+import { ConversationalSearchPanel } from '@/components/conversational-search/conversational-search-panel'
 
 export interface PropertyOption {
   id: number
@@ -79,44 +75,10 @@ export function SearchBar({
   // ── AI Mode ──────────────────────────────────────────────────────────────────
   const { setAiLayout } = useAiMode()
   const [aiMode, setAiMode] = useState(false)
-  const [aiInput, setAiInput] = useState('')
-  const aiInputRef = useRef<HTMLInputElement>(null)
-  const aiThreadRef = useRef<HTMLDivElement>(null)
-  const { messages: aiMessages, isLoading: aiLoading, send: aiSend, reset: aiReset } = useChat({ propertyId, ...(orgId ? { orgId } : {}) })
-
-  useEffect(() => {
-    if (aiMode) aiInputRef.current?.focus()
-  }, [aiMode])
-
-  useEffect(() => {
-    if (!aiThreadRef.current) return
-    // Scroll internal content to top so newest messages are visible
-    aiThreadRef.current.scrollTo({ top: 0, behavior: 'smooth' })
-    // Scroll page so bar reaches viewport top; thread ends up ~80px from top
-    const rect = aiThreadRef.current.getBoundingClientRect()
-    if (rect.top > 80) {
-      window.scrollTo({ top: window.scrollY + rect.top - 80, behavior: 'smooth' })
-    }
-  }, [aiMessages, aiLoading])
-
-  useEffect(() => {
-    if (!aiLoading && aiMode && aiMessages.length > 0) aiInputRef.current?.focus()
-  }, [aiLoading])
-
-  function handleAiSend() {
-    const text = aiInput.trim()
-    if (!text || aiLoading) return
-    setAiInput('')
-    void aiSend(text)
-  }
-
-  function handleAiKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') handleAiSend()
-  }
 
   function toggleAiMode() {
     setAiMode(v => {
-      if (v) { aiReset(); setAiLayout(false) }
+      if (v) { setAiLayout(false) }
       else { setShowPromo(false); setAiLayout(true) }
       return !v
     })
@@ -280,43 +242,22 @@ export function SearchBar({
 
   return (
     <div ref={containerRef} className="relative mx-auto w-full max-w-5xl">
+      {/* AI mode — full-screen overlay */}
+      {aiMode && (
+        <div className="fixed inset-0 z-50">
+          <ConversationalSearchPanel
+            propertyId={selectedPropertyId}
+            {...(orgId ? { orgId } : {})}
+            onClose={toggleAiMode}
+            className="h-full"
+          />
+        </div>
+      )}
+
       {/* Pill bar — desktop only */}
-      <div className={[
-        'hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200',
-        aiMode ? 'ring-2 ring-violet-400' : '',
-      ].join(' ')}>
-        {aiMode ? (
-          /* ── AI Mode bar ──────────────────────────────────────────────────── */
-          <>
-            <div className="flex flex-1 items-center gap-2 px-4 py-2">
-              <span className="shrink-0">
-                <SparkleIcon />
-              </span>
-              <input
-                ref={aiInputRef}
-                type="text"
-                value={aiInput}
-                onChange={e => setAiInput(e.target.value)}
-                onKeyDown={handleAiKeyDown}
-                placeholder="Ask about rooms, dates, availability…"
-                disabled={aiLoading}
-                className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-50"
-              />
-            </div>
-            <div className="flex items-center gap-2 py-2 pl-1 pr-3">
-              <button
-                onClick={handleAiSend}
-                disabled={aiLoading || !aiInput.trim()}
-                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-6 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {aiLoading ? '…' : 'Ask'}
-              </button>
-              <AiModeButton active={aiMode} onClick={toggleAiMode} />
-            </div>
-          </>
-        ) : (
-          /* ── Standard bar ─────────────────────────────────────────────────── */
-          <>
+      <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200">
+        {/* ── Standard bar ─────────────────────────────────────────────────── */}
+        <>
             {showCitySelector && cities.length > 1 && (
               <>
                 <Segment
@@ -401,36 +342,7 @@ export function SearchBar({
               {aiEnabled && <AiModeButton active={aiMode} onClick={toggleAiMode} />}
             </div>
           </>
-        )}
       </div>
-
-      {/* AI chat thread — desktop only */}
-      {aiMode && aiMessages.length > 0 && (
-        <div
-          ref={aiThreadRef}
-          className="mt-3 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl bg-white shadow-2xl"
-        >
-          <div className="space-y-3 p-4">
-            {aiLoading && aiMessages[aiMessages.length - 1]?.role === 'user' && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl border border-[var(--color-border)] bg-gray-50 px-4 py-3">
-                  <span className="flex gap-1">
-                    {[0, 1, 2].map(i => (
-                      <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-muted)]"
-                        style={{ animationDelay: `${i * 150}ms` }} />
-                    ))}
-                  </span>
-                </div>
-              </div>
-            )}
-            {(() => {
-              const pairs: (typeof aiMessages[number])[][] = []
-              for (let i = 0; i < aiMessages.length; i += 2) pairs.push(aiMessages.slice(i, i + 2))
-              return pairs.reverse().flat().map((msg, i) => <AiMessageBubble key={i} msg={msg} {...(selectedPropertyId ? { fallbackPropertyId: selectedPropertyId } : {})} />)
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* Promo toggle + input — outside pill, centered below check button */}
       {!aiMode && showPromoCode && (
@@ -904,33 +816,3 @@ function MobileSection({
   )
 }
 
-function AiMessageBubble({ msg, fallbackPropertyId }: { msg: GuestChatMessage; fallbackPropertyId?: number }) {
-  const isUser = msg.role === 'user'
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={[
-        'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm',
-        isUser
-          ? 'bg-[var(--color-primary)] text-white'
-          : 'border border-[var(--color-border)] bg-gray-50 text-[var(--color-text)]',
-      ].join(' ')}>
-        {msg.content && (
-          isUser
-            ? <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-            : <div className="text-sm"><MarkdownContent content={msg.content} /></div>
-        )}
-        {msg.toolResults?.map((tr, i) => {
-          if (tr.tool === 'search_availability' || tr.tool === 'filter_results') {
-            const data = tr.data as SearchResult & { error?: string }
-            if (data.error) return <p key={i} className="mt-1 text-xs text-red-400">{data.error}</p>
-            return <SearchResultCards key={i} data={data} {...(fallbackPropertyId ? { fallbackPropertyId } : {})} />
-          }
-          if (tr.tool === 'prepare_booking') {
-            return <BookingHandoffCard key={i} data={tr.data as BookingHandoff} />
-          }
-          return null
-        })}
-      </div>
-    </div>
-  )
-}

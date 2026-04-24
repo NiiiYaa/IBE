@@ -43,6 +43,7 @@ export interface HomePageClientProps {
   heroImageMode: 'fixed' | 'carousel'
   heroCarouselInterval: number
   displayName: string
+  chainName?: string | null
   tagline?: string | null
   heroImageUrl: string | null
   carouselImages: string[]
@@ -63,6 +64,7 @@ export function HomePageClient({
   heroImageMode,
   heroCarouselInterval,
   displayName,
+  chainName,
   tagline,
   heroImageUrl,
   carouselImages,
@@ -76,6 +78,9 @@ export function HomePageClient({
   chatWidgetProps,
 }: HomePageClientProps) {
   const { aiLayout, setAiLayout } = useAiMode()
+  const chainLabel = chainName
+    ? (/^the\b/i.test(chainName) ? `Part of ${chainName} Collection` : `Part of The ${chainName} Collection`)
+    : null
 
   useEffect(() => {
     setAiLayout(aiLayoutDefault)
@@ -130,6 +135,7 @@ export function HomePageClient({
           {!aiLayout && (
             <div className="mb-4 text-center">
               <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
@@ -162,6 +168,7 @@ export function HomePageClient({
           {!aiLayout && (
             <div className="mb-4 text-center">
               <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-3 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
@@ -187,6 +194,7 @@ export function HomePageClient({
           {!aiLayout && (
             <div className="mb-4 text-center">
               <h1 className="text-3xl font-bold text-[var(--color-text)]">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
@@ -212,6 +220,7 @@ export function HomePageClient({
           {!aiLayout && (
             <div className="w-full text-center">
               <h1 className="text-5xl font-bold text-white drop-shadow-lg lg:text-6xl">{displayName}</h1>
+              {chainLabel && <p className="mt-1.5 text-sm font-medium tracking-wide text-white/70 drop-shadow">{chainLabel}</p>}
               {tagline && <p className="mt-2 text-xl text-white/80 drop-shadow">{tagline}</p>}
             </div>
           )}

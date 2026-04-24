@@ -216,6 +216,13 @@ export default async function HomePage({
     ])
   }
 
+  // For single-hotel pages that belong to a multi-property org, fetch the chain display name
+  let chainName: string | null = null
+  if (tenant.type === 'property' && (propertyList?.properties.length ?? 0) > 1 && propertyList?.orgId) {
+    const orgConfig = await fetchOrgConfig(propertyList.orgId)
+    chainName = orgConfig?.displayName ?? null
+  }
+
   const aiEnabled = propertyId ? await fetchAIEnabled(propertyId) : false
 
   // For org tenants: fetch only the first INITIAL_BATCH property details server-side.
@@ -351,6 +358,7 @@ export default async function HomePage({
       heroImageMode={heroImageMode}
       heroCarouselInterval={heroCarouselInterval}
       displayName={displayName}
+      chainName={chainName}
       tagline={tagline ?? null}
       heroImageUrl={heroImageUrl}
       carouselImages={carouselImages}
