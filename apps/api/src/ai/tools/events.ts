@@ -71,7 +71,7 @@ export async function executeGetNearbyEvents(args: Record<string, unknown>): Pro
       time: e.dates?.start?.localTime ?? null,
       category: e.classifications?.[0]?.segment?.name ?? null,
       genre: e.classifications?.[0]?.genre?.name ?? null,
-      venue: e.venue,
+      venue: e._embedded?.venues?.[0]?.name ?? null,
       ticketUrl: e.url ?? null,
     }))
 

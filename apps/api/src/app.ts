@@ -51,6 +51,7 @@ import { eventsPublicRoutes } from './routes/events-public.route.js'
 import { weatherConfigRoutes } from './routes/weather-config.route.js'
 import { eventsConfigRoutes } from './routes/events-config.route.js'
 import { crossSellAdminRoutes, crossSellPublicRoutes } from './routes/cross-sell.route.js'
+import { groupsAdminRoutes, groupsPublicRoutes } from './routes/groups.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -158,6 +159,7 @@ export async function buildApp() {
   await app.register(weatherPublicRoutes, { prefix: '/api/v1' })
   await app.register(eventsPublicRoutes, { prefix: '/api/v1' })
   await app.register(crossSellPublicRoutes, { prefix: '/api/v1' })
+  await app.register(groupsPublicRoutes, { prefix: '/api/v1' })
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
@@ -196,6 +198,7 @@ export async function buildApp() {
     await adminApp.register(weatherConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(eventsConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(crossSellAdminRoutes, { prefix: '/api/v1' })
+    await adminApp.register(groupsAdminRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

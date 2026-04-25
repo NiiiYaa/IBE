@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
+function isPrivateIp(ip: string): boolean {
+  return (
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
+  )
+}
+
 export async function GET(request: NextRequest) {
-  // Prefer the forwarded IP so this works behind a proxy / in prod
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',').at(0)?.trim() ??
-    request.headers.get('x-real-ip') ??
-    '8.8.8.8'
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',').at(0)?.trim()
+  const realIp = request.headers.get('x-real-ip')
+
+  // Skip private/LAN IPs — they can't be geolocated; fall back to a public IP
+  const candidate = forwarded ?? realIp ?? ''
+  const ip = candidate && !isPrivateIp(candidate) ? candidate : '8.8.8.8'
 
   try {
     const res = await fetch(`https://ipapi.co/${ip}/country_code/`, {

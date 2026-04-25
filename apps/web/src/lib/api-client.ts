@@ -1272,6 +1272,33 @@ export const apiClient = {
   updateSystemMcpConfig(enabled: boolean): Promise<{ enabled: boolean }> {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
+
+  // ── Groups ────────────────────────────────────────────────────────────────
+
+  getGroupConfig(orgId?: number): Promise<import('@ibe/shared').GroupConfig> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/groups/config${qs}`)
+  },
+
+  updateGroupConfig(data: import('@ibe/shared').GroupConfigUpdate, orgId?: number): Promise<import('@ibe/shared').GroupConfig> {
+    return apiRequest('/api/v1/admin/groups/config', { method: 'PUT', body: JSON.stringify({ ...data, ...(orgId !== undefined ? { orgId } : {}) }) })
+  },
+
+  getPropertyGroupOverride(propertyId: number): Promise<import('@ibe/shared').GroupPropertyOverride> {
+    return apiRequest(`/api/v1/admin/groups/property/${propertyId}`)
+  },
+
+  updatePropertyGroupOverride(propertyId: number, data: Partial<import('@ibe/shared').GroupPropertyOverride>): Promise<import('@ibe/shared').GroupPropertyOverride> {
+    return apiRequest(`/api/v1/admin/groups/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPublicGroupConfig(propertyId: number): Promise<import('@ibe/shared').PublicGroupConfig> {
+    return apiRequest(`/api/v1/groups/config/${propertyId}`)
+  },
+
+  submitGroupInquiry(data: import('@ibe/shared').GroupInquiryRequest): Promise<{ ok: boolean; guestEmailSent: boolean }> {
+    return apiRequest('/api/v1/groups/inquiry', { method: 'POST', body: JSON.stringify(data) })
+  },
 }
 
 export { ApiClientError }

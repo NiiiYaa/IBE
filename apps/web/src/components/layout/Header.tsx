@@ -19,11 +19,13 @@ interface HeaderProps {
   defaultCurrency?: string
   isB2BMode?: boolean
   mapData?: HeaderMapData
+  showGroupsButton?: boolean
 }
 
 export function Header({
   logoUrl,
   displayName,
+  propertyId,
   navItems = [],
   enabledLocales = [],
   enabledCurrencies = [],
@@ -31,6 +33,7 @@ export function Header({
   defaultCurrency = 'USD',
   isB2BMode,
   mapData,
+  showGroupsButton,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
@@ -57,6 +60,8 @@ export function Header({
               defaultCurrency={defaultCurrency}
               isB2BMode={isB2BMode}
               {...(mapData ? { mapData } : {})}
+              {...(showGroupsButton ? { showGroupsButton } : {})}
+              {...(propertyId ? { groupsPropertyId: propertyId } : {})}
             />
           </Suspense>
         </div>

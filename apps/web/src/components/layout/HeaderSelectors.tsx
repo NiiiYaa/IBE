@@ -298,6 +298,8 @@ interface HeaderSelectorsProps {
   defaultCurrency: string
   isB2BMode?: boolean | undefined
   mapData?: HeaderMapData
+  showGroupsButton?: boolean
+  groupsPropertyId?: number
 }
 
 export function HeaderSelectors({
@@ -307,6 +309,8 @@ export function HeaderSelectors({
   defaultCurrency,
   isB2BMode,
   mapData,
+  showGroupsButton,
+  groupsPropertyId,
 }: HeaderSelectorsProps) {
   const { setLocale, setCurrency } = usePreferences()
 
@@ -323,6 +327,14 @@ export function HeaderSelectors({
   return (
     <div className="flex items-center gap-1">
       {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
+      {showGroupsButton && (
+        <a
+          href={groupsPropertyId ? `/groups?hotelId=${groupsPropertyId}` : '/groups'}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+        >
+          Groups
+        </a>
+      )}
       {mapData && <MapButton mapData={mapData} />}
       <CurrencySelector enabledCurrencies={enabledCurrencies} />
       {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}

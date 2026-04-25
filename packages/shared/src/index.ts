@@ -12,6 +12,7 @@ export * from './types/maps-config.js'
 export * from './types/weather-config.js'
 export * from './types/events-config.js'
 export * from './types/cross-sell.js'
+export * from './types/groups.js'
 
 // Schemas
 export * from './schemas/search.js'

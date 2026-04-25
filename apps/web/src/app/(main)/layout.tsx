@@ -202,6 +202,15 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
+async function fetchGroupsEnabled(propertyId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/groups/config/${propertyId}`, fetchCache)
+    if (!res.ok) return false
+    const d = await res.json() as { enabled: boolean }
+    return d.enabled === true
+  } catch { return false }
+}
+
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   const { config, hotelConfig, navItems, property, isChain, enabledModels, propertyId, orgId } = await resolveTenantConfig()
   const reqHeaders = headers()
@@ -225,6 +234,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: property?.name ?? displayName ?? '', address: property?.location?.address ?? '', ...(orgId ? { orgId } : {}) }
       : undefined
 
+  const showGroupsButton = propertyId ? await fetchGroupsEnabled(propertyId) : false
+
   const shell = (pageContent: React.ReactNode) => (
     <>
       {cssVars && <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />}
@@ -240,6 +251,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
           isB2BMode={isB2BMode}
           {...(mapData ? { mapData } : {})}
+          {...(showGroupsButton ? { showGroupsButton } : {})}
+          {...(propertyId ? { propertyId } : {})}
         />
       </div>
       <div className="flex flex-1 flex-col">

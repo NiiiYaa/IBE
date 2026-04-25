@@ -50,6 +50,8 @@ model Organization {
   crossSellConfig             CrossSellConfig?
   crossSellProducts           CrossSellProduct[]
   propertyCrossSellConfigs    PropertyCrossSellConfig[]
+  groupConfig                 GroupConfig?
+  propertyGroupConfigs        PropertyGroupConfig[]
 }
 
 // roles: super | admin | observer | user
@@ -422,6 +424,7 @@ model Property {
 
   adminUserProperties     AdminUserProperty[]
   propertyCrossSellConfig PropertyCrossSellConfig?
+  propertyGroupConfig     PropertyGroupConfig?
 
   @@index([organizationId])
 }
@@ -1107,6 +1110,52 @@ model PropertyCrossSellConfig {
   paymentMode    String?      // null = inherit from chain
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────────
+
+model GroupConfig {
+  id                          Int          @id @default(autoincrement())
+  organizationId              Int          @unique
+  organization                Organization @relation(fields: [organizationId], references: [id])
+  enabled                     Boolean      @default(false)
+  bookingMode                 String       @default("offline") // "online" | "offline"
+  groupEmail                  String?
+  pricingDirection            String       @default("decrease") // "increase" | "decrease"
+  pricingPct                  Decimal      @default(0) @db.Decimal(5, 2)
+  cancellationRanges          Json         @default("[]")
+  paymentInParWithCancellation Boolean     @default(true)
+  paymentRanges               Json         @default("[]")
+  mealsConfig              Json         @default("{\"breakfast\":{\"enabled\":false,\"priceAdult\":0,\"priceChild\":0,\"priceInfant\":0},\"lunch\":{\"enabled\":false,\"priceAdult\":0,\"priceChild\":0,\"priceInfant\":0},\"dinner\":{\"enabled\":false,\"priceAdult\":0,\"priceChild\":0,\"priceInfant\":0}}")
+  meetingRoomConfig        Json         @default("{\"enabled\":false,\"pricePerDay\":0}")
+  freeRoomsConfig          Json         @default("{\"enabled\":false,\"count\":0}")
+  groupPolicies            String?
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+}
+
+model PropertyGroupConfig {
+  id                          Int          @id @default(autoincrement())
+  propertyId                  Int          @unique
+  property                    Property     @relation(fields: [propertyId], references: [id])
+  organizationId              Int
+  organization                Organization @relation(fields: [organizationId], references: [id])
+  enabled                     Boolean?
+  bookingMode                 String?
+  groupEmail                  String?
+  pricingDirection            String?
+  pricingPct                  Decimal?     @db.Decimal(5, 2)
+  cancellationRanges          Json?
+  paymentInParWithCancellation Boolean?
+  paymentRanges               Json?
+  mealsConfig              Json?
+  meetingRoomConfig        Json?
+  freeRoomsConfig          Json?
+  groupPolicies            String?
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
 
   @@index([organizationId])
 }

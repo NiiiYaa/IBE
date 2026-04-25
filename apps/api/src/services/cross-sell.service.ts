@@ -129,7 +129,7 @@ export async function upsertPropertyCrossSellOverride(
 
 // Public: resolved config for a property (property override ?? chain config)
 export async function getResolvedCrossSell(propertyId: number): Promise<{
-  enabled: boolean; paymentMode: CrossSellPaymentMode; products: CrossSellProduct[]
+  enabled: boolean; paymentMode: CrossSellPaymentMode; showExternalEvents: boolean; products: CrossSellProduct[]
 } | null> {
   const prop = await prisma.property.findUnique({ where: { propertyId } })
   if (!prop) return null
