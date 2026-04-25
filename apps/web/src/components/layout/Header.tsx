@@ -5,7 +5,7 @@ import { HeaderSelectors } from './HeaderSelectors'
 import { DynamicBrand } from './DynamicBrand'
 
 export type HeaderMapData =
-  | { mode: 'hotel'; propertyId: number; lat: number; lng: number; name: string; address: string }
+  | { mode: 'hotel'; propertyId: number; lat: number; lng: number; name: string; address: string; orgId?: number }
   | { mode: 'chain'; orgId: number }
 
 interface HeaderProps {

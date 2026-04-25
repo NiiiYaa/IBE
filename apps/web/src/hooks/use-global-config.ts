@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { OrgDesignDefaultsConfig } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, GlobalDesignAdminResponse } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 
 export type GlobalDraft = Partial<OrgDesignDefaultsConfig>
@@ -15,17 +15,17 @@ export function useGlobalConfig() {
   const initialized = useRef(false)
   const savedSnapshot = useRef<GlobalDraft | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<GlobalDesignAdminResponse>({
     queryKey: ['global-design-defaults'],
     queryFn: () => apiClient.getGlobalDesignDefaults(),
-    staleTime: Infinity,
+    staleTime: 0,
   })
 
   useEffect(() => {
     if (data && !initialized.current) {
       initialized.current = true
-      setDraft(data)
-      savedSnapshot.current = data
+      setDraft(data.overrides)
+      savedSnapshot.current = data.overrides
     }
   }, [data])
 
@@ -33,7 +33,7 @@ export function useGlobalConfig() {
     mutationFn: (d: GlobalDraft) => apiClient.updateGlobalDesignDefaults(d),
     onSuccess: (fresh) => {
       qc.setQueryData(['global-design-defaults'], fresh)
-      savedSnapshot.current = fresh
+      savedSnapshot.current = fresh.overrides
       setSaved(true)
       setSaveError(null)
       setTimeout(() => setSaved(false), 3000)
@@ -64,5 +64,7 @@ export function useGlobalConfig() {
     return Object.keys(diff).length > 0 ? diff : draft
   }
 
-  return { isLoading, draft, set, save: () => mutate(buildDiff()), isPending, saved, isDirty, saveError }
+  const systemDefaults = data?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
+
+  return { isLoading, draft, set, save: () => mutate(buildDiff()), isPending, saved, isDirty, saveError, systemDefaults }
 }

@@ -1,6 +1,8 @@
 import { prisma } from '../db/client.js'
 
 export interface CommSettings {
+  emailSystemServiceDisabled: boolean
+  whatsappSystemServiceDisabled: boolean
   emailEnabled: boolean
   emailProvider: string
   emailFromName: string
@@ -35,6 +37,7 @@ export interface CommSettings {
 
 function defaults(): CommSettings {
   return {
+    emailSystemServiceDisabled: false, whatsappSystemServiceDisabled: false,
     emailEnabled: false, emailProvider: 'smtp', emailFromName: '', emailFromAddress: '',
     emailSmtpHost: '', emailSmtpPort: 587, emailSmtpUser: '', emailSmtpSecure: true,
     emailSmtpPassword: null, emailApiKey: null,
@@ -52,15 +55,19 @@ function mapRow(row: {
   emailEnabled: boolean; emailProvider: string; emailFromName: string; emailFromAddress: string
   emailSmtpHost: string; emailSmtpPort: number; emailSmtpUser: string; emailSmtpSecure: boolean
   emailSmtpPassword: string | null; emailApiKey: string | null
+  emailSystemServiceDisabled?: boolean
   whatsappEnabled: boolean; whatsappProvider: string; whatsappPhoneNumberId: string
   whatsappBusinessAccountId: string; whatsappAccessToken: string | null
   whatsappTwilioAccountSid: string; whatsappTwilioAuthToken: string | null; whatsappTwilioNumber: string
+  whatsappSystemServiceDisabled?: boolean
   smsEnabled: boolean; smsProvider: string; smsFromNumber: string
   smsTwilioAccountSid: string; smsTwilioAuthToken: string | null
   smsVonageApiKey: string; smsVonageApiSecret: string | null
   smsAwsAccessKey: string; smsAwsSecretKey: string | null; smsAwsRegion: string
 }): CommSettings {
   return {
+    emailSystemServiceDisabled: row.emailSystemServiceDisabled ?? false,
+    whatsappSystemServiceDisabled: row.whatsappSystemServiceDisabled ?? false,
     emailEnabled: row.emailEnabled, emailProvider: row.emailProvider,
     emailFromName: row.emailFromName, emailFromAddress: row.emailFromAddress,
     emailSmtpHost: row.emailSmtpHost, emailSmtpPort: row.emailSmtpPort,
@@ -111,8 +118,44 @@ export async function updateSystemCommSettings(data: Partial<CommSettings>): Pro
 
 export async function getCommSettings(organizationId: number): Promise<CommSettings> {
   const row = await prisma.communicationSettings.findUnique({ where: { organizationId } })
-  if (row) return mapRow(row)
-  return loadSystemCommSettings()
+  if (!row) return loadSystemCommSettings()
+
+  const hasOwnEmailCreds = !!(row.emailApiKey || row.emailSmtpPassword)
+  const hasOwnWhatsappCreds = !!(row.whatsappAccessToken || row.whatsappTwilioAuthToken)
+
+  // If org has own credentials for both services, no need for system fallback
+  if (hasOwnEmailCreds && hasOwnWhatsappCreds) return mapRow(row)
+
+  const sys = await loadSystemCommSettings()
+  const orgSettings = mapRow(row)
+
+  return {
+    ...orgSettings,
+    // Email: use own credentials if set; else check disable flag; else inherit system
+    ...(hasOwnEmailCreds ? {} : {
+      emailEnabled: row.emailSystemServiceDisabled ? false : sys.emailEnabled,
+      emailProvider: sys.emailProvider,
+      emailFromName: row.emailFromName || sys.emailFromName,
+      emailFromAddress: row.emailFromAddress || sys.emailFromAddress,
+      emailSmtpHost: sys.emailSmtpHost,
+      emailSmtpPort: sys.emailSmtpPort,
+      emailSmtpUser: sys.emailSmtpUser,
+      emailSmtpSecure: sys.emailSmtpSecure,
+      emailSmtpPassword: sys.emailSmtpPassword,
+      emailApiKey: sys.emailApiKey,
+    }),
+    // WhatsApp: same pattern
+    ...(hasOwnWhatsappCreds ? {} : {
+      whatsappEnabled: row.whatsappSystemServiceDisabled ? false : sys.whatsappEnabled,
+      whatsappProvider: sys.whatsappProvider,
+      whatsappPhoneNumberId: sys.whatsappPhoneNumberId,
+      whatsappBusinessAccountId: sys.whatsappBusinessAccountId,
+      whatsappAccessToken: sys.whatsappAccessToken,
+      whatsappTwilioAccountSid: sys.whatsappTwilioAccountSid,
+      whatsappTwilioAuthToken: sys.whatsappTwilioAuthToken,
+      whatsappTwilioNumber: sys.whatsappTwilioNumber,
+    }),
+  }
 }
 
 export async function updateCommSettings(organizationId: number, data: Partial<CommSettings>): Promise<CommSettings> {

@@ -12,6 +12,39 @@ import {
 } from '@ibe/shared'
 import type { AIProvider, AIConfigResponse, AIConfigUpdate, OrgAIConfigUpdate, PropertyAIConfigUpdate } from '@ibe/shared'
 
+// ── System service disable toggle (super admin) / status pill (org admin) ────
+
+function SystemServiceRow({
+  disabled, isSuper, onToggle, saving,
+}: { disabled: boolean; isSuper: boolean; onToggle: (v: boolean) => void; saving: boolean }) {
+  if (isSuper) {
+    return (
+      <div className="mb-4 flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">System AI service</p>
+          <p className="text-xs text-[var(--color-text-muted)]">When disabled, this org uses no AI unless it has its own API key.</p>
+        </div>
+        <button type="button" role="switch" aria-checked={!disabled} disabled={saving}
+          onClick={() => onToggle(!disabled)}
+          className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
+            !disabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+          <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+            !disabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="mb-4 flex items-center gap-2">
+      <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        disabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
+      ].join(' ')}>
+        System AI: {disabled ? 'Disabled by admin' : 'Active'}
+      </span>
+    </div>
+  )
+}
+
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function SectionCard({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
@@ -254,11 +287,19 @@ function OrgConfigSection({ orgId, isSuper }: { orgId?: number; isSuper: boolean
   })
 
   const useInherited = data?.useInherited ?? true
+  const systemServiceDisabled = data?.systemServiceDisabled ?? false
+
+  const disableMutation = useMutation({
+    mutationFn: (v: boolean) => apiClient.updateOrgAIConfig({ systemServiceDisabled: v, ...(orgId && { orgId }) }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['ai-config-org', orgId] }) },
+  })
 
   if (isLoading) return <SectionCard title="Chain / Organisation"><p className="text-sm text-[var(--color-text-muted)]">Loading…</p></SectionCard>
 
   return (
     <SectionCard title="Chain / Organisation">
+      <SystemServiceRow disabled={systemServiceDisabled} isSuper={isSuper}
+        onToggle={v => disableMutation.mutate(!v)} saving={disableMutation.isPending} />
       <div className="mb-4 flex items-center gap-3">
         <button
           type="button"
@@ -320,11 +361,19 @@ function PropertyConfigSection({ propertyId, isSuper }: { propertyId: number; is
 
   const useInherited = data?.useInherited ?? true
   const inheritedLabel = data?.inheritedFrom === 'org' ? 'Chain' : 'System'
+  const systemServiceDisabled = data?.systemServiceDisabled ?? false
+
+  const disableMutation = useMutation({
+    mutationFn: (v: boolean) => apiClient.updatePropertyAIConfig(propertyId, { systemServiceDisabled: !v }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['ai-config-property', propertyId] }) },
+  })
 
   if (isLoading) return <SectionCard title="This Property"><p className="text-sm text-[var(--color-text-muted)]">Loading…</p></SectionCard>
 
   return (
     <SectionCard title="This Property">
+      <SystemServiceRow disabled={systemServiceDisabled} isSuper={isSuper}
+        onToggle={v => disableMutation.mutate(v)} saving={disableMutation.isPending} />
       <div className="mb-4 flex items-center gap-3">
         <button
           type="button"

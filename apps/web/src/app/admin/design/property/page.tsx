@@ -75,17 +75,17 @@ function SourceBadge({ source }: { source: 'hotel' | 'chain' | 'system' | 'hyper
 }
 
 function OverrideColorRow({
-  label, hint, fieldKey, draft, orgDefaults,
+  label, hint, fieldKey, draft, orgDefaults, systemDefaults,
   onSet, onReset,
 }: {
   label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig
-  draft: Draft; orgDefaults: OrgDesignDefaultsConfig
+  draft: Draft; orgDefaults: OrgDesignDefaultsConfig; systemDefaults: OrgDesignDefaultsConfig
   onSet: (key: keyof OrgDesignDefaultsConfig, val: string) => void
   onReset: (key: keyof OrgDesignDefaultsConfig) => void
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
-  const effective = raw ?? (orgDefaults[fieldKey] as string | null) ?? (SYSTEM_DEFAULTS[fieldKey as string] as string)
+  const effective = raw ?? (orgDefaults[fieldKey] as string | null) ?? (systemDefaults[fieldKey] as string | null) ?? (SYSTEM_DEFAULTS[fieldKey as string] as string)
   const source = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
@@ -146,7 +146,7 @@ export default function PropertyBrandPage() {
     queryKey: ['property-design-admin', selectedPropertyId],
     queryFn: () => apiClient.getPropertyDesignAdmin(selectedPropertyId!),
     enabled: selectedPropertyId !== null,
-    staleTime: Infinity,
+    staleTime: 0,
   })
 
   useEffect(() => {
@@ -163,8 +163,9 @@ export default function PropertyBrandPage() {
   }, [selectedPropertyId])
 
   const orgDefaults = designData?.orgDefaults ?? ({} as OrgDesignDefaultsConfig)
-  const enabledLocales  = (draft.enabledLocales  ?? orgDefaults.enabledLocales  ?? ['en']) as string[]
-  const enabledCurrencies = (draft.enabledCurrencies ?? orgDefaults.enabledCurrencies ?? ['EUR']) as string[]
+  const sysDefs = designData?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
+  const enabledLocales  = (draft.enabledLocales  ?? orgDefaults.enabledLocales  ?? sysDefs.enabledLocales  ?? ['en']) as string[]
+  const enabledCurrencies = (draft.enabledCurrencies ?? orgDefaults.enabledCurrencies ?? sysDefs.enabledCurrencies ?? ['EUR']) as string[]
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d: Draft) => apiClient.updateHotelConfig(selectedPropertyId!, d),
@@ -196,7 +197,7 @@ export default function PropertyBrandPage() {
     set('enabledCurrencies', current.includes(code) ? current.filter(c => c !== code) : [...current, code])
   }
 
-  const colorProps = { draft, orgDefaults, onSet: set, onReset: reset }
+  const colorProps = { draft, orgDefaults, systemDefaults: sysDefs, onSet: set, onReset: reset }
 
   if (!selectedPropertyId) {
     return (
@@ -232,11 +233,11 @@ export default function PropertyBrandPage() {
           <Section title="Typography">
             <OverrideSelectRow
               label="Font family" fieldKey="fontFamily" options={FONT_OPTIONS.map(f => ({ value: f, label: f }))}
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset}
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
             <OverrideNumberRow
               label="Border radius" hint="Applied to cards, buttons, inputs (px)" fieldKey="borderRadius"
-              min={0} max={32} draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset}
+              min={0} max={32} draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
           </Section>
 
@@ -245,25 +246,25 @@ export default function PropertyBrandPage() {
             <OverrideTextRow label="Hotel name" hint="Defaults to the name from HyperGuest; override to customise"
               fieldKey="displayName" placeholder="e.g. Grand Palace Hotel"
               hgFallback={designData?.hgName ?? null}
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Tagline" hint="Short brand message shown on the homepage"
               fieldKey="tagline" placeholder="e.g. Your home away from home"
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Browser tab title" hint="Defaults to the property name if not set"
               fieldKey="tabTitle" placeholder="e.g. Book Direct — Grand Palace"
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Logo URL" hint="Direct link or base64 data URL"
               fieldKey="logoUrl" placeholder="https://..."
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Favicon URL" hint="16×16 or 32×32 — direct link or base64 data URL"
               fieldKey="faviconUrl" placeholder="https://..."
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset} />
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
           </Section>
 
           {/* Language */}
           <Section title="Language">
             <OverrideDirectionRow
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset}
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
             <OverrideLocalesRow
               label="Enabled languages" fieldKey="enabledLocales"
@@ -274,7 +275,7 @@ export default function PropertyBrandPage() {
             <OverrideSelectRow
               label="Default language" fieldKey="defaultLocale"
               options={ALL_LOCALES.filter(l => enabledLocales.includes(l.code)).map(l => ({ value: l.code, label: l.label }))}
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset}
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
           </Section>
 
@@ -290,7 +291,7 @@ export default function PropertyBrandPage() {
             <OverrideSelectRow
               label="Default currency" fieldKey="defaultCurrency"
               options={enabledCurrencies.map(c => ({ value: c, label: `${c} — ${currencyName(c)}` }))}
-              draft={draft} orgDefaults={orgDefaults} onSet={set} onReset={reset}
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
           </Section>
         </div>
@@ -306,6 +307,7 @@ export default function PropertyBrandPage() {
 type OverrideProps = {
   draft: Draft
   orgDefaults: OrgDesignDefaultsConfig
+  systemDefaults: OrgDesignDefaultsConfig
   onSet: (key: keyof Draft, val: Draft[keyof Draft]) => void
   onReset: (key: keyof Draft) => void
 }
@@ -347,12 +349,12 @@ function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft
   )
 }
 
-function OverrideSelectRow({ label, hint, fieldKey, options, draft, orgDefaults, onSet, onReset }: OverrideProps & {
+function OverrideSelectRow({ label, hint, fieldKey, options, draft, orgDefaults, systemDefaults, onSet, onReset }: OverrideProps & {
   label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; options: { value: string; label: string }[]
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
-  const inherited = (orgDefaults[fieldKey] ?? SYSTEM_DEFAULTS[fieldKey as string]) as string
+  const inherited = (orgDefaults[fieldKey] ?? systemDefaults[fieldKey] ?? SYSTEM_DEFAULTS[fieldKey as string]) as string
   const source = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
@@ -383,12 +385,12 @@ function OverrideSelectRow({ label, hint, fieldKey, options, draft, orgDefaults,
   )
 }
 
-function OverrideNumberRow({ label, hint, fieldKey, min, max, draft, orgDefaults, onSet, onReset }: OverrideProps & {
+function OverrideNumberRow({ label, hint, fieldKey, min, max, draft, orgDefaults, systemDefaults, onSet, onReset }: OverrideProps & {
   label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig; min: number; max: number
 }) {
   const raw = draft[fieldKey] as number | null | undefined
   const isOverriding = raw != null
-  const inherited = (orgDefaults[fieldKey] ?? SYSTEM_DEFAULTS[fieldKey as string]) as number
+  const inherited = (orgDefaults[fieldKey] ?? systemDefaults[fieldKey] ?? SYSTEM_DEFAULTS[fieldKey as string]) as number
   const source = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
@@ -417,10 +419,10 @@ function OverrideNumberRow({ label, hint, fieldKey, min, max, draft, orgDefaults
   )
 }
 
-function OverrideDirectionRow({ draft, orgDefaults, onSet, onReset }: OverrideProps) {
+function OverrideDirectionRow({ draft, orgDefaults, systemDefaults, onSet, onReset }: OverrideProps) {
   const raw = draft.textDirection as string | null | undefined
   const isOverriding = raw != null
-  const inherited = (orgDefaults.textDirection ?? SYSTEM_DEFAULTS['textDirection']) as string
+  const inherited = (orgDefaults.textDirection ?? systemDefaults.textDirection ?? SYSTEM_DEFAULTS['textDirection']) as string
   const source = isOverriding ? 'hotel' : sourceLabel('textDirection', orgDefaults)
   const active = isOverriding ? raw : inherited
 

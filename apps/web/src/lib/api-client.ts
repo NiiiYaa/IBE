@@ -13,6 +13,7 @@ import type {
   HotelDesignConfig,
   UpdateDesignConfigRequest,
   OrgDesignDefaultsConfig,
+  GlobalDesignAdminResponse,
   PropertyDesignAdminResponse,
   NavItem,
   CreateNavItemRequest,
@@ -264,8 +265,9 @@ export const apiClient = {
   },
 
   /** Get all chain-featured images for every property in the org — single round-trip */
-  getChainImages(): Promise<ChainImagesResponse> {
-    return apiRequest<ChainImagesResponse>('/api/v1/admin/design/chain-images')
+  getChainImages(orgId?: number): Promise<ChainImagesResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<ChainImagesResponse>(`/api/v1/admin/design/chain-images${qs}`)
   },
 
   /** Get nav items for a property (optionally filtered by section) */
@@ -677,11 +679,12 @@ export const apiClient = {
 
   // ── Admin: Communication ───────────────────────────────────────────────────
 
-  getCommunicationSettings(): Promise<CommunicationSettingsResponse> {
-    return apiRequest<CommunicationSettingsResponse>('/api/v1/admin/communication')
+  getCommunicationSettings(orgId?: number): Promise<CommunicationSettingsResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<CommunicationSettingsResponse>(`/api/v1/admin/communication${qs}`)
   },
 
-  updateCommunicationSettings(data: UpdateCommunicationSettingsRequest): Promise<{ ok: boolean }> {
+  updateCommunicationSettings(data: UpdateCommunicationSettingsRequest & { orgId?: number }): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>('/api/v1/admin/communication', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -825,14 +828,14 @@ export const apiClient = {
     })
   },
 
-  /** Get org-level design defaults */
-  getGlobalDesignDefaults(): Promise<OrgDesignDefaultsConfig> {
-    return apiRequest<OrgDesignDefaultsConfig>('/api/v1/admin/design/global')
+  /** Get org-level design defaults + system defaults for inheritance display */
+  getGlobalDesignDefaults(): Promise<GlobalDesignAdminResponse> {
+    return apiRequest<GlobalDesignAdminResponse>('/api/v1/admin/design/global')
   },
 
   /** Update org-level design defaults */
-  updateGlobalDesignDefaults(data: Partial<OrgDesignDefaultsConfig>): Promise<OrgDesignDefaultsConfig> {
-    return apiRequest<OrgDesignDefaultsConfig>('/api/v1/admin/design/global', {
+  updateGlobalDesignDefaults(data: Partial<OrgDesignDefaultsConfig>): Promise<GlobalDesignAdminResponse> {
+    return apiRequest<GlobalDesignAdminResponse>('/api/v1/admin/design/global', {
       method: 'PUT',
       body: JSON.stringify(data),
     })

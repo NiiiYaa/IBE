@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { OrgDesignDefaultsConfig } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, GlobalDesignAdminResponse } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { ALL_CURRENCIES, TOP_CURRENCIES, currencyName } from '@/lib/currencies'
 import { AgeTag, ColorRow, FormRow, Section, TextInput, SaveBar, Toggle, selectCls } from '../components'
@@ -67,16 +67,16 @@ export default function GlobalBrandPage() {
   const [isDirty, setIsDirty] = useState(false)
   const initialized = { current: false }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<GlobalDesignAdminResponse>({
     queryKey: ['global-design-defaults'],
     queryFn: () => apiClient.getGlobalDesignDefaults(),
-    staleTime: Infinity,
+    staleTime: 0,
   })
 
   useEffect(() => {
     if (data && !initialized.current) {
       initialized.current = true
-      setDraft(data)
+      setDraft(data.overrides)
       setIsDirty(false)
     }
   }, [data])
@@ -106,7 +106,7 @@ export default function GlobalBrandPage() {
   const { mutate, isPending } = useMutation({
     mutationFn: (d: Draft) => apiClient.updateGlobalDesignDefaults(d),
     onSuccess: (fresh) => {
-      qc.setQueryData(['global-design-defaults'], fresh)
+      qc.setQueryData<GlobalDesignAdminResponse>(['global-design-defaults'], fresh)
       setIsDirty(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -148,6 +148,7 @@ export default function GlobalBrandPage() {
     )
   }
 
+  const sysDefs = data?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
   const enabledLocales = draft.enabledLocales ?? []
   const enabledCurrencies = draft.enabledCurrencies ?? []
 
@@ -269,7 +270,7 @@ export default function GlobalBrandPage() {
             key={key}
             label={label}
             hint={hint}
-            value={(draft[key] as string | null) ?? SYSTEM_DEFAULTS[key] ?? '#000000'}
+            value={(draft[key] as string | null) ?? (sysDefs[key] as string | null) ?? '#000000'}
             onChange={v => set(key, v)}
           />
         ))}

@@ -50,6 +50,8 @@ export interface MapsConfigResponse {
   poiRadius: number
   poiCategories: PoiCategory[]
   enabled: boolean
+  systemServiceDisabled: boolean
+  hasOwnConfig: boolean
 }
 
 export interface MapsConfigUpdate {
@@ -58,4 +60,5 @@ export interface MapsConfigUpdate {
   poiRadius?: number
   poiCategories?: PoiCategory[]
   enabled?: boolean
+  systemServiceDisabled?: boolean
 }

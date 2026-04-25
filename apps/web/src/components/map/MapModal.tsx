@@ -23,6 +23,21 @@ function makeHotelIcon(primary = '#4f46e5') {
   })
 }
 
+function makeSisterHotelIcon(primary = '#4f46e5') {
+  // Smaller, slightly transparent variant for sister chain hotels
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 30" width="22" height="30">
+    <path d="M11 0C4.925 0 0 4.925 0 11c0 7.7 11 19 11 19S22 18.7 22 11C22 4.925 17.075 0 11 0z" fill="${primary}" stroke="white" stroke-width="1.5" opacity="0.65"/>
+    <circle cx="11" cy="11" r="4" fill="white" opacity="0.9"/>
+  </svg>`
+  return L.divIcon({
+    className: '',
+    html: svg,
+    iconSize: [22, 30],
+    iconAnchor: [11, 30],
+    popupAnchor: [0, -32],
+  })
+}
+
 function makePoiIcon(color: string) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
     <circle cx="8" cy="8" r="7" fill="${color}" stroke="white" stroke-width="1.5" opacity="0.9"/>
@@ -155,16 +170,26 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
 
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#4f46e5'
   const hotelIcon = makeHotelIcon(primaryColor)
+  const sisterIcon = makeSisterHotelIcon(primaryColor)
 
   useEffect(() => {
     async function load() {
       try {
         if (data.mode === 'hotel') {
-          const cfgRes = await fetch(`/api/v1/maps/config?propertyId=${data.propertyId}`)
+          const fetches: [Promise<Response>, Promise<Response | null>] = [
+            fetch(`/api/v1/maps/config?propertyId=${data.propertyId}`),
+            data.orgId ? fetch(`/api/v1/maps/chain?orgId=${data.orgId}`) : Promise.resolve(null),
+          ]
+          const [cfgRes, chainRes] = await Promise.all(fetches)
           const cfg: PublicMapsConfig = cfgRes.ok ? await cfgRes.json() : { provider: 'osm', poiRadius: 1000, poiCategories: ['restaurants', 'attractions', 'transport', 'shopping'] }
           setMapsConfig(cfg)
-          const poiData = await fetchPoi(data.lat, data.lng, cfg.poiRadius, cfg.poiCategories as PoiCategory[])
+          const [poiData, sisterProps] = await Promise.all([
+            fetchPoi(data.lat, data.lng, cfg.poiRadius, cfg.poiCategories as PoiCategory[]),
+            chainRes?.ok ? chainRes.json() as Promise<ChainProperty[]> : Promise.resolve([]),
+          ])
           setPoi(poiData)
+          // Sister hotels = all chain properties except the current one
+          setChainProps((sisterProps as ChainProperty[]).filter(p => p.id !== data.propertyId))
         } else {
           const [propsRes, cfgRes] = await Promise.all([
             fetch(`/api/v1/maps/chain?orgId=${data.orgId}`),
@@ -191,6 +216,10 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
     : chainProps.length > 0 ? [chainProps[0]!.lat, chainProps[0]!.lng] : [20, 0]
 
   const chainPositions: [number, number][] = chainProps.map(p => [p.lat, p.lng])
+  // In hotel mode with sister hotels, fit bounds to show all; otherwise zoom to single hotel
+  const hotelModePositions: [number, number][] = data.mode === 'hotel'
+    ? [[data.lat, data.lng], ...chainPositions]
+    : []
 
   return (
     <div
@@ -233,7 +262,7 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
           {!loading && (
             <MapContainer
               center={defaultCenter}
-              zoom={data.mode === 'hotel' ? 15 : 5}
+              zoom={data.mode === 'hotel' && chainPositions.length === 0 ? 15 : 5}
               style={{ height: '100%', width: '100%' }}
               scrollWheelZoom
             >
@@ -242,9 +271,10 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
 
-              {/* Hotel mode: single marker + POI */}
+              {/* Hotel mode: primary marker + POI + optional sister hotels */}
               {data.mode === 'hotel' && (
                 <>
+                  {hotelModePositions.length > 1 && <FitBounds positions={hotelModePositions} />}
                   <Marker position={[data.lat, data.lng]} icon={hotelIcon}>
                     <Popup>
                       <div className="min-w-[160px]">
@@ -253,6 +283,17 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
                       </div>
                     </Popup>
                   </Marker>
+                  {chainProps.map(p => (
+                    <Marker key={p.id} position={[p.lat, p.lng]} icon={sisterIcon}>
+                      <Popup>
+                        <div className="min-w-[160px]">
+                          <p className="font-semibold">{p.name}</p>
+                          {p.starRating > 0 && <div className="mt-0.5"><Stars n={p.starRating} /></div>}
+                          <p className="mt-0.5 text-xs text-gray-500">{[p.city, p.address].filter(Boolean).join(' · ')}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
                   {poi.map(p => (
                     <Marker key={p.id} position={[p.lat, p.lon]} icon={makePoiIcon(POI_COLORS[p.category])}>
                       <Popup>

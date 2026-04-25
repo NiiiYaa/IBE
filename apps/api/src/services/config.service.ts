@@ -103,7 +103,7 @@ function rowToSystemDesign(row: {
   }
 }
 
-async function loadSystemDesign() {
+export async function loadSystemDesign() {
   if (_systemDesignCache) return _systemDesignCache
   const row = await prisma.systemDesignConfig.findFirst()
   _systemDesignCache = rowToSystemDesign(row)
@@ -414,12 +414,14 @@ export async function upsertHotelDesignConfig(
 export async function getPropertyDesignAdmin(propertyId: number): Promise<{
   overrides: OrgDesignDefaultsConfig
   orgDefaults: OrgDesignDefaultsConfig
+  systemDefaults: OrgDesignDefaultsConfig
   hgName: string | null
   hotelExcludedImageIds: number[]
 }> {
-  const [config, property] = await Promise.all([
+  const [config, property, sys] = await Promise.all([
     prisma.hotelConfig.findUnique({ where: { propertyId } }),
     prisma.property.findUnique({ where: { propertyId } }),
+    loadSystemDesign(),
   ])
   const orgRow = property
     ? await prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } })
@@ -427,6 +429,7 @@ export async function getPropertyDesignAdmin(propertyId: number): Promise<{
   return {
     overrides: rowToOrgDefaults(config),
     orgDefaults: rowToOrgDefaults(orgRow),
+    systemDefaults: sys,
     hgName: property?.name ?? null,
     hotelExcludedImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
   }

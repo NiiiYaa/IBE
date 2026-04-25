@@ -59,7 +59,7 @@ function Spinner() {
 
 export default function ChainPage() {
   const qc = useQueryClient()
-  const { isLoading, draft, set, save, isPending, isDirty, saveError } = useGlobalConfig()
+  const { isLoading, draft, set, save, isPending, isDirty, saveError, systemDefaults } = useGlobalConfig()
   const { admin } = useAdminAuth()
   const { orgId: ctxOrgId } = useAdminProperty()
   const isSuper = admin?.role === 'super'
@@ -95,8 +95,8 @@ export default function ChainPage() {
 
   // Single endpoint fetches all chain-featured images for the whole org
   const propertyImagesQuery = useQuery({
-    queryKey: ['admin-chain-property-images'],
-    queryFn: () => apiClient.getChainImages(),
+    queryKey: ['admin-chain-property-images', resolvedOrgId],
+    queryFn: () => apiClient.getChainImages(isSuper ? resolvedOrgId : undefined),
     staleTime: 60_000,
     retry: 1,
   })
@@ -419,7 +419,7 @@ export default function ChainPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {COLOR_FIELDS.map(({ key, label, hint }) => (
               <ColorRow key={key} label={label} hint={hint}
-                value={(draft[key as keyof typeof draft] as string | null) ?? SYSTEM_DEFAULTS[key] ?? '#000000'}
+                value={(draft[key as keyof typeof draft] as string | null) ?? (systemDefaults[key as keyof typeof systemDefaults] as string | null) ?? '#000000'}
                 onChange={v => set(key as keyof typeof draft, v)} />
             ))}
           </div>

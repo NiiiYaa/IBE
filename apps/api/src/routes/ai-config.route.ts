@@ -44,6 +44,9 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
     if (body.provider === 'fake' && request.admin.role !== 'super') {
       return reply.status(403).send({ error: 'Fake AI provider is restricted to super admins' })
     }
+    if (body.systemServiceDisabled !== undefined && request.admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
     return reply.send(await upsertOrgAIConfig(orgId, body))
   })
 
@@ -61,6 +64,9 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
     const body = request.body as Record<string, unknown>
     if (body.provider === 'fake' && request.admin.role !== 'super') {
       return reply.status(403).send({ error: 'Fake AI provider is restricted to super admins' })
+    }
+    if (body.systemServiceDisabled !== undefined && request.admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
     }
     return reply.send(await upsertPropertyAIConfig(propertyId, body))
   })

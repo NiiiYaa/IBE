@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { IBE_ERROR_VALIDATION } from '@ibe/shared'
-import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getOrgDesignDefaults, upsertOrgDesignDefaults, getPropertyDesignAdmin, getSystemDesignDefaults, upsertSystemDesignDefaults } from '../services/config.service.js'
+import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getOrgDesignDefaults, upsertOrgDesignDefaults, getPropertyDesignAdmin, getSystemDesignDefaults, upsertSystemDesignDefaults, loadSystemDesign } from '../services/config.service.js'
 import { getOrgIdForProperty, listProperties } from '../services/property-registry.service.js'
 import { resolveSellerOrg } from '../services/b2b-auth.service.js'
 import { getOrgSettings } from '../services/org.service.js'
@@ -169,12 +169,12 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send(await upsertSystemDesignDefaults(request.body as Record<string, unknown>))
   })
 
-  // GET /admin/design/global — get org-level design defaults
+  // GET /admin/design/global — get org-level design defaults + system defaults for inheritance display
   fastify.get('/admin/design/global', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const orgId = request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
-    const defaults = await getOrgDesignDefaults(orgId)
-    return reply.send(defaults)
+    const [overrides, systemDefaults] = await Promise.all([getOrgDesignDefaults(orgId), loadSystemDesign()])
+    return reply.send({ overrides, systemDefaults })
   })
 
   // GET /admin/design/property/:propertyId — raw overrides + org defaults for a property
@@ -191,8 +191,8 @@ export async function configRoutes(fastify: FastifyInstance) {
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const body = request.body as Record<string, unknown>
     try {
-      const defaults = await upsertOrgDesignDefaults(orgId, body)
-      return reply.send(defaults)
+      const [overrides, systemDefaults] = await Promise.all([upsertOrgDesignDefaults(orgId, body), loadSystemDesign()])
+      return reply.send({ overrides, systemDefaults })
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('reach database server') || msg.includes('P1001') || msg.includes('Connection timed out')) {
@@ -204,7 +204,10 @@ export async function configRoutes(fastify: FastifyInstance) {
 
   // GET /admin/design/chain-images — all chain-featured images for every property in the org (single round-trip)
   fastify.get('/admin/design/chain-images', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const query = request.query as { orgId?: string }
+    const orgId = request.admin.role === 'super' && query.orgId
+      ? parseInt(query.orgId, 10)
+      : request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
 
     // 1. Fetch all non-demo properties + their HotelConfig in one DB query

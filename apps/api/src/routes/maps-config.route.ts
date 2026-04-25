@@ -27,6 +27,9 @@ export async function mapsConfigRoutes(fastify: FastifyInstance) {
       ? ((body.orgId as number | undefined) ?? request.admin.organizationId)
       : request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    if (body.systemServiceDisabled !== undefined && request.admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
     return reply.send(await upsertMapsConfig(orgId, body))
   })
 }

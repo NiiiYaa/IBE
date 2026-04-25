@@ -103,6 +103,7 @@ export async function getOrgAIConfig(organizationId: number): Promise<OrgAIConfi
     ...rowToResponse(row),
     useInherited: row?.useInherited ?? true,
     inherited: rowToResponse(systemRow),
+    systemServiceDisabled: row?.systemServiceDisabled ?? false,
   }
 }
 
@@ -114,6 +115,7 @@ export async function upsertOrgAIConfig(organizationId: number, data: OrgAIConfi
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
+  if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
 
   await prisma.orgAIConfig.upsert({
     where: { organizationId },
@@ -154,6 +156,7 @@ export async function getPropertyAIConfig(propertyId: number): Promise<PropertyA
     useInherited: row?.useInherited ?? true,
     inherited,
     inheritedFrom,
+    systemServiceDisabled: row?.systemServiceDisabled ?? false,
   }
 }
 
@@ -165,6 +168,7 @@ export async function upsertPropertyAIConfig(propertyId: number, data: PropertyA
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
+  if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
 
   await prisma.propertyAIConfig.upsert({
     where: { propertyId },
@@ -186,8 +190,11 @@ export interface ResolvedAIConfig {
 }
 
 export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAIConfig | null> {
+  let propRow: Awaited<ReturnType<typeof prisma.propertyAIConfig.findUnique>> | null = null
+  let orgRow: Awaited<ReturnType<typeof prisma.orgAIConfig.findUnique>> | null = null
+
   if (propertyId) {
-    const propRow = await prisma.propertyAIConfig.findUnique({ where: { propertyId } })
+    propRow = await prisma.propertyAIConfig.findUnique({ where: { propertyId } })
     const isFakeProp = propRow?.provider === 'fake'
     if (propRow && !propRow.useInherited && propRow.provider && (isFakeProp || propRow.apiKey) && propRow.enabled) {
       return {
@@ -201,7 +208,7 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
     // Fall through to org
     const property = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
     if (property) {
-      const orgRow = await prisma.orgAIConfig.findUnique({ where: { organizationId: property.organizationId } })
+      orgRow = await prisma.orgAIConfig.findUnique({ where: { organizationId: property.organizationId } })
       const isFakeOrg = orgRow?.provider === 'fake'
       if (orgRow && !orgRow.useInherited && orgRow.provider && (isFakeOrg || orgRow.apiKey) && orgRow.enabled) {
         return {
@@ -213,6 +220,8 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
         }
       }
     }
+    // If system service is disabled for this property or its org, don't fall through
+    if (propRow?.systemServiceDisabled || orgRow?.systemServiceDisabled) return null
   }
   // Fall through to system
   const systemRow = await prisma.systemAIConfig.findFirst()

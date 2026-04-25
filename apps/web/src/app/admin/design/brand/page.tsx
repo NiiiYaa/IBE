@@ -107,6 +107,10 @@ function SystemBrandEditor() {
       qc.setQueryData(['system-design-defaults'], fresh)
       savedSnapshot.current = fresh
       setSaveError(null)
+      // Invalidate all caches that embed systemDefaults so downstream admin pages refresh
+      void qc.invalidateQueries({ queryKey: ['global-design-defaults'] })
+      void qc.invalidateQueries({ queryKey: ['property-design-admin'] })
+      void qc.invalidateQueries({ queryKey: ['admin-config'] })
     },
     onError: (err: unknown) => setSaveError(err instanceof Error ? err.message : 'Save failed'),
   })
@@ -373,6 +377,12 @@ function SystemBrandEditor() {
             hint="Show all rate options open when a room card loads."
             checked={resolved(draft, 'roomRatesDefaultExpanded', false)}
             onChange={v => set('roomRatesDefaultExpanded', v)}
+          />
+          <Toggle
+            label="AI mode on by default"
+            hint="Search results page opens in AI mode — sidebar and room list hidden; only the AI chat box shown."
+            checked={resolved(draft, 'searchAiLayoutDefault', false)}
+            onChange={v => set('searchAiLayoutDefault', v)}
           />
           <div className="grid grid-cols-2 gap-4">
             <FormRow label="Infant max age">

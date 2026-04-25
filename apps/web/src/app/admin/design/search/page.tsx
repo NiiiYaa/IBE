@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel, RoomDetail } from '@ibe/shared'
 import { addDays, todayIso } from '@ibe/shared'
 import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
@@ -39,7 +39,7 @@ export default function SearchDesignPage() {
 // ── Global editor (no property selected) ─────────────────────────────────────
 
 function GlobalSearchEditor() {
-  const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { isLoading, draft, set, save, isPending, isDirty, systemDefaults } = useGlobalConfig()
   const { admin } = useAdminAuth()
   const { orgId: ctxOrgId } = useAdminProperty()
   const isSuper = admin?.role === 'super'
@@ -359,6 +359,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
   useEffect(() => { setInitialized(false); setIsDirty(false) }, [propertyId])
 
   const orgDefaults = designData?.orgDefaults ?? ({} as OrgDesignDefaultsConfig)
+  const sysDefs = designData?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d: SearchDraft) => apiClient.updateHotelConfig(propertyId, d),
@@ -425,6 +426,10 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
       </div>
 
       <div className="space-y-6">
+        {property && property.rooms.length > 0 && (
+          <RoomsInfoSection rooms={property.rooms} />
+        )}
+
         {property && property.images.length > 0 && (
           <Section title="Banner Image">
             <div className="mb-3">
@@ -616,7 +621,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
             label="Show all offers expanded by default"
             description="When enabled, room rate options unfold automatically on the search results page."
             fieldKey="roomRatesDefaultExpanded"
-            draft={draft} orgDefaults={orgDefaults} systemDefault={false}
+            draft={draft} orgDefaults={orgDefaults} systemDefault={sysDefs.roomRatesDefaultExpanded ?? false}
             onSet={setB as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void}
             onReset={resetO}
           />
@@ -627,7 +632,7 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
             label="AI Layout default"
             description="When enabled, the search results page opens in AI mode by default — sidebar and room list are hidden; only the AI chat box is shown."
             fieldKey="searchAiLayoutDefault"
-            draft={draft} orgDefaults={orgDefaults} systemDefault={false}
+            draft={draft} orgDefaults={orgDefaults} systemDefault={sysDefs.searchAiLayoutDefault ?? false}
             onSet={setB as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void}
             onReset={resetO}
           />
@@ -665,10 +670,10 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <OverrideNumberRow label="Infant max age" hint={`Ages 0–${effectiveInfantMax} shown as Infants`}
-              fieldKey="infantMaxAge" min={0} max={4} systemDefault={2}
+              fieldKey="infantMaxAge" min={0} max={4} systemDefault={sysDefs.infantMaxAge ?? 2}
               draft={draft} orgDefaults={orgDefaults} onSet={setN} onReset={resetO} />
             <OverrideNumberRow label="Child max age" hint={`Ages ${effectiveInfantMax + 1}–${effectiveChildMax} shown as Children`}
-              fieldKey="childMaxAge" min={5} max={17} systemDefault={16}
+              fieldKey="childMaxAge" min={5} max={17} systemDefault={sysDefs.childMaxAge ?? 16}
               draft={draft} orgDefaults={orgDefaults} onSet={setN} onReset={resetO} />
           </div>
           <div className="mt-3 flex gap-4 text-xs">
@@ -680,6 +685,113 @@ function PropertySearchEditor({ propertyId }: { propertyId: number }) {
       </div>
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
     </div>
+  )
+}
+
+function RoomsInfoSection({ rooms }: { rooms: RoomDetail[] }) {
+  const [activeId, setActiveId] = useState<number>(rooms[0]?.roomId ?? 0)
+  const room = rooms.find(r => r.roomId === activeId) ?? rooms[0]
+  if (!room) return null
+
+  const description = room.descriptions.find(d => d.locale === 'en') ?? room.descriptions[0]
+  const grouped = room.facilities.reduce<Record<string, typeof room.facilities>>((acc, f) => {
+    const cat = f.category ?? 'Other'
+    ;(acc[cat] ??= []).push(f)
+    return acc
+  }, {})
+
+  return (
+    <Section title="Room Information">
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-1.5 border-b border-[var(--color-border)] pb-3">
+        {rooms.map(r => (
+          <button
+            key={r.roomId}
+            type="button"
+            onClick={() => setActiveId(r.roomId)}
+            className={[
+              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+              r.roomId === activeId
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
+            ].join(' ')}
+          >
+            {r.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Room detail */}
+      <div className="space-y-4 pt-3">
+        {/* Meta row: code + beds */}
+        <div className="flex flex-wrap gap-4">
+          {room.roomCode && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">PMS Code</p>
+              <span className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 font-mono text-xs text-[var(--color-text)]">
+                {room.roomCode}
+              </span>
+            </div>
+          )}
+          {room.beds.length > 0 && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Beds</p>
+              <div className="flex flex-wrap gap-1.5">
+                {room.beds.map((b, i) => (
+                  <span key={i} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-0.5 text-xs text-[var(--color-text)]">
+                    {b.quantity}× {b.type}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Images</p>
+            <span className="text-xs text-[var(--color-text-muted)]">{room.images.length} photo{room.images.length !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+
+        {/* Description */}
+        {description ? (
+          <div>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Description</p>
+            <p className="text-sm leading-relaxed text-[var(--color-text-muted)] line-clamp-4">{description.text}</p>
+          </div>
+        ) : (
+          <p className="text-xs italic text-[var(--color-text-muted)]">No description provided by HyperGuest for this room type.</p>
+        )}
+
+        {/* Facilities grouped */}
+        {Object.keys(grouped).length > 0 && (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Amenities</p>
+            <div className="space-y-2">
+              {Object.entries(grouped).map(([cat, items]) => (
+                <div key={cat}>
+                  <p className="mb-1 text-[10px] font-medium text-[var(--color-text-muted)]">{cat}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {items.map(f => (
+                      <span key={f.id} className={[
+                        'rounded-full border px-2.5 py-0.5 text-xs',
+                        f.popular
+                          ? 'border-[var(--color-primary-light)] bg-[var(--color-primary-light)] font-medium text-[var(--color-primary)]'
+                          : 'border-[var(--color-border)] text-[var(--color-text-muted)]',
+                      ].join(' ')}>
+                        {f.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="text-[10px] italic text-[var(--color-text-muted)]">
+          Data sourced from HyperGuest — read only. Max occupancy is available from live search results only.
+        </p>
+      </div>
+    </Section>
   )
 }
 

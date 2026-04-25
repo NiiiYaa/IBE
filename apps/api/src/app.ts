@@ -80,7 +80,7 @@ export async function buildApp() {
   })
 
   await app.register(cors, {
-    origin: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
+    origin: env.NODE_ENV !== 'production' ? true : env.CORS_ORIGINS.split(',').map((o) => o.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   })
@@ -88,6 +88,7 @@ export async function buildApp() {
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
+    allowList: env.NODE_ENV !== 'production' ? ['127.0.0.1', '::1', '::ffff:127.0.0.1'] : [],
     errorResponseBuilder: () => ({
       error: 'Too many requests',
       code: 'IBE.RATE_LIMIT',

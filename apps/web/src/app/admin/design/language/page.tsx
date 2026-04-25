@@ -21,7 +21,7 @@ export default function LanguagePage() {
 // ── Global editor ─────────────────────────────────────────────────────────────
 
 function GlobalLanguageEditor() {
-  const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { isLoading, draft, set, save, isPending, isDirty, systemDefaults } = useGlobalConfig()
 
   if (isLoading) return <Spinner />
 
@@ -139,6 +139,7 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   useEffect(() => { setInitialized(false); setIsDirty(false) }, [propertyId])
 
   const orgDefaults = designData?.orgDefaults ?? ({} as OrgDesignDefaultsConfig)
+  const sysDefs = designData?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d: Partial<OrgDesignDefaultsConfig>) => apiClient.updateHotelConfig(propertyId, d as Parameters<typeof apiClient.updateHotelConfig>[1]),
@@ -193,7 +194,7 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
         </Section>
 
         <Section title="Default Language">
-          <OverrideSelectRow label="Default language" fieldKey="defaultLocale" systemDefault="en"
+          <OverrideSelectRow label="Default language" fieldKey="defaultLocale" systemDefault={sysDefs.defaultLocale ?? 'en'}
             options={localeOptions}
             draft={draft} orgDefaults={orgDefaults} onSet={setStr} onReset={reset} />
         </Section>

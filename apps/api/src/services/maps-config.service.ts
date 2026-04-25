@@ -11,7 +11,8 @@ function rowToResponse(row: {
   poiRadius: number
   poiCategories: string
   enabled: boolean
-} | null): MapsConfigResponse {
+  systemServiceDisabled?: boolean
+} | null, hasOwnConfig = false): MapsConfigResponse {
   return {
     provider: (row?.provider ?? 'osm') as MapProvider,
     apiKeySet: !!row?.apiKey,
@@ -19,6 +20,8 @@ function rowToResponse(row: {
     poiRadius: row?.poiRadius ?? 1000,
     poiCategories: JSON.parse(row?.poiCategories ?? JSON.stringify(DEFAULT_CATEGORIES)) as PoiCategory[],
     enabled: row?.enabled ?? false,
+    systemServiceDisabled: row?.systemServiceDisabled ?? false,
+    hasOwnConfig,
   }
 }
 
@@ -26,6 +29,7 @@ export interface PublicMapsConfig {
   provider: MapProvider
   poiRadius: number
   poiCategories: PoiCategory[]
+  enabled: boolean
 }
 
 export interface ChainPropertyMarker {
@@ -44,10 +48,15 @@ export async function getPublicMapsConfig(propertyId: number): Promise<PublicMap
     prop ? prisma.orgMapsConfig.findUnique({ where: { organizationId: prop.organizationId } }) : null,
     prisma.systemMapsConfig.findFirst(),
   ])
-  // Cascade: org → system → rowToResponse hardcoded defaults
-  const resolved = orgRow ?? sysRow
+  // If org has own API key, use org config regardless of disable flag
+  const hasOwnKey = !!orgRow?.apiKey
+  if (!hasOwnKey && orgRow?.systemServiceDisabled) {
+    return { provider: 'osm' as MapProvider, poiRadius: 1000, poiCategories: DEFAULT_CATEGORIES as PoiCategory[], enabled: false }
+  }
+  // Cascade: org (own key) → system → hardcoded defaults
+  const resolved = hasOwnKey ? orgRow : (sysRow ?? orgRow)
   const base = rowToResponse(resolved ? { ...resolved, enabled: false } : null)
-  return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories }
+  return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories, enabled: base.enabled }
 }
 
 export async function getChainProperties(orgId: number): Promise<ChainPropertyMarker[]> {
@@ -98,7 +107,7 @@ export async function upsertSystemMapsConfig(data: MapsConfigUpdate): Promise<Ma
 
 export async function getMapsConfig(orgId: number): Promise<MapsConfigResponse> {
   const row = await prisma.orgMapsConfig.findUnique({ where: { organizationId: orgId } })
-  return rowToResponse(row)
+  return rowToResponse(row, !!row)
 }
 
 export async function upsertMapsConfig(orgId: number, data: MapsConfigUpdate): Promise<MapsConfigResponse> {
@@ -108,6 +117,7 @@ export async function upsertMapsConfig(orgId: number, data: MapsConfigUpdate): P
   if (data.poiRadius !== undefined) update.poiRadius = data.poiRadius
   if (data.poiCategories !== undefined) update.poiCategories = JSON.stringify(data.poiCategories)
   if (data.enabled !== undefined) update.enabled = data.enabled
+  if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
 
   const row = await prisma.orgMapsConfig.upsert({
     where: { organizationId: orgId },

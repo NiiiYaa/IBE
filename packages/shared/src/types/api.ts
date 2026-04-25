@@ -355,10 +355,16 @@ export interface UpdateDesignConfigRequest {
   priceComparisonEnabled?: boolean
 }
 
+export interface GlobalDesignAdminResponse {
+  overrides: OrgDesignDefaultsConfig
+  systemDefaults: OrgDesignDefaultsConfig
+}
+
 export interface PropertyDesignAdminResponse {
   propertyId: number
   overrides: OrgDesignDefaultsConfig   // nulls = inheriting from org/system
   orgDefaults: OrgDesignDefaultsConfig
+  systemDefaults: OrgDesignDefaultsConfig
   hgName: string | null
   hotelExcludedImageIds: number[]
 }
@@ -497,6 +503,7 @@ export interface CommunicationSettingsResponse {
   emailSmtpSecure: boolean
   emailSmtpPasswordSet: boolean
   emailApiKeySet: boolean
+  emailSystemServiceDisabled: boolean
 
   whatsappEnabled: boolean
   whatsappProvider: WhatsAppProvider
@@ -506,6 +513,7 @@ export interface CommunicationSettingsResponse {
   whatsappTwilioAccountSid: string
   whatsappTwilioAuthTokenSet: boolean
   whatsappTwilioNumber: string
+  whatsappSystemServiceDisabled: boolean
 
   smsEnabled: boolean
   smsProvider: SmsProvider
@@ -530,8 +538,10 @@ export interface UpdateCommunicationSettingsRequest {
   emailSmtpSecure?: boolean
   emailSmtpPassword?: string
   emailApiKey?: string
+  emailSystemServiceDisabled?: boolean
 
   whatsappEnabled?: boolean
+  whatsappSystemServiceDisabled?: boolean
   whatsappProvider?: WhatsAppProvider
   whatsappPhoneNumberId?: string
   whatsappBusinessAccountId?: string

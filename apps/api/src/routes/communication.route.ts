@@ -15,6 +15,7 @@ function maskSensitive(s: CommSettings) {
     emailSmtpSecure: s.emailSmtpSecure,
     emailSmtpPasswordSet: !!s.emailSmtpPassword,
     emailApiKeySet: !!s.emailApiKey,
+    emailSystemServiceDisabled: s.emailSystemServiceDisabled,
     whatsappEnabled: s.whatsappEnabled,
     whatsappProvider: s.whatsappProvider,
     whatsappPhoneNumberId: s.whatsappPhoneNumberId,
@@ -23,6 +24,7 @@ function maskSensitive(s: CommSettings) {
     whatsappTwilioAccountSid: s.whatsappTwilioAccountSid,
     whatsappTwilioAuthTokenSet: !!s.whatsappTwilioAuthToken,
     whatsappTwilioNumber: s.whatsappTwilioNumber,
+    whatsappSystemServiceDisabled: s.whatsappSystemServiceDisabled,
     smsEnabled: s.smsEnabled,
     smsProvider: s.smsProvider,
     smsFromNumber: s.smsFromNumber,
@@ -53,7 +55,11 @@ export async function communicationRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/admin/communication', async (request, reply) => {
-    const s = await getCommSettings(request.admin.organizationId!)
+    const rawOrgId = (request.query as Record<string, string>).orgId
+    const orgId = request.admin.role === 'super' && rawOrgId
+      ? parseInt(rawOrgId, 10)
+      : request.admin.organizationId!
+    const s = await getCommSettings(orgId)
     return reply.send(maskSensitive(s))
   })
 
@@ -65,20 +71,18 @@ export async function communicationRoutes(fastify: FastifyInstance) {
   })
 
   fastify.put('/admin/communication', async (request, reply) => {
-    const body = request.body as Partial<{
-      emailEnabled: boolean; emailProvider: string; emailFromName: string
-      emailFromAddress: string; emailSmtpHost: string; emailSmtpPort: number
-      emailSmtpUser: string; emailSmtpSecure: boolean; emailSmtpPassword: string; emailApiKey: string
-      whatsappEnabled: boolean; whatsappProvider: string; whatsappPhoneNumberId: string
-      whatsappBusinessAccountId: string; whatsappAccessToken: string
-      whatsappTwilioAccountSid: string; whatsappTwilioAuthToken: string; whatsappTwilioNumber: string
-      smsEnabled: boolean; smsProvider: string; smsFromNumber: string
-      smsTwilioAccountSid: string; smsTwilioAuthToken: string
-      smsVonageApiKey: string; smsVonageApiSecret: string
-      smsAwsAccessKey: string; smsAwsSecretKey: string; smsAwsRegion: string
-    }>
+    const body = request.body as Partial<CommSettings> & { orgId?: number }
+    const orgId = request.admin.role === 'super' && body.orgId
+      ? body.orgId
+      : request.admin.organizationId!
 
-    await updateCommSettings(request.admin.organizationId!, body as never)
+    // Only super admin can set system service disable flags
+    if ((body.emailSystemServiceDisabled !== undefined || body.whatsappSystemServiceDisabled !== undefined)
+        && request.admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
+
+    await updateCommSettings(orgId, body as never)
     return reply.send({ ok: true })
   })
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
-import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel } from '@ibe/shared'
+import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, HotelDesignConfig, SellModel, PropertyDetail } from '@ibe/shared'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGlobalConfig } from '@/hooks/use-global-config'
 import { useProperty } from '@/hooks/use-property'
@@ -381,7 +381,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   const { data: designData, isLoading: designLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
     queryFn: () => apiClient.getPropertyDesignAdmin(propertyId),
-    staleTime: Infinity,
+    staleTime: 0,
   })
 
   const { data: config, isLoading: configLoading } = useQuery<HotelDesignConfig>({
@@ -445,14 +445,16 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   useEffect(() => { setInitialized(false); setIsDirty(false) }, [propertyId])
 
   const orgDefaults = designData?.orgDefaults ?? ({} as OrgDesignDefaultsConfig)
+  const sysDefs = designData?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
 
   useEffect(() => {
     const eff = (key: string): string | undefined =>
       (draft[key as keyof HomepageDraft] as string | null | undefined)
       ?? (orgDefaults[key as keyof OrgDesignDefaultsConfig] as string | null | undefined)
+      ?? (sysDefs[key as keyof OrgDesignDefaultsConfig] as string | null | undefined)
       ?? SYSTEM_DEFAULTS[key] as string | undefined
-    const radiusVal = draft.borderRadius ?? orgDefaults.borderRadius ?? SYSTEM_DEFAULTS.borderRadius as number
-    const fontVal = draft.fontFamily ?? orgDefaults.fontFamily ?? SYSTEM_DEFAULTS.fontFamily as string
+    const radiusVal = draft.borderRadius ?? orgDefaults.borderRadius ?? sysDefs.borderRadius ?? SYSTEM_DEFAULTS.borderRadius as number
+    const fontVal = draft.fontFamily ?? orgDefaults.fontFamily ?? sysDefs.fontFamily ?? SYSTEM_DEFAULTS.fontFamily as string
     const vars: Array<[string, string | undefined]> = [
       ['--color-primary',       eff('colorPrimary')],
       ['--color-primary-hover', eff('colorPrimaryHover')],
@@ -500,21 +502,21 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   // ── Hero style override ────────────────────────────────────────────────────
   const heroStyleRaw = draft.heroStyle
   const heroStyleOverriding = heroStyleRaw != null
-  const heroStyleInherited = orgDefaults.heroStyle ?? SYSTEM_DEFAULTS.heroStyle as 'fullpage' | 'rectangle' | 'quilt'
+  const heroStyleInherited = orgDefaults.heroStyle ?? sysDefs.heroStyle ?? SYSTEM_DEFAULTS.heroStyle as 'fullpage' | 'rectangle' | 'quilt'
   const heroStyleEffective = heroStyleOverriding ? heroStyleRaw : heroStyleInherited
   const heroStyleSource: 'hotel' | 'chain' | 'system' = heroStyleOverriding ? 'hotel' : sourceLabel('heroStyle', orgDefaults)
 
   // ── Hero image mode override ───────────────────────────────────────────────
   const heroImageModeRaw = draft.heroImageMode
   const heroImageModeOverriding = heroImageModeRaw != null
-  const heroImageModeInherited = orgDefaults.heroImageMode ?? SYSTEM_DEFAULTS.heroImageMode as 'fixed' | 'carousel'
+  const heroImageModeInherited = orgDefaults.heroImageMode ?? sysDefs.heroImageMode ?? SYSTEM_DEFAULTS.heroImageMode as 'fixed' | 'carousel'
   const heroImageModeEffective = heroImageModeOverriding ? heroImageModeRaw : heroImageModeInherited
   const heroImageModeSource: 'hotel' | 'chain' | 'system' = heroImageModeOverriding ? 'hotel' : sourceLabel('heroImageMode', orgDefaults)
 
   // ── Hero carousel interval override ───────────────────────────────────────
   const heroCarouselRaw = draft.heroCarouselInterval
   const heroCarouselOverriding = heroCarouselRaw != null
-  const heroCarouselInherited = orgDefaults.heroCarouselInterval ?? SYSTEM_DEFAULTS.heroCarouselInterval as number
+  const heroCarouselInherited = orgDefaults.heroCarouselInterval ?? sysDefs.heroCarouselInterval ?? SYSTEM_DEFAULTS.heroCarouselInterval as number
   const heroCarouselEffective = heroCarouselOverriding ? heroCarouselRaw : heroCarouselInherited
   const heroCarouselSource: 'hotel' | 'chain' | 'system' = heroCarouselOverriding ? 'hotel' : sourceLabel('heroCarouselInterval', orgDefaults)
 
@@ -533,7 +535,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
   // ── Border radius override (slider) ───────────────────────────────────────
   const borderRadiusRaw = draft.borderRadius
   const borderRadiusOverriding = borderRadiusRaw != null
-  const borderRadiusInherited = orgDefaults.borderRadius ?? SYSTEM_DEFAULTS.borderRadius as number
+  const borderRadiusInherited = orgDefaults.borderRadius ?? sysDefs.borderRadius ?? SYSTEM_DEFAULTS.borderRadius as number
   const borderRadiusEffective = borderRadiusOverriding ? borderRadiusRaw : borderRadiusInherited
   const borderRadiusSource: 'hotel' | 'chain' | 'system' = borderRadiusOverriding ? 'hotel' : sourceLabel('borderRadius', orgDefaults)
 
@@ -566,6 +568,8 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
       </div>
 
       <div className="space-y-6">
+        {property && <HotelInfoSection data={property} chainId={orgSettings?.hyperGuestOrgId} />}
+
         <Section title="Homepage Layout">
           {/* Layout style */}
           <div>
@@ -682,7 +686,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
               label="AI Layout default"
               description="When enabled, the hotel homepage opens in AI mode by default — hero and visuals are hidden; only the AI chat box is shown."
               fieldKey="aiLayoutDefault"
-              systemDefault={false}
+              systemDefault={(sysDefs.aiLayoutDefault ?? false) as boolean}
               draft={draft} orgDefaults={orgDefaults} onSet={setB} onReset={resetO}
             />
           </div>
@@ -830,7 +834,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
           <OverrideSelectRow label="Font family" fieldKey="fontFamily"
             options={fontOptions}
             draft={draft} orgDefaults={orgDefaults}
-            systemDefault="Roboto"
+            systemDefault={sysDefs.fontFamily ?? SYSTEM_DEFAULTS.fontFamily as string}
             onSet={setStrOnly} onReset={reset} />
 
           {/* Border radius — inline override with slider */}
@@ -869,7 +873,7 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             {COLOR_FIELDS.map(({ key, label, hint }) => (
               <OverrideColorRow key={key} fieldKey={key} label={label} hint={hint}
                 draft={draft} orgDefaults={orgDefaults}
-                systemDefault={SYSTEM_DEFAULTS[key as string] as string}
+                systemDefault={(sysDefs[key as keyof OrgDesignDefaultsConfig] as string | null) ?? SYSTEM_DEFAULTS[key as string] as string}
                 onSet={setStrOnly} onReset={reset} />
             ))}
           </div>
@@ -919,6 +923,97 @@ function HgBadge() {
     <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
       From HyperGuest
     </span>
+  )
+}
+
+function HotelInfoSection({ data, chainId }: { data: PropertyDetail; chainId?: string | null | undefined }) {
+  const { location, contact, descriptions, facilities } = data
+  const popularFacilities = facilities.filter(f => f.popular)
+  const grouped = facilities.reduce<Record<string, typeof facilities>>((acc, f) => {
+    const cat = f.category ?? 'Other'
+    ;(acc[cat] ??= []).push(f)
+    return acc
+  }, {})
+  const description = descriptions.find(d => d.locale === 'en') ?? descriptions[0]
+
+  return (
+    <Section title="Hotel Information">
+      <div className="space-y-4 py-1">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(location.address || location.city || location.countryCode) && (
+            <InfoBlock label="Address">
+              {[location.address, location.city, location.postcode, location.countryCode].filter(Boolean).join(', ')}
+            </InfoBlock>
+          )}
+          {(contact.phone || contact.email || contact.website) && (
+            <InfoBlock label="Contact">
+              <div className="space-y-0.5">
+                {contact.phone && <div>{contact.phone}</div>}
+                {contact.email && <div>{contact.email}</div>}
+                {contact.website && (
+                  <a href={contact.website} target="_blank" rel="noreferrer"
+                    className="text-[var(--color-primary)] underline underline-offset-2 hover:opacity-80">
+                    {contact.website}
+                  </a>
+                )}
+              </div>
+            </InfoBlock>
+          )}
+        </div>
+
+        {description && (
+          <InfoBlock label="Description">
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed line-clamp-4">{description.text}</p>
+          </InfoBlock>
+        )}
+
+        {popularFacilities.length > 0 && (
+          <InfoBlock label="Highlights">
+            <div className="flex flex-wrap gap-1.5">
+              {popularFacilities.map(f => (
+                <span key={f.id} className="rounded-full border border-[var(--color-primary-light)] bg-[var(--color-primary-light)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-primary)]">
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          </InfoBlock>
+        )}
+
+        {Object.keys(grouped).length > 0 && (
+          <InfoBlock label="All Amenities">
+            <div className="space-y-2">
+              {Object.entries(grouped).map(([cat, items]) => (
+                <div key={cat}>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{cat}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {items.map(f => (
+                      <span key={f.id} className="rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-xs text-[var(--color-text-muted)]">
+                        {f.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </InfoBlock>
+        )}
+
+        <p className="text-xs text-[var(--color-text-muted)]">
+          Data sourced from HyperGuest — read only.
+          &nbsp;·&nbsp; HyperGuest ID: <span className="font-mono">{data.propertyId}</span>
+          {chainId && <>&nbsp;·&nbsp; Chain ID: <span className="font-mono">{chainId}</span></>}
+        </p>
+      </div>
+    </Section>
+  )
+}
+
+function InfoBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">{label}</p>
+      <div className="text-sm text-[var(--color-text)]">{children}</div>
+    </div>
   )
 }
 

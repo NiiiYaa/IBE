@@ -9,6 +9,9 @@ import { AiModeProvider } from '@/context/ai-mode'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
+const fetchCache = process.env.NODE_ENV === 'development'
+  ? ({ cache: 'no-store' } as const)
+  : ({ next: { revalidate: 60 } } as const)
 
 type TenantResolution =
   | { type: 'property'; propertyId: number; orgId: number }
@@ -16,7 +19,7 @@ type TenantResolution =
 
 async function resolveTenantHost(host: string): Promise<TenantResolution | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/resolve?host=${encodeURIComponent(host)}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/resolve?host=${encodeURIComponent(host)}`, fetchCache)
     return res.ok ? (res.json() as Promise<TenantResolution>) : null
   } catch { return null }
 }
@@ -32,14 +35,14 @@ async function resolveChain(hyperGuestOrgId: string): Promise<number | null> {
 
 async function fetchConfig(propertyId: number): Promise<HotelDesignConfig | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/property/${propertyId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/property/${propertyId}`, fetchCache)
     return res.ok ? (res.json() as Promise<HotelDesignConfig>) : null
   } catch { return null }
 }
 
 async function fetchOrgConfig(orgId: number): Promise<HotelDesignConfig | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/org/${orgId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/org/${orgId}`, fetchCache)
     return res.ok ? (res.json() as Promise<HotelDesignConfig>) : null
   } catch { return null }
 }
@@ -53,14 +56,14 @@ async function fetchProperty(propertyId: number): Promise<PropertyDetail | null>
 
 async function fetchNavItems(propertyId: number): Promise<NavItem[]> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/nav-items?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/nav-items?propertyId=${propertyId}`, fetchCache)
     return res.ok ? (res.json() as Promise<NavItem[]>) : []
   } catch { return [] }
 }
 
 async function resolveDefaultPropertyId(orgId: number): Promise<number | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/properties?orgId=${orgId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/properties?orgId=${orgId}`, fetchCache)
     if (!res.ok) return null
     const list = await res.json() as PropertyListResponse
     const defaultProp = list.properties.find(p => p.isDefault) ?? list.properties[0]
@@ -70,7 +73,7 @@ async function resolveDefaultPropertyId(orgId: number): Promise<number | null> {
 
 async function fetchPropertyList(propertyId: number): Promise<PropertyListResponse | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/properties?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/properties?propertyId=${propertyId}`, fetchCache)
     return res.ok ? (res.json() as Promise<PropertyListResponse>) : null
   } catch { return null }
 }
@@ -82,7 +85,7 @@ async function fetchEnabledModels(propertyId: number): Promise<SellModel[]> {
 
 async function fetchEnabledModelsByOrg(orgId: number): Promise<SellModel[]> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/config/properties?orgId=${orgId}`, { next: { revalidate: 60 } })
+    const res = await fetch(`${API_URL}/api/v1/config/properties?orgId=${orgId}`, fetchCache)
     if (!res.ok) return ['b2c', 'b2b']
     const list = await res.json() as PropertyListResponse
     return list.enabledModels ?? ['b2c', 'b2b']
@@ -107,13 +110,15 @@ async function resolveTenantConfig(): Promise<{
   if (tenantHost) {
     const tenant = await resolveTenantHost(tenantHost)
     if (tenant?.type === 'property') {
-      const [config, property, navItems, enabledModels] = await Promise.all([
+      const [config, property, navItems, propertyList, enabledModels] = await Promise.all([
         fetchConfig(tenant.propertyId),
         fetchProperty(tenant.propertyId),
         fetchNavItems(tenant.propertyId),
+        fetchPropertyList(tenant.propertyId),
         fetchEnabledModels(tenant.propertyId),
       ])
-      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: tenant.propertyId, orgId: null }
+      const orgId = (propertyList?.orgId && (propertyList.properties.length ?? 0) > 1) ? propertyList.orgId : null
+      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: tenant.propertyId, orgId }
     }
     if (tenant?.type === 'org') {
       const [orgConfig, pid, enabledModels] = await Promise.all([
@@ -132,13 +137,15 @@ async function resolveTenantConfig(): Promise<{
   if (tenantHotel) {
     const pid = Number(tenantHotel)
     if (pid > 0) {
-      const [config, property, navItems, enabledModels] = await Promise.all([
+      const [config, property, navItems, propertyList, enabledModels] = await Promise.all([
         fetchConfig(pid),
         fetchProperty(pid),
         fetchNavItems(pid),
+        fetchPropertyList(pid),
         fetchEnabledModels(pid),
       ])
-      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: pid, orgId: null }
+      const orgId = (propertyList?.orgId && (propertyList.properties.length ?? 0) > 1) ? propertyList.orgId : null
+      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: pid, orgId }
     }
   }
 
@@ -212,7 +219,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const mapData = isChain && orgId
     ? { mode: 'chain' as const, orgId }
     : !isChain && propertyId && coords
-      ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: displayName ?? property?.name ?? '', address: property?.location?.address ?? '' }
+      ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: displayName ?? property?.name ?? '', address: property?.location?.address ?? '', ...(orgId ? { orgId } : {}) }
       : undefined
 
   const shell = (pageContent: React.ReactNode) => (

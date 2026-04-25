@@ -45,8 +45,9 @@ export default function WhatsAppPage() {
   const { propertyId, orgId } = useAdminProperty()
   const { admin } = useAdminAuth()
   const isSystemLevel = admin?.role === 'super' && orgId === null && propertyId === null
+  const isSuper = admin?.role === 'super'
 
-  const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication']
+  const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication-wa', orgId]
 
   const [enabled, setEnabled] = useState(false)
   const [provider, setProvider] = useState<WhatsAppProvider>('meta')
@@ -63,7 +64,7 @@ export default function WhatsAppPage() {
     queryKey,
     queryFn: () => isSystemLevel
       ? apiClient.getSystemCommunicationSettings()
-      : apiClient.getCommunicationSettings(),
+      : apiClient.getCommunicationSettings(isSuper && orgId ? orgId : undefined),
   })
 
   const { data: webhookInfo } = useQuery({
@@ -114,6 +115,69 @@ export default function WhatsAppPage() {
 
   function markDirty() { setIsDirty(true) }
 
+  const usingSystemWhatsApp = !isSystemLevel && !data?.whatsappAccessTokenSet && !data?.whatsappTwilioAuthTokenSet
+  const systemDisabled = data?.whatsappSystemServiceDisabled ?? false
+
+  const credentialForm = (withStoredHints: boolean) => (
+    <>
+      <div className="flex gap-2">
+        {PROVIDERS.map(p => (
+          <button key={p.value} type="button" onClick={() => { setProvider(p.value); markDirty() }}
+            className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
+              provider === p.value
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
+            ].join(' ')}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-[var(--color-text-muted)]">{PROVIDERS.find(p => p.value === provider)?.hint}</p>
+      {provider === 'meta' && (
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Phone Number ID</label>
+            <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Found in Meta Business → WhatsApp → Phone Numbers</p>
+            <input type="text" value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); markDirty() }}
+              placeholder="123456789012345" className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp Business Account ID</label>
+            <input type="text" value={businessAccountId} onChange={e => { setBusinessAccountId(e.target.value); markDirty() }}
+              placeholder="987654321098765" className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Access Token</label>
+            <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); markDirty() }}
+              placeholder={withStoredHints && data?.whatsappAccessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
+              className={inputCls} />
+          </div>
+        </div>
+      )}
+      {provider === 'twilio' && (
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Account SID</label>
+            <input type="text" value={twilioAccountSid} onChange={e => { setTwilioAccountSid(e.target.value); markDirty() }}
+              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Auth Token</label>
+            <input type="password" value={twilioAuthToken} onChange={e => { setTwilioAuthToken(e.target.value); markDirty() }}
+              placeholder={withStoredHints && data?.whatsappTwilioAuthTokenSet ? '(stored — leave blank to keep)' : 'Paste auth token'}
+              className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp number</label>
+            <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Your Twilio WhatsApp-enabled number (e.g. whatsapp:+14155238886)</p>
+            <input type="text" value={twilioNumber} onChange={e => { setTwilioNumber(e.target.value); markDirty() }}
+              placeholder="whatsapp:+14155238886" className={inputCls} />
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
@@ -127,91 +191,87 @@ export default function WhatsAppPage() {
         </p>
       </div>
 
-      {/* Enable toggle */}
-      <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-        <div>
-          <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
-        </div>
-        <Toggle enabled={enabled} onChange={v => { setEnabled(v); markDirty() }} />
-      </div>
-
-      <fieldset disabled={!enabled} className="space-y-5 disabled:opacity-50">
-        {/* Provider */}
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-[var(--color-text)]">Provider</h2>
-          <div className="flex gap-2">
-            {PROVIDERS.map(p => (
-              <button key={p.value} type="button" onClick={() => { setProvider(p.value); markDirty() }}
-                className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
-                  provider === p.value
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
+      {usingSystemWhatsApp ? (
+        <>
+          {/* System service status */}
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">System WhatsApp service</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                  {systemDisabled
+                    ? 'System WhatsApp is disabled for this organisation by a super admin.'
+                    : 'Using system WhatsApp provider. Configure own credentials below to override.'}
+                </p>
+              </div>
+              {isSuper ? (
+                <button type="button" role="switch" aria-checked={!systemDisabled}
+                  onClick={() => {
+                    apiClient.updateCommunicationSettings({ whatsappSystemServiceDisabled: !systemDisabled, ...(orgId ? { orgId } : {}) } as never)
+                      .then(() => void qc.invalidateQueries({ queryKey }))
+                  }}
+                  className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                    !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+                </button>
+              ) : (
+                <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                  systemDisabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
                 ].join(' ')}>
-                {p.label}
-              </button>
-            ))}
+                  {systemDisabled ? 'Disabled by admin' : 'Active'}
+                </span>
+              )}
+            </div>
           </div>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            {PROVIDERS.find(p => p.value === provider)?.hint}
-          </p>
 
-          {provider === 'meta' && (
-            <div className="space-y-3 pt-1">
+          {/* Own credentials — to override system */}
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--color-text)]">Use own provider</h2>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">Enter your own credentials to stop using the system provider.</p>
+            </div>
+            {credentialForm(false)}
+          </div>
+        </>
+      ) : (
+        <>
+          {!isSystemLevel && isSuper && (
+            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Phone Number ID</label>
-                <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Found in Meta Business → WhatsApp → Phone Numbers</p>
-                <input type="text" value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); markDirty() }}
-                  placeholder="123456789012345" className={inputCls} />
+                <p className="text-sm font-medium text-[var(--color-text)]">System WhatsApp service</p>
+                <p className="text-xs text-[var(--color-text-muted)]">This org uses its own credentials. System service setting is ignored.</p>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp Business Account ID</label>
-                <input type="text" value={businessAccountId} onChange={e => { setBusinessAccountId(e.target.value); markDirty() }}
-                  placeholder="987654321098765" className={inputCls} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Access Token</label>
-                <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); markDirty() }}
-                  placeholder={data?.whatsappAccessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
-                  className={inputCls} />
-              </div>
-
+              <span className="rounded-full bg-[var(--color-border)] px-2.5 py-0.5 text-xs font-semibold text-[var(--color-text-muted)]">
+                Own credentials
+              </span>
             </div>
           )}
 
-          {provider === 'twilio' && (
-            <div className="space-y-3 pt-1">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Account SID</label>
-                <input type="text" value={twilioAccountSid} onChange={e => { setTwilioAccountSid(e.target.value); markDirty() }}
-                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Auth Token</label>
-                <input type="password" value={twilioAuthToken} onChange={e => { setTwilioAuthToken(e.target.value); markDirty() }}
-                  placeholder={data?.whatsappTwilioAuthTokenSet ? '(stored — leave blank to keep)' : 'Paste auth token'}
-                  className={inputCls} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp number</label>
-                <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Your Twilio WhatsApp-enabled number (e.g. whatsapp:+14155238886)</p>
-                <input type="text" value={twilioNumber} onChange={e => { setTwilioNumber(e.target.value); markDirty() }}
-                  placeholder="whatsapp:+14155238886" className={inputCls} />
-              </div>
+          <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
             </div>
-          )}
-        </div>
+            <Toggle enabled={enabled} onChange={v => { setEnabled(v); markDirty() }} />
+          </div>
 
-        {/* Info box */}
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">What gets sent</p>
-          <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
-            <li>• Booking confirmation (immediately after booking)</li>
-            <li>• Booking cancellation</li>
-            <li>• Pre-arrival reminder (configurable timing)</li>
-          </ul>
-        </div>
-      </fieldset>
+          <fieldset disabled={!enabled} className="space-y-5 disabled:opacity-50">
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-[var(--color-text)]">Provider</h2>
+              {credentialForm(true)}
+            </div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">What gets sent</p>
+              <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
+                <li>• Booking confirmation (immediately after booking)</li>
+                <li>• Booking cancellation</li>
+                <li>• Pre-arrival reminder (configurable timing)</li>
+              </ul>
+            </div>
+          </fieldset>
+        </>
+      )}
 
       {provider === 'meta' && webhookInfo && (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">

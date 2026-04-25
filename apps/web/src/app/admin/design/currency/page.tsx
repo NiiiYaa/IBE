@@ -28,7 +28,7 @@ export default function CurrencyPage() {
 // ── Global editor ─────────────────────────────────────────────────────────────
 
 function GlobalCurrencyEditor() {
-  const { isLoading, draft, set, save, isPending, isDirty } = useGlobalConfig()
+  const { isLoading, draft, set, save, isPending, isDirty, systemDefaults } = useGlobalConfig()
   const qc = useQueryClient()
 
   const { data: orgSettings } = useQuery({
@@ -149,6 +149,7 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
   useEffect(() => { setInitialized(false); setIsDirty(false) }, [propertyId])
 
   const orgDefaults = designData?.orgDefaults ?? ({} as OrgDesignDefaultsConfig)
+  const sysDefs = designData?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
 
   const { mutate, isPending } = useMutation({
     mutationFn: (d: Partial<OrgDesignDefaultsConfig>) => apiClient.updateHotelConfig(propertyId, d as Parameters<typeof apiClient.updateHotelConfig>[1]),
@@ -184,7 +185,7 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
 
       <div className="space-y-6">
         <Section title="Default Currency">
-          <OverrideSelectRow label="Default currency" fieldKey="defaultCurrency" systemDefault="EUR"
+          <OverrideSelectRow label="Default currency" fieldKey="defaultCurrency" systemDefault={sysDefs.defaultCurrency ?? 'EUR'}
             options={currencyOptions}
             draft={draft} orgDefaults={orgDefaults}
             onSet={set as (key: keyof OrgDesignDefaultsConfig, val: string) => void}

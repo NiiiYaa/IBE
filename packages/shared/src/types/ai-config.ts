@@ -70,12 +70,14 @@ export interface AIConfigResponse {
 export interface OrgAIConfigResponse extends AIConfigResponse {
   useInherited: boolean
   inherited: AIConfigResponse | null
+  systemServiceDisabled: boolean
 }
 
 export interface PropertyAIConfigResponse extends AIConfigResponse {
   useInherited: boolean
   inherited: AIConfigResponse | null
   inheritedFrom: 'org' | 'system' | null
+  systemServiceDisabled: boolean
 }
 
 export interface AIConfigUpdate {
@@ -88,10 +90,12 @@ export interface AIConfigUpdate {
 
 export interface OrgAIConfigUpdate extends AIConfigUpdate {
   useInherited?: boolean
+  systemServiceDisabled?: boolean
 }
 
 export interface PropertyAIConfigUpdate extends AIConfigUpdate {
   useInherited?: boolean
+  systemServiceDisabled?: boolean
 }
 
 export interface AITestResult {
