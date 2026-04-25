@@ -6,7 +6,7 @@
   "main": "./dist/server.js",
   "scripts": {
     "dev": "node --env-file=.env --watch --import /home/nir/ibe/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/esm/index.mjs src/server.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "lint": "eslint src",
     "type-check": "tsc --noEmit",
