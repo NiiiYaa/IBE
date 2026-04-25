@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import * as net from 'net'
 
 export interface CommSettings {
   emailSystemServiceDisabled: boolean
@@ -165,4 +166,85 @@ export async function updateCommSettings(organizationId: number, data: Partial<C
     update: data,
   })
   return mapRow(row)
+}
+
+// ── TCP check helper ──────────────────────────────────────────────────────────
+
+function tcpCheck(host: string, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const sock = new net.Socket()
+    sock.setTimeout(5000)
+    sock.connect(port, host, () => { sock.destroy(); resolve() })
+    sock.on('timeout', () => { sock.destroy(); reject(new Error('Connection timed out')) })
+    sock.on('error', (e) => reject(e))
+  })
+}
+
+// ── Test connections ──────────────────────────────────────────────────────────
+
+export async function testEmailConnection(orgId: number | null): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const settings = orgId !== null ? await getCommSettings(orgId) : await getSystemCommSettings()
+    const { emailProvider, emailSmtpHost, emailSmtpPort, emailSmtpPassword, emailApiKey } = settings
+
+    if (emailProvider === 'smtp') {
+      if (!emailSmtpHost) return { ok: false, error: 'SMTP host not configured' }
+      await tcpCheck(emailSmtpHost, emailSmtpPort)
+      return { ok: true }
+    }
+
+    if (emailProvider === 'sendgrid') {
+      if (!emailApiKey) return { ok: false, error: 'SendGrid API key not configured' }
+      const res = await fetch('https://api.sendgrid.com/v3/scopes', {
+        headers: { Authorization: `Bearer ${emailApiKey}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `SendGrid returned ${res.status}` }
+    }
+
+    if (emailProvider === 'mailgun') {
+      if (!emailApiKey) return { ok: false, error: 'Mailgun API key not configured' }
+      const credentials = Buffer.from(`api:${emailApiKey}`).toString('base64')
+      const res = await fetch('https://api.mailgun.net/v3/domains', {
+        headers: { Authorization: `Basic ${credentials}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Mailgun returned ${res.status}` }
+    }
+
+    return { ok: false, error: `Unknown email provider: ${emailProvider}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function testWhatsappConnection(orgId: number | null): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const settings = orgId !== null ? await getCommSettings(orgId) : await getSystemCommSettings()
+    const { whatsappProvider, whatsappPhoneNumberId, whatsappAccessToken, whatsappTwilioAccountSid, whatsappTwilioAuthToken } = settings
+
+    if (whatsappProvider === 'meta') {
+      if (!whatsappAccessToken) return { ok: false, error: 'Meta access token not configured' }
+      if (!whatsappPhoneNumberId) return { ok: false, error: 'Phone number ID not configured' }
+      const res = await fetch(`https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}?access_token=${whatsappAccessToken}`)
+      if (res.ok) return { ok: true }
+      const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+      return { ok: false, error: body?.error?.message ?? `Meta API returned ${res.status}` }
+    }
+
+    if (whatsappProvider === 'twilio') {
+      if (!whatsappTwilioAccountSid) return { ok: false, error: 'Twilio Account SID not configured' }
+      if (!whatsappTwilioAuthToken) return { ok: false, error: 'Twilio Auth Token not configured' }
+      const credentials = Buffer.from(`${whatsappTwilioAccountSid}:${whatsappTwilioAuthToken}`).toString('base64')
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${whatsappTwilioAccountSid}.json`, {
+        headers: { Authorization: `Basic ${credentials}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Twilio returned ${res.status}` }
+    }
+
+    return { ok: false, error: `Unknown WhatsApp provider: ${whatsappProvider}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }

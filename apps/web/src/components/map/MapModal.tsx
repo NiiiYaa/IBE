@@ -80,6 +80,8 @@ interface PublicMapsConfig {
   provider: string
   poiRadius: number
   poiCategories: PoiCategory[]
+  tileUrl: string
+  attribution: string
 }
 
 interface ChainProperty {
@@ -193,7 +195,7 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
         } else {
           const [propsRes, cfgRes] = await Promise.all([
             fetch(`/api/v1/maps/chain?orgId=${data.orgId}`),
-            fetch(`/api/v1/maps/config?propertyId=0`).catch(() => null),
+            fetch(`/api/v1/maps/config?orgId=${data.orgId}`).catch(() => null),
           ])
           const props: ChainProperty[] = propsRes.ok ? await propsRes.json() : []
           setChainProps(props)
@@ -216,10 +218,6 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
     : chainProps.length > 0 ? [chainProps[0]!.lat, chainProps[0]!.lng] : [20, 0]
 
   const chainPositions: [number, number][] = chainProps.map(p => [p.lat, p.lng])
-  // In hotel mode with sister hotels, fit bounds to show all; otherwise zoom to single hotel
-  const hotelModePositions: [number, number][] = data.mode === 'hotel'
-    ? [[data.lat, data.lng], ...chainPositions]
-    : []
 
   return (
     <div
@@ -262,19 +260,18 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
           {!loading && (
             <MapContainer
               center={defaultCenter}
-              zoom={data.mode === 'hotel' && chainPositions.length === 0 ? 15 : 5}
+              zoom={data.mode === 'hotel' ? 14 : 5}
               style={{ height: '100%', width: '100%' }}
               scrollWheelZoom
             >
               <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url={mapsConfig?.tileUrl ?? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
+                attribution={mapsConfig?.attribution ?? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
               />
 
               {/* Hotel mode: primary marker + POI + optional sister hotels */}
               {data.mode === 'hotel' && (
                 <>
-                  {hotelModePositions.length > 1 && <FitBounds positions={hotelModePositions} />}
                   <Marker position={[data.lat, data.lng]} icon={hotelIcon}>
                     <Popup>
                       <div className="min-w-[160px]">

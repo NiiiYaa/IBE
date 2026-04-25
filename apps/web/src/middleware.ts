@@ -8,15 +8,6 @@ export function middleware(request: NextRequest) {
   const hostHeader = (request.headers.get('host') || '').split(':')
   const host = hostHeader[0] ?? ''
 
-  // Skip local dev and Render internal hostnames
-  if (
-    host === 'localhost' ||
-    /^\d+\.\d+\.\d+\.\d+$/.test(host) ||
-    host.endsWith('.onrender.com')
-  ) {
-    return NextResponse.next()
-  }
-
   const headers = new Headers(request.headers)
 
   // Always propagate chain/hotelId query params as headers so layout can resolve the tenant
@@ -33,6 +24,12 @@ export function middleware(request: NextRequest) {
   }
   if (chain) headers.set('x-tenant-chain', chain)
   if (hotelId) headers.set('x-tenant-hotel', hotelId)
+
+  // For local dev and raw Render URLs: skip host-based tenant resolution but keep
+  // chain/hotelId headers so ?hotelId= and ?chain= still work locally.
+  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.endsWith('.onrender.com')) {
+    return NextResponse.next({ request: { headers } })
+  }
 
   if (host === PLATFORM_HOST || host === `www.${PLATFORM_HOST}`) {
     const { pathname, search } = request.nextUrl

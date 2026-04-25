@@ -121,9 +121,10 @@ async function resolveTenantConfig(): Promise<{
       return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: tenant.propertyId, orgId }
     }
     if (tenant?.type === 'org') {
+      const hotelSpecificId = tenantHotel ? Number(tenantHotel) : null
       const [orgConfig, pid, enabledModels] = await Promise.all([
         fetchOrgConfig(tenant.orgId),
-        resolveDefaultPropertyId(tenant.orgId),
+        hotelSpecificId ? Promise.resolve(hotelSpecificId) : resolveDefaultPropertyId(tenant.orgId),
         fetchEnabledModelsByOrg(tenant.orgId),
       ])
       const [hotelConfig, property] = await Promise.all([
@@ -152,9 +153,10 @@ async function resolveTenantConfig(): Promise<{
   if (tenantChain) {
     const orgId = await resolveChain(tenantChain)
     if (orgId) {
+      const hotelSpecificId = tenantHotel ? Number(tenantHotel) : null
       const [orgConfig, pid, enabledModels] = await Promise.all([
         fetchOrgConfig(orgId),
-        resolveDefaultPropertyId(orgId),
+        hotelSpecificId ? Promise.resolve(hotelSpecificId) : resolveDefaultPropertyId(orgId),
         fetchEnabledModelsByOrg(orgId),
       ])
       const [hotelConfig, property] = await Promise.all([
@@ -216,10 +218,11 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
 
   const coords = property?.location?.coordinates
-  const mapData = isChain && orgId
+  const hotelPageId = reqHeaders.get('x-tenant-hotel')
+  const mapData = isChain && orgId && !hotelPageId
     ? { mode: 'chain' as const, orgId }
-    : !isChain && propertyId && coords
-      ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: displayName ?? property?.name ?? '', address: property?.location?.address ?? '', ...(orgId ? { orgId } : {}) }
+    : propertyId && coords
+      ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: property?.name ?? displayName ?? '', address: property?.location?.address ?? '', ...(orgId ? { orgId } : {}) }
       : undefined
 
   const shell = (pageContent: React.ReactNode) => (

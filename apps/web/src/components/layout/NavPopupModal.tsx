@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 
 interface NavPopupModalProps {
   label: string
@@ -9,6 +10,12 @@ interface NavPopupModalProps {
 }
 
 export function NavPopupModal({ label, content, onClose }: NavPopupModalProps) {
+  const isHtml = content.trimStart().startsWith('<')
+  const safeHtml = useMemo(
+    () => isHtml ? DOMPurify.sanitize(content) : null,
+    [isHtml, content]
+  )
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -39,9 +46,16 @@ export function NavPopupModal({ label, content, onClose }: NavPopupModalProps) {
           </button>
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-muted)]">
-            {content}
-          </p>
+          {safeHtml ? (
+            <div
+              className="prose prose-sm max-w-none text-[var(--color-text-muted)]"
+              dangerouslySetInnerHTML={{ __html: safeHtml }}
+            />
+          ) : (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-muted)]">
+              {content}
+            </p>
+          )}
         </div>
       </div>
     </div>

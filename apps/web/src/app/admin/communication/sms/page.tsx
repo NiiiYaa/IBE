@@ -67,9 +67,10 @@ export default function SmsPage() {
         ...(awsSecretKey ? { smsAwsSecretKey: awsSecretKey } : {}),
         smsAwsRegion: awsRegion,
       }
+      const isSuper = admin?.role === 'super'
       return isSystemLevel
         ? apiClient.updateSystemCommunicationSettings(payload)
-        : apiClient.updateCommunicationSettings(payload)
+        : apiClient.updateCommunicationSettings({ ...payload, ...(isSuper && orgId ? { orgId } : {}) })
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey })

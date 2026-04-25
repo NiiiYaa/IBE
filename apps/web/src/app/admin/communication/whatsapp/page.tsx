@@ -59,6 +59,7 @@ export default function WhatsAppPage() {
   const [twilioNumber, setTwilioNumber] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -83,6 +84,12 @@ export default function WhatsAppPage() {
     setTwilioNumber(data.whatsappTwilioNumber)
   }, [data])
 
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.testWhatsappConnection(isSuper ? (orgId ?? undefined) : undefined),
+    onSuccess: (r) => setTestResult(r),
+    onError: (e) => setTestResult({ ok: false, error: String(e) }),
+  })
+
   const { mutate, isPending } = useMutation({
     mutationFn: () => {
       const payload = {
@@ -97,7 +104,7 @@ export default function WhatsAppPage() {
       }
       return isSystemLevel
         ? apiClient.updateSystemCommunicationSettings(payload)
-        : apiClient.updateCommunicationSettings(payload)
+        : apiClient.updateCommunicationSettings({ ...payload, ...(isSuper && orgId ? { orgId } : {}) })
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey })
@@ -288,6 +295,19 @@ export default function WhatsAppPage() {
       )}
 
       {error && <ErrorBanner message={error} />}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+          className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+          {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+        </button>
+        {testResult && (
+          <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+            {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+          </p>
+        )}
+      </div>
+
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
     </div>
   )

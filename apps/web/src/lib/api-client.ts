@@ -90,6 +90,10 @@ import type {
   UpdateAIChannelSettingsRequest,
   MapsConfigResponse,
   MapsConfigUpdate,
+  WeatherConfigResponse,
+  WeatherConfigUpdate,
+  EventsConfigResponse,
+  EventsConfigUpdate,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1145,6 +1149,62 @@ export const apiClient = {
   updateMapsConfig(data: MapsConfigUpdate, orgId?: number): Promise<MapsConfigResponse> {
     const body = orgId ? { ...data, orgId } : data
     return apiRequest('/api/v1/admin/maps/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  testMapsConnection(orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/maps/test', { method: 'POST', body: JSON.stringify({ orgId }) })
+  },
+
+  testEmailConnection(orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/communication/email/test', { method: 'POST', body: JSON.stringify({ orgId }) })
+  },
+
+  testWhatsappConnection(orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/communication/whatsapp/test', { method: 'POST', body: JSON.stringify({ orgId }) })
+  },
+
+  // ── Weather ───────────────────────────────────────────────────────────────────
+
+  getSystemWeatherConfig(): Promise<WeatherConfigResponse> {
+    return apiRequest('/api/v1/admin/weather/config/system')
+  },
+
+  updateSystemWeatherConfig(data: WeatherConfigUpdate): Promise<WeatherConfigResponse> {
+    return apiRequest('/api/v1/admin/weather/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getWeatherConfig(orgId?: number): Promise<WeatherConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/weather/config${qs}`)
+  },
+
+  updateWeatherConfig(data: WeatherConfigUpdate, orgId?: number): Promise<WeatherConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/weather/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  // ── Events ────────────────────────────────────────────────────────────────────
+
+  getSystemEventsConfig(): Promise<EventsConfigResponse> {
+    return apiRequest('/api/v1/admin/events/config/system')
+  },
+
+  updateSystemEventsConfig(data: EventsConfigUpdate): Promise<EventsConfigResponse> {
+    return apiRequest('/api/v1/admin/events/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getEventsConfig(orgId?: number): Promise<EventsConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/events/config${qs}`)
+  },
+
+  updateEventsConfig(data: EventsConfigUpdate, orgId?: number): Promise<EventsConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/events/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  testEventsConnection(orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/events/test', { method: 'POST', body: JSON.stringify({ orgId }) })
   },
 
   // ── MCP ──────────────────────────────────────────────────────────────────────

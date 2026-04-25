@@ -608,7 +608,7 @@ export interface UpdateMessageRuleRequest {
 // ── Nav Items ─────────────────────────────────────────────────────────────────
 
 export type NavItemSection = 'header' | 'footer'
-export type NavItemType = 'static' | 'link' | 'popup'
+export type NavItemType = 'static' | 'link' | 'popup' | 'popup-rich'
 
 export interface NavItem {
   id: string

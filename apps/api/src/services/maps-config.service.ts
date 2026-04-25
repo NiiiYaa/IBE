@@ -1,6 +1,6 @@
 import { prisma } from '../db/client.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
-import { encryptApiKey, maskApiKey } from './ai-config.service.js'
+import { encryptApiKey, maskApiKey, decryptApiKey } from './ai-config.service.js'
 import type { MapProvider, PoiCategory, MapsConfigResponse, MapsConfigUpdate } from '@ibe/shared'
 
 const DEFAULT_CATEGORIES = ['restaurants', 'attractions', 'transport', 'shopping']
@@ -30,6 +30,39 @@ export interface PublicMapsConfig {
   poiRadius: number
   poiCategories: PoiCategory[]
   enabled: boolean
+  tileUrl: string
+  attribution: string
+}
+
+const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
+function buildTileInfo(provider: MapProvider, encryptedKey: string | null | undefined): { url: string; attribution: string } {
+  switch (provider) {
+    case 'mapbox': {
+      if (!encryptedKey) return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION }
+      const key = decryptApiKey(encryptedKey)
+      return {
+        url: `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${key}`,
+        attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>',
+      }
+    }
+    case 'google':
+      return {
+        url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attribution: '&copy; <a href="https://maps.google.com">Google Maps</a>',
+      }
+    case 'here': {
+      if (!encryptedKey) return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION }
+      const key = decryptApiKey(encryptedKey)
+      return {
+        url: `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?apiKey=${key}`,
+        attribution: '&copy; <a href="https://www.here.com">HERE</a>',
+      }
+    }
+    default:
+      return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION }
+  }
 }
 
 export interface ChainPropertyMarker {
@@ -42,6 +75,21 @@ export interface ChainPropertyMarker {
   starRating: number
 }
 
+export async function getPublicMapsConfigByOrg(orgId: number): Promise<PublicMapsConfig> {
+  const [orgRow, sysRow] = await Promise.all([
+    prisma.orgMapsConfig.findUnique({ where: { organizationId: orgId } }),
+    prisma.systemMapsConfig.findFirst(),
+  ])
+  const hasOwnKey = !!orgRow?.apiKey
+  if (!hasOwnKey && orgRow?.systemServiceDisabled) {
+    return { provider: 'osm' as MapProvider, poiRadius: 1000, poiCategories: DEFAULT_CATEGORIES as PoiCategory[], enabled: false, tileUrl: OSM_TILE_URL, attribution: OSM_ATTRIBUTION }
+  }
+  const resolved = hasOwnKey ? orgRow : (sysRow ?? orgRow)
+  const base = rowToResponse(resolved ? { ...resolved, enabled: false } : null)
+  const tileInfo = buildTileInfo(base.provider, resolved?.apiKey)
+  return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories, enabled: base.enabled, tileUrl: tileInfo.url, attribution: tileInfo.attribution }
+}
+
 export async function getPublicMapsConfig(propertyId: number): Promise<PublicMapsConfig> {
   const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
   const [orgRow, sysRow] = await Promise.all([
@@ -51,12 +99,13 @@ export async function getPublicMapsConfig(propertyId: number): Promise<PublicMap
   // If org has own API key, use org config regardless of disable flag
   const hasOwnKey = !!orgRow?.apiKey
   if (!hasOwnKey && orgRow?.systemServiceDisabled) {
-    return { provider: 'osm' as MapProvider, poiRadius: 1000, poiCategories: DEFAULT_CATEGORIES as PoiCategory[], enabled: false }
+    return { provider: 'osm' as MapProvider, poiRadius: 1000, poiCategories: DEFAULT_CATEGORIES as PoiCategory[], enabled: false, tileUrl: OSM_TILE_URL, attribution: OSM_ATTRIBUTION }
   }
   // Cascade: org (own key) → system → hardcoded defaults
   const resolved = hasOwnKey ? orgRow : (sysRow ?? orgRow)
   const base = rowToResponse(resolved ? { ...resolved, enabled: false } : null)
-  return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories, enabled: base.enabled }
+  const tileInfo = buildTileInfo(base.provider, resolved?.apiKey)
+  return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories, enabled: base.enabled, tileUrl: tileInfo.url, attribution: tileInfo.attribution }
 }
 
 export async function getChainProperties(orgId: number): Promise<ChainPropertyMarker[]> {
@@ -108,6 +157,55 @@ export async function upsertSystemMapsConfig(data: MapsConfigUpdate): Promise<Ma
 export async function getMapsConfig(orgId: number): Promise<MapsConfigResponse> {
   const row = await prisma.orgMapsConfig.findUnique({ where: { organizationId: orgId } })
   return rowToResponse(row, !!row)
+}
+
+export async function testSystemMapsConnection(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const row = await prisma.systemMapsConfig.findFirst()
+    if (!row) return { ok: true } // no config = defaults to OSM which always works
+    if (row.provider === 'osm') return { ok: true }
+    if (row.provider === 'google' || row.provider === 'here') return { ok: true, error: 'Manual validation required for this provider' }
+    if (row.provider === 'mapbox') {
+      if (!row.apiKey) return { ok: false, error: 'No Mapbox API key configured' }
+      const key = decryptApiKey(row.apiKey)
+      const res = await fetch(`https://api.mapbox.com/tokens/v2?access_token=${key}`)
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Mapbox returned ${res.status}` }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function testMapsConnection(orgId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const prop = await prisma.property.findFirst({ where: { organizationId: orgId }, select: { propertyId: true } })
+    const propertyId = prop?.propertyId ?? 0
+    const config = await getPublicMapsConfig(propertyId)
+    const provider = config.provider
+
+    if (provider === 'osm') return { ok: true }
+    if (provider === 'google' || provider === 'here') return { ok: true, error: 'Manual validation required for this provider' }
+
+    // mapbox — validate token via API
+    if (provider === 'mapbox') {
+      const [orgRow, sysRow] = await Promise.all([
+        prop ? prisma.orgMapsConfig.findUnique({ where: { organizationId: orgId } }) : null,
+        prisma.systemMapsConfig.findFirst(),
+      ])
+      const resolved = orgRow?.apiKey ? orgRow : (sysRow ?? orgRow)
+      if (!resolved?.apiKey) return { ok: false, error: 'No Mapbox API key configured' }
+      const key = decryptApiKey(resolved.apiKey)
+      const res = await fetch(`https://api.mapbox.com/tokens/v2?access_token=${key}`)
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Mapbox returned ${res.status}` }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 export async function upsertMapsConfig(orgId: number, data: MapsConfigUpdate): Promise<MapsConfigResponse> {

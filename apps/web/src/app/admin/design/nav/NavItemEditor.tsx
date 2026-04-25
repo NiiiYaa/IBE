@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NavItem, OrgNavItem, NavItemSection, NavItemType, CreateNavItemRequest } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
@@ -9,6 +9,7 @@ const TYPE_LABELS: Record<NavItemType, string> = {
   static: 'Static text',
   link: 'Link',
   popup: 'Popup',
+  'popup-rich': 'Popup (rich text)',
 }
 
 interface NavItemEditorProps {
@@ -269,7 +270,8 @@ function NavItemForm({ initial, onSave, onCancel }: NavItemFormProps) {
   const [label, setLabel] = useState(initial?.label ?? '')
   const [type, setType] = useState<NavItemType>(initial?.type ?? 'link')
   const [url, setUrl] = useState(initial?.url ?? '')
-  const [content, setContent] = useState(initial?.content ?? '')
+  const [plainContent, setPlainContent] = useState(initial?.type === 'popup' ? (initial?.content ?? '') : '')
+  const [richContent, setRichContent] = useState(initial?.type === 'popup-rich' ? (initial?.content ?? '') : '')
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
 
@@ -280,7 +282,7 @@ function NavItemForm({ initial, onSave, onCancel }: NavItemFormProps) {
       label: label.trim(),
       type,
       url: type === 'link' ? url : null,
-      content: type === 'popup' ? content : null,
+      content: type === 'popup' ? plainContent : type === 'popup-rich' ? richContent : null,
     })
   }
 
@@ -311,6 +313,7 @@ function NavItemForm({ initial, onSave, onCancel }: NavItemFormProps) {
             <option value="static">Static text</option>
             <option value="link">Link / URL</option>
             <option value="popup">Popup with text</option>
+            <option value="popup-rich">Popup with rich text</option>
           </select>
         </div>
       </div>
@@ -332,12 +335,19 @@ function NavItemForm({ initial, onSave, onCancel }: NavItemFormProps) {
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Popup content</label>
           <textarea
-            value={content}
-            onChange={e => setContent(e.target.value)}
+            value={plainContent}
+            onChange={e => setPlainContent(e.target.value)}
             placeholder="Enter the text to show in the popup…"
             rows={5}
             className={inputCls}
           />
+        </div>
+      )}
+
+      {type === 'popup-rich' && (
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Popup content</label>
+          <RichTextEditor value={richContent} onChange={setRichContent} />
         </div>
       )}
 
@@ -357,5 +367,68 @@ function NavItemForm({ initial, onSave, onCancel }: NavItemFormProps) {
         </button>
       </div>
     </form>
+  )
+}
+
+// ── Rich text editor ──────────────────────────────────────────────────────────
+
+function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== value) {
+      ref.current.innerHTML = value
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function exec(command: string, val?: string) {
+    // Do NOT call focus() here — onMouseDown+preventDefault keeps selection intact
+    document.execCommand(command, false, val)
+    if (ref.current) onChange(ref.current.innerHTML)
+  }
+
+  function clearAll() {
+    if (!ref.current) return
+    // Strip all HTML, keep plain text with line breaks
+    const text = (ref.current.innerText ?? '').trim()
+    ref.current.innerHTML = text.split('\n').filter(Boolean).join('<br>')
+    onChange(ref.current.innerHTML)
+  }
+
+  const btnCls = 'rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)] transition-colors'
+
+  function tb(label: React.ReactNode, action: () => void) {
+    return (
+      <button type="button" className={btnCls} onMouseDown={(e) => { e.preventDefault(); action() }}>
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-[var(--color-border)]">
+      <div className="flex flex-wrap gap-0.5 border-b border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 rounded-t-lg">
+        {tb(<strong>B</strong>, () => exec('bold'))}
+        {tb(<em>I</em>, () => exec('italic'))}
+        {tb(<span className="underline">U</span>, () => exec('underline'))}
+        <span className="mx-1 w-px self-stretch bg-[var(--color-border)]" />
+        {tb('• List', () => exec('insertUnorderedList'))}
+        {tb('1. List', () => exec('insertOrderedList'))}
+        <span className="mx-1 w-px self-stretch bg-[var(--color-border)]" />
+        <button type="button" className={btnCls} onMouseDown={(e) => { e.preventDefault(); const url = window.prompt('URL:'); if (url) exec('createLink', url) }}>Link</button>
+        {tb('Unlink', () => exec('unlink'))}
+        <span className="mx-1 w-px self-stretch bg-[var(--color-border)]" />
+        {tb('Clear', clearAll)}
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => { if (ref.current) onChange(ref.current.innerHTML) }}
+        className="px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none rounded-b-lg [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+        style={{ lineHeight: '1.6', minHeight: '120px', resize: 'vertical', overflow: 'auto' }}
+      />
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
@@ -114,6 +114,15 @@ function MapsConfigForm({ data, onSave, saving, orgId, isSuper, onToggleSystemSe
   const [poiRadius, setPoiRadius] = useState(data.poiRadius)
   const [poiCategories, setPoiCategories] = useState<PoiCategory[]>(data.poiCategories)
   const [enabled, setEnabled] = useState(data.enabled)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+
+  useEffect(() => { setTestResult(null) }, [orgId])
+
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.testMapsConnection(isSuper ? orgId : undefined),
+    onSuccess: (r) => setTestResult(r),
+    onError: (e) => setTestResult({ ok: false, error: String(e) }),
+  })
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
 
@@ -186,10 +195,21 @@ function MapsConfigForm({ data, onSave, saving, orgId, isSuper, onToggleSystemSe
           )}
         </div>
 
-        <button type="button" disabled={saving} onClick={handleSave}
-          className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button type="button" disabled={saving} onClick={handleSave}
+            className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+            className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+            {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+          </button>
+          {testResult && (
+            <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+              {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+            </p>
+          )}
+        </div>
       </div>
     )
   }
@@ -233,11 +253,20 @@ function MapsConfigForm({ data, onSave, saving, orgId, isSuper, onToggleSystemSe
         <span className="text-sm text-[var(--color-text)]">{enabled ? 'Map widget enabled' : 'Map widget disabled'}</span>
       </div>
 
-      <div className="pt-1">
+      <div className="pt-1 flex items-center gap-3 flex-wrap">
         <button type="button" disabled={saving} onClick={handleSave}
           className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>
+        <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+          className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+          {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+        </button>
+        {testResult && (
+          <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+            {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -266,6 +295,7 @@ function SystemMapsSection() {
           data={data}
           onSave={update => saveMutation.mutate(update)}
           saving={saveMutation.isPending}
+          isSuper
         />
       )}
       {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
