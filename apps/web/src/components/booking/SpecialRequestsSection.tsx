@@ -71,10 +71,15 @@ interface Props {
   value: SpecialRequestsState
   onChange: (v: SpecialRequestsState) => void
   multiRoom: boolean
+  acknowledged: boolean
+  onAcknowledgedChange: (v: boolean) => void
+  acknowledgeError: boolean
+  forceOpen?: boolean
 }
 
-export function SpecialRequestsSection({ value, onChange, multiRoom }: Props) {
+export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledged, onAcknowledgedChange, acknowledgeError, forceOpen }: Props) {
   const [open, setOpen] = useState(false)
+  const isOpen = open || !!forceOpen
   const set = <K extends keyof SpecialRequestsState>(k: K, v: SpecialRequestsState[K]) =>
     onChange({ ...value, [k]: v })
 
@@ -89,7 +94,7 @@ export function SpecialRequestsSection({ value, onChange, multiRoom }: Props) {
       {/* Header toggle */}
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen(o => !o || !!forceOpen)}
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-background)] transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -104,14 +109,14 @@ export function SpecialRequestsSection({ value, onChange, multiRoom }: Props) {
           )}
         </div>
         <svg
-          className={['h-4 w-4 text-[var(--color-text-muted)] transition-transform duration-200', open ? 'rotate-180' : ''].join(' ')}
+          className={['h-4 w-4 text-[var(--color-text-muted)] transition-transform duration-200', isOpen ? 'rotate-180' : ''].join(' ')}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
-      {open && (
+      {isOpen && (
         <div className="border-t border-[var(--color-border)] px-4 py-4 space-y-5">
 
           {/* Room preferences */}
@@ -198,6 +203,26 @@ export function SpecialRequestsSection({ value, onChange, multiRoom }: Props) {
               maxLength={500}
             />
           </div>
+
+          {/* Acknowledgment — only shown when at least one request is selected */}
+          {selectedCount > 0 && (
+            <div className={['rounded-lg border p-3 space-y-1', acknowledgeError && !acknowledged ? 'border-[var(--color-error)] bg-[var(--color-error-light,#fef2f2)]' : 'border-[var(--color-border)] bg-[var(--color-surface)]'].join(' ')}>
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acknowledged}
+                  onChange={e => onAcknowledgedChange(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
+                />
+                <span className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  I understand and accept that special requests are subject to availability, are not guaranteed, and may incur additional charges payable directly to the hotel.
+                </span>
+              </label>
+              {acknowledgeError && !acknowledged && (
+                <p className="text-xs text-[var(--color-error)] pl-7">Please confirm you have read and accept this before continuing.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

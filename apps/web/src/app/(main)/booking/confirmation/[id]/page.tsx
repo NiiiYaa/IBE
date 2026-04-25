@@ -234,7 +234,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                         {sr.nightlyBreakdown.map((n, ni) => (
                           <div key={ni} className="flex justify-between text-xs">
                             <span className="text-muted">{new Date(n.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
-                            <span className="text-[var(--color-text)]">{fmtAmount(n.prices.sell.price, n.prices.sell.currency)}</span>
+                            <span className="text-[var(--color-text)]">{n.prices?.sell ? fmtAmount(n.prices.sell.price, n.prices.sell.currency) : '—'}</span>
                           </div>
                         ))}
                       </div>

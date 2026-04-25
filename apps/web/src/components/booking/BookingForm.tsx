@@ -128,13 +128,14 @@ export function BookingForm({
           })),
         }))
       } catch {}
-      router.push(`/booking/confirmation/${c.bookingId}`)
+      router.push(`/booking/cross-sell/${c.bookingId}`)
     },
   })
 
   async function onGuestSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!requestsAcknowledged) {
+    const hasRequests = serializeSpecialRequests(specialRequests).length > 0
+    if (hasRequests && !requestsAcknowledged) {
       setAcknowledgeError(true)
       return
     }
@@ -196,7 +197,7 @@ export function BookingForm({
         fees: rate.prices.fees,
       })),
     }))
-    router.push(`/booking/confirmation/${bookingId}`)
+    router.push(`/booking/cross-sell/${bookingId}`)
   }
 
   return (
@@ -278,25 +279,11 @@ export function BookingForm({
             value={specialRequests}
             onChange={setSpecialRequests}
             multiRoom={rooms.length > 1}
+            acknowledged={requestsAcknowledged}
+            onAcknowledgedChange={v => { setRequestsAcknowledged(v); setAcknowledgeError(false) }}
+            acknowledgeError={acknowledgeError}
+            forceOpen={acknowledgeError && !requestsAcknowledged}
           />
-
-          {/* Acknowledgment */}
-          <div className={['rounded-lg border p-4 space-y-1', acknowledgeError && !requestsAcknowledged ? 'border-[var(--color-error)] bg-[var(--color-error-light,#fef2f2)]' : 'border-[var(--color-border)] bg-[var(--color-background)]'].join(' ')}>
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={requestsAcknowledged}
-                onChange={e => { setRequestsAcknowledged(e.target.checked); setAcknowledgeError(false) }}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
-              />
-              <span className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-                I understand and accept that special requests are subject to availability, are not guaranteed, and may incur additional charges payable directly to the hotel.
-              </span>
-            </label>
-            {acknowledgeError && !requestsAcknowledged && (
-              <p className="text-xs text-[var(--color-error)] pl-7">Please confirm you have read and accept this before continuing.</p>
-            )}
-          </div>
 
           <button
             type="submit"

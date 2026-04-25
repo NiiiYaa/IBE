@@ -47,6 +47,9 @@ model Organization {
   orgMapsConfig               OrgMapsConfig?
   orgWeatherConfig            OrgWeatherConfig?
   orgEventsConfig             OrgEventsConfig?
+  crossSellConfig             CrossSellConfig?
+  crossSellProducts           CrossSellProduct[]
+  propertyCrossSellConfigs    PropertyCrossSellConfig[]
 }
 
 // roles: super | admin | observer | user
@@ -417,7 +420,8 @@ model Property {
   hyperGuestSearchDomain  String?
   hyperGuestBookingDomain String?
 
-  adminUserProperties AdminUserProperty[]
+  adminUserProperties     AdminUserProperty[]
+  propertyCrossSellConfig PropertyCrossSellConfig?
 
   @@index([organizationId])
 }
@@ -1059,4 +1063,50 @@ model OrgEventsConfig {
   stripAutoFoldSecs     Int          @default(15)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
+}
+
+// ── Cross-Sell ────────────────────────────────────────────────────────────────
+
+model CrossSellConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  enabled             Boolean      @default(false)
+  paymentMode         String       @default("informational") // "informational" | "online"
+  showExternalEvents  Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model CrossSellProduct {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  description    String       @default("")
+  imageUrl       String?
+  price          Decimal      @db.Decimal(10, 2)
+  tax            Decimal      @default(0) @db.Decimal(5, 2)
+  pricingModel   String       @default("per_item") // "per_item" | "per_night"
+  currency       String       @default("USD")
+  status         String       @default("active") // "active" | "inactive"
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+}
+
+model PropertyCrossSellConfig {
+  id             Int          @id @default(autoincrement())
+  propertyId     Int          @unique
+  property       Property     @relation(fields: [propertyId], references: [id])
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  enabled        Boolean?     // null = inherit from chain
+  paymentMode    String?      // null = inherit from chain
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }

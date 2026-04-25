@@ -11,6 +11,7 @@ export * from './types/ai-config.js'
 export * from './types/maps-config.js'
 export * from './types/weather-config.js'
 export * from './types/events-config.js'
+export * from './types/cross-sell.js'
 
 // Schemas
 export * from './schemas/search.js'

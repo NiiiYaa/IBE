@@ -1207,6 +1207,45 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/events/test', { method: 'POST', body: JSON.stringify({ orgId }) })
   },
 
+  // ── Cross-Sell ───────────────────────────────────────────────────────────────
+
+  getCrossSellConfig(orgId?: number): Promise<import('@ibe/shared').CrossSellConfig> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/cross-sell/config${qs}`)
+  },
+
+  updateCrossSellConfig(data: import('@ibe/shared').CrossSellConfigUpdate, orgId?: number): Promise<import('@ibe/shared').CrossSellConfig> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/cross-sell/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  createCrossSellProduct(data: import('@ibe/shared').CrossSellProductCreate, orgId?: number): Promise<import('@ibe/shared').CrossSellProduct> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/cross-sell/products', { method: 'POST', body: JSON.stringify(body) })
+  },
+
+  updateCrossSellProduct(id: number, data: import('@ibe/shared').CrossSellProductUpdate, orgId?: number): Promise<import('@ibe/shared').CrossSellProduct> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest(`/api/v1/admin/cross-sell/products/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  deleteCrossSellProduct(id: number, orgId?: number): Promise<void> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/cross-sell/products/${id}${qs}`, { method: 'DELETE' })
+  },
+
+  getPropertyCrossSellOverride(propertyId: number): Promise<{ enabled: boolean | null; paymentMode: string | null }> {
+    return apiRequest(`/api/v1/admin/cross-sell/property/${propertyId}`)
+  },
+
+  updatePropertyCrossSellOverride(propertyId: number, data: { enabled?: boolean | null; paymentMode?: string | null }): Promise<{ enabled: boolean | null; paymentMode: string | null }> {
+    return apiRequest(`/api/v1/admin/cross-sell/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPublicCrossSell(propertyId: number): Promise<import('@ibe/shared').PublicCrossellResponse> {
+    return apiRequest(`/api/v1/cross-sell/${propertyId}`)
+  },
+
   // ── MCP ──────────────────────────────────────────────────────────────────────
 
   getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null }> {

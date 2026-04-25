@@ -67,6 +67,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/config/org', label: 'Organization', minRole: 'admin', buyerAccessible: true },
       { href: '/admin/config/domain', label: 'Domain', sellerOnly: true },
       { href: '/admin/config/offers', label: 'Offers', sellerOnly: true },
+      { href: '/admin/config/cross-sell', label: 'Cross-Sell', sellerOnly: true },
       { href: '/admin/config/models', label: 'Channels', sellerOnly: true },
       { href: '/admin/config/pixels', label: 'Tracking & Analytics', sellerOnly: true },
       { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin', sellerOnly: true },
