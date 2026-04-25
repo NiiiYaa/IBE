@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { WhatsAppProvider } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
+import { useAdminProperty } from '../../property-context'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
@@ -40,6 +42,11 @@ const PROVIDERS: { value: WhatsAppProvider; label: string; hint: string }[] = [
 
 export default function WhatsAppPage() {
   const qc = useQueryClient()
+  const { propertyId, orgId } = useAdminProperty()
+  const { admin } = useAdminAuth()
+  const isSystemLevel = admin?.role === 'super' && orgId === null && propertyId === null
+
+  const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication']
 
   const [enabled, setEnabled] = useState(false)
   const [provider, setProvider] = useState<WhatsAppProvider>('meta')
@@ -53,13 +60,16 @@ export default function WhatsAppPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-communication'],
-    queryFn: () => apiClient.getCommunicationSettings(),
+    queryKey,
+    queryFn: () => isSystemLevel
+      ? apiClient.getSystemCommunicationSettings()
+      : apiClient.getCommunicationSettings(),
   })
 
   const { data: webhookInfo } = useQuery({
     queryKey: ['whatsapp-webhook-info'],
     queryFn: () => apiClient.getWhatsAppWebhookInfo(),
+    enabled: !isSystemLevel,
   })
 
   useEffect(() => {
@@ -73,18 +83,23 @@ export default function WhatsAppPage() {
   }, [data])
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () => apiClient.updateCommunicationSettings({
-      whatsappEnabled: enabled,
-      whatsappProvider: provider,
-      whatsappPhoneNumberId: phoneNumberId,
-      whatsappBusinessAccountId: businessAccountId,
-      ...(accessToken ? { whatsappAccessToken: accessToken } : {}),
-      whatsappTwilioAccountSid: twilioAccountSid,
-      ...(twilioAuthToken ? { whatsappTwilioAuthToken: twilioAuthToken } : {}),
-      whatsappTwilioNumber: twilioNumber,
-    }),
+    mutationFn: () => {
+      const payload = {
+        whatsappEnabled: enabled,
+        whatsappProvider: provider,
+        whatsappPhoneNumberId: phoneNumberId,
+        whatsappBusinessAccountId: businessAccountId,
+        ...(accessToken ? { whatsappAccessToken: accessToken } : {}),
+        whatsappTwilioAccountSid: twilioAccountSid,
+        ...(twilioAuthToken ? { whatsappTwilioAuthToken: twilioAuthToken } : {}),
+        whatsappTwilioNumber: twilioNumber,
+      }
+      return isSystemLevel
+        ? apiClient.updateSystemCommunicationSettings(payload)
+        : apiClient.updateCommunicationSettings(payload)
+    },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin-communication'] })
+      void qc.invalidateQueries({ queryKey })
       setAccessToken('')
       setTwilioAuthToken('')
       setIsDirty(false)
@@ -102,9 +117,13 @@ export default function WhatsAppPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">
+          WhatsApp{isSystemLevel ? ' — System defaults' : ''}
+        </h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Send booking confirmations and updates to guests via WhatsApp.
+          {isSystemLevel
+            ? 'Default WhatsApp configuration inherited by all organisations that have not configured their own.'
+            : 'Send booking confirmations and updates to guests via WhatsApp.'}
         </p>
       </div>
 

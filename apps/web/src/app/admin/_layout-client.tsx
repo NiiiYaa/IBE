@@ -42,6 +42,7 @@ const SECTIONS: Section[] = [
     title: 'Display & Design',
     sellerOnly: true,
     items: [
+      { href: '/admin/design/brand', label: 'Brand defaults' },
       { href: '/admin/design/chain', label: 'Chain-page', multiPropertyOnly: true },
       { href: '/admin/design/homepage', label: 'Hotel-page' },
       { href: '/admin/design/search', label: 'Rooms-search-page' },

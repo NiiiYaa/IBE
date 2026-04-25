@@ -1,40 +1,60 @@
 import type { FastifyInstance } from 'fastify'
-import { getCommSettings, updateCommSettings } from '../services/communication.service.js'
+import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings } from '../services/communication.service.js'
+import type { CommSettings } from '../services/communication.service.js'
 import { env } from '../config/env.js'
 
+function maskSensitive(s: CommSettings) {
+  return {
+    emailEnabled: s.emailEnabled,
+    emailProvider: s.emailProvider,
+    emailFromName: s.emailFromName,
+    emailFromAddress: s.emailFromAddress,
+    emailSmtpHost: s.emailSmtpHost,
+    emailSmtpPort: s.emailSmtpPort,
+    emailSmtpUser: s.emailSmtpUser,
+    emailSmtpSecure: s.emailSmtpSecure,
+    emailSmtpPasswordSet: !!s.emailSmtpPassword,
+    emailApiKeySet: !!s.emailApiKey,
+    whatsappEnabled: s.whatsappEnabled,
+    whatsappProvider: s.whatsappProvider,
+    whatsappPhoneNumberId: s.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: s.whatsappBusinessAccountId,
+    whatsappAccessTokenSet: !!s.whatsappAccessToken,
+    whatsappTwilioAccountSid: s.whatsappTwilioAccountSid,
+    whatsappTwilioAuthTokenSet: !!s.whatsappTwilioAuthToken,
+    whatsappTwilioNumber: s.whatsappTwilioNumber,
+    smsEnabled: s.smsEnabled,
+    smsProvider: s.smsProvider,
+    smsFromNumber: s.smsFromNumber,
+    smsTwilioAccountSid: s.smsTwilioAccountSid,
+    smsTwilioAuthTokenSet: !!s.smsTwilioAuthToken,
+    smsVonageApiKey: s.smsVonageApiKey,
+    smsVonageApiSecretSet: !!s.smsVonageApiSecret,
+    smsAwsAccessKey: s.smsAwsAccessKey,
+    smsAwsSecretKeySet: !!s.smsAwsSecretKey,
+    smsAwsRegion: s.smsAwsRegion,
+  }
+}
+
 export async function communicationRoutes(fastify: FastifyInstance) {
+  // GET /admin/communication/system — system-level defaults (super only)
+  fastify.get('/admin/communication/system', async (request, reply) => {
+    if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const s = await getSystemCommSettings()
+    return reply.send(maskSensitive(s))
+  })
+
+  // PUT /admin/communication/system — update system-level defaults (super only)
+  fastify.put('/admin/communication/system', async (request, reply) => {
+    if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const body = request.body as Partial<CommSettings>
+    await updateSystemCommSettings(body)
+    return reply.send({ ok: true })
+  })
+
   fastify.get('/admin/communication', async (request, reply) => {
     const s = await getCommSettings(request.admin.organizationId!)
-    return reply.send({
-      emailEnabled: s.emailEnabled,
-      emailProvider: s.emailProvider,
-      emailFromName: s.emailFromName,
-      emailFromAddress: s.emailFromAddress,
-      emailSmtpHost: s.emailSmtpHost,
-      emailSmtpPort: s.emailSmtpPort,
-      emailSmtpUser: s.emailSmtpUser,
-      emailSmtpSecure: s.emailSmtpSecure,
-      emailSmtpPasswordSet: !!s.emailSmtpPassword,
-      emailApiKeySet: !!s.emailApiKey,
-      whatsappEnabled: s.whatsappEnabled,
-      whatsappProvider: s.whatsappProvider,
-      whatsappPhoneNumberId: s.whatsappPhoneNumberId,
-      whatsappBusinessAccountId: s.whatsappBusinessAccountId,
-      whatsappAccessTokenSet: !!s.whatsappAccessToken,
-      whatsappTwilioAccountSid: s.whatsappTwilioAccountSid,
-      whatsappTwilioAuthTokenSet: !!s.whatsappTwilioAuthToken,
-      whatsappTwilioNumber: s.whatsappTwilioNumber,
-      smsEnabled: s.smsEnabled,
-      smsProvider: s.smsProvider,
-      smsFromNumber: s.smsFromNumber,
-      smsTwilioAccountSid: s.smsTwilioAccountSid,
-      smsTwilioAuthTokenSet: !!s.smsTwilioAuthToken,
-      smsVonageApiKey: s.smsVonageApiKey,
-      smsVonageApiSecretSet: !!s.smsVonageApiSecret,
-      smsAwsAccessKey: s.smsAwsAccessKey,
-      smsAwsSecretKeySet: !!s.smsAwsSecretKey,
-      smsAwsRegion: s.smsAwsRegion,
-    })
+    return reply.send(maskSensitive(s))
   })
 
   fastify.get('/admin/communication/whatsapp-webhook', async (_request, reply) => {

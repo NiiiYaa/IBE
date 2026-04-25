@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { SmsProvider } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
+import { useAdminProperty } from '../../property-context'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 
 const PROVIDERS: { value: SmsProvider; label: string; hint: string }[] = [
   { value: 'twilio', label: 'Twilio', hint: 'Industry-standard SMS API with global reach' },
@@ -14,6 +16,11 @@ const PROVIDERS: { value: SmsProvider; label: string; hint: string }[] = [
 
 export default function SmsPage() {
   const qc = useQueryClient()
+  const { propertyId, orgId } = useAdminProperty()
+  const { admin } = useAdminAuth()
+  const isSystemLevel = admin?.role === 'super' && orgId === null && propertyId === null
+
+  const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication']
 
   const [enabled, setEnabled] = useState(false)
   const [provider, setProvider] = useState<SmsProvider>('twilio')
@@ -29,8 +36,10 @@ export default function SmsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-communication'],
-    queryFn: () => apiClient.getCommunicationSettings(),
+    queryKey,
+    queryFn: () => isSystemLevel
+      ? apiClient.getSystemCommunicationSettings()
+      : apiClient.getCommunicationSettings(),
   })
 
   useEffect(() => {
@@ -45,20 +54,25 @@ export default function SmsPage() {
   }, [data])
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () => apiClient.updateCommunicationSettings({
-      smsEnabled: enabled,
-      smsProvider: provider,
-      smsFromNumber: fromNumber,
-      smsTwilioAccountSid: twilioAccountSid,
-      ...(twilioAuthToken ? { smsTwilioAuthToken: twilioAuthToken } : {}),
-      smsVonageApiKey: vonageApiKey,
-      ...(vonageApiSecret ? { smsVonageApiSecret: vonageApiSecret } : {}),
-      smsAwsAccessKey: awsAccessKey,
-      ...(awsSecretKey ? { smsAwsSecretKey: awsSecretKey } : {}),
-      smsAwsRegion: awsRegion,
-    }),
+    mutationFn: () => {
+      const payload = {
+        smsEnabled: enabled,
+        smsProvider: provider,
+        smsFromNumber: fromNumber,
+        smsTwilioAccountSid: twilioAccountSid,
+        ...(twilioAuthToken ? { smsTwilioAuthToken: twilioAuthToken } : {}),
+        smsVonageApiKey: vonageApiKey,
+        ...(vonageApiSecret ? { smsVonageApiSecret: vonageApiSecret } : {}),
+        smsAwsAccessKey: awsAccessKey,
+        ...(awsSecretKey ? { smsAwsSecretKey: awsSecretKey } : {}),
+        smsAwsRegion: awsRegion,
+      }
+      return isSystemLevel
+        ? apiClient.updateSystemCommunicationSettings(payload)
+        : apiClient.updateCommunicationSettings(payload)
+    },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin-communication'] })
+      void qc.invalidateQueries({ queryKey })
       setTwilioAuthToken('')
       setVonageApiSecret('')
       setAwsSecretKey('')
@@ -77,9 +91,13 @@ export default function SmsPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">SMS</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">
+          SMS{isSystemLevel ? ' — System defaults' : ''}
+        </h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Send booking confirmations and alerts to guests via SMS.
+          {isSystemLevel
+            ? 'Default SMS configuration inherited by all organisations that have not configured their own.'
+            : 'Send booking confirmations and alerts to guests via SMS.'}
         </p>
       </div>
 

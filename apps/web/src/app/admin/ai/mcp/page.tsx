@@ -200,13 +200,60 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
   )
 }
 
+function SystemMcpSection() {
+  const qc = useQueryClient()
+  const { data, isLoading } = useQuery({
+    queryKey: ['system-mcp-config'],
+    queryFn: () => apiClient.getSystemMcpConfig(),
+  })
+  const { mutate, isPending } = useMutation({
+    mutationFn: (enabled: boolean) => apiClient.updateSystemMcpConfig(enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['system-mcp-config'] }),
+  })
+
+  if (isLoading) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const enabled = data?.enabled ?? true
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">MCPs — System</h1>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+          Global on/off switch for MCP across all organisations. Disabling this overrides any org or property setting.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">MCP globally enabled</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              When off, all MCP connections are rejected regardless of org or property settings.
+            </p>
+          </div>
+          <Toggle checked={enabled} onChange={() => mutate(!enabled)} disabled={isPending} />
+        </div>
+        {!enabled && (
+          <p className="mt-4 rounded-lg border border-[var(--color-error)]/40 bg-red-50 px-4 py-2.5 text-xs text-[var(--color-error)]">
+            MCP is globally disabled. All API key connections will be rejected.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminMcpPage() {
   const qc = useQueryClient()
   const { propertyId, orgId } = useAdminProperty()
   const { admin } = useAdminAuth()
 
+  const isSystemLevel = admin?.role === 'super' && orgId === null && propertyId === null
   const isPropertyLevel = propertyId !== null
   const superOrgId = admin?.role === 'super' ? (orgId ?? undefined) : undefined
+
+  if (isSystemLevel) return <SystemMcpSection />
 
   const mcpQKey = isPropertyLevel
     ? ['admin-mcp-property', propertyId]

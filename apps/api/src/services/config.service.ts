@@ -16,7 +16,8 @@ function buildFontUrl(fontFamily: string): string {
   return `${GOOGLE_FONTS_BASE}?family=${encoded}:wght@300;400;500;600;700&display=swap`
 }
 
-const SYSTEM_DEFAULTS = {
+// Hard-coded fallback — only used when no SystemDesignConfig row exists in the DB
+const HARDCODED_DEFAULTS = {
   colorPrimary: '#0f509e',
   colorPrimaryHover: '#0a3a7a',
   colorPrimaryLight: '#e8f0fb',
@@ -37,17 +38,112 @@ const SYSTEM_DEFAULTS = {
   enabledCurrencies: ['EUR'],
 }
 
+// Cached in-process; refreshed on each write or first load
+let _systemDesignCache: OrgDesignDefaultsConfig | null = null
+
+function rowToSystemDesign(row: {
+  colorPrimary: string | null; colorPrimaryHover: string | null; colorPrimaryLight: string | null
+  colorAccent: string | null; colorBackground: string | null; colorSurface: string | null
+  colorText: string | null; colorTextMuted: string | null; colorBorder: string | null
+  colorSuccess: string | null; colorError: string | null; fontFamily: string | null
+  borderRadius: number | null; logoUrl: string | null; faviconUrl: string | null
+  tagline: string | null; defaultCurrency: string | null; defaultLocale: string | null
+  textDirection: string | null; enabledLocales: string | null; enabledCurrencies: string | null
+  heroStyle: string | null; heroImageMode: string | null; heroCarouselInterval: number | null
+  searchResultsImageUrl: string | null; searchResultsImageMode: string | null; searchResultsCarouselInterval: number | null
+  searchSidebarPosition: string | null; propertyListLayout: string | null
+  roomRatesDefaultExpanded: boolean | null; roomSearchLayout: string | null
+  infantMaxAge: number | null; childMaxAge: number | null
+  onlinePaymentEnabled: boolean | null; payAtHotelEnabled: boolean | null; payAtHotelCardGuaranteeRequired: boolean | null
+  aiLayoutDefault: boolean | null; searchAiLayoutDefault: boolean | null
+} | null): OrgDesignDefaultsConfig {
+  return {
+    colorPrimary: row?.colorPrimary ?? null,
+    colorPrimaryHover: row?.colorPrimaryHover ?? null,
+    colorPrimaryLight: row?.colorPrimaryLight ?? null,
+    colorAccent: row?.colorAccent ?? null,
+    colorBackground: row?.colorBackground ?? null,
+    colorSurface: row?.colorSurface ?? null,
+    colorText: row?.colorText ?? null,
+    colorTextMuted: row?.colorTextMuted ?? null,
+    colorBorder: row?.colorBorder ?? null,
+    colorSuccess: row?.colorSuccess ?? null,
+    colorError: row?.colorError ?? null,
+    fontFamily: row?.fontFamily ?? null,
+    borderRadius: row?.borderRadius ?? null,
+    logoUrl: row?.logoUrl ?? null,
+    faviconUrl: row?.faviconUrl ?? null,
+    displayName: null,
+    tagline: row?.tagline ?? null,
+    tabTitle: null,
+    defaultCurrency: row?.defaultCurrency ?? null,
+    defaultLocale: row?.defaultLocale ?? null,
+    textDirection: (row?.textDirection ?? null) as 'ltr' | 'rtl' | null,
+    enabledLocales: safeParseJson<string[] | null>(row?.enabledLocales ?? null, null),
+    enabledCurrencies: safeParseJson<string[] | null>(row?.enabledCurrencies ?? null, null),
+    heroStyle: (row?.heroStyle ?? null) as OrgDesignDefaultsConfig['heroStyle'],
+    heroImageMode: (row?.heroImageMode ?? null) as OrgDesignDefaultsConfig['heroImageMode'],
+    heroCarouselInterval: row?.heroCarouselInterval ?? null,
+    searchResultsImageUrl: row?.searchResultsImageUrl ?? null,
+    searchResultsImageMode: (row?.searchResultsImageMode ?? null) as OrgDesignDefaultsConfig['searchResultsImageMode'],
+    searchResultsCarouselInterval: row?.searchResultsCarouselInterval ?? null,
+    searchSidebarPosition: (row?.searchSidebarPosition ?? null) as OrgDesignDefaultsConfig['searchSidebarPosition'],
+    propertyListLayout: (row?.propertyListLayout ?? null) as OrgDesignDefaultsConfig['propertyListLayout'],
+    roomRatesDefaultExpanded: row?.roomRatesDefaultExpanded ?? null,
+    roomSearchLayout: (row?.roomSearchLayout ?? null) as OrgDesignDefaultsConfig['roomSearchLayout'],
+    infantMaxAge: row?.infantMaxAge ?? null,
+    childMaxAge: row?.childMaxAge ?? null,
+    onlinePaymentEnabled: row?.onlinePaymentEnabled ?? null,
+    payAtHotelEnabled: row?.payAtHotelEnabled ?? null,
+    payAtHotelCardGuaranteeRequired: row?.payAtHotelCardGuaranteeRequired ?? null,
+    aiLayoutDefault: row?.aiLayoutDefault ?? null,
+    searchAiLayoutDefault: row?.searchAiLayoutDefault ?? null,
+    chainHeroImageUrl: null,
+    chainExcludedPropertyImageIds: [],
+  }
+}
+
+async function loadSystemDesign() {
+  if (_systemDesignCache) return _systemDesignCache
+  const row = await prisma.systemDesignConfig.findFirst()
+  _systemDesignCache = rowToSystemDesign(row)
+  return _systemDesignCache
+}
+
+function invalidateSystemCache() { _systemDesignCache = null }
+
 export async function getHotelDesignConfig(propertyId: number): Promise<HotelDesignConfig> {
-  const [config, property] = await Promise.all([
+  const [config, property, sys] = await Promise.all([
     prisma.hotelConfig.findUnique({ where: { propertyId } }),
     prisma.property.findUnique({ where: { propertyId } }),
+    loadSystemDesign(),
   ])
 
   const orgDefaults = property
     ? await prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } })
     : null
 
-  const d = SYSTEM_DEFAULTS
+  // d = resolved system defaults (DB row merged with hardcoded fallback)
+  const d = {
+    colorPrimary:      sys.colorPrimary      ?? HARDCODED_DEFAULTS.colorPrimary,
+    colorPrimaryHover: sys.colorPrimaryHover ?? HARDCODED_DEFAULTS.colorPrimaryHover,
+    colorPrimaryLight: sys.colorPrimaryLight ?? HARDCODED_DEFAULTS.colorPrimaryLight,
+    colorAccent:       sys.colorAccent       ?? HARDCODED_DEFAULTS.colorAccent,
+    colorBackground:   sys.colorBackground   ?? HARDCODED_DEFAULTS.colorBackground,
+    colorSurface:      sys.colorSurface      ?? HARDCODED_DEFAULTS.colorSurface,
+    colorText:         sys.colorText         ?? HARDCODED_DEFAULTS.colorText,
+    colorTextMuted:    sys.colorTextMuted    ?? HARDCODED_DEFAULTS.colorTextMuted,
+    colorBorder:       sys.colorBorder       ?? HARDCODED_DEFAULTS.colorBorder,
+    colorSuccess:      sys.colorSuccess      ?? HARDCODED_DEFAULTS.colorSuccess,
+    colorError:        sys.colorError        ?? HARDCODED_DEFAULTS.colorError,
+    fontFamily:        sys.fontFamily        ?? HARDCODED_DEFAULTS.fontFamily,
+    borderRadius:      sys.borderRadius      ?? HARDCODED_DEFAULTS.borderRadius,
+    defaultCurrency:   sys.defaultCurrency   ?? HARDCODED_DEFAULTS.defaultCurrency,
+    defaultLocale:     sys.defaultLocale     ?? HARDCODED_DEFAULTS.defaultLocale,
+    textDirection:     (sys.textDirection    ?? HARDCODED_DEFAULTS.textDirection) as 'ltr' | 'rtl',
+    enabledLocales:    sys.enabledLocales    ?? HARDCODED_DEFAULTS.enabledLocales,
+    enabledCurrencies: sys.enabledCurrencies ?? HARDCODED_DEFAULTS.enabledCurrencies,
+  }
   const o = orgDefaults
   const c = config
 
@@ -119,8 +215,31 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
 }
 
 export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConfig> {
-  const o = await prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId } })
-  const d = SYSTEM_DEFAULTS
+  const [o, sys] = await Promise.all([
+    prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId } }),
+    loadSystemDesign(),
+  ])
+
+  const d = {
+    colorPrimary:      sys.colorPrimary      ?? HARDCODED_DEFAULTS.colorPrimary,
+    colorPrimaryHover: sys.colorPrimaryHover ?? HARDCODED_DEFAULTS.colorPrimaryHover,
+    colorPrimaryLight: sys.colorPrimaryLight ?? HARDCODED_DEFAULTS.colorPrimaryLight,
+    colorAccent:       sys.colorAccent       ?? HARDCODED_DEFAULTS.colorAccent,
+    colorBackground:   sys.colorBackground   ?? HARDCODED_DEFAULTS.colorBackground,
+    colorSurface:      sys.colorSurface      ?? HARDCODED_DEFAULTS.colorSurface,
+    colorText:         sys.colorText         ?? HARDCODED_DEFAULTS.colorText,
+    colorTextMuted:    sys.colorTextMuted    ?? HARDCODED_DEFAULTS.colorTextMuted,
+    colorBorder:       sys.colorBorder       ?? HARDCODED_DEFAULTS.colorBorder,
+    colorSuccess:      sys.colorSuccess      ?? HARDCODED_DEFAULTS.colorSuccess,
+    colorError:        sys.colorError        ?? HARDCODED_DEFAULTS.colorError,
+    fontFamily:        sys.fontFamily        ?? HARDCODED_DEFAULTS.fontFamily,
+    borderRadius:      sys.borderRadius      ?? HARDCODED_DEFAULTS.borderRadius,
+    defaultCurrency:   sys.defaultCurrency   ?? HARDCODED_DEFAULTS.defaultCurrency,
+    defaultLocale:     sys.defaultLocale     ?? HARDCODED_DEFAULTS.defaultLocale,
+    textDirection:     (sys.textDirection    ?? HARDCODED_DEFAULTS.textDirection) as 'ltr' | 'rtl',
+    enabledLocales:    sys.enabledLocales    ?? HARDCODED_DEFAULTS.enabledLocales,
+    enabledCurrencies: sys.enabledCurrencies ?? HARDCODED_DEFAULTS.enabledCurrencies,
+  }
 
   const fontFamily = o?.fontFamily ?? d.fontFamily
 
@@ -311,6 +430,51 @@ export async function getPropertyDesignAdmin(propertyId: number): Promise<{
     hgName: property?.name ?? null,
     hotelExcludedImageIds: safeParseJson<number[]>(config?.excludedPropertyImageIds ?? null, []),
   }
+}
+
+export async function getSystemDesignDefaults(): Promise<OrgDesignDefaultsConfig> {
+  const row = await prisma.systemDesignConfig.findFirst()
+  return rowToSystemDesign(row)
+}
+
+export async function upsertSystemDesignDefaults(updates: Partial<OrgDesignDefaultsConfig>): Promise<OrgDesignDefaultsConfig> {
+  type SystemUpdate = Parameters<typeof prisma.systemDesignConfig.update>[0]['data']
+  const data: SystemUpdate = {}
+
+  const strFields = [
+    'colorPrimary', 'colorPrimaryHover', 'colorPrimaryLight', 'colorAccent',
+    'colorBackground', 'colorSurface', 'colorText', 'colorTextMuted', 'colorBorder',
+    'colorSuccess', 'colorError', 'fontFamily', 'logoUrl', 'faviconUrl', 'tagline',
+    'defaultCurrency', 'defaultLocale', 'textDirection',
+    'heroStyle', 'heroImageMode', 'searchResultsImageUrl', 'searchResultsImageMode',
+    'searchSidebarPosition', 'propertyListLayout', 'roomSearchLayout',
+  ] as const
+  const numFields = ['borderRadius', 'heroCarouselInterval', 'searchResultsCarouselInterval', 'infantMaxAge', 'childMaxAge'] as const
+  const boolFields = [
+    'roomRatesDefaultExpanded', 'onlinePaymentEnabled', 'payAtHotelEnabled',
+    'payAtHotelCardGuaranteeRequired', 'aiLayoutDefault', 'searchAiLayoutDefault',
+  ] as const
+
+  for (const f of strFields) {
+    if (updates[f] !== undefined) (data as Record<string, unknown>)[f] = updates[f]
+  }
+  for (const f of numFields) {
+    if (updates[f] !== undefined) (data as Record<string, unknown>)[f] = updates[f]
+  }
+  for (const f of boolFields) {
+    if (updates[f] !== undefined) (data as Record<string, unknown>)[f] = updates[f]
+  }
+  if (updates.enabledLocales !== undefined) (data as Record<string, unknown>).enabledLocales = JSON.stringify(updates.enabledLocales)
+  if (updates.enabledCurrencies !== undefined) (data as Record<string, unknown>).enabledCurrencies = JSON.stringify(updates.enabledCurrencies)
+
+  const existing = await prisma.systemDesignConfig.findFirst()
+  const row = existing
+    ? await prisma.systemDesignConfig.update({ where: { id: existing.id }, data })
+    : await prisma.systemDesignConfig.create({ data: data as Parameters<typeof prisma.systemDesignConfig.create>[0]['data'] })
+
+  invalidateSystemCache()
+  logger.info('[Config] System design defaults updated')
+  return rowToSystemDesign(row)
 }
 
 export async function getOrgDesignDefaults(organizationId: number): Promise<OrgDesignDefaultsConfig> {

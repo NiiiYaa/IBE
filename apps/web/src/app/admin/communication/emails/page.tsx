@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { EmailProvider } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
+import { useAdminProperty } from '../../property-context'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 
 const PROVIDERS: { value: EmailProvider; label: string; hint: string }[] = [
   { value: 'smtp', label: 'SMTP', hint: 'Any SMTP server (Gmail, custom mail server, etc.)' },
@@ -16,6 +18,11 @@ const SMTP_PORTS = [25, 465, 587, 2525]
 
 export default function EmailsPage() {
   const qc = useQueryClient()
+  const { propertyId, orgId } = useAdminProperty()
+  const { admin } = useAdminAuth()
+  const isSystemLevel = admin?.role === 'super' && orgId === null && propertyId === null
+
+  const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication']
 
   const [enabled, setEnabled] = useState(false)
   const [provider, setProvider] = useState<EmailProvider>('smtp')
@@ -31,8 +38,10 @@ export default function EmailsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-communication'],
-    queryFn: () => apiClient.getCommunicationSettings(),
+    queryKey,
+    queryFn: () => isSystemLevel
+      ? apiClient.getSystemCommunicationSettings()
+      : apiClient.getCommunicationSettings(),
   })
 
   useEffect(() => {
@@ -49,20 +58,25 @@ export default function EmailsPage() {
   }, [data])
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () => apiClient.updateCommunicationSettings({
-      emailEnabled: enabled,
-      emailProvider: provider,
-      emailFromName: fromName,
-      emailFromAddress: fromAddress,
-      emailSmtpHost: smtpHost,
-      emailSmtpPort: smtpPort,
-      emailSmtpUser: smtpUser,
-      emailSmtpSecure: smtpSecure,
-      ...(smtpPassword ? { emailSmtpPassword: smtpPassword } : {}),
-      ...(apiKey ? { emailApiKey: apiKey } : {}),
-    }),
+    mutationFn: () => {
+      const payload = {
+        emailEnabled: enabled,
+        emailProvider: provider,
+        emailFromName: fromName,
+        emailFromAddress: fromAddress,
+        emailSmtpHost: smtpHost,
+        emailSmtpPort: smtpPort,
+        emailSmtpUser: smtpUser,
+        emailSmtpSecure: smtpSecure,
+        ...(smtpPassword ? { emailSmtpPassword: smtpPassword } : {}),
+        ...(apiKey ? { emailApiKey: apiKey } : {}),
+      }
+      return isSystemLevel
+        ? apiClient.updateSystemCommunicationSettings(payload)
+        : apiClient.updateCommunicationSettings(payload)
+    },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin-communication'] })
+      void qc.invalidateQueries({ queryKey })
       setSmtpPassword('')
       setApiKey('')
       setIsDirty(false)
@@ -81,9 +95,13 @@ export default function EmailsPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">Emails</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">
+          Emails{isSystemLevel ? ' — System defaults' : ''}
+        </h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Configure outbound email for booking confirmations and guest notifications.
+          {isSystemLevel
+            ? 'Default email configuration inherited by all organisations that have not configured their own.'
+            : 'Configure outbound email for booking confirmations and guest notifications.'}
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { IBE_ERROR_VALIDATION } from '@ibe/shared'
-import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getOrgDesignDefaults, upsertOrgDesignDefaults, getPropertyDesignAdmin } from '../services/config.service.js'
+import { getHotelDesignConfig, getOrgDesignConfig, upsertHotelDesignConfig, getOrgDesignDefaults, upsertOrgDesignDefaults, getPropertyDesignAdmin, getSystemDesignDefaults, upsertSystemDesignDefaults } from '../services/config.service.js'
 import { getOrgIdForProperty, listProperties } from '../services/property-registry.service.js'
 import { resolveSellerOrg } from '../services/b2b-auth.service.js'
 import { getOrgSettings } from '../services/org.service.js'
@@ -155,6 +155,18 @@ export async function configRoutes(fastify: FastifyInstance) {
     const body = request.body as Record<string, unknown>
     const config = await upsertHotelDesignConfig(propertyId, body)
     return reply.send(config)
+  })
+
+  // GET /admin/design/system — get system-level design defaults (super admin only)
+  fastify.get('/admin/design/system', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    return reply.send(await getSystemDesignDefaults())
+  })
+
+  // PUT /admin/design/system — update system-level design defaults (super admin only)
+  fastify.put('/admin/design/system', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    return reply.send(await upsertSystemDesignDefaults(request.body as Record<string, unknown>))
   })
 
   // GET /admin/design/global — get org-level design defaults

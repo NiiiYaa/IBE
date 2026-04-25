@@ -48,8 +48,18 @@ function defaults(): CommSettings {
   }
 }
 
-function fromRow(row: Awaited<ReturnType<typeof prisma.communicationSettings.findUnique>>): CommSettings {
-  if (!row) return defaults()
+function mapRow(row: {
+  emailEnabled: boolean; emailProvider: string; emailFromName: string; emailFromAddress: string
+  emailSmtpHost: string; emailSmtpPort: number; emailSmtpUser: string; emailSmtpSecure: boolean
+  emailSmtpPassword: string | null; emailApiKey: string | null
+  whatsappEnabled: boolean; whatsappProvider: string; whatsappPhoneNumberId: string
+  whatsappBusinessAccountId: string; whatsappAccessToken: string | null
+  whatsappTwilioAccountSid: string; whatsappTwilioAuthToken: string | null; whatsappTwilioNumber: string
+  smsEnabled: boolean; smsProvider: string; smsFromNumber: string
+  smsTwilioAccountSid: string; smsTwilioAuthToken: string | null
+  smsVonageApiKey: string; smsVonageApiSecret: string | null
+  smsAwsAccessKey: string; smsAwsSecretKey: string | null; smsAwsRegion: string
+}): CommSettings {
   return {
     emailEnabled: row.emailEnabled, emailProvider: row.emailProvider,
     emailFromName: row.emailFromName, emailFromAddress: row.emailFromAddress,
@@ -71,9 +81,38 @@ function fromRow(row: Awaited<ReturnType<typeof prisma.communicationSettings.fin
   }
 }
 
+// ── System-level (cached singleton) ──────────────────────────────────────────
+
+let _systemCommCache: CommSettings | null = null
+
+async function loadSystemCommSettings(): Promise<CommSettings> {
+  if (_systemCommCache) return _systemCommCache
+  const row = await prisma.systemCommunicationSettings.findFirst()
+  _systemCommCache = row ? mapRow(row) : defaults()
+  return _systemCommCache
+}
+
+function invalidateSystemCommCache() { _systemCommCache = null }
+
+export async function getSystemCommSettings(): Promise<CommSettings> {
+  return loadSystemCommSettings()
+}
+
+export async function updateSystemCommSettings(data: Partial<CommSettings>): Promise<CommSettings> {
+  const existing = await prisma.systemCommunicationSettings.findFirst()
+  const row = existing
+    ? await prisma.systemCommunicationSettings.update({ where: { id: existing.id }, data: data as never })
+    : await prisma.systemCommunicationSettings.create({ data: data as never })
+  invalidateSystemCommCache()
+  return mapRow(row)
+}
+
+// ── Org-level (cascades to system) ───────────────────────────────────────────
+
 export async function getCommSettings(organizationId: number): Promise<CommSettings> {
   const row = await prisma.communicationSettings.findUnique({ where: { organizationId } })
-  return fromRow(row)
+  if (row) return mapRow(row)
+  return loadSystemCommSettings()
 }
 
 export async function updateCommSettings(organizationId: number, data: Partial<CommSettings>): Promise<CommSettings> {
@@ -82,5 +121,5 @@ export async function updateCommSettings(organizationId: number, data: Partial<C
     create: { organizationId, ...data },
     update: data,
   })
-  return fromRow(row)
+  return mapRow(row)
 }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { getMcpConfig, upsertMcpConfig, rotateApiKey } from '../services/mcp.service.js'
+import { getMcpConfig, upsertMcpConfig, rotateApiKey, getSystemMcpConfig, setSystemMcpEnabled } from '../services/mcp.service.js'
 import type { McpScope } from '../services/mcp.service.js'
 
 function resolveScope(request: { admin: { role: string; organizationId: number | null } }, query: Record<string, string>, params?: Record<string, string>): McpScope | null {
@@ -14,6 +14,19 @@ function resolveScope(request: { admin: { role: string; organizationId: number |
 }
 
 export async function adminMcpRoutes(fastify: FastifyInstance) {
+  // GET /admin/ai/mcp/system — system-level MCP switch (super only)
+  fastify.get('/admin/ai/mcp/system', async (request, reply) => {
+    if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    return reply.send(await getSystemMcpConfig())
+  })
+
+  // PUT /admin/ai/mcp/system — enable/disable MCP globally (super only)
+  fastify.put('/admin/ai/mcp/system', async (request, reply) => {
+    if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const { enabled } = request.body as { enabled: boolean }
+    return reply.send(await setSystemMcpEnabled(enabled))
+  })
+
   // GET /admin/ai/mcp — get MCP config for org or property
   fastify.get('/admin/ai/mcp', async (request, reply) => {
     const scope = resolveScope(request as any, request.query as Record<string, string>)

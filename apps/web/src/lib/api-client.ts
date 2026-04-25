@@ -688,6 +688,17 @@ export const apiClient = {
     })
   },
 
+  getSystemCommunicationSettings(): Promise<CommunicationSettingsResponse> {
+    return apiRequest<CommunicationSettingsResponse>('/api/v1/admin/communication/system')
+  },
+
+  updateSystemCommunicationSettings(data: UpdateCommunicationSettingsRequest): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>('/api/v1/admin/communication/system', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
   getWhatsAppWebhookInfo(): Promise<{ webhookUrl: string; verifyToken: string }> {
     return apiRequest<{ webhookUrl: string; verifyToken: string }>('/api/v1/admin/communication/whatsapp-webhook')
   },
@@ -799,6 +810,19 @@ export const apiClient = {
     if (params.preset) q.set('preset', params.preset)
     const qs = q.toString()
     return apiRequest<AdminBookingsResponse>(`/api/v1/admin/bookings${qs ? `?${qs}` : ''}`)
+  },
+
+  /** Get system-level design defaults (super admin only) */
+  getSystemDesignDefaults(): Promise<OrgDesignDefaultsConfig> {
+    return apiRequest<OrgDesignDefaultsConfig>('/api/v1/admin/design/system')
+  },
+
+  /** Update system-level design defaults (super admin only) */
+  updateSystemDesignDefaults(data: Partial<OrgDesignDefaultsConfig>): Promise<OrgDesignDefaultsConfig> {
+    return apiRequest<OrgDesignDefaultsConfig>('/api/v1/admin/design/system', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
   },
 
   /** Get org-level design defaults */
@@ -1137,6 +1161,14 @@ export const apiClient = {
 
   rotateMcpApiKey(data: { orgId?: number; propertyId?: number }): Promise<{ enabled: boolean; apiKey: string }> {
     return apiRequest('/api/v1/admin/ai/mcp/rotate', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  getSystemMcpConfig(): Promise<{ enabled: boolean }> {
+    return apiRequest('/api/v1/admin/ai/mcp/system')
+  },
+
+  updateSystemMcpConfig(enabled: boolean): Promise<{ enabled: boolean }> {
+    return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
 }
 

@@ -884,6 +884,106 @@ model OrgMapsConfig {
   updatedAt      DateTime     @updatedAt
 }
 
+// ── System MCP Config ─────────────────────────────────────────────────────────
+
+model SystemMcpConfig {
+  id        Int      @id @default(autoincrement())
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── System Design Config ──────────────────────────────────────────────────────
+
+model SystemDesignConfig {
+  id                Int     @id @default(autoincrement())
+
+  colorPrimary      String?
+  colorPrimaryHover String?
+  colorPrimaryLight String?
+  colorAccent       String?
+  colorBackground   String?
+  colorSurface      String?
+  colorText         String?
+  colorTextMuted    String?
+  colorBorder       String?
+  colorSuccess      String?
+  colorError        String?
+  fontFamily        String?
+  borderRadius      Int?
+  logoUrl           String?
+  faviconUrl        String?
+  tagline           String?
+  defaultCurrency   String?
+  defaultLocale     String?
+  textDirection     String?
+  enabledLocales    String?
+  enabledCurrencies String?
+  heroStyle                     String?
+  heroImageMode                 String?
+  heroCarouselInterval          Int?
+  searchResultsImageUrl         String?
+  searchResultsImageMode        String?
+  searchResultsCarouselInterval Int?
+  searchSidebarPosition         String?
+  propertyListLayout            String?
+  roomRatesDefaultExpanded      Boolean?
+  roomSearchLayout              String?
+  infantMaxAge                  Int?
+  childMaxAge                   Int?
+  onlinePaymentEnabled          Boolean?
+  payAtHotelEnabled             Boolean?
+  payAtHotelCardGuaranteeRequired Boolean?
+  aiLayoutDefault               Boolean?
+  searchAiLayoutDefault         Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── System Communication Settings ────────────────────────────────────────────
+
+model SystemCommunicationSettings {
+  id Int @id @default(autoincrement())
+
+  // Email
+  emailEnabled      Boolean @default(false)
+  emailProvider     String  @default("smtp")
+  emailFromName     String  @default("")
+  emailFromAddress  String  @default("")
+  emailSmtpHost     String  @default("")
+  emailSmtpPort     Int     @default(587)
+  emailSmtpUser     String  @default("")
+  emailSmtpSecure   Boolean @default(true)
+  emailSmtpPassword String?
+  emailApiKey       String?
+
+  // WhatsApp
+  whatsappEnabled           Boolean @default(false)
+  whatsappProvider          String  @default("meta")
+  whatsappPhoneNumberId     String  @default("")
+  whatsappBusinessAccountId String  @default("")
+  whatsappAccessToken       String?
+  whatsappTwilioAccountSid  String  @default("")
+  whatsappTwilioAuthToken   String?
+  whatsappTwilioNumber      String  @default("")
+
+  // SMS
+  smsEnabled          Boolean @default(false)
+  smsProvider         String  @default("twilio")
+  smsFromNumber       String  @default("")
+  smsTwilioAccountSid String  @default("")
+  smsTwilioAuthToken  String?
+  smsVonageApiKey     String  @default("")
+  smsVonageApiSecret  String?
+  smsAwsAccessKey     String  @default("")
+  smsAwsSecretKey     String?
+  smsAwsRegion        String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ── System Maps Config ────────────────────────────────────────────────────────
 
 model SystemMapsConfig {

@@ -40,8 +40,13 @@ export interface ChainPropertyMarker {
 
 export async function getPublicMapsConfig(propertyId: number): Promise<PublicMapsConfig> {
   const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
-  const row = prop ? await prisma.orgMapsConfig.findUnique({ where: { organizationId: prop.organizationId } }) : null
-  const base = rowToResponse(row)
+  const [orgRow, sysRow] = await Promise.all([
+    prop ? prisma.orgMapsConfig.findUnique({ where: { organizationId: prop.organizationId } }) : null,
+    prisma.systemMapsConfig.findFirst(),
+  ])
+  // Cascade: org → system → rowToResponse hardcoded defaults
+  const resolved = orgRow ?? sysRow
+  const base = rowToResponse(resolved ? { ...resolved, enabled: false } : null)
   return { provider: base.provider, poiRadius: base.poiRadius, poiCategories: base.poiCategories }
 }
 

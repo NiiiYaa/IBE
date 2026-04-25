@@ -8,6 +8,19 @@ export interface McpConfigRecord {
   apiKey: string
 }
 
+export async function getSystemMcpConfig(): Promise<{ enabled: boolean }> {
+  const row = await prisma.systemMcpConfig.findFirst()
+  return { enabled: row?.enabled ?? true }
+}
+
+export async function setSystemMcpEnabled(enabled: boolean): Promise<{ enabled: boolean }> {
+  const existing = await prisma.systemMcpConfig.findFirst()
+  const row = existing
+    ? await prisma.systemMcpConfig.update({ where: { id: existing.id }, data: { enabled } })
+    : await prisma.systemMcpConfig.create({ data: { enabled } })
+  return { enabled: row.enabled }
+}
+
 export async function getMcpConfig(scope: McpScope): Promise<McpConfigRecord | null> {
   if (scope.kind === 'org') {
     const row = await prisma.orgMcpConfig.findUnique({ where: { organizationId: scope.orgId } })
@@ -55,9 +68,13 @@ export async function rotateApiKey(scope: McpScope): Promise<McpConfigRecord> {
 }
 
 export async function validateApiKey(apiKey: string): Promise<McpScope | null> {
-  const org = await prisma.orgMcpConfig.findUnique({ where: { apiKey } })
+  const [sys, org, prop] = await Promise.all([
+    prisma.systemMcpConfig.findFirst({ select: { enabled: true } }),
+    prisma.orgMcpConfig.findUnique({ where: { apiKey } }),
+    prisma.propertyMcpConfig.findUnique({ where: { apiKey } }),
+  ])
+  if (sys?.enabled === false) return null  // globally disabled
   if (org?.enabled) return { kind: 'org', orgId: org.organizationId }
-  const prop = await prisma.propertyMcpConfig.findUnique({ where: { apiKey } })
   if (prop?.enabled) return { kind: 'property', propertyId: prop.propertyId }
   return null
 }
