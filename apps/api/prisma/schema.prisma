@@ -45,6 +45,8 @@ model Organization {
   orgAIChannels               OrgAIChannels?
   orgMcpConfig                OrgMcpConfig?
   orgMapsConfig               OrgMapsConfig?
+  orgWeatherConfig            OrgWeatherConfig?
+  orgEventsConfig             OrgEventsConfig?
 }
 
 // roles: super | admin | observer | user
@@ -1001,4 +1003,60 @@ model SystemMapsConfig {
   poiCategories String   @default("[\"restaurants\",\"attractions\",\"transport\",\"shopping\"]")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ── Weather Config ────────────────────────────────────────────────────────────
+
+model SystemWeatherConfig {
+  id                 Int      @id @default(autoincrement())
+  units              String   @default("celsius") // celsius | fahrenheit
+  forecastDays       Int      @default(7)
+  enabled            Boolean  @default(true)
+  stripDefaultFolded Boolean  @default(false)
+  stripAutoFoldSecs  Int      @default(15) // 0 = never auto-fold
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model OrgWeatherConfig {
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  units                 String       @default("celsius")
+  forecastDays          Int          @default(7)
+  enabled               Boolean      @default(false)
+  systemServiceDisabled Boolean      @default(false)
+  stripDefaultFolded    Boolean      @default(false)
+  stripAutoFoldSecs     Int          @default(15)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+// ── Events Config ─────────────────────────────────────────────────────────────
+
+model SystemEventsConfig {
+  id                 Int      @id @default(autoincrement())
+  apiKey             String?  // AES-256-CBC encrypted Ticketmaster API key
+  enabled            Boolean  @default(false)
+  radiusKm           Int      @default(10)
+  maxEvents          Int      @default(10)
+  stripDefaultFolded Boolean  @default(false)
+  stripAutoFoldSecs  Int      @default(15)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model OrgEventsConfig {
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  apiKey                String?      // AES-256-CBC encrypted, optional — falls back to system
+  enabled               Boolean      @default(false)
+  radiusKm              Int          @default(10)
+  maxEvents             Int          @default(10)
+  systemServiceDisabled Boolean      @default(false)
+  stripDefaultFolded    Boolean      @default(false)
+  stripAutoFoldSecs     Int          @default(15)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }

@@ -13,6 +13,8 @@ import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { RoomCard } from '@/components/search/RoomCard'
 import { RoomCardGrid } from '@/components/search/RoomCardGrid'
+import { WeatherStrip } from '@/components/weather/WeatherStrip'
+import { EventsStrip } from '@/components/weather/EventsStrip'
 import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
@@ -176,6 +178,22 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
             ? Math.min(...allRooms.flatMap(r => r.rates.map(rate => convert(rate.prices.sell.amount))))
             : null}
           currency={dispCur}
+        />
+      )}
+
+      {searchParams.hotelId > 0 && (
+        <WeatherStrip
+          propertyId={searchParams.hotelId}
+          startDate={searchParams.checkIn}
+          endDate={searchParams.checkOut}
+        />
+      )}
+
+      {searchParams.hotelId > 0 && (
+        <EventsStrip
+          propertyId={searchParams.hotelId}
+          startDate={searchParams.checkIn}
+          endDate={searchParams.checkOut}
         />
       )}
 

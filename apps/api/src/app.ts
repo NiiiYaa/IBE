@@ -46,6 +46,10 @@ import { mcpRoutes } from './routes/mcp.route.js'
 import { adminMcpRoutes } from './routes/admin-mcp.route.js'
 import { mapsConfigRoutes } from './routes/maps-config.route.js'
 import { mapsPublicRoutes } from './routes/maps-public.route.js'
+import { weatherPublicRoutes } from './routes/weather-public.route.js'
+import { eventsPublicRoutes } from './routes/events-public.route.js'
+import { weatherConfigRoutes } from './routes/weather-config.route.js'
+import { eventsConfigRoutes } from './routes/events-config.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -148,8 +152,10 @@ export async function buildApp() {
   // Public pixel endpoint (no auth)
   await app.register(publicTrackingPixelRoutes, { prefix: '/api/v1' })
 
-  // Public maps endpoints (no auth)
+  // Public maps + weather endpoints (no auth)
   await app.register(mapsPublicRoutes, { prefix: '/api/v1' })
+  await app.register(weatherPublicRoutes, { prefix: '/api/v1' })
+  await app.register(eventsPublicRoutes, { prefix: '/api/v1' })
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
@@ -185,6 +191,8 @@ export async function buildApp() {
     await adminApp.register(aiChannelsRoutes, { prefix: '/api/v1' })
     await adminApp.register(adminMcpRoutes, { prefix: '/api/v1' })
     await adminApp.register(mapsConfigRoutes, { prefix: '/api/v1' })
+    await adminApp.register(weatherConfigRoutes, { prefix: '/api/v1' })
+    await adminApp.register(eventsConfigRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

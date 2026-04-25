@@ -9,6 +9,8 @@ export type * from './types/hyperguest.js'
 export type * from './types/api.js'
 export * from './types/ai-config.js'
 export * from './types/maps-config.js'
+export * from './types/weather-config.js'
+export * from './types/events-config.js'
 
 // Schemas
 export * from './schemas/search.js'
