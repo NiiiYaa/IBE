@@ -72,6 +72,25 @@ export async function getChainProperties(orgId: number): Promise<ChainPropertyMa
     .map(r => r.value!)
 }
 
+export async function getSystemMapsConfig(): Promise<MapsConfigResponse> {
+  const row = await prisma.systemMapsConfig.findFirst()
+  return rowToResponse(row ? { ...row, enabled: false } : null)
+}
+
+export async function upsertSystemMapsConfig(data: MapsConfigUpdate): Promise<MapsConfigResponse> {
+  const update: Record<string, unknown> = {}
+  if (data.provider !== undefined) update.provider = data.provider
+  if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
+  if (data.poiRadius !== undefined) update.poiRadius = data.poiRadius
+  if (data.poiCategories !== undefined) update.poiCategories = JSON.stringify(data.poiCategories)
+
+  const existing = await prisma.systemMapsConfig.findFirst()
+  const row = existing
+    ? await prisma.systemMapsConfig.update({ where: { id: existing.id }, data: update })
+    : await prisma.systemMapsConfig.create({ data: { provider: 'osm', poiRadius: 1000, poiCategories: JSON.stringify(DEFAULT_CATEGORIES), ...update } })
+  return rowToResponse({ ...row, enabled: false })
+}
+
 export async function getMapsConfig(orgId: number): Promise<MapsConfigResponse> {
   const row = await prisma.orgMapsConfig.findUnique({ where: { organizationId: orgId } })
   return rowToResponse(row)

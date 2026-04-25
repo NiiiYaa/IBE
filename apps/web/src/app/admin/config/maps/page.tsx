@@ -199,13 +199,47 @@ function MapsConfigForm({ data, onSave, saving, orgId }: {
   )
 }
 
+function SystemMapsSection() {
+  const qc = useQueryClient()
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['maps-config-system'],
+    queryFn: () => apiClient.getSystemMapsConfig(),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (update: MapsConfigUpdate) => apiClient.updateSystemMapsConfig(update),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['maps-config-system'] }) },
+  })
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <p className="mb-5 text-sm text-[var(--color-text-muted)]">
+        System-level defaults used as the fallback for all organisations that have not configured their own map provider.
+      </p>
+      {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
+      {isError && <p className="text-sm text-[var(--color-error)]">Failed to load. Please refresh.</p>}
+      {data && (
+        <MapsConfigForm
+          data={data}
+          onSave={update => saveMutation.mutate(update)}
+          saving={saveMutation.isPending}
+        />
+      )}
+      {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
+      {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
+    </div>
+  )
+}
+
 export default function MapsConfigPage() {
   const { admin } = useAdminAuth()
   const { orgId: contextOrgId } = useAdminProperty()
   const qc = useQueryClient()
   const isSuper = admin?.role === 'super'
 
-  // For regular admins use their own org; for super admin use the selected org from context
+  // System level: super admin with no org selected (null in context)
+  const isSystemLevel = isSuper && contextOrgId === null
+
+  // Org-level: super uses context org; regular admin uses their own org
   const orgId = isSuper
     ? (contextOrgId ?? undefined)
     : (admin?.organizationId ?? undefined)
@@ -213,7 +247,7 @@ export default function MapsConfigPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['maps-config', orgId],
     queryFn: () => apiClient.getMapsConfig(orgId),
-    enabled: !!admin && orgId !== undefined,
+    enabled: !!admin && !isSystemLevel && orgId !== undefined,
   })
 
   const saveMutation = useMutation({
@@ -232,10 +266,8 @@ export default function MapsConfigPage() {
         </p>
       </div>
 
-      {isSuper && orgId === undefined ? (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-          <p className="text-sm text-[var(--color-text-muted)]">Select an organisation from the sidebar to configure maps.</p>
-        </div>
+      {isSystemLevel ? (
+        <SystemMapsSection />
       ) : (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
           {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}

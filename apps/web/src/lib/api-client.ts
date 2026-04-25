@@ -1102,6 +1102,14 @@ export const apiClient = {
 
   // ── Maps ─────────────────────────────────────────────────────────────────────
 
+  getSystemMapsConfig(): Promise<MapsConfigResponse> {
+    return apiRequest('/api/v1/admin/maps/config/system')
+  },
+
+  updateSystemMapsConfig(data: MapsConfigUpdate): Promise<MapsConfigResponse> {
+    return apiRequest('/api/v1/admin/maps/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
   getMapsConfig(orgId?: number): Promise<MapsConfigResponse> {
     const qs = orgId ? `?orgId=${orgId}` : ''
     return apiRequest(`/api/v1/admin/maps/config${qs}`)

@@ -43,6 +43,7 @@ export function PropertySelector({ properties, isSuper, selected, onSelect, prop
 
   function getDisplayLabel(): string {
     if (selected.propertyId === null) {
+      if (isSuper && selected.orgId === null) return '⚙ System'
       if (isSuper && selected.orgId !== null) {
         const prop = properties.find(p => p.orgId === selected.orgId)
         const orgName = prop?.orgName ?? `Org ${selected.orgId}`
@@ -138,6 +139,15 @@ export function PropertySelector({ properties, isSuper, selected, onSelect, prop
           )}
 
           <div className="overflow-y-auto">
+            {/* System option — super admin only */}
+            {isSuper && (
+              <button
+                onClick={() => select(null, null)}
+                className={`${optionBase} px-3 py-1.5 ${selected.propertyId === null && selected.orgId === null ? selectedCls : normalCls}`}
+              >
+                ⚙ System
+              </button>
+            )}
             {/* Global chain option — non-super users only */}
             {!isSuper && (
               <button

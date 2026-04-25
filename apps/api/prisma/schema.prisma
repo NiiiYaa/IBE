@@ -883,3 +883,15 @@ model OrgMapsConfig {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
+
+// ── System Maps Config ────────────────────────────────────────────────────────
+
+model SystemMapsConfig {
+  id            Int      @id @default(autoincrement())
+  provider      String   @default("osm")
+  apiKey        String?
+  poiRadius     Int      @default(1000)
+  poiCategories String   @default("[\"restaurants\",\"attractions\",\"transport\",\"shopping\"]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

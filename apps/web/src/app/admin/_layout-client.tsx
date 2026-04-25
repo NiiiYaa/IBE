@@ -460,7 +460,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </svg>
             {propertyId === null ? (
               <span className="text-amber-800">
-                {isSuper && orgId !== null ? (
+                {isSuper && orgId === null ? (
+                  <>
+                    Configuring: <span className="font-semibold">System</span>
+                    <span className="ml-1 text-amber-600">— global defaults for all organisations</span>
+                  </>
+                ) : isSuper && orgId !== null ? (
                   <>
                     Configuring: <span className="font-semibold">
                       {properties.find(p => p.orgId === orgId)?.orgName ?? `Org ${orgId}`}
