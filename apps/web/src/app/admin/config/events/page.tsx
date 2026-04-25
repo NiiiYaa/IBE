@@ -255,7 +255,7 @@ export default function EventsConfigPage() {
               onSave={u => saveMutation.mutate(u)}
               saving={saveMutation.isPending}
               isSuper={isSuper}
-              orgId={orgId}
+              {...(orgId !== undefined ? { orgId } : {})}
               onToggleSystemService={disabled => saveMutation.mutate({ systemServiceDisabled: disabled })}
             />
           )}

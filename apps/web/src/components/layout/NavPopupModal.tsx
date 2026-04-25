@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
-import DOMPurify from 'dompurify'
 
 interface NavPopupModalProps {
   label: string
@@ -11,10 +10,12 @@ interface NavPopupModalProps {
 
 export function NavPopupModal({ label, content, onClose }: NavPopupModalProps) {
   const isHtml = content.trimStart().startsWith('<')
-  const safeHtml = useMemo(
-    () => isHtml ? DOMPurify.sanitize(content) : null,
-    [isHtml, content]
-  )
+  const safeHtml = useMemo(() => {
+    if (!isHtml || typeof window === 'undefined') return null
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const DOMPurify = require('dompurify') as typeof import('dompurify')
+    return DOMPurify.sanitize(content)
+  }, [isHtml, content])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
