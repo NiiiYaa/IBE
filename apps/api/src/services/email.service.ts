@@ -53,10 +53,15 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
       // Lazy-load nodemailer to avoid import issues
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const nodemailer = (await import('nodemailer')) as any
+      const port = settings.emailSmtpPort ?? 587
+      // Port 465 = SMTPS (direct TLS). All other ports (587, 25, 2525…) use STARTTLS.
+      // Ignore the stored emailSmtpSecure flag — deriving from port is always correct
+      // and avoids the "wrong version number" SSL error when port 587 has secure=true.
+      const secure = port === 465
       const transporter = nodemailer.createTransport({
         host: settings.emailSmtpHost,
-        port: settings.emailSmtpPort,
-        secure: settings.emailSmtpSecure,
+        port,
+        secure,
         auth: settings.emailSmtpUser ? { user: settings.emailSmtpUser, pass: settings.emailSmtpPassword ?? undefined } : undefined,
       })
       await transporter.sendMail({
