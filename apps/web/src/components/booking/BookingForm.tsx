@@ -20,6 +20,12 @@ import { PaymentStep } from '@/components/payment/PaymentStep'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { SelectedRoom } from './BookingSummary'
+import {
+  SpecialRequestsSection,
+  DEFAULT_SPECIAL_REQUESTS,
+  serializeSpecialRequests,
+} from './SpecialRequestsSection'
+import type { SpecialRequestsState } from './SpecialRequestsSection'
 
 interface BookingFormProps {
   propertyId: number
@@ -57,6 +63,9 @@ export function BookingForm({
   const router = useRouter()
   const [step, setStep] = useState<Step>('guest')
   const [paymentResult, setPaymentResult] = useState<PaymentStepResult | null>(null)
+  const [specialRequests, setSpecialRequests] = useState<SpecialRequestsState>(DEFAULT_SPECIAL_REQUESTS)
+  const [requestsAcknowledged, setRequestsAcknowledged] = useState(false)
+  const [acknowledgeError, setAcknowledgeError] = useState(false)
 
   const primaryRate = rooms[0]!.rate
   const paymentFlow = resolvePaymentFlow(primaryRate.chargeParty, payAtHotelCardGuaranteeRequired, onlinePaymentEnabled)
@@ -125,6 +134,10 @@ export function BookingForm({
 
   async function onGuestSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!requestsAcknowledged) {
+      setAcknowledgeError(true)
+      return
+    }
     const valid = await trigger(['leadGuest'])
     if (valid) setStep('payment')
   }
@@ -136,8 +149,9 @@ export function BookingForm({
 
   function onConfirm() {
     const values = getValues()
+    const serialized = serializeSpecialRequests(specialRequests)
     const leadGuest = { ...values.leadGuest, country: values.leadGuest.country?.toUpperCase() }
-    const rooms = values.rooms.map(room => ({
+    const bookingRooms = values.rooms.map(room => ({
       ...room,
       guests: [{
         title: leadGuest.title,
@@ -145,9 +159,10 @@ export function BookingForm({
         lastName: leadGuest.lastName,
         birthDate: leadGuest.birthDate,
       }, ...room.guests.slice(1)],
+      ...(serialized.length ? { specialRequests: serialized } : {}),
     }))
     mutate({
-      ...values, leadGuest, rooms,
+      ...values, leadGuest, rooms: bookingRooms,
       paymentFlow: paymentResult?.paymentFlow ?? paymentFlow,
       stripePaymentIntentId: paymentResult?.stripePaymentIntentId,
       stripeSetupIntentId: paymentResult?.stripeSetupIntentId,
@@ -236,10 +251,7 @@ export function BookingForm({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <FormField label="Title" error={errors.leadGuest?.title?.message}>
-              <select
-                {...register('leadGuest.title')}
-                className={inputCls}
-              >
+              <select {...register('leadGuest.title')} className={inputCls}>
                 {Object.values(GuestTitle).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </FormField>
@@ -259,6 +271,31 @@ export function BookingForm({
             <FormField label="Phone" error={errors.leadGuest?.phone?.message}>
               <input type="tel" {...register('leadGuest.phone')} className={inputCls} placeholder="+1 234 567 890" />
             </FormField>
+          </div>
+
+          {/* Special requests */}
+          <SpecialRequestsSection
+            value={specialRequests}
+            onChange={setSpecialRequests}
+            multiRoom={rooms.length > 1}
+          />
+
+          {/* Acknowledgment */}
+          <div className={['rounded-lg border p-4 space-y-1', acknowledgeError && !requestsAcknowledged ? 'border-[var(--color-error)] bg-[var(--color-error-light,#fef2f2)]' : 'border-[var(--color-border)] bg-[var(--color-background)]'].join(' ')}>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={requestsAcknowledged}
+                onChange={e => { setRequestsAcknowledged(e.target.checked); setAcknowledgeError(false) }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
+              />
+              <span className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+                I understand and accept that special requests are subject to availability, are not guaranteed, and may incur additional charges payable directly to the hotel.
+              </span>
+            </label>
+            {acknowledgeError && !requestsAcknowledged && (
+              <p className="text-xs text-[var(--color-error)] pl-7">Please confirm you have read and accept this before continuing.</p>
+            )}
           </div>
 
           <button
@@ -298,19 +335,13 @@ export function BookingForm({
 
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 text-sm space-y-2">
             {paymentFlow === PaymentFlow.OnlineCharge && (
-              <p className="text-[var(--color-text)]">
-                Your card will be charged once your booking is confirmed.
-              </p>
+              <p className="text-[var(--color-text)]">Your card will be charged once your booking is confirmed.</p>
             )}
             {paymentFlow === PaymentFlow.PayAtHotelGuarantee && (
-              <p className="text-amber-700">
-                Card saved as guarantee — you will pay at the hotel on arrival.
-              </p>
+              <p className="text-amber-700">Card saved as guarantee — you will pay at the hotel on arrival.</p>
             )}
             {paymentFlow === PaymentFlow.PayAtHotelNoCard && (
-              <p className="text-[var(--color-text)]">
-                You will pay directly at the hotel on arrival. No card required.
-              </p>
+              <p className="text-[var(--color-text)]">You will pay directly at the hotel on arrival. No card required.</p>
             )}
             {primaryRate.cancellationDeadlines[0] && primaryRate.isRefundable && (
               <p className="text-success text-xs">
@@ -318,11 +349,23 @@ export function BookingForm({
               </p>
             )}
             {!primaryRate.isRefundable && (
-              <p className="text-error text-xs">
-                ✗ This rate is non-refundable
-              </p>
+              <p className="text-error text-xs">✗ This rate is non-refundable</p>
             )}
           </div>
+
+          {/* Special requests summary */}
+          {serializeSpecialRequests(specialRequests).length > 0 && (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Special requests</p>
+              <ul className="space-y-1">
+                {serializeSpecialRequests(specialRequests).map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-[var(--color-text)]">
+                    <span className="text-[var(--color-primary)]">·</span> {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {apiError && (
             <div className="rounded-lg border border-error/20 bg-[var(--color-error-light)] p-4 text-sm space-y-1">

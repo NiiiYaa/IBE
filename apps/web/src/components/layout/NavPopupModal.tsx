@@ -12,9 +12,9 @@ export function NavPopupModal({ label, content, onClose }: NavPopupModalProps) {
   const isHtml = content.trimStart().startsWith('<')
   const safeHtml = useMemo(() => {
     if (!isHtml || typeof window === 'undefined') return null
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const DOMPurify = require('dompurify') as typeof import('dompurify')
-    return DOMPurify.sanitize(content)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const DOMPurify = (require('dompurify') as any).default ?? require('dompurify')
+    return DOMPurify.sanitize(content) as string
   }, [isHtml, content])
 
   useEffect(() => {
