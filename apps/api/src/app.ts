@@ -44,6 +44,8 @@ import { aiChatRoutes } from './routes/ai-chat.route.js'
 import { whatsappRoutes } from './routes/whatsapp.route.js'
 import { mcpRoutes } from './routes/mcp.route.js'
 import { adminMcpRoutes } from './routes/admin-mcp.route.js'
+import { mapsConfigRoutes } from './routes/maps-config.route.js'
+import { mapsPublicRoutes } from './routes/maps-public.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -145,6 +147,9 @@ export async function buildApp() {
   // Public pixel endpoint (no auth)
   await app.register(publicTrackingPixelRoutes, { prefix: '/api/v1' })
 
+  // Public maps endpoints (no auth)
+  await app.register(mapsPublicRoutes, { prefix: '/api/v1' })
+
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
 
@@ -178,6 +183,7 @@ export async function buildApp() {
     await adminApp.register(aiConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(aiChannelsRoutes, { prefix: '/api/v1' })
     await adminApp.register(adminMcpRoutes, { prefix: '/api/v1' })
+    await adminApp.register(mapsConfigRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

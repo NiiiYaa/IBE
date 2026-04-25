@@ -44,6 +44,7 @@ model Organization {
   orgAIConfig                 OrgAIConfig?
   orgAIChannels               OrgAIChannels?
   orgMcpConfig                OrgMcpConfig?
+  orgMapsConfig               OrgMapsConfig?
 }
 
 // roles: super | admin | observer | user
@@ -866,4 +867,19 @@ model PropertyMcpConfig {
   apiKey     String   @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+// ── Maps Config ───────────────────────────────────────────────────────────────
+
+model OrgMapsConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  provider       String       @default("osm") // osm | google | mapbox | here
+  apiKey         String?      // AES-256-CBC encrypted for paid providers
+  poiRadius      Int          @default(1000)  // metres
+  poiCategories  String       @default("[\"restaurants\",\"attractions\",\"transport\",\"shopping\"]")
+  enabled        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }

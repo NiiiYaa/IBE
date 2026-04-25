@@ -9,6 +9,8 @@ import { currencyName, currencySymbol, TOP_CURRENCIES, ALL_CURRENCIES } from '@/
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
 import { useGuestAuth } from '@/hooks/use-guest-auth'
 import { useB2BAgentAuth } from '@/hooks/use-b2b-agent-auth'
+import { MapButton } from '@/components/map/MapButton'
+import type { HeaderMapData } from '@/components/layout/Header'
 
 // ── Shared dropdown shell ─────────────────────────────────────────────────────
 
@@ -295,6 +297,7 @@ interface HeaderSelectorsProps {
   defaultLocale: string
   defaultCurrency: string
   isB2BMode?: boolean | undefined
+  mapData?: HeaderMapData
 }
 
 export function HeaderSelectors({
@@ -303,6 +306,7 @@ export function HeaderSelectors({
   defaultLocale,
   defaultCurrency,
   isB2BMode,
+  mapData,
 }: HeaderSelectorsProps) {
   const { setLocale, setCurrency } = usePreferences()
 
@@ -319,6 +323,7 @@ export function HeaderSelectors({
   return (
     <div className="flex items-center gap-1">
       {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
+      {mapData && <MapButton mapData={mapData} />}
       <CurrencySelector enabledCurrencies={enabledCurrencies} />
       {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
     </div>

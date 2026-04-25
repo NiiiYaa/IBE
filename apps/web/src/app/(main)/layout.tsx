@@ -96,6 +96,8 @@ async function resolveTenantConfig(): Promise<{
   navItems: NavItem[]
   isChain: boolean
   enabledModels: SellModel[]
+  propertyId: number | null
+  orgId: number | null
 }> {
   const reqHeaders = headers()
   const tenantHost  = reqHeaders.get('x-tenant-host')
@@ -111,7 +113,7 @@ async function resolveTenantConfig(): Promise<{
         fetchNavItems(tenant.propertyId),
         fetchEnabledModels(tenant.propertyId),
       ])
-      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels }
+      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: tenant.propertyId, orgId: null }
     }
     if (tenant?.type === 'org') {
       const [orgConfig, pid, enabledModels] = await Promise.all([
@@ -123,7 +125,7 @@ async function resolveTenantConfig(): Promise<{
         pid ? fetchConfig(pid) : Promise.resolve(null),
         pid ? fetchProperty(pid) : Promise.resolve(null),
       ])
-      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true, enabledModels }
+      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true, enabledModels, propertyId: pid, orgId: tenant.orgId }
     }
   }
 
@@ -136,7 +138,7 @@ async function resolveTenantConfig(): Promise<{
         fetchNavItems(pid),
         fetchEnabledModels(pid),
       ])
-      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels }
+      return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: pid, orgId: null }
     }
   }
 
@@ -152,7 +154,7 @@ async function resolveTenantConfig(): Promise<{
         pid ? fetchConfig(pid) : Promise.resolve(null),
         pid ? fetchProperty(pid) : Promise.resolve(null),
       ])
-      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true, enabledModels }
+      return { config: orgConfig, hotelConfig, property, navItems: [], isChain: true, enabledModels, propertyId: pid, orgId }
     }
   }
 
@@ -166,12 +168,12 @@ async function resolveTenantConfig(): Promise<{
     const enabledModels = propertyList?.enabledModels ?? ['b2c', 'b2b']
     if (propertyList?.orgId && (propertyList.mode === 'multi' || propertyList.properties.length > 1)) {
       const orgConfig = await fetchOrgConfig(propertyList.orgId)
-      return { config: orgConfig, hotelConfig: config, property, navItems: [], isChain: true, enabledModels }
+      return { config: orgConfig, hotelConfig: config, property, navItems: [], isChain: true, enabledModels, propertyId: DEFAULT_PROPERTY_ID, orgId: propertyList.orgId }
     }
-    return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels }
+    return { config, hotelConfig: config, property, navItems, isChain: false, enabledModels, propertyId: DEFAULT_PROPERTY_ID, orgId: null }
   }
 
-  return { config: null, hotelConfig: null, property: null, navItems: [], isChain: false, enabledModels: ['b2c', 'b2b'] }
+  return { config: null, hotelConfig: null, property: null, navItems: [], isChain: false, enabledModels: ['b2c', 'b2b'], propertyId: null, orgId: null }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -192,7 +194,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-  const { config, hotelConfig, navItems, property, isChain, enabledModels } = await resolveTenantConfig()
+  const { config, hotelConfig, navItems, property, isChain, enabledModels, propertyId, orgId } = await resolveTenantConfig()
   const reqHeaders = headers()
   const isB2BMode = reqHeaders.get('x-b2b-mode') === 'true'
   const b2bSellerSlug = reqHeaders.get('x-b2b-seller-slug') ?? ''
@@ -205,6 +207,13 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const fontUrl = config?.fontUrl ?? null
   // For locale/currency, use hotelConfig in chain mode — it already merges org defaults
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
+
+  const coords = property?.location?.coordinates
+  const mapData = isChain && orgId
+    ? { mode: 'chain' as const, orgId }
+    : !isChain && propertyId && coords
+      ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: displayName ?? property?.name ?? '', address: property?.location?.address ?? '' }
+      : undefined
 
   const shell = (pageContent: React.ReactNode) => (
     <>
@@ -220,6 +229,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           defaultLocale={localeConfig?.defaultLocale ?? 'en'}
           defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
           isB2BMode={isB2BMode}
+          {...(mapData ? { mapData } : {})}
         />
       </div>
       <div className="flex flex-1 flex-col">

@@ -72,6 +72,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/communication/emails', label: 'Emails', sellerOnly: true },
       { href: '/admin/communication/whatsapp', label: 'WhatsApp', sellerOnly: true },
       { href: '/admin/communication/sms', label: 'SMS', sellerOnly: true },
+      { href: '/admin/config/maps', label: 'Maps', sellerOnly: true },
       { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],
   },

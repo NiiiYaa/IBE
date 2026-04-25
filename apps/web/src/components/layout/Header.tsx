@@ -4,6 +4,10 @@ import { NavMenu } from './NavMenu'
 import { HeaderSelectors } from './HeaderSelectors'
 import { DynamicBrand } from './DynamicBrand'
 
+export type HeaderMapData =
+  | { mode: 'hotel'; propertyId: number; lat: number; lng: number; name: string; address: string }
+  | { mode: 'chain'; orgId: number }
+
 interface HeaderProps {
   logoUrl?: string | null
   displayName?: string | null
@@ -14,6 +18,7 @@ interface HeaderProps {
   defaultLocale?: string
   defaultCurrency?: string
   isB2BMode?: boolean
+  mapData?: HeaderMapData
 }
 
 export function Header({
@@ -25,6 +30,7 @@ export function Header({
   defaultLocale = 'en',
   defaultCurrency = 'USD',
   isB2BMode,
+  mapData,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
@@ -50,6 +56,7 @@ export function Header({
               defaultLocale={defaultLocale}
               defaultCurrency={defaultCurrency}
               isB2BMode={isB2BMode}
+              {...(mapData ? { mapData } : {})}
             />
           </Suspense>
         </div>

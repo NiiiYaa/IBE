@@ -87,6 +87,8 @@ import type {
   AITestResult,
   AIChannelSettings,
   UpdateAIChannelSettingsRequest,
+  MapsConfigResponse,
+  MapsConfigUpdate,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1096,6 +1098,18 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  },
+
+  // ── Maps ─────────────────────────────────────────────────────────────────────
+
+  getMapsConfig(orgId?: number): Promise<MapsConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/maps/config${qs}`)
+  },
+
+  updateMapsConfig(data: MapsConfigUpdate, orgId?: number): Promise<MapsConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/maps/config', { method: 'PUT', body: JSON.stringify(body) })
   },
 
   // ── MCP ──────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ export function encryptApiKey(plaintext: string): string {
   return `${iv.toString('hex')}:${encrypted.toString('hex')}`
 }
 
-function decryptApiKey(stored: string): string {
+export function decryptApiKey(stored: string): string {
   try {
     const colonIdx = stored.indexOf(':')
     if (colonIdx !== 32) return stored // not encrypted (plain text legacy or no-key mode)
@@ -36,7 +36,7 @@ function decryptApiKey(stored: string): string {
   }
 }
 
-function maskApiKey(stored: string): string {
+export function maskApiKey(stored: string): string {
   const plain = decryptApiKey(stored)
   if (plain.length <= 8) return '****'
   return `****${plain.slice(-4)}`
