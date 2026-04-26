@@ -11,7 +11,7 @@ import { PropertySelector } from './PropertySelector'
 import { apiClient } from '@/lib/api-client'
 
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
-type Section = { title: string; items: NavItem[]; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
+type Section = { title: string; items: NavItem[]; href?: string; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 
 const SECTIONS: Section[] = [
   {
@@ -39,6 +39,18 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: 'Cross-Sell',
+    href: '/admin/config/cross-sell',
+    sellerOnly: true,
+    items: [],
+  },
+  {
+    title: 'Groups',
+    href: '/admin/config/groups',
+    sellerOnly: true,
+    items: [],
+  },
+  {
     title: 'Display & Design',
     sellerOnly: true,
     items: [
@@ -50,6 +62,14 @@ const SECTIONS: Section[] = [
       { href: '/admin/design/footer', label: 'Footer' },
       { href: '/admin/design/currency', label: 'Currency' },
       { href: '/admin/design/language', label: 'Language' },
+    ],
+  },
+  {
+    title: 'AI',
+    items: [
+      { href: '/admin/config/ai', label: 'AI Assistant' },
+      { href: '/admin/config/ai/channels', label: 'AI Channels' },
+      { href: '/admin/ai/mcp', label: 'MCPs' },
     ],
   },
   {
@@ -67,8 +87,6 @@ const SECTIONS: Section[] = [
       { href: '/admin/config/org', label: 'Organization', minRole: 'admin', buyerAccessible: true },
       { href: '/admin/config/domain', label: 'Domain', sellerOnly: true },
       { href: '/admin/config/offers', label: 'Offers', sellerOnly: true },
-      { href: '/admin/config/cross-sell', label: 'Cross-Sell', sellerOnly: true },
-      { href: '/admin/config/groups', label: 'Groups', sellerOnly: true },
       { href: '/admin/config/models', label: 'Channels', sellerOnly: true },
       { href: '/admin/config/pixels', label: 'Tracking & Analytics', sellerOnly: true },
       { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin', sellerOnly: true },
@@ -91,14 +109,6 @@ const SECTIONS: Section[] = [
       { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
   },
-  {
-    title: 'AI',
-    items: [
-      { href: '/admin/config/ai', label: 'AI Assistant' },
-      { href: '/admin/config/ai/channels', label: 'AI Channels' },
-      { href: '/admin/ai/mcp', label: 'MCPs' },
-    ],
-  },
   { title: 'Dashboards', comingSoon: true, items: [] },
 ]
 
@@ -116,7 +126,7 @@ function filterSections(sections: Section[], role: string, isBuyerOrg: boolean):
         (!i.sellerOnly || !isBuyerOrg)
       ),
     }))
-    .filter(s => s.comingSoon || s.items.length > 0)
+    .filter(s => s.comingSoon || s.href || s.items.length > 0)
 }
 
 function RoleBadge({ role }: { role: 'admin' | 'super' }) {
@@ -370,7 +380,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
             )}
-            {visibleSections.map(({ title, items: rawItems, minRole, comingSoon }) => {
+            {visibleSections.map(({ title, href: sectionHref, items: rawItems, minRole, comingSoon }) => {
               if (comingSoon) {
                 return (
                   <div key={title} className="flex items-center justify-between rounded-md px-2 py-1.5">
@@ -379,6 +389,24 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                       Soon
                     </span>
                   </div>
+                )
+              }
+              if (sectionHref) {
+                const isActive = pathname === sectionHref
+                return (
+                  <Link
+                    key={title}
+                    href={sectionHref}
+                    className={[
+                      'flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-semibold transition-colors',
+                      isActive
+                        ? 'text-[var(--color-primary)]'
+                        : 'text-[var(--color-text)] hover:bg-[var(--color-background)]',
+                    ].join(' ')}
+                  >
+                    {title}
+                    {minRole && <RoleBadge role={minRole} />}
+                  </Link>
                 )
               }
               const items = rawItems.filter(i =>

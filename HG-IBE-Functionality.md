@@ -76,6 +76,12 @@ Booking statuses: **Confirmed**, **Pending**, **Cancelled**.
 
 ### 3.2 Marketing
 
+#### Channels
+Controls which marketing features are active per sales channel (B2C and B2B independently).
+
+- Toggle on/off per channel: Promo Codes, Price Comparison, Affiliates, Campaigns, and Onsite Conversion
+- Property-level settings inherit from chain defaults and can be overridden per property
+
 #### Promo Codes
 Create and manage discount codes that guests enter at checkout.
 
@@ -135,6 +141,14 @@ Identical structure and functionality to Affiliates, designed for marketing camp
 
 Full visual customisation per property, with chain-level defaults that properties can inherit or override.
 
+#### Brand Defaults (`/admin/design/brand`)
+Per-property brand settings:
+
+- Primary colour, text colour, button colour, border radius
+- Logo URL
+- Favicon (uploaded as image, stored as base64 or URL)
+- Display name, tagline, tab/browser title
+
 #### Chain Page (`/admin/design/chain`)
 Configures the multi-property landing page shown at `/?chain=<orgId>`.
 
@@ -178,14 +192,6 @@ Footer content and links.
 #### Language
 - Enable or disable specific locales (e.g. en, he, ar, de)
 - Set text direction: LTR or RTL (full RTL layout support for Arabic/Hebrew)
-
-#### Brand (`/admin/design/brand`)
-Per-property brand settings:
-
-- Primary colour, text colour, button colour, border radius
-- Logo URL
-- Favicon (uploaded as image, stored as base64 or URL)
-- Display name, tagline, tab/browser title
 
 ---
 
@@ -256,6 +262,32 @@ Global and per-property rules controlling which rates are shown and how booking 
 - **Booking mode** — Single (direct to checkout on rate selection) or Multi (cart-based multi-room selection)
 - **Multi-room limit** — cap rooms by hotel maximum or by number of rooms in the search query
 
+#### Cross-Sell
+Post-booking upsells and add-on products shown to guests after a booking is confirmed.
+
+- **Internal products** — CRUD catalog of add-ons with name, description, image, pricing model, tax, currency, and active/inactive status
+- **Ticketmaster events** — integrates live nearby events as affiliate links
+- **Payment mode** — informational only or online purchase
+- Enable/disable per organisation
+
+#### Groups
+Configuration for group and corporate booking requests.
+
+- **Chain-level settings**: group pricing (percentage discount or surcharge), booking mode (offline inquiry vs. online self-service), cancellation policy with waterfall date ranges, payment schedule
+- **Meal add-ons**: breakfast, lunch, dinner with per-guest-type pricing
+- **Meeting room add-ons**: configurable packages
+- **Complimentary rooms**: for tour guides and drivers
+- **Group policies text**: displayed to guests during the group booking flow
+- Property-level overrides support selective inheritance from chain defaults
+
+#### Channels
+Controls which booking channels are active for the organisation.
+
+- **B2C** — direct public website access
+- **B2B** — travel agent and corporate portal access
+- Disabling a channel blocks access at the API level
+- Warning shown if all channels are disabled (system becomes inaccessible)
+
 #### Tracking & Analytics
 Manage tracking pixels for marketing and analytics platforms.
 
@@ -295,6 +327,40 @@ SMS messaging configuration.
 - Provider: Twilio, Vonage, or AWS SNS
 - Provider credentials (write-only)
 
+#### Maps
+Map provider and points of interest settings for property pages.
+
+- **Provider selection** — OpenStreetMap, Google Maps, Mapbox, and others
+- **POI radius** — configurable from 500 m to 5 km
+- **POI categories** — restaurants, hotels, transit, and others
+- System-level defaults as fallback for organisations without custom config
+- Test connection button
+
+#### Weather
+Weather forecast service configuration for the guest-facing weather strip.
+
+- **Provider** — Open-Meteo
+- **Temperature units** — Celsius or Fahrenheit
+- **Forecast window** — 3–14 days (used for AI agent responses)
+- **Strip display behaviour** — default collapsed, auto-fold timeout
+- Enable/disable; system defaults as fallback
+
+#### Events
+Ticketmaster API integration for local events near the property.
+
+- **API key** — organisation-level key; system key as fallback
+- **Search radius** — 1–50 km
+- **Max results** — cap on events returned
+- **Strip display settings** — shown on property and search pages
+- Enable/disable; test connection button
+
+#### User Manual (Super Admin only)
+Upload and manage the PDF admin user manual distributed to hotel operators.
+
+- Drag-and-drop PDF upload; replaces the existing file
+- Displays current file size and last-updated date
+- Manual is available for download from the admin sidebar
+
 ---
 
 ### 3.6 Team
@@ -313,6 +379,44 @@ Platform-level management of all organisations on the system.
 - List all organisations
 - Create new organisations
 - View/edit organisation settings across tenants
+
+#### B2B Access (Super Admin only)
+Define buyer–seller relationships between organisations.
+
+- Specify which buyer organisations can book from which seller organisations
+- Add or remove access relationships with search and organisation filtering
+- Grouped display by seller showing all connected buyer organisations with creation dates
+
+---
+
+### 3.7 AI
+
+#### AI Assistant
+Conversational AI search and guest assistance, with a hierarchical provider configuration (System → Chain → Property).
+
+- **Provider selection** — OpenAI, Anthropic, and others (plus a Fake provider for development/testing)
+- **Model selection** — per provider
+- **API key** — write-only; stored encrypted
+- **Custom system prompt** — override the default assistant persona and instructions
+- Enable/disable; system and org-level defaults with property-level override support
+- Test connection button
+
+#### AI Channels
+Controls which AI channels are active per sales model (B2C and B2B independently).
+
+- **AI search bar** — conversational search widget on the guest-facing booking engine
+- **WhatsApp** — AI-powered responses via the configured WhatsApp integration
+- **MCP** — Model Context Protocol endpoint for external AI platforms
+- Toggle each channel on/off per model (B2C / B2B); visual indicators show full, partial, or zero enablement
+
+#### MCPs
+Model Context Protocol server for integrating the IBE with external AI platforms (Claude, Cursor, OpenAI, Gemini, Grok, n8n, and others).
+
+- Enable/disable the MCP endpoint
+- Generate or rotate the API key for authenticating external AI clients
+- Control channel access (B2C / B2B)
+- Platform-specific setup snippets (JSON config or SDK integration)
+- **Available MCP tools**: room search, property information, room details, booking link generation
 
 ---
 
@@ -338,7 +442,6 @@ Platform-level management of all organisations on the system.
 
 ## 6. Coming Soon
 
-The following modules are planned and visible in the admin panel as placeholders:
+The following module is planned and visible in the admin panel as a placeholder:
 
 - **Dashboards** — Analytics and reporting dashboards (booking trends, revenue, occupancy)
-- **AI** — AI-powered tools and automation (smart pricing suggestions, guest communication drafts, etc.)

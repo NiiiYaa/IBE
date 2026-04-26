@@ -1,5 +1,24 @@
 export type GroupBookingMode = 'online' | 'offline'
 export type GroupPricingDirection = 'increase' | 'decrease'
+export type GroupRateSelection = 'all' | 'group_only'
+
+export interface GroupRatePriorityItem {
+  board: string  // BoardType value e.g. 'RO', 'BB', 'HB', 'FB', 'AI'
+  isRefundable: boolean
+}
+
+export const DEFAULT_RATE_PRIORITY: GroupRatePriorityItem[] = [
+  { board: 'RO', isRefundable: true },
+  { board: 'RO', isRefundable: false },
+  { board: 'BB', isRefundable: true },
+  { board: 'BB', isRefundable: false },
+  { board: 'HB', isRefundable: true },
+  { board: 'HB', isRefundable: false },
+  { board: 'FB', isRefundable: true },
+  { board: 'FB', isRefundable: false },
+  { board: 'AI', isRefundable: true },
+  { board: 'AI', isRefundable: false },
+]
 
 export interface GroupCancellationRange {
   triggerType: 'on_confirmation' | 'days_before'
@@ -49,6 +68,8 @@ export interface GroupConfig {
   meetingRoomConfig: GroupMeetingRoomConfig
   freeRoomsConfig: GroupFreeRoomsConfig
   groupPolicies: string | null
+  rateSelection: GroupRateSelection
+  ratePriority: GroupRatePriorityItem[]
 }
 
 export interface GroupConfigUpdate {
@@ -64,6 +85,8 @@ export interface GroupConfigUpdate {
   meetingRoomConfig?: GroupMeetingRoomConfig
   freeRoomsConfig?: GroupFreeRoomsConfig
   groupPolicies?: string | null
+  rateSelection?: GroupRateSelection
+  ratePriority?: GroupRatePriorityItem[]
 }
 
 export interface GroupPropertyOverride {
@@ -79,6 +102,8 @@ export interface GroupPropertyOverride {
   meetingRoomConfig: GroupMeetingRoomConfig | null
   freeRoomsConfig: GroupFreeRoomsConfig | null
   groupPolicies: string | null
+  rateSelection: GroupRateSelection | null
+  ratePriority: GroupRatePriorityItem[] | null
 }
 
 // Public resolved config for the groups page
@@ -94,6 +119,8 @@ export interface PublicGroupConfig {
   meetingRoomConfig: GroupMeetingRoomConfig
   freeRoomsConfig: GroupFreeRoomsConfig
   groupPolicies: string | null
+  rateSelection: GroupRateSelection
+  ratePriority: GroupRatePriorityItem[]
 }
 
 // Groups inquiry (offline mode)

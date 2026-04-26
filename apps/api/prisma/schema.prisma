@@ -1132,6 +1132,8 @@ model GroupConfig {
   meetingRoomConfig        Json         @default("{\"enabled\":false,\"pricePerDay\":0}")
   freeRoomsConfig          Json         @default("{\"enabled\":false,\"count\":0}")
   groupPolicies            String?
+  rateSelection            String       @default("all") // "all" | "group_only"
+  ratePriority             Json         @default("[{\"board\":\"RO\",\"isRefundable\":true},{\"board\":\"RO\",\"isRefundable\":false},{\"board\":\"BB\",\"isRefundable\":true},{\"board\":\"BB\",\"isRefundable\":false},{\"board\":\"HB\",\"isRefundable\":true},{\"board\":\"HB\",\"isRefundable\":false},{\"board\":\"FB\",\"isRefundable\":true},{\"board\":\"FB\",\"isRefundable\":false},{\"board\":\"AI\",\"isRefundable\":true},{\"board\":\"AI\",\"isRefundable\":false}]")
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
 }
@@ -1154,6 +1156,8 @@ model PropertyGroupConfig {
   meetingRoomConfig        Json?
   freeRoomsConfig          Json?
   groupPolicies            String?
+  rateSelection            String?
+  ratePriority             Json?
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
 

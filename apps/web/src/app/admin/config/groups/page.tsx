@@ -11,7 +11,9 @@ import type {
   GroupCancellationRange, GroupPaymentRange,
   GroupBookingMode, GroupPricingDirection,
   GroupMealsConfig, GroupMeetingRoomConfig, GroupFreeRoomsConfig,
+  GroupRateSelection, GroupRatePriorityItem,
 } from '@ibe/shared'
+import { DEFAULT_RATE_PRIORITY } from '@ibe/shared'
 
 const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
 const labelCls = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]'
@@ -133,6 +135,76 @@ function RangesEditor({
 
 // ── Chain config editor ───────────────────────────────────────────────────────
 
+const BOARD_LABELS: Record<string, string> = {
+  RO: 'Room Only',
+  BB: 'Bed & Breakfast',
+  HB: 'Half Board',
+  FB: 'Full Board',
+  AI: 'All Inclusive',
+}
+
+function RatePriorityEditor({
+  items,
+  onChange,
+}: {
+  items: GroupRatePriorityItem[]
+  onChange: (items: GroupRatePriorityItem[]) => void
+}) {
+  function move(i: number, dir: -1 | 1) {
+    const j = i + dir
+    if (j < 0 || j >= items.length) return
+    const next = [...items]
+    const tmp = next[i]!
+    next[i] = next[j]!
+    next[j] = tmp
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {items.map((item, i) => (
+        <div key={`${item.board}-${item.isRefundable}`}
+          className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-border)] text-[10px] font-bold text-[var(--color-text-muted)]">{i + 1}</span>
+          <span className="flex-1 text-sm text-[var(--color-text)]">
+            {BOARD_LABELS[item.board] ?? item.board}
+            <span className={['ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium',
+              item.isRefundable
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+            ].join(' ')}>
+              {item.isRefundable ? 'Refundable' : 'Non-refundable'}
+            </span>
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => move(i, -1)}
+              disabled={i === 0}
+              className="flex h-5 w-5 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-border)] disabled:opacity-30">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => move(i, 1)}
+              disabled={i === items.length - 1}
+              className="flex h-5 w-5 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-border)] disabled:opacity-30">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange(DEFAULT_RATE_PRIORITY)}
+        className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] underline">
+        Reset to default order
+      </button>
+    </div>
+  )
+}
+
 type ChainForm = {
   enabled: boolean
   bookingMode: GroupBookingMode
@@ -146,6 +218,8 @@ type ChainForm = {
   meetingRoomConfig: GroupMeetingRoomConfig
   freeRoomsConfig: GroupFreeRoomsConfig
   groupPolicies: string
+  rateSelection: GroupRateSelection
+  ratePriority: GroupRatePriorityItem[]
 }
 
 function toForm(d: GroupConfig): ChainForm {
@@ -162,6 +236,8 @@ function toForm(d: GroupConfig): ChainForm {
     meetingRoomConfig: d.meetingRoomConfig,
     freeRoomsConfig: d.freeRoomsConfig,
     groupPolicies: d.groupPolicies ?? '',
+    rateSelection: d.rateSelection ?? 'all',
+    ratePriority: d.ratePriority ?? DEFAULT_RATE_PRIORITY,
   }
 }
 
@@ -218,6 +294,8 @@ function ChainGroupsConfig({ orgId }: { orgId?: number }) {
       meetingRoomConfig: form.meetingRoomConfig,
       freeRoomsConfig: form.freeRoomsConfig,
       groupPolicies: form.groupPolicies || null,
+      rateSelection: form.rateSelection,
+      ratePriority: form.ratePriority,
     })
   }
 
@@ -421,6 +499,49 @@ function ChainGroupsConfig({ orgId }: { orgId?: number }) {
               onChange={e => set('freeRoomsConfig', { ...form.freeRoomsConfig, count: parseInt(e.target.value) || 0 })} />
           </div>
         )}
+      </div>
+
+      {/* Rates */}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
+        <div>
+          <p className="text-sm font-semibold text-[var(--color-text)]">Rates</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Control which rates are eligible for groups and the order they are displayed and selected.</p>
+        </div>
+
+        {/* Rate Selection */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Rate Selection</p>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 hover:border-[var(--color-primary)]">
+            <input type="radio" name="rateSelection" value="all"
+              checked={form.rateSelection === 'all'}
+              onChange={() => set('rateSelection', 'all')}
+              className="mt-0.5 accent-[var(--color-primary)]" />
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">All Rates</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Use all available rates returned by the search.</p>
+            </div>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 hover:border-[var(--color-primary)]">
+            <input type="radio" name="rateSelection" value="group_only"
+              checked={form.rateSelection === 'group_only'}
+              onChange={() => set('rateSelection', 'group_only')}
+              className="mt-0.5 accent-[var(--color-primary)]" />
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">Group-Designated Rates Only</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Use only rates whose name contains &ldquo;group&rdquo; or &ldquo;groups&rdquo;, or that are explicitly tagged as group rates.</p>
+            </div>
+          </label>
+        </div>
+
+        {/* Rate Priority */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Rate Priority Order</p>
+          <p className="text-xs text-[var(--color-text-muted)]">The first matching rate in this list is used for pricing. Reorder with the arrows.</p>
+          <RatePriorityEditor
+            items={form.ratePriority}
+            onChange={v => set('ratePriority', v)}
+          />
+        </div>
       </div>
 
       {/* Group Policies */}

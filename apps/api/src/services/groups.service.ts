@@ -3,7 +3,9 @@ import type {
   GroupConfig, GroupConfigUpdate, GroupPropertyOverride, PublicGroupConfig,
   GroupCancellationRange, GroupPaymentRange, GroupPricingDirection, GroupBookingMode,
   GroupMealsConfig, GroupMeetingRoomConfig, GroupFreeRoomsConfig,
+  GroupRateSelection, GroupRatePriorityItem,
 } from '@ibe/shared'
+import { DEFAULT_RATE_PRIORITY } from '@ibe/shared'
 
 const DEFAULT_MEALS: GroupMealsConfig = {
   breakfast: { enabled: false, priceAdult: 0, priceChild: 0, priceInfant: 0 },
@@ -19,6 +21,7 @@ function rowToConfig(row: {
   cancellationRanges: unknown; paymentInParWithCancellation: boolean; paymentRanges: unknown
   mealsConfig: unknown; meetingRoomConfig: unknown; freeRoomsConfig: unknown
   groupPolicies?: string | null
+  rateSelection?: string | null; ratePriority?: unknown
 }): GroupConfig {
   return {
     enabled: row.enabled,
@@ -33,6 +36,8 @@ function rowToConfig(row: {
     meetingRoomConfig: (row.meetingRoomConfig as GroupMeetingRoomConfig) ?? DEFAULT_MEETING_ROOM,
     freeRoomsConfig: (row.freeRoomsConfig as GroupFreeRoomsConfig) ?? DEFAULT_FREE_ROOMS,
     groupPolicies: row.groupPolicies ?? null,
+    rateSelection: (row.rateSelection as GroupRateSelection) ?? 'all',
+    ratePriority: (row.ratePriority as GroupRatePriorityItem[]) ?? DEFAULT_RATE_PRIORITY,
   }
 }
 
@@ -44,6 +49,8 @@ const EMPTY_CONFIG: GroupConfig = {
   meetingRoomConfig: DEFAULT_MEETING_ROOM,
   freeRoomsConfig: DEFAULT_FREE_ROOMS,
   groupPolicies: null,
+  rateSelection: 'all',
+  ratePriority: DEFAULT_RATE_PRIORITY,
 }
 
 export async function getGroupConfig(orgId: number): Promise<GroupConfig> {
@@ -65,6 +72,8 @@ export async function updateGroupConfig(orgId: number, update: GroupConfigUpdate
   if (update.meetingRoomConfig !== undefined) data.meetingRoomConfig = update.meetingRoomConfig
   if (update.freeRoomsConfig !== undefined) data.freeRoomsConfig = update.freeRoomsConfig
   if (update.groupPolicies !== undefined) data.groupPolicies = update.groupPolicies
+  if (update.rateSelection !== undefined) data.rateSelection = update.rateSelection
+  if (update.ratePriority !== undefined) data.ratePriority = update.ratePriority
 
   await prisma.groupConfig.upsert({
     where: { organizationId: orgId },
@@ -89,6 +98,8 @@ export async function getPropertyGroupOverride(propertyDbId: number): Promise<Gr
     meetingRoomConfig: (row?.meetingRoomConfig as GroupMeetingRoomConfig | null) ?? null,
     freeRoomsConfig: (row?.freeRoomsConfig as GroupFreeRoomsConfig | null) ?? null,
     groupPolicies: row?.groupPolicies ?? null,
+    rateSelection: (row?.rateSelection as GroupRateSelection | null) ?? null,
+    ratePriority: (row?.ratePriority as GroupRatePriorityItem[] | null) ?? null,
   }
 }
 
@@ -98,7 +109,8 @@ export async function upsertPropertyGroupOverride(
   const data: Record<string, unknown> = { updatedAt: new Date() }
   const fields = ['enabled','bookingMode','groupEmail','pricingDirection','pricingPct',
     'cancellationRanges','paymentInParWithCancellation','paymentRanges',
-    'mealsConfig','meetingRoomConfig','freeRoomsConfig','groupPolicies'] as const
+    'mealsConfig','meetingRoomConfig','freeRoomsConfig','groupPolicies',
+    'rateSelection','ratePriority'] as const
   for (const f of fields) {
     if (f in update) data[f] = update[f] ?? null
   }
@@ -132,6 +144,8 @@ export async function getResolvedGroupConfig(propertyId: number): Promise<Public
     meetingRoomConfig: (o?.meetingRoomConfig ?? c?.meetingRoomConfig ?? DEFAULT_MEETING_ROOM) as GroupMeetingRoomConfig,
     freeRoomsConfig: (o?.freeRoomsConfig ?? c?.freeRoomsConfig ?? DEFAULT_FREE_ROOMS) as GroupFreeRoomsConfig,
     groupPolicies: o?.groupPolicies ?? c?.groupPolicies ?? null,
+    rateSelection: ((o?.rateSelection ?? c?.rateSelection ?? 'all') as GroupRateSelection),
+    ratePriority: ((o?.ratePriority ?? c?.ratePriority ?? DEFAULT_RATE_PRIORITY) as unknown) as GroupRatePriorityItem[],
   }
 }
 

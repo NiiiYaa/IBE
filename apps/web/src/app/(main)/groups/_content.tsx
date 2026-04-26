@@ -10,7 +10,8 @@ import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { NationalityDropdown } from '@/components/search/NationalityDropdown'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { BoardType } from '@ibe/shared'
-import type { RoomOption, RateOption, GroupInquiryRequest } from '@ibe/shared'
+import type { RoomOption, RateOption, GroupInquiryRequest, GroupRatePriorityItem, PublicGroupConfig } from '@ibe/shared'
+import { DEFAULT_RATE_PRIORITY } from '@ibe/shared'
 
 const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
 const labelCls = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]'
@@ -30,15 +31,24 @@ function fmtDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function pickRate(room: RoomOption): RateOption | undefined {
-  const r = room.rates
-  return (
-    r.find(x => x.board === BoardType.RoomOnly && x.isRefundable) ??
-    r.find(x => x.board === BoardType.RoomOnly && !x.isRefundable) ??
-    r.find(x => x.board === BoardType.BedAndBreakfast && x.isRefundable) ??
-    r.find(x => x.board === BoardType.BedAndBreakfast && !x.isRefundable) ??
-    r[0]
-  )
+function isGroupRate(rate: RateOption): boolean {
+  return /\bgroups?\b/i.test(rate.ratePlanName)
+}
+
+function filterRates(rates: RateOption[], cfg: PublicGroupConfig | undefined): RateOption[] {
+  if (!cfg || cfg.rateSelection !== 'group_only') return rates
+  const filtered = rates.filter(isGroupRate)
+  return filtered.length > 0 ? filtered : rates  // fallback to all if none match
+}
+
+function pickRate(room: RoomOption, cfg?: PublicGroupConfig): RateOption | undefined {
+  const priority: GroupRatePriorityItem[] = cfg?.ratePriority ?? DEFAULT_RATE_PRIORITY
+  const eligible = filterRates(room.rates, cfg)
+  for (const p of priority) {
+    const match = eligible.find(x => x.board === p.board && x.isRefundable === p.isRefundable)
+    if (match) return match
+  }
+  return eligible[0]
 }
 
 function applyGroupPrice(base: number, direction: 'increase' | 'decrease', pct: number): number {
@@ -211,7 +221,7 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
   const currency = rooms[0]?.rates[0]?.prices.sell.currency ?? 'USD'
 
   function groupPrice(room: RoomOption): number {
-    const base = pickRate(room)?.prices.sell.amount ?? 0
+    const base = pickRate(room, groupCfg ?? undefined)?.prices.sell.amount ?? 0
     if (!groupCfg) return base
     return applyGroupPrice(base, groupCfg.pricingDirection, groupCfg.pricingPct)
   }

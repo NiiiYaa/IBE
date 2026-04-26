@@ -65,11 +65,39 @@ src/
 | Nav | `GET/POST/PUT/DELETE /api/v1/nav` |
 | Sync | `POST /api/v1/sync/property/:id` (cache invalidation) |
 | Admin | Org, properties, settings management |
+| Admin Bookings | Booking management for admin panel |
+| Admin Guests | Guest list, detail, notes, block/unblock |
+| Auth | Admin login, Google OAuth, password reset |
+| B2B Auth | B2B JWT login for travel agent portals |
+| B2B Access | Super-admin buyer–seller org relationships |
 | Rates | `GET /api/v1/rates` (exchange rates) |
 | Promo | `GET/POST/PUT/DELETE /api/v1/promo-codes` |
+| Affiliates | Affiliate CRUD + property overrides |
+| Campaigns | Campaign CRUD + property overrides |
 | Communication | Email/WhatsApp/SMS settings |
+| WhatsApp | WhatsApp provider config |
 | Messages | Message rule management |
+| Offers | Offers & constraints config (global + property) |
+| Marketing | Marketing channel feature toggles |
 | Price Comparison | OTA price results |
+| Onsite Conversion | Social proof widget config + public data |
+| Tracking Pixels | Pixel CRUD per org/property |
+| Cross-Sell | Post-booking upsell products + Ticketmaster |
+| Groups | Group booking config (chain + property level) |
+| AI Config | AI provider config (system/org/property) |
+| AI Channels | AI channel toggles per sales model |
+| AI Chat | Conversational AI search (SSE streaming) |
+| MCP (public) | MCP tool endpoint for external AI platforms |
+| Admin MCP | MCP config management |
+| Maps Config | Map provider + POI settings |
+| Maps Public | POI data served to guest-facing pages |
+| Weather Config | Weather provider settings |
+| Weather Public | Forecast data served to guest-facing pages |
+| Events Config | Ticketmaster integration settings |
+| Events Public | Nearby events served to guest-facing pages |
+| Manual | PDF user manual upload/download |
+| Users | Admin user invite, role, property assignment |
+| Property Override | Per-property setting overrides |
 
 ### Payment Flows
 
@@ -85,8 +113,8 @@ Three supported flows, determined per rate plan:
 
 - **HyperGuest:** Bearer token (`HYPERGUEST_BEARER_TOKEN`)
 - **Stripe webhooks:** Signature validation (`STRIPE_WEBHOOK_SECRET`)
-- **Admin routes:** Not yet protected (B2B JWT auth stubbed, not wired)
-- **B2B JWT:** `JWT_SECRET` env var present, planned for future
+- **Admin routes:** Email/password + Google OAuth; JWT session cookie
+- **B2B routes:** Separate JWT flow (`JWT_SECRET`) for travel agent portals
 
 ---
 
@@ -160,19 +188,59 @@ Schema files:
 
 | Model | Purpose |
 |-------|---------|
+| `Organization` | Top-level tenant — org type (seller/buyer), slug, name |
+| `AdminUser` | Admin panel users — role, email, Google OAuth, password hash |
+| `AdminUserProperty` | Many-to-many: admin user ↔ assigned properties |
 | `Booking` | Confirmed reservations — guest info, dates, amounts, Stripe intent ID, HyperGuest booking ID |
 | `BookingRoom` | Individual rooms within a booking |
+| `Guest` | Registered guest accounts — email, name, phone, block status |
+| `GuestNote` | Timestamped admin notes per guest |
 | `SearchSession` | Short-lived search replay cache (expires via TTL) |
 | `HotelConfig` | Per-property design tokens, enabled currencies/locales, branding, carousel settings |
 | `OrgSettings` | Organization-wide config — HyperGuest credentials, domain, TLS cert, property mode |
+| `OrgDesignDefaults` | Chain-level design defaults inherited by properties |
+| `SystemDesignConfig` | Platform-level design defaults (super admin) |
 | `Property` | Registry of active HyperGuest property IDs |
 | `PromoCode` | Discount codes — type (fixed/percent), validity window, max uses, soft delete |
-| `NavItem` | Custom header/footer navigation links per property |
+| `NavItem` | Custom header navigation links per property |
+| `OrgNavItem` | Organisation-level nav items |
+| `OrgNavItemOverride` / `PropertyItemOverride` | Per-property nav overrides |
 | `StripePaymentRecord` | Stripe intent state tracking per booking |
 | `CommunicationSettings` | Email/WhatsApp/SMS provider credentials and toggles |
+| `SystemCommunicationSettings` | Platform-level communication defaults |
 | `MessageRule` | Transactional message triggers — channel, timing, offset from booking event |
+| `OnsiteConversionSettings` | Social proof widget config (org level) |
+| `PropertyOnsiteConversionSettings` | Property-level onsite conversion overrides |
+| `OrgOffersSettings` | Offers & constraints config (org level) |
+| `PropertyOffersSettings` | Per-property offers overrides |
 | `PriceComparisonOta` | OTA registry for price comparison (name, URL, enabled) |
 | `PriceComparisonCache` | Cached OTA price results with TTL-based expiry |
+| `Affiliate` | Affiliate partners — commission rate, guest discount, scope |
+| `AffiliateBooking` | Commission snapshot recorded at booking time |
+| `Campaign` | Marketing campaigns — same structure as affiliates + media field |
+| `CampaignBooking` | Campaign commission snapshot recorded at booking time |
+| `TrackingPixel` | Marketing pixel snippets — pages, scope, enable/disable |
+| `OrgMarketingSettings` | Marketing channel feature toggles (B2C/B2B) per org |
+| `PropertyMarketingSettings` | Property-level marketing overrides |
+| `OrgB2BAccess` | Buyer–seller organisation relationships |
+| `SystemAIConfig` | Platform-level AI provider defaults |
+| `OrgAIConfig` | Org-level AI provider config (inherits from system) |
+| `PropertyAIConfig` | Property-level AI config overrides |
+| `OrgAIChannels` | AI channel toggles per sales model (B2C/B2B) per org |
+| `SystemMcpConfig` | Platform-level MCP defaults |
+| `OrgMcpConfig` | Org-level MCP config — API key, channel access |
+| `PropertyMcpConfig` | Property-level MCP overrides |
+| `SystemMapsConfig` | Platform-level maps defaults |
+| `OrgMapsConfig` | Org-level map provider + POI settings |
+| `SystemWeatherConfig` | Platform-level weather defaults |
+| `OrgWeatherConfig` | Org-level weather provider settings |
+| `SystemEventsConfig` | Platform-level events (Ticketmaster) defaults |
+| `OrgEventsConfig` | Org-level Ticketmaster API config |
+| `CrossSellConfig` | Org-level cross-sell enable/disable + payment mode |
+| `CrossSellProduct` | Internal add-on product catalog |
+| `PropertyCrossSellConfig` | Property-level cross-sell overrides |
+| `GroupConfig` | Chain-level group booking settings (pricing, meals, policies) |
+| `PropertyGroupConfig` | Property-level group config overrides |
 
 ---
 
@@ -207,6 +275,10 @@ Cache invalidation: TTL-based auto-expiry + manual flush via `POST /api/v1/sync/
 | **Vonage / AWS SNS** | SMS alternatives | Encrypted in `CommunicationSettings` DB record |
 | **Xotelo** | OTA price data (TripAdvisor aggregator API) | No credentials (free public API) |
 | **Playwright** | Fallback OTA scraper (when Xotelo key unavailable) | No credentials |
+| **OpenAI / Anthropic / others** | AI assistant and conversational search | Encrypted in `OrgAIConfig` / `SystemAIConfig` DB records |
+| **Open-Meteo** | Weather forecasts for guest-facing weather strip | No credentials (free public API) |
+| **Ticketmaster** | Local events near property | API key in `OrgEventsConfig` DB record; system key as fallback |
+| **OpenStreetMap / Google Maps / Mapbox** | Map tiles and points of interest | Provider-dependent; config in `OrgMapsConfig` DB record |
 
 ---
 
