@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig, GlobalDesignAdminResponse } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
@@ -65,7 +65,7 @@ export default function GlobalBrandPage() {
   const [draft, setDraft] = useState<Draft>({})
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
-  const initialized = { current: false }
+  const initialized = useRef(false)
 
   const { data, isLoading } = useQuery<GlobalDesignAdminResponse>({
     queryKey: ['global-design-defaults'],

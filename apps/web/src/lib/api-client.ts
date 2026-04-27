@@ -840,13 +840,15 @@ export const apiClient = {
   },
 
   /** Get org-level design defaults + system defaults for inheritance display */
-  getGlobalDesignDefaults(): Promise<GlobalDesignAdminResponse> {
-    return apiRequest<GlobalDesignAdminResponse>('/api/v1/admin/design/global')
+  getGlobalDesignDefaults(orgId?: number): Promise<GlobalDesignAdminResponse> {
+    const q = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest<GlobalDesignAdminResponse>(`/api/v1/admin/design/global${q}`)
   },
 
   /** Update org-level design defaults */
-  updateGlobalDesignDefaults(data: Partial<OrgDesignDefaultsConfig>): Promise<GlobalDesignAdminResponse> {
-    return apiRequest<GlobalDesignAdminResponse>('/api/v1/admin/design/global', {
+  updateGlobalDesignDefaults(data: Partial<OrgDesignDefaultsConfig>, orgId?: number): Promise<GlobalDesignAdminResponse> {
+    const q = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest<GlobalDesignAdminResponse>(`/api/v1/admin/design/global${q}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })

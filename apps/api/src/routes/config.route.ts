@@ -212,7 +212,10 @@ export async function configRoutes(fastify: FastifyInstance) {
 
   // GET /admin/design/global — get org-level design defaults + system defaults for inheritance display
   fastify.get('/admin/design/global', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const query = request.query as { orgId?: string }
+    const orgId = request.admin.role === 'super' && query.orgId
+      ? parseInt(query.orgId, 10)
+      : request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const [overrides, systemDefaults] = await Promise.all([getOrgDesignDefaults(orgId), loadSystemDesign()])
     return reply.send({ overrides, systemDefaults })
@@ -228,7 +231,10 @@ export async function configRoutes(fastify: FastifyInstance) {
 
   // PUT /admin/design/global — update org-level design defaults
   fastify.put('/admin/design/global', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const query = request.query as { orgId?: string }
+    const orgId = request.admin.role === 'super' && query.orgId
+      ? parseInt(query.orgId, 10)
+      : request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const body = request.body as Record<string, unknown>
     try {
