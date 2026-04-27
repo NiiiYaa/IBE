@@ -9,6 +9,7 @@ import { countryFlag, countryName } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { usePreferences } from '@/context/preferences'
 import { useAiMode } from '@/context/ai-mode'
+import { useSearchSelection } from '@/context/search-selection'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
@@ -73,6 +74,7 @@ export function SearchBar({
   }
 
   // ── AI Mode ──────────────────────────────────────────────────────────────────
+  const { setSelection } = useSearchSelection()
   const { setAiLayout } = useAiMode()
   const [aiMode, setAiMode] = useState(false)
 
@@ -92,6 +94,11 @@ export function SearchBar({
   }, [aiMode])
 
   const [selectedPropertyId, setSelectedPropertyId] = useState(propertyId)
+
+  useEffect(() => {
+    const prop = (properties ?? []).find(p => p.id === selectedPropertyId)
+    setSelection({ propertyId: selectedPropertyId, propertyName: prop?.name ?? '', city: prop?.city ?? '' })
+  }, [selectedPropertyId])
 
   // Derive unique cities and track selected city; '' means "All"
   const cities = showCitySelector && properties

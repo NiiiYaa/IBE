@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { usePreferences } from '@/context/preferences'
+import { useSearchSelection } from '@/context/search-selection'
 import { localeName, localeFlag } from '@/lib/locales'
 import { currencyName, currencySymbol, TOP_CURRENCIES, ALL_CURRENCIES } from '@/lib/currencies'
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
@@ -313,8 +314,11 @@ export function HeaderSelectors({
   groupsPropertyId,
 }: HeaderSelectorsProps) {
   const { setLocale, setCurrency } = usePreferences()
+  const { selection } = useSearchSelection()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  const effectiveGroupsPropertyId = selection.propertyId ?? groupsPropertyId
 
   useEffect(() => {
     const savedLocale = localStorage.getItem('ibe-locale')
@@ -334,7 +338,7 @@ export function HeaderSelectors({
       {showGroupsButton && (
         <a
           href={
-            (groupsPropertyId ? `/groups?hotelId=${groupsPropertyId}` : '/groups') +
+            (effectiveGroupsPropertyId ? `/groups?hotelId=${effectiveGroupsPropertyId}` : '/groups') +
             `&returnTo=${encodeURIComponent(currentUrl)}`
           }
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
