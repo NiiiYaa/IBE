@@ -555,7 +555,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                   ) : isSuper && orgId !== null ? (
                     <>
                       Configuring: <span className="font-semibold">
-                        {properties.find(p => p.orgId === orgId)?.orgName ?? `Org ${orgId}`}
+                        {(() => {
+                          const o = superOrgs?.find(o => o.id === orgId)
+                          const hgId = o?.hyperGuestOrgId
+                          return o?.name ? `${o.name}${hgId ? ` (#${hgId})` : ''}` : `Org ${orgId}`
+                        })()}
                       </span>
                       <span className="ml-1 text-amber-600">— chain level</span>
                     </>
