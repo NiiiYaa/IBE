@@ -338,12 +338,14 @@ export function HeaderSelectors({
       {showGroupsButton && (
         <a
           href={
-            (effectiveGroupsPropertyId ? `/groups?hotelId=${effectiveGroupsPropertyId}` : '/groups') +
-            `&returnTo=${encodeURIComponent(currentUrl)}`
+            pathname.startsWith('/groups')
+              ? (searchParams.get('returnTo') ?? '/')
+              : (effectiveGroupsPropertyId ? `/groups?hotelId=${effectiveGroupsPropertyId}` : '/groups') +
+                `&returnTo=${encodeURIComponent(currentUrl)}`
           }
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
         >
-          FIT
+          {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
         </a>
       )}
       {mapData && <MapButton mapData={mapData} />}
