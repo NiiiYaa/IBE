@@ -212,7 +212,12 @@ export function SearchBar({
       nationality: nationality || undefined,
       promoCode: promoCode || undefined,
     })
-    router.push(`/search?${qs.toString()}`)
+    const url = `/search?${qs.toString()}`
+    if (properties && properties.length > 1) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } else {
+      router.push(url)
+    }
   }
 
   const nationalityLabel = nationality
@@ -258,6 +263,16 @@ export function SearchBar({
       <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200">
         {/* ── Standard bar ─────────────────────────────────────────────────── */}
         <>
+            {/* AI Mode — far left */}
+            {aiEnabled && (
+              <>
+                <div className="flex items-center py-2 pl-3 pr-2">
+                  <AiModeButton active={aiMode} onClick={toggleAiMode} />
+                </div>
+                <Divider />
+              </>
+            )}
+
             {showCitySelector && cities.length > 1 && (
               <>
                 <Segment
@@ -265,6 +280,7 @@ export function SearchBar({
                   value={selectedCity || 'All'}
                   active={activePanel === 'city'}
                   onClick={() => openPanel('city')}
+                  flex={0.7}
                 />
                 <Divider />
               </>
@@ -277,6 +293,7 @@ export function SearchBar({
                   value={selectedProperty?.name ?? 'Select property'}
                   active={activePanel === 'property'}
                   onClick={() => openPanel('property')}
+                  flex={2.5}
                 />
                 <Divider />
               </>
@@ -287,6 +304,7 @@ export function SearchBar({
               value={displayDate(checkIn) || 'Select date'}
               active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
               onClick={() => openCalendar('checkin')}
+              flex={1.3}
             />
 
             <Divider />
@@ -296,11 +314,12 @@ export function SearchBar({
               value={displayDate(checkOut) || 'Select date'}
               active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
               onClick={() => openCalendar('checkout')}
+              flex={1.3}
             />
 
             <Divider />
 
-            <div className="flex shrink-0 flex-col items-center justify-center px-4 py-2">
+            <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
               <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
                 Nights
               </span>
@@ -330,17 +349,17 @@ export function SearchBar({
             />
 
             {/* CTA */}
-            <div className="flex items-center gap-2 py-2 pl-1 pr-3">
+            <div className="flex items-center py-2 pl-1 pr-2">
               <button
                 ref={checkBtnRef}
                 onClick={handleSearch}
                 disabled={nights <= 0}
-                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-5 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Check availability
               </button>
-              {aiEnabled && <AiModeButton active={aiMode} onClick={toggleAiMode} />}
             </div>
+
           </>
       </div>
 
@@ -703,19 +722,22 @@ function Segment({
   active,
   onClick,
   panelId,
+  flex = 1,
 }: {
   label: string
   value: string
   active: boolean
   onClick: () => void
   panelId?: string
+  flex?: number
 }) {
   return (
     <button
       onClick={onClick}
       data-segment={panelId}
+      style={{ flexGrow: flex, flexShrink: 1, flexBasis: '0%' }}
       className={[
-        'flex min-w-0 flex-1 flex-col items-start justify-center px-4 py-2 transition-colors',
+        'flex min-w-0 flex-col items-start justify-center px-4 py-2 transition-colors',
         active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
       ].join(' ')}
     >

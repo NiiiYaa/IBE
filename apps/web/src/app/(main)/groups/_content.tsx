@@ -66,7 +66,7 @@ function Segment({ label, value, active, onClick, panelId }: {
       onClick={onClick}
       data-segment={panelId}
       className={[
-        'flex min-w-0 flex-1 flex-col items-start justify-center px-4 py-2 transition-colors',
+        'flex min-w-0 flex-1 flex-col items-start justify-center px-6 py-4 transition-colors',
         active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
       ].join(' ')}
     >
@@ -77,7 +77,7 @@ function Segment({ label, value, active, onClick, panelId }: {
 }
 
 function Divider() {
-  return <div className="my-3 w-px shrink-0 bg-[var(--color-border)]" />
+  return <div className="my-4 w-px shrink-0 bg-[var(--color-border)]" />
 }
 
 // ── Step indicator ────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ type MealSelection = { selected: boolean; adults: number; children: number; infa
 
 const MEAL_LABELS: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
 
-export function GroupsContent({ propertyId }: { propertyId: number }) {
+export function GroupsContent({ propertyId, returnTo }: { propertyId: number; returnTo?: string }) {
   const today = todayIso()
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -365,7 +365,20 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--color-text)]">Group Booking</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-[var(--color-text)]">Group Booking</h1>
+          {returnTo && (
+            <a
+              href={returnTo}
+              className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to FIT
+            </a>
+          )}
+        </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Special rates for groups of 10 or more rooms.
         </p>
@@ -395,7 +408,7 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                 onClick={() => openCalendar('checkout')}
               />
               <Divider />
-              <div className="flex shrink-0 flex-col items-center justify-center px-4 py-2">
+              <div className="flex shrink-0 flex-col items-center justify-center px-6 py-4">
                 <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">Nights</span>
                 <span className="text-sm font-semibold text-[var(--color-text)]">{nights > 0 ? nights : '—'}</span>
               </div>
@@ -407,11 +420,11 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                 onClick={() => setActivePanel(p => p === 'nationality' ? null : 'nationality')}
                 panelId="nationality"
               />
-              <div className="flex items-center py-2 pl-1 pr-3">
+              <div className="flex items-center py-3 pl-2 pr-4">
                 <button
                   onClick={handleSearch}
                   disabled={searching || nights <= 0}
-                  className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-7 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {searching ? 'Searching…' : 'Check availability'}
                 </button>
@@ -496,11 +509,6 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                 {displayDate(checkIn)} → {displayDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
                 <span className="hidden sm:inline"> · {countryName(nationality)}</span>
               </p>
-              {groupCfg.pricingPct > 0 && (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Group rate: {groupCfg.pricingDirection === 'decrease' ? '−' : '+'}{groupCfg.pricingPct}% applied
-                </p>
-              )}
             </div>
             <button onClick={() => { setStep(1); setSelections({}) }}
               className="text-sm text-[var(--color-text-muted)] underline-offset-2 hover:underline">

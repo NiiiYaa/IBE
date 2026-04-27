@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { PreferencesProvider } from '@/context/preferences'
+import { SearchSelectionProvider } from '@/context/search-selection'
 
 // Never SSR the devtools — they read from the browser DOM and produce
 // different output on server vs client, causing hydration errors.
@@ -25,7 +26,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <PreferencesProvider>
-        {children}
+        <SearchSelectionProvider>
+          {children}
+        </SearchSelectionProvider>
       </PreferencesProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

@@ -23,8 +23,8 @@ const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] |
 export default function GroupsPage({
   searchParams,
 }: {
-  searchParams: { hotelId?: string }
+  searchParams: { hotelId?: string; returnTo?: string }
 }) {
   const propertyId = searchParams.hotelId ? Number(searchParams.hotelId) || DEFAULT_PROPERTY_ID : DEFAULT_PROPERTY_ID
-  return <GroupsContent propertyId={propertyId} />
+  return <GroupsContent propertyId={propertyId} returnTo={searchParams.returnTo} />
 }

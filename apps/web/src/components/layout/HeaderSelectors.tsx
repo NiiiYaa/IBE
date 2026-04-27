@@ -313,6 +313,8 @@ export function HeaderSelectors({
   groupsPropertyId,
 }: HeaderSelectorsProps) {
   const { setLocale, setCurrency } = usePreferences()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     const savedLocale = localStorage.getItem('ibe-locale')
@@ -324,15 +326,20 @@ export function HeaderSelectors({
 
   const showLocale = enabledLocales.length > 1
 
+  const currentUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
+
   return (
     <div className="flex items-center gap-1">
       {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
       {showGroupsButton && (
         <a
-          href={groupsPropertyId ? `/groups?hotelId=${groupsPropertyId}` : '/groups'}
+          href={
+            (groupsPropertyId ? `/groups?hotelId=${groupsPropertyId}` : '/groups') +
+            `&returnTo=${encodeURIComponent(currentUrl)}`
+          }
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
         >
-          Groups
+          FIT
         </a>
       )}
       {mapData && <MapButton mapData={mapData} />}

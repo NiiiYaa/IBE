@@ -40,7 +40,7 @@ export async function searchRoutes(fastify: FastifyInstance) {
 
     // Enforce enabled sell models for this org
     const hotelId = (parseResult.data as { hotelId: number }).hotelId
-    const prop = await prisma.property.findUnique({ where: { id: hotelId }, select: { organizationId: true } })
+    const prop = await prisma.property.findUnique({ where: { propertyId: hotelId }, select: { organizationId: true } })
     if (prop?.organizationId) {
       const orgSettings = await getOrgSettings(prop.organizationId)
       if (!orgSettings.enabledModels.includes(channel)) {
