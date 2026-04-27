@@ -191,7 +191,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const propertyMode = isSuper ? 'multi' : (propertiesData?.mode ?? 'single')
   const realProperties = properties.filter(p => !p.isDemo)
   const showPropertySelector = isSuper
-    ? properties.length > 1
+    ? true
     : propertyMode === 'multi' && realProperties.length > 1
 
   const isAuthPage = pathname === '/admin/login' || pathname === '/admin/signup'

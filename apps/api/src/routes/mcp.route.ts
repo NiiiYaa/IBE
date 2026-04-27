@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { validateApiKey } from '../services/mcp.service.js'
 import { search } from '../services/search.service.js'
@@ -5,6 +8,10 @@ import { getPropertyDetail } from '../services/static.service.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const WIDGET_HTML = readFileSync(join(__dirname, '../mcp-widget.html'), 'utf8')
+const WIDGET_URI  = 'hotel://widget/room-results'
 
 const SERVER_INFO = { name: 'IBE MCP Server', version: '1.0.0' }
 const PROTOCOL_VERSION = '2024-11-05'
@@ -101,7 +108,7 @@ async function handleToolCall(
   toolName: string,
   args: Record<string, unknown>,
   defaultPropertyId: number | null,
-): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+): Promise<{ content: { type: string; text: string }[]; structuredContent?: unknown; _meta?: unknown; isError?: boolean }> {
   const pid = (args['propertyId'] as number | undefined) ?? defaultPropertyId ?? 0
 
   if (toolName === 'get_property_info') {
@@ -154,7 +161,20 @@ async function handleToolCall(
           boardType: r.boardLabel,
         })),
       }))
-      return mcpResult(JSON.stringify({ searchId: results.searchId, rooms: summary, currency: results.currency }))
+      const structuredContent = { searchId: results.searchId, rooms: summary, currency: results.currency }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        _meta: {
+          ui: { resourceUri: WIDGET_URI },
+          ...structuredContent,
+          propertyId: pid,
+          checkIn,
+          checkOut,
+          adults,
+          webBaseUrl: env.WEB_BASE_URL,
+        },
+      }
     } catch (err) {
       return mcpError(err instanceof Error ? err.message : 'Search failed')
     }
@@ -219,7 +239,7 @@ async function dispatchJsonRpc(
   if (body.method === 'initialize') {
     return {
       jsonrpc: '2.0',
-      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO },
+      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {}, resources: {} }, serverInfo: SERVER_INFO },
       id: body.id ?? null,
     }
   }
@@ -228,6 +248,34 @@ async function dispatchJsonRpc(
 
   if (body.method === 'tools/list') {
     return { jsonrpc: '2.0', result: { tools: MCP_TOOLS }, id: body.id ?? null }
+  }
+
+  if (body.method === 'resources/list') {
+    return {
+      jsonrpc: '2.0',
+      result: {
+        resources: [{
+          uri:      WIDGET_URI,
+          name:     'Room Results Widget',
+          mimeType: 'text/html;profile=mcp-app',
+        }],
+      },
+      id: body.id ?? null,
+    }
+  }
+
+  if (body.method === 'resources/read') {
+    const uri = (body.params as { uri?: string } | undefined)?.uri
+    if (uri !== WIDGET_URI) {
+      return { jsonrpc: '2.0', error: { code: -32002, message: 'Resource not found' }, id: body.id ?? null }
+    }
+    return {
+      jsonrpc: '2.0',
+      result: {
+        contents: [{ uri: WIDGET_URI, mimeType: 'text/html;profile=mcp-app', text: WIDGET_HTML }],
+      },
+      id: body.id ?? null,
+    }
   }
 
   if (body.method === 'tools/call') {

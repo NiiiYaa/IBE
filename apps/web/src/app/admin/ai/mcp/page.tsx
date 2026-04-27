@@ -15,13 +15,14 @@ function getMcpEndpoint(): string {
   return `${window.location.origin}/api/v1/mcp`
 }
 
-type Platform = 'claude' | 'cursor' | 'windsurf' | 'openai' | 'gemini' | 'grok' | 'n8n'
+type Platform = 'claude' | 'cursor' | 'windsurf' | 'chatgpt' | 'openai' | 'gemini' | 'grok' | 'n8n'
 
 const PLATFORMS: { id: Platform; label: string }[] = [
   { id: 'claude',   label: 'Claude Desktop' },
   { id: 'cursor',   label: 'Cursor' },
   { id: 'windsurf', label: 'Windsurf' },
-  { id: 'openai',   label: 'OpenAI / ChatGPT' },
+  { id: 'chatgpt',  label: 'ChatGPT App' },
+  { id: 'openai',   label: 'OpenAI Agents SDK' },
   { id: 'gemini',   label: 'Gemini' },
   { id: 'grok',     label: 'Grok / X' },
   { id: 'n8n',      label: 'n8n' },
@@ -109,10 +110,62 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
     </div>
   )
 
+  if (platform === 'chatgpt') return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+        <strong>Auth limitation:</strong> ChatGPT Apps only support OAuth 2.1 or no authentication — Bearer API keys are not supported. Until OAuth is implemented, the MCP endpoint can be used without authentication (contact support to enable public mode).
+      </div>
+
+      <div>
+        <p className="mb-2 font-medium text-[var(--color-text)]">Your MCP endpoint</p>
+        <EndpointInfo endpoint={endpoint} apiKey={apiKey} protocol="MCP JSON-RPC 2.0 (Streamable HTTP)" />
+      </div>
+
+      <div className="space-y-3">
+        <p className="font-medium text-[var(--color-text)]">Setup steps in ChatGPT</p>
+        <ol className="space-y-3 text-[var(--color-text-muted)]">
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
+            <span>In ChatGPT go to <strong>Settings → Apps &amp; Connectors → Advanced settings</strong> and enable <strong>Developer mode</strong>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
+            <span>Under <strong>Connectors</strong>, click <strong>Create</strong>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
+            <div className="space-y-1">
+              <p>Fill in the form:</p>
+              <ul className="ml-3 space-y-1 list-disc list-inside">
+                <li><strong>Connector name</strong> — e.g. &quot;Hotel Booking&quot;</li>
+                <li><strong>Description</strong> — e.g. &quot;Search rooms and create booking links&quot;</li>
+                <li><strong>Connector URL</strong> — paste the endpoint above</li>
+                <li><strong>Authentication</strong> — select <em>No authentication</em> (OAuth coming soon)</li>
+              </ul>
+            </div>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
+            <span>Click <strong>Create</strong>. ChatGPT will discover the available tools automatically.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
+            <span>Start a conversation, click <strong>+</strong> to add the connector, and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
+          </li>
+        </ol>
+      </div>
+
+      <p className="text-xs text-[var(--color-text-muted)]">
+        After updating tools on the server, click <strong>Refresh</strong> in the connector settings to pull the latest definitions.{' '}
+        <a href="https://developers.openai.com/apps-sdk/deploy/connect-chatgpt" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Full docs ↗</a>
+      </p>
+    </div>
+  )
+
   if (platform === 'openai') return (
     <div className="space-y-3 text-sm">
       <p className="text-[var(--color-text-muted)]">
-        Use with the <strong>OpenAI Agents SDK</strong>:
+        Use with the <strong>OpenAI Agents SDK</strong> (Python):
       </p>
       <CodeBlock language="python" code={`from agents import Agent, MCPServerStreamableHTTP
 
@@ -126,7 +179,6 @@ agent = Agent(
     instructions="Help guests find and book hotel rooms.",
     mcp_servers=[hotel_mcp],
 )`} />
-      <p className="text-[var(--color-text-muted)]">For <strong>Custom GPTs</strong>, use the endpoint and API key to create an Action with an OpenAPI schema.</p>
     </div>
   )
 
@@ -253,25 +305,25 @@ export default function AdminMcpPage() {
   const isPropertyLevel = propertyId !== null
   const superOrgId = admin?.role === 'super' ? (orgId ?? undefined) : undefined
 
-  if (isSystemLevel) return <SystemMcpSection />
-
   const mcpQKey = isPropertyLevel
     ? ['admin-mcp-property', propertyId]
     : ['admin-mcp-org', superOrgId]
-
   const channelsQKey = ['admin-ai-channels', superOrgId]
 
+  // All hooks must be called unconditionally — no early returns before this point
   const { data: mcpData, isLoading: mcpLoading } = useQuery({
     queryKey: mcpQKey,
     queryFn: () =>
       isPropertyLevel
         ? apiClient.getPropertyMcpConfig(propertyId!)
         : apiClient.getOrgMcpConfig(superOrgId),
+    enabled: !isSystemLevel,
   })
 
   const { data: channelsData, isLoading: channelsLoading } = useQuery({
     queryKey: channelsQKey,
     queryFn: () => apiClient.getOrgAIChannels(superOrgId),
+    enabled: !isSystemLevel,
   })
 
   const [mcpEndpoint, setMcpEndpoint] = useState('/api/v1/mcp')
@@ -339,6 +391,9 @@ export default function AdminMcpPage() {
     setChannelModels(next)
     updateChannels(next)
   }
+
+  // Early returns after all hooks
+  if (isSystemLevel) return <SystemMcpSection />
 
   if (mcpLoading || channelsLoading) {
     return <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">Loading…</div>
