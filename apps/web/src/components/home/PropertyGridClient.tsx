@@ -88,13 +88,14 @@ export function PropertyGridClient({ initial, remaining, layout }: Props) {
         const descs = (detail?.descriptions ?? []) as Array<{ locale: string; text: string }>
         const desc = descs.find(d => d.locale === 'en') ?? descs[0]
         const location = detail?.location as { city?: string; address?: string } | undefined
+        const tagline = cfg?.tagline as string | undefined
         return {
           id: entry.propertyId,
           name: (detail?.name as string | undefined) ?? entry.name,
           starRating: (detail?.starRating as number | undefined) ?? 0,
           imageUrl,
-          city: location?.city ?? '',
-          address: location?.address ?? '',
+          city: tagline ? '' : (location?.city ?? ''),
+          address: tagline ?? location?.address ?? '',
           description: desc?.text ?? '',
           facilities: (detail?.facilities ?? []) as PropertyFacility[],
         }
