@@ -41,9 +41,9 @@ export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }
         <Image
           src={logoUrl}
           alt={displayName ?? 'Hotel'}
-          width={120}
-          height={36}
-          className="h-8 w-auto object-contain"
+          width={180}
+          height={54}
+          className="h-12 w-auto object-contain"
           unoptimized
         />
       )}

@@ -42,20 +42,33 @@ function ToolResultRenderer({ tool, data, propertyId }: { tool: string; data: un
   return null
 }
 
+// Matches Arabic, Hebrew, Syriac, Thaana, and their presentation forms
+const RTL_RE = /[֑-߿יִ-﷽ﹰ-ﻼ]/
+
+function detectDir(text: string): 'rtl' | 'ltr' {
+  return RTL_RE.test(text) ? 'rtl' : 'ltr'
+}
+
 function MessageBubble({ msg, propertyId }: { msg: GuestChatMessage; propertyId?: number }) {
   const isUser = msg.role === 'user'
+  const dir = msg.content ? detectDir(msg.content) : 'ltr'
+  const isRtl = dir === 'rtl'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={[
-        'max-w-[85%] rounded-2xl px-4 py-2.5',
-        isUser
-          ? 'bg-[var(--color-primary)] text-white'
-          : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]',
-      ].join(' ')}>
+      <div
+        dir={dir}
+        className={[
+          'max-w-[85%] rounded-2xl px-4 py-2.5',
+          isUser
+            ? 'bg-[var(--color-primary)] text-white'
+            : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)]',
+          isRtl ? 'text-right' : '',
+        ].join(' ')}
+      >
         {msg.content && (
           isUser
             ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
-            : <div className="text-sm"><MarkdownContent content={msg.content} /></div>
+            : <div className="text-sm"><MarkdownContent content={msg.content} dir={dir} /></div>
         )}
         {msg.toolResults?.map((tr, i) => (
           <ToolResultRenderer key={i} tool={tr.tool} data={tr.data} {...(propertyId ? { propertyId } : {})} />
@@ -172,6 +185,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
                   ref={inputRef}
                   type="text"
                   value={input}
+                  dir={input ? detectDir(input) : 'ltr'}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask about rooms, dates, availability…"

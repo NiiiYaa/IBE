@@ -3,7 +3,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-export function MarkdownContent({ content }: { content: string }) {
+export function MarkdownContent({ content, dir }: { content: string; dir?: 'ltr' | 'rtl' }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -13,8 +13,8 @@ export function MarkdownContent({ content }: { content: string }) {
         em: ({ children }) => <em className="italic">{children}</em>,
         h3: ({ children }) => <p className="mt-2 mb-1 font-semibold text-sm">{children}</p>,
         h2: ({ children }) => <p className="mt-2 mb-1 font-semibold">{children}</p>,
-        ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+        ul: ({ children }) => <ul className="my-1 list-disc space-y-0.5 ps-4">{children}</ul>,
+        ol: ({ children }) => <ol className="my-1 list-decimal space-y-0.5 ps-4">{children}</ol>,
         li: ({ children }) => <li className="leading-relaxed">{children}</li>,
         table: ({ children }) => (
           <div className="my-2 overflow-x-auto">
@@ -23,7 +23,7 @@ export function MarkdownContent({ content }: { content: string }) {
         ),
         thead: ({ children }) => <thead className="bg-[var(--color-border)]">{children}</thead>,
         th: ({ children }) => (
-          <th className="border border-[var(--color-border)] px-2 py-1 text-left font-semibold whitespace-nowrap">
+          <th className="border border-[var(--color-border)] px-2 py-1 text-start font-semibold whitespace-nowrap">
             {children}
           </th>
         ),

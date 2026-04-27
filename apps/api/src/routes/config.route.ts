@@ -109,6 +109,47 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send(config)
   })
 
+  // GET /config/org-images/:orgId — public chain-featured image URLs for chain page carousel/quilt
+  fastify.get('/config/org-images/:orgId', async (request, reply) => {
+    const { orgId: rawId } = request.params as { orgId: string }
+    const orgId = parseInt(rawId, 10)
+    if (isNaN(orgId) || orgId <= 0) {
+      return reply.status(400).send({ error: 'Invalid org ID', code: IBE_ERROR_VALIDATION })
+    }
+
+    const [orgDefaults, properties] = await Promise.all([
+      prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId }, select: { chainExcludedPropertyImageIds: true } }),
+      prisma.property.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        select: { propertyId: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ])
+
+    if (properties.length === 0) {
+      void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+      return reply.send({ images: [] })
+    }
+
+    const excludedIds = new Set(safeParseJsonIds(orgDefaults?.chainExcludedPropertyImageIds))
+    const propertyIds = properties.map(p => p.propertyId)
+    const configs = await prisma.hotelConfig.findMany({
+      where: { propertyId: { in: propertyIds } },
+      select: { chainFeaturedImagesJson: true },
+    })
+
+    const images: string[] = []
+    for (const config of configs) {
+      const featured = safeParseJsonImages(config.chainFeaturedImagesJson)
+      for (const img of featured) {
+        if (!excludedIds.has(img.id)) images.push(img.url)
+      }
+    }
+
+    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    return reply.send({ images })
+  })
+
   // GET /config/properties?propertyId=X or ?orgId=X — public property list for IBE homepage
   fastify.get('/config/properties', async (request, reply) => {
     const { propertyId: rawPropertyId, orgId: rawOrgId } = request.query as { propertyId?: string; orgId?: string }

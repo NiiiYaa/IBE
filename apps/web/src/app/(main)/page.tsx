@@ -56,6 +56,15 @@ async function fetchOrgPropertyList(orgId: number): Promise<PropertyListResponse
   } catch { return null }
 }
 
+async function fetchChainImages(orgId: number): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/config/org-images/${orgId}`, { next: { revalidate: 60 } })
+    if (!res.ok) return []
+    const data = await res.json() as { images: string[] }
+    return data.images ?? []
+  } catch { return [] }
+}
+
 async function fetchAIEnabled(propertyId: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_URL}/api/v1/ai/enabled?propertyId=${propertyId}`, { next: { revalidate: 60 } })
@@ -199,10 +208,12 @@ export default async function HomePage({
   let propertyList: PropertyListResponse | null
   let propertyId: number
 
+  let chainFeaturedImages: string[] = []
   if (tenant.type === 'org') {
-    ;[config, propertyList] = await Promise.all([
+    ;[config, propertyList, chainFeaturedImages] = await Promise.all([
       fetchOrgConfig(tenant.orgId),
       fetchOrgPropertyList(tenant.orgId),
+      fetchChainImages(tenant.orgId),
     ])
     const defaultProp = propertyList?.properties.find(p => p.isDefault) ?? propertyList?.properties[0]
     propertyId = defaultProp?.propertyId ?? 0
@@ -298,11 +309,15 @@ export default async function HomePage({
 
   const heroImageUrl = (tenant.type === 'org' ? config?.chainHeroImageUrl : null)
     || config?.heroImageUrl
+    || (tenant.type === 'org' ? chainFeaturedImages[0] : null)
     || propertyImages[0]
     || null
-  const carouselImages = heroImageUrl
-    ? [heroImageUrl, ...propertyImages.filter(u => u !== heroImageUrl)]
+  const baseImages = tenant.type === 'org' && chainFeaturedImages.length > 0
+    ? chainFeaturedImages
     : propertyImages
+  const carouselImages = heroImageUrl
+    ? [heroImageUrl, ...baseImages.filter(u => u !== heroImageUrl)]
+    : baseImages
 
   const defaultPropertyId = multiProperties?.find(p => p.isDefault)?.id ?? propertyId
   const cssVars = config ? buildCssVars(config) : ''
