@@ -13,6 +13,7 @@ interface GuestsDropdownProps {
   childMaxAge?: number
   minRooms?: number
   maxRooms?: number
+  groupsHref?: string
 }
 
 const MAX_CHILDREN_PER_ROOM = 6
@@ -24,6 +25,7 @@ export function GuestsDropdown({
   childMaxAge = 16,
   minRooms = 1,
   maxRooms = 4,
+  groupsHref,
 }: GuestsDropdownProps) {
   function update(index: number, field: keyof GuestRoom, delta: number) {
     onChange(
@@ -54,64 +56,87 @@ export function GuestsDropdown({
 
   return (
     <div className="w-80 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
+      <div className="border-b border-[var(--color-border)] px-5 py-3">
         <p className="text-sm font-semibold text-[var(--color-text)]">Guests</p>
-        {rooms.length < maxRooms && (
-          <button
-            onClick={addRoom}
-            className="text-xs font-medium text-[var(--color-primary)] hover:underline"
-          >
-            + Add room
-          </button>
-        )}
       </div>
 
       <div className="divide-y divide-[var(--color-border)]">
-        {rooms.map((room, i) => (
-          <div key={i} className="px-5 py-4 space-y-3">
-            <div className="flex items-center justify-between">
+        {rooms.map((room, i) => {
+          const isLast = i === rooms.length - 1
+          return (
+            <div key={i} className="px-5 py-4 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Room {i + 1}
               </p>
-              {rooms.length > minRooms && (
-                <button
-                  onClick={() => removeRoom(i)}
-                  className="text-xs text-muted transition-colors hover:text-error"
-                >
-                  Remove
-                </button>
+
+              <GuestRow
+                label="Adults"
+                hint={`Age ${childMaxAge + 1}+`}
+                value={room.adults}
+                min={1}
+                max={9}
+                onDecrement={() => update(i, 'adults', -1)}
+                onIncrement={() => update(i, 'adults', 1)}
+              />
+              <GuestRow
+                label="Children"
+                hint={`Age ${infantMaxAge + 1}–${childMaxAge}`}
+                value={room.children}
+                min={0}
+                max={MAX_CHILDREN_PER_ROOM}
+                onDecrement={() => update(i, 'children', -1)}
+                onIncrement={() => update(i, 'children', 1)}
+              />
+              <GuestRow
+                label="Infants"
+                hint={`Age 0–${infantMaxAge}`}
+                value={room.infants}
+                min={0}
+                max={MAX_CHILDREN_PER_ROOM}
+                onDecrement={() => update(i, 'infants', -1)}
+                onIncrement={() => update(i, 'infants', 1)}
+              />
+
+              <div className="flex items-center justify-between pt-1">
+                {rooms.length > minRooms ? (
+                  <button
+                    onClick={() => removeRoom(i)}
+                    className="text-xs text-muted transition-colors hover:text-error"
+                  >
+                    − Remove room
+                  </button>
+                ) : <span />}
+
+                {isLast && rooms.length < maxRooms && (
+                  <button
+                    onClick={addRoom}
+                    className="text-xs font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    + Add room
+                  </button>
+                )}
+              </div>
+
+              {isLast && rooms.length >= maxRooms && (
+                <p className="pt-2 text-xs text-[var(--color-text-muted)]">
+                  To book more than {maxRooms} rooms,{' '}
+                  {groupsHref ? (
+                    <a
+                      href={groupsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-[var(--color-primary)] hover:underline"
+                    >
+                      go to the Group section
+                    </a>
+                  ) : (
+                    'contact the hotel'
+                  )}
+                </p>
               )}
             </div>
-
-            <GuestRow
-              label="Adults"
-              hint={`Age ${childMaxAge + 1}+`}
-              value={room.adults}
-              min={1}
-              max={9}
-              onDecrement={() => update(i, 'adults', -1)}
-              onIncrement={() => update(i, 'adults', 1)}
-            />
-            <GuestRow
-              label="Children"
-              hint={`Age ${infantMaxAge + 1}–${childMaxAge}`}
-              value={room.children}
-              min={0}
-              max={MAX_CHILDREN_PER_ROOM}
-              onDecrement={() => update(i, 'children', -1)}
-              onIncrement={() => update(i, 'children', 1)}
-            />
-            <GuestRow
-              label="Infants"
-              hint={`Age 0–${infantMaxAge}`}
-              value={room.infants}
-              min={0}
-              max={MAX_CHILDREN_PER_ROOM}
-              onDecrement={() => update(i, 'infants', -1)}
-              onIncrement={() => update(i, 'infants', 1)}
-            />
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { addDays, todayIso, nightsBetween } from '@ibe/shared'
 import { encodeSearchParams } from '@/lib/search-params'
 import { displayDate } from '@/lib/calendar-utils'
 import { COUNTRIES, countryFlag } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
+import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
 import { CalendarDropdown } from './CalendarDropdown'
 
 interface GuestRoom {
@@ -65,6 +66,8 @@ export function SearchSidebar({
   onAiToggle,
 }: SearchSidebarProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const pageSearchParams = useSearchParams()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const [checkIn,  setCheckIn]  = useState(initialCheckIn  ?? '')
@@ -80,6 +83,10 @@ export function SearchSidebar({
   const [expandedRooms, setExpandedRooms] = useState<Set<number>>(new Set())
 
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(propertyId)
+  const { data: groupConfig } = usePublicGroupConfig(propertyId)
+  const groupsHref = groupConfig?.enabled
+    ? `/groups?hotelId=${propertyId}&returnTo=${encodeURIComponent(pageSearchParams.toString() ? `${pathname}?${pageSearchParams.toString()}` : pathname)}`
+    : undefined
 
   const detectedCountry = useCountryDetect()
   useEffect(() => {
@@ -379,6 +386,23 @@ export function SearchSidebar({
             >
               + Add another room
             </button>
+          )}
+          {rooms.length >= maxRooms && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              To book more than {maxRooms} rooms,{' '}
+              {groupsHref ? (
+                <a
+                  href={groupsHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-[var(--color-primary)] hover:underline"
+                >
+                  go to the Group section
+                </a>
+              ) : (
+                'contact the hotel'
+              )}
+            </p>
           )}
         </div>
 

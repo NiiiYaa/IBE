@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams as useNextSearchParams } from 'next/navigation'
 import { addDays, nightsBetween, todayIso } from '@ibe/shared'
 import { displayDate } from '@/lib/calendar-utils'
 import { encodeSearchParams } from '@/lib/search-params'
@@ -10,6 +10,7 @@ import { useCountryDetect } from '@/hooks/use-country-detect'
 import { usePreferences } from '@/context/preferences'
 import { useAiMode } from '@/context/ai-mode'
 import { useSearchSelection } from '@/context/search-selection'
+import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
@@ -60,6 +61,8 @@ export function SearchBar({
   orgId,
 }: SearchBarProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const pageSearchParams = useNextSearchParams()
   const containerRef = useRef<HTMLDivElement>(null)
   const guestsPanelRef = useRef<HTMLDivElement>(null)
   const checkBtnRef = useRef<HTMLButtonElement>(null)
@@ -134,6 +137,10 @@ export function SearchBar({
   const detectedCountry = useCountryDetect()
   const { currency } = usePreferences()
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(selectedPropertyId)
+  const { data: groupConfig } = usePublicGroupConfig(selectedPropertyId)
+  const groupsHref = groupConfig?.enabled
+    ? `/groups?hotelId=${selectedPropertyId}&returnTo=${encodeURIComponent(pageSearchParams.toString() ? `${pathname}?${pageSearchParams.toString()}` : pathname)}`
+    : undefined
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -551,6 +558,7 @@ export function SearchBar({
                 childMaxAge={childMaxAge}
                 minRooms={minRooms}
                 maxRooms={maxRooms}
+                groupsHref={groupsHref}
               />
             </MobileSection>
 
@@ -702,6 +710,7 @@ export function SearchBar({
             childMaxAge={childMaxAge}
             minRooms={minRooms}
             maxRooms={maxRooms}
+            groupsHref={groupsHref}
           />
         </div>
       )}
