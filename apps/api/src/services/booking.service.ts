@@ -252,6 +252,7 @@ async function persistBooking(
       stripeIntentId: stripeIntentId ?? null,
       isTest: request.isTest ?? false,
       bookingChannel: b2b ? 'b2b' : 'b2c',
+      searchId: request.searchId ?? null,
       agentOrgId: b2b?.buyerOrgId ?? null,
       agentUserId: b2b?.buyerUserId ?? null,
       agentOrgName: b2b?.buyerOrgName ?? null,

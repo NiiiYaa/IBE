@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import type { PropertyRecord } from '@ibe/shared'
+import type { OrgRecord, PropertyRecord } from '@ibe/shared'
 
 const SEARCH_THRESHOLD = 10
 
@@ -13,12 +13,13 @@ interface Selection {
 interface Props {
   properties: PropertyRecord[]
   isSuper: boolean
+  superOrgs?: OrgRecord[]
   selected: Selection
   onSelect: (s: Selection) => void
   propertyNameMap: Record<number, string>
 }
 
-export function PropertySelector({ properties, isSuper, selected, onSelect, propertyNameMap }: Props) {
+export function PropertySelector({ properties, isSuper, superOrgs, selected, onSelect, propertyNameMap }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -92,6 +93,15 @@ export function PropertySelector({ properties, isSuper, selected, onSelect, prop
     for (const g of map.values()) {
       const filtered = g.props.filter(matchesQuery)
       if (filtered.length > 0) groups.push({ ...g, props: filtered })
+    }
+    // Include orgs that have no properties yet
+    if (superOrgs) {
+      const seenOrgIds = new Set(groups.map(g => g.orgId))
+      for (const org of superOrgs) {
+        if (seenOrgIds.has(org.id)) continue
+        const nameMatch = !query || org.name.toLowerCase().includes(query) || (org.hyperGuestOrgId?.toLowerCase().includes(query) ?? false)
+        if (nameMatch) groups.push({ name: org.name, orgId: org.id, hgOrgId: org.hyperGuestOrgId, isDemo: false, props: [] })
+      }
     }
   } else {
     groups.push({ name: '', orgId: null, hgOrgId: null, isDemo: false, props: properties.filter(matchesQuery) })

@@ -19,10 +19,10 @@ export const ALL_TOOLS: ToolDefinition[] = [
   getNearbyEventsTool,
 ]
 
-export async function executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function executeTool(name: string, args: Record<string, unknown>, channel?: string): Promise<unknown> {
   switch (name) {
     case 'list_chain_hotels': return executeListProperties(args)
-    case 'search_availability': return executeSearchAvailability(args)
+    case 'search_availability': return executeSearchAvailability(args, channel)
     case 'get_property_info': return executeGetPropertyInfo(args)
     case 'filter_results': return executeFilterResults(args)
     case 'prepare_booking': return executePrepareBooking(args)

@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer'
 import { buildCssVars } from '@/lib/theme'
 import { B2BAuthGate } from '@/components/b2b/B2BAuthGate'
 import { AiModeProvider } from '@/context/ai-mode'
+import { VisitorTracker } from '@/components/VisitorTracker'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
@@ -236,10 +237,11 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   const showGroupsButton = propertyId ? await fetchGroupsEnabled(propertyId) : false
 
-  const shell = (pageContent: React.ReactNode) => (
+  const shell = (pageContent: React.ReactNode, b2b = false) => (
     <>
       {cssVars && <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />}
       {fontUrl && <link rel="stylesheet" href={fontUrl} />}
+      <VisitorTracker propertyId={propertyId} channel={b2b ? 'b2b' : 'b2c'} />
       <div className="print:hidden">
         <Header
           logoUrl={logoUrl}
@@ -266,7 +268,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   // B2B mode — gate behind agent auth regardless of model settings
   if (isB2BMode) {
-    return <AiModeProvider><B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children)}</B2BAuthGate></AiModeProvider>
+    return <AiModeProvider><B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children, true)}</B2BAuthGate></AiModeProvider>
   }
 
   // B2C blocked — show unavailable page instead of the regular content

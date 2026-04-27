@@ -991,7 +991,57 @@ export interface OrgRecord {
 export interface CreateOrgRequest {
   name: string
   hyperGuestOrgId?: string | null
+  hyperGuestBearerToken?: string | null
   orgType?: OrgType
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export interface DashboardDayStat {
+  date: string        // YYYY-MM-DD
+  bookings: number
+  revenue: number
+  searches: number
+}
+
+export interface DashboardChannelStat {
+  channel: string     // 'aiSearchBar' | 'whatsapp' | 'mcp' | 'direct'
+  searches: number
+  bookings: number
+  conversionRate: number
+}
+
+export interface DashboardStats {
+  currency: string
+  periodDays: number
+  // Bookings
+  bookingsTotal: number
+  bookingsToday: number
+  revenueTotal: number
+  revenueToday: number
+  adr: number | null
+  visitorsTotal: number
+  visitorsByPage: { page: string; visitors: number }[]
+  visitorsByDevice: { device: string; visitors: number }[]
+  bookingsByStatus: { status: string; count: number }[]
+  // Time series (one entry per day)
+  byDay: DashboardDayStat[]
+  // AI Search
+  searchesTotal: number
+  searchesByChannel: DashboardChannelStat[]
+  topNationalities: { nationality: string; count: number }[]
+  // Marketing
+  affiliateBookings: number
+  affiliateRevenue: number
+  affiliateCommission: number
+  topAffiliates: { name: string; bookings: number; revenue: number; commission: number }[]
+  campaignBookings: number
+  campaignRevenue: number
+  campaignCommission: number
+  topCampaigns: { code: string; bookings: number; revenue: number; commission: number }[]
+  promoBookings: number
+  promoDiscountTotal: number
+  topPromoCodes: { code: string; uses: number; discountTotal: number }[]
 }
 
 // ── Admin Users ───────────────────────────────────────────────────────────────

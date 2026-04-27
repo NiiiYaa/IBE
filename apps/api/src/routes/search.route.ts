@@ -36,19 +36,19 @@ export async function searchRoutes(fastify: FastifyInstance) {
     }
 
     const b2b = extractB2BContext(fastify, request)
+    const channel = b2b ? 'b2b' : 'b2c'
 
     // Enforce enabled sell models for this org
     const hotelId = (parseResult.data as { hotelId: number }).hotelId
     const prop = await prisma.property.findUnique({ where: { id: hotelId }, select: { organizationId: true } })
     if (prop?.organizationId) {
       const orgSettings = await getOrgSettings(prop.organizationId)
-      const model = b2b ? 'b2b' : 'b2c'
-      if (!orgSettings.enabledModels.includes(model)) {
-        return reply.status(403).send({ error: `${model.toUpperCase()} bookings are not available for this property`, code: 'IBE.MODEL.001' })
+      if (!orgSettings.enabledModels.includes(channel)) {
+        return reply.status(403).send({ error: `${channel.toUpperCase()} bookings are not available for this property`, code: 'IBE.MODEL.001' })
       }
     }
 
-    const results = await search(parseResult.data as import('@ibe/shared').SearchParams, b2b?.buyerOrgId)
+    const results = await search(parseResult.data as import('@ibe/shared').SearchParams, b2b?.buyerOrgId, channel)
     return reply.send(results)
   })
 }

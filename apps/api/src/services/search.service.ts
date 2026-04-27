@@ -38,7 +38,7 @@ import { logger } from '../utils/logger.js'
 /**
  * Executes a search and returns the transformed IBE response.
  */
-export async function search(params: SearchParams, buyerOrgId?: number): Promise<SearchResponse> {
+export async function search(params: SearchParams, buyerOrgId?: number, channel?: string): Promise<SearchResponse> {
   const nights = nightsBetween(params.checkIn, params.checkOut)
 
   const offers = await getEffectiveOffersSettings(params.hotelId)
@@ -94,7 +94,7 @@ export async function search(params: SearchParams, buyerOrgId?: number): Promise
     }
   }
 
-  const searchId = await persistSearchSession(params, hgResponse)
+  const searchId = await persistSearchSession(params, hgResponse, channel)
 
   const results: PropertySearchResult[] = hgResponse.results
     .map((r) => transformPropertyResult(r, params.checkIn))
@@ -393,6 +393,7 @@ function applyAffiliateDiscount(
 async function persistSearchSession(
   params: SearchParams,
   response: HGSearchResponse,
+  channel?: string,
 ): Promise<string> {
   try {
     const id = randomUUID()
@@ -407,6 +408,7 @@ async function persistSearchSession(
         guestsParam: JSON.stringify(params.rooms),
         nationality: params.nationality ?? null,
         currency: params.currency ?? null,
+        channel: channel ?? null,
         expiresAt,
       },
     })

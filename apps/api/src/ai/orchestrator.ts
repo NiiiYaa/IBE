@@ -13,6 +13,7 @@ export interface OrchestratorInput {
   propertyId?: number
   orgId?: number
   customSystemPrompt?: string
+  channel?: string
 }
 
 export interface ToolCallResult {
@@ -65,7 +66,7 @@ Never invent prices or availability — always use the search_availability tool 
 }
 
 export async function runOrchestrator(input: OrchestratorInput): Promise<OrchestratorResult> {
-  const { message, session, sessionId, propertyId, customSystemPrompt } = input
+  const { message, session, sessionId, propertyId, customSystemPrompt, channel } = input
 
   const aiConfig = await resolveAIConfig(propertyId)
   if (!aiConfig) {
@@ -121,7 +122,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     const toolResults = await Promise.all(
       response.toolCalls.map(async tc => {
         logger.info({ tool: tc.name, args: tc.arguments, sessionId }, '[Orchestrator] Executing tool')
-        const result = await executeTool(tc.name, tc.arguments)
+        const result = await executeTool(tc.name, tc.arguments, channel)
         return { tc, result }
       })
     )

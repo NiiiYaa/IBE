@@ -99,10 +99,10 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
                     : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'].join(' ')}>
                 {done ? '✓' : n}
               </div>
-              <span className={['text-xs font-medium', active ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'].join(' ')}>{label}</span>
+              <span className={['hidden sm:inline text-xs font-medium', active ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'].join(' ')}>{label}</span>
             </div>
             {i < steps.length - 1 && (
-              <div className={['mx-3 h-px w-8', done ? 'bg-[var(--color-success)]' : 'bg-[var(--color-border)]'].join(' ')} />
+              <div className={['mx-2 sm:mx-3 h-px w-6 sm:w-8', done ? 'bg-[var(--color-success)]' : 'bg-[var(--color-border)]'].join(' ')} />
             )}
           </div>
         )
@@ -490,10 +490,11 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
       {/* ── Step 2: Room selection ─────────────────────────────────────────── */}
       {step === 2 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">
-                {displayDate(checkIn)} → {displayDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''} · {countryName(nationality)}
+                {displayDate(checkIn)} → {displayDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
+                <span className="hidden sm:inline"> · {countryName(nationality)}</span>
               </p>
               {groupCfg.pricingPct > 0 && (
                 <p className="text-xs text-[var(--color-text-muted)]">
@@ -516,7 +517,9 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
               {/* Rooms sub-section */}
               <div>
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Rooms</h3>
-                <div className="overflow-hidden rounded-xl border border-[var(--color-border)]">
+
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-hidden rounded-xl border border-[var(--color-border)]">
                   <table className="w-full text-sm">
                     <thead className="bg-[var(--color-background)]">
                       <tr>
@@ -524,7 +527,7 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                         <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Adults</th>
                         {showChildren && <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Children</th>}
                         <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Max</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Available Rooms</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Available</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Group rate / room</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Qty</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Total</th>
@@ -566,13 +569,55 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile cards */}
+                <div className="sm:hidden space-y-3">
+                  {rooms.map(room => {
+                    const gp = groupPrice(room)
+                    const qty = selections[room.roomId] ?? 0
+                    return (
+                      <div key={room.roomId} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                        <div className="mb-3 flex items-start justify-between gap-2">
+                          <p className="font-semibold text-[var(--color-text)]">{room.roomName}</p>
+                          <p className="shrink-0 text-sm font-bold text-[var(--color-primary)]">{fmtAmount(gp, currency)}<span className="text-xs font-normal text-[var(--color-text-muted)]"> / {nights}n</span></p>
+                        </div>
+                        <div className="mb-4 flex flex-wrap gap-2 text-xs text-[var(--color-text-muted)]">
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👤 Adults: {room.maxAdults}</span>
+                          {showChildren && room.maxChildren > 0 && <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👶 Children: {room.maxChildren}</span>}
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">Max: {room.maxOccupancy}</span>
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">Available: {room.availableCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => setSelections(prev => ({ ...prev, [room.roomId]: Math.max(0, (prev[room.roomId] ?? 0) - 1) }))}
+                              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] text-lg font-medium text-[var(--color-text)] hover:bg-[var(--color-background)] disabled:opacity-30"
+                              disabled={qty === 0}
+                            >−</button>
+                            <span className="w-6 text-center text-base font-semibold text-[var(--color-text)]">{qty}</span>
+                            <button
+                              onClick={() => setSelections(prev => ({ ...prev, [room.roomId]: Math.min(room.availableCount, (prev[room.roomId] ?? 0) + 1) }))}
+                              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] text-lg font-medium text-[var(--color-text)] hover:bg-[var(--color-background)] disabled:opacity-30"
+                              disabled={qty >= room.availableCount}
+                            >+</button>
+                          </div>
+                          <p className="text-sm font-semibold text-[var(--color-text)]">
+                            {qty > 0 ? fmtAmount(gp * qty, currency) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Meals sub-section */}
               {enabledMeals.length > 0 && (
                 <div>
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Meals</h3>
-                  <div className="overflow-hidden rounded-xl border border-[var(--color-border)]">
+
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-hidden rounded-xl border border-[var(--color-border)]">
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--color-background)]">
                         <tr>
@@ -594,36 +639,24 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                             <tr key={type} className="bg-[var(--color-surface)]">
                               <td className="px-4 py-3 font-medium text-[var(--color-text)]">{MEAL_LABELS[type]}</td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={sel.selected}
+                                <input type="checkbox" checked={sel.selected}
                                   onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], selected: e.target.checked } }))}
-                                  className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
-                                />
+                                  className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]" />
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="number" min={0} disabled={!sel.selected}
-                                  value={sel.adults}
+                                <input type="number" min={0} disabled={!sel.selected} value={sel.adults}
                                   onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], adults: Math.max(0, parseInt(e.target.value) || 0) } }))}
-                                  className={numInputCls}
-                                />
+                                  className={numInputCls} />
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="number" min={0} disabled={!sel.selected}
-                                  value={sel.children}
+                                <input type="number" min={0} disabled={!sel.selected} value={sel.children}
                                   onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], children: Math.max(0, parseInt(e.target.value) || 0) } }))}
-                                  className={numInputCls}
-                                />
+                                  className={numInputCls} />
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <input
-                                  type="number" min={0} disabled={!sel.selected}
-                                  value={sel.infants}
+                                <input type="number" min={0} disabled={!sel.selected} value={sel.infants}
                                   onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], infants: Math.max(0, parseInt(e.target.value) || 0) } }))}
-                                  className={numInputCls}
-                                />
+                                  className={numInputCls} />
                               </td>
                               <td className="px-4 py-3 text-right text-[var(--color-text-muted)]">
                                 <div className="space-y-0.5 text-xs">
@@ -640,6 +673,46 @@ export function GroupsContent({ propertyId }: { propertyId: number }) {
                         })}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile cards */}
+                  <div className="sm:hidden space-y-3">
+                    {enabledMeals.map(type => {
+                      const cfg = groupCfg.mealsConfig[type]
+                      const sel = mealSelections[type]
+                      const cost = mealCost(type)
+                      return (
+                        <div key={type} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                          <label className="flex items-center justify-between gap-3 cursor-pointer">
+                            <div className="flex items-center gap-3">
+                              <input type="checkbox" checked={sel.selected}
+                                onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], selected: e.target.checked } }))}
+                                className="h-5 w-5 rounded border-[var(--color-border)] accent-[var(--color-primary)]" />
+                              <span className="text-sm font-semibold text-[var(--color-text)]">{MEAL_LABELS[type]}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-[var(--color-primary)]">
+                              {sel.selected && cost > 0 ? fmtAmount(cost, currency) : '—'}
+                            </span>
+                          </label>
+                          {sel.selected && (
+                            <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-3">
+                              {[
+                                { key: 'adults' as const, label: 'Adults', price: cfg.priceAdult },
+                                ...(cfg.priceChild > 0 ? [{ key: 'children' as const, label: 'Children', price: cfg.priceChild }] : []),
+                                ...(cfg.priceInfant > 0 ? [{ key: 'infants' as const, label: 'Infants', price: cfg.priceInfant }] : []),
+                              ].map(({ key, label, price }) => (
+                                <div key={key} className="flex items-center justify-between">
+                                  <span className="text-xs text-[var(--color-text-muted)]">{label} — {fmtAmount(price, currency)}/person</span>
+                                  <input type="number" min={0} value={sel[key]}
+                                    onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], [key]: Math.max(0, parseInt(e.target.value) || 0) } }))}
+                                    className="w-16 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-center text-sm focus:border-[var(--color-primary)] focus:outline-none" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

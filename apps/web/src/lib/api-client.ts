@@ -634,6 +634,13 @@ export const apiClient = {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/users/${id}`, { method: 'DELETE' })
   },
 
+  getDashboardStats(orgId?: number, days = 14, propertyId?: number): Promise<import('@ibe/shared').DashboardStats> {
+    const qs = new URLSearchParams({ days: String(days) })
+    if (orgId) qs.set('orgId', String(orgId))
+    if (propertyId) qs.set('propertyId', String(propertyId))
+    return apiRequest(`/api/v1/admin/dashboard/stats?${qs}`)
+  },
+
   listOrgs(): Promise<OrgRecord[]> {
     return apiRequest<OrgRecord[]>('/api/v1/admin/super/orgs')
   },
@@ -645,7 +652,7 @@ export const apiClient = {
     })
   },
 
-  updateOrg(orgId: number, data: { name?: string; hyperGuestOrgId?: string | null; orgType?: string }): Promise<OrgRecord> {
+  updateOrg(orgId: number, data: { name?: string; hyperGuestOrgId?: string | null; orgType?: string; hyperGuestBearerToken?: string | null }): Promise<OrgRecord> {
     return apiRequest<OrgRecord>(`/api/v1/admin/super/orgs/${orgId}`, {
       method: 'PUT',
       body: JSON.stringify(data),

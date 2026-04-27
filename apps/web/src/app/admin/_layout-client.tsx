@@ -15,6 +15,13 @@ type Section = { title: string; items: NavItem[]; href?: string; minRole?: 'admi
 
 const SECTIONS: Section[] = [
   {
+    title: 'Dashboard',
+    href: '/admin/dashboard',
+    items: [
+      { href: '/admin/dashboard', label: 'Overview' },
+    ],
+  },
+  {
     title: 'Bookings',
     items: [
       { href: '/admin/bookings', label: 'All Bookings' },
@@ -109,7 +116,6 @@ const SECTIONS: Section[] = [
       { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
   },
-  { title: 'Dashboards', comingSoon: true, items: [] },
 ]
 
 const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0 }
@@ -171,6 +177,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     enabled: isAuthenticated && isSuper,
   })
 
+  const { data: superOrgs } = useQuery({
+    queryKey: ['super-orgs'],
+    queryFn: () => apiClient.listOrgs(),
+    staleTime: Infinity,
+    enabled: isAuthenticated && isSuper,
+  })
+
   const properties = isSuper
     ? (allPropertiesData?.properties ?? [])
     : (propertiesData?.properties ?? [])
@@ -191,7 +204,16 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     staleTime: Infinity,
   })
 
-  const isBuyerOrg = !isSuper && orgData?.orgType === 'buyer'
+  // For super admins, fetch the selected org's settings to drive View B2C/B2B links
+  const { data: superOrgData } = useQuery({
+    queryKey: ['admin-org-super', orgId],
+    queryFn: () => apiClient.getOrgSettings(orgId!),
+    enabled: isAuthenticated && isSuper && orgId != null,
+    staleTime: 60_000,
+  })
+
+  const effectiveOrgData = isSuper ? superOrgData : orgData
+  const isBuyerOrg = effectiveOrgData?.orgType === 'buyer'
   const visibleSections = filterSections(SECTIONS, role, isBuyerOrg)
 
   const nameQueries = useQueries({
@@ -233,14 +255,15 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   // Auto-select the only property when selector is hidden; reset invalid stored IDs
   useEffect(() => {
     if (!showPropertySelector && realProperties.length === 1 && realProperties[0] && propertyId !== realProperties[0].propertyId) {
-      setPropertyId(realProperties[0].propertyId)
+      const p = realProperties[0]
+      setSelection(p.propertyId, p.orgId ?? null)
       return
     }
     if (propertyId !== null && properties.length > 0) {
       const isValid = properties.some(p => p.propertyId === propertyId)
       if (!isValid) setPropertyId(null)
     }
-  }, [properties, realProperties, showPropertySelector, propertyId, setPropertyId])
+  }, [properties, realProperties, showPropertySelector, propertyId, setPropertyId, setSelection])
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isAuthPage) {
@@ -275,6 +298,35 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   if (isAuthPage || isOnboarding) {
     return <>{children}</>
   }
+
+  // Derive B2C / B2B view URLs from the active org settings + selected property
+  const _od = effectiveOrgData
+  const _enabledModels = _od?.enabledModels ?? []
+  const _orgSlug = _od?.orgSlug ?? null
+  const _webDomain = _od?.webDomain ?? null
+  const _isBuyer = _od?.orgType === 'buyer'
+
+  let b2cUrl: string | null = null
+  if (!_isBuyer && _enabledModels.includes('b2c') && _od) {
+    if (propertyId !== null) {
+      const _p = properties.find(p => p.propertyId === propertyId)
+      if (_p?.subdomain) {
+        b2cUrl = `https://${_p.subdomain}.hyperguest.net`
+      } else if (_webDomain) {
+        b2cUrl = `${_webDomain.replace(/\/$/, '')}/?hotelId=${propertyId}`
+      } else if (_orgSlug) {
+        b2cUrl = `https://${_orgSlug}.hyperguest.net/?hotelId=${propertyId}`
+      }
+    } else {
+      b2cUrl = _webDomain
+        ? _webDomain.replace(/\/$/, '') + '/'
+        : _orgSlug ? `https://${_orgSlug}.hyperguest.net` : null
+    }
+  }
+
+  const b2bUrl = _enabledModels.includes('b2b') && _orgSlug
+    ? `https://${_orgSlug}-b2b.hyperguest.net`
+    : null
 
   return (
     <div className="flex min-h-screen">
@@ -357,11 +409,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           {showPropertySelector && (
             <div className="border-b border-[var(--color-border)] px-3 py-3">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-                Property
+                Hotels / Chains / Orgs
               </p>
               <PropertySelector
                 properties={properties}
                 isSuper={isSuper}
+                {...(superOrgs !== undefined ? { superOrgs } : {})}
                 selected={{ propertyId, orgId }}
                 onSelect={s => setSelection(s.propertyId, s.orgId)}
                 propertyNameMap={propertyNameMap}
@@ -484,47 +537,76 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         )}
 
-        {/* Context bar — visible whenever a property selector is shown, so context is never ambiguous */}
-        {showPropertySelector && !isAuthPage && !isOnboarding && (
+        {/* Context bar — shown when there's a property selector or view links */}
+        {(showPropertySelector || b2cUrl || b2bUrl) && (
           <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-500">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
             </svg>
-            {propertyId === null ? (
-              <span className="text-amber-800">
-                {isSuper && orgId === null ? (
-                  <>
-                    Configuring: <span className="font-semibold">System</span>
-                    <span className="ml-1 text-amber-600">— global defaults for all organisations</span>
-                  </>
-                ) : isSuper && orgId !== null ? (
-                  <>
-                    Configuring: <span className="font-semibold">
-                      {properties.find(p => p.orgId === orgId)?.orgName ?? `Org ${orgId}`}
-                    </span>
-                    <span className="ml-1 text-amber-600">— chain level</span>
-                  </>
+            {showPropertySelector && (
+              <span className="flex-1 text-amber-800">
+                {propertyId === null ? (
+                  isSuper && orgId === null ? (
+                    <>
+                      Configuring: <span className="font-semibold">System</span>
+                      <span className="ml-1 text-amber-600">— global defaults for all organisations</span>
+                    </>
+                  ) : isSuper && orgId !== null ? (
+                    <>
+                      Configuring: <span className="font-semibold">
+                        {properties.find(p => p.orgId === orgId)?.orgName ?? `Org ${orgId}`}
+                      </span>
+                      <span className="ml-1 text-amber-600">— chain level</span>
+                    </>
+                  ) : (
+                    <>
+                      Configuring: <span className="font-semibold">Chain level</span>
+                      <span className="ml-1 text-amber-600">— changes apply to all properties</span>
+                    </>
+                  )
                 ) : (
                   <>
-                    Configuring: <span className="font-semibold">Chain level</span>
-                    <span className="ml-1 text-amber-600">— changes apply to all properties</span>
+                    Configuring: <span className="font-semibold">
+                      {propertyNameMap[propertyId] ?? `Property ${propertyId}`}
+                    </span>
+                    {(() => {
+                      const prop = properties.find(p => p.propertyId === propertyId)
+                      return prop?.orgName ? (
+                        <span className="ml-1 text-amber-600">· {prop.orgName}</span>
+                      ) : null
+                    })()}
+                    <span className="ml-1.5 font-mono text-amber-500">#{propertyId}</span>
                   </>
                 )}
               </span>
-            ) : (
-              <span className="text-amber-800">
-                Configuring: <span className="font-semibold">
-                  {propertyNameMap[propertyId] ?? `Property ${propertyId}`}
-                </span>
-                {(() => {
-                  const prop = properties.find(p => p.propertyId === propertyId)
-                  return prop?.orgName ? (
-                    <span className="ml-1 text-amber-600">· {prop.orgName}</span>
-                  ) : null
-                })()}
-                <span className="ml-1.5 font-mono text-amber-500">#{propertyId}</span>
-              </span>
+            )}
+            {!showPropertySelector && <span className="flex-1" />}
+            {(b2cUrl || b2bUrl) && (
+              <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                {b2cUrl && (
+                  <a
+                    href={b2cUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    View B2C
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                )}
+                {b2bUrl && (
+                  <a
+                    href={b2bUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    View B2B
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                )}
+              </div>
             )}
           </div>
         )}

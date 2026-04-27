@@ -273,7 +273,7 @@ export function SearchBar({
             {properties && properties.length > 1 && (
               <>
                 <Segment
-                  label="Property"
+                  label="Hotel"
                   value={selectedProperty?.name ?? 'Select property'}
                   active={activePanel === 'property'}
                   onClick={() => openPanel('property')}

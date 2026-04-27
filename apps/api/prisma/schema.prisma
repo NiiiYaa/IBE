@@ -109,6 +109,7 @@ model Booking {
   stripeIntentId      String?
   isTest              Boolean  @default(false)
   bookingChannel      String   @default("b2c")
+  searchId            String?
   agentOrgId          Int?
   agentUserId         Int?
   agentOrgName        String?
@@ -272,12 +273,14 @@ model SearchSession {
   guestsParam String
   nationality String?
   currency    String?
+  channel     String?
   metaJson    Json?
   createdAt   DateTime @default(now())
   expiresAt   DateTime
 
   @@index([createdAt])
   @@index([expiresAt])
+  @@index([channel])
 }
 
 // ── Promo Codes ───────────────────────────────────────────────────────────────
@@ -1162,4 +1165,20 @@ model PropertyGroupConfig {
   updatedAt                   DateTime     @updatedAt
 
   @@index([organizationId])
+}
+
+model IBEVisit {
+  id         Int      @id @default(autoincrement())
+  sessionId  String
+  page       String   @default("home")
+  propertyId Int?
+  channel    String   @default("b2c")
+  device     String   @default("desktop")
+  createdAt  DateTime @default(now())
+
+  @@unique([sessionId, page])
+  @@index([createdAt])
+  @@index([propertyId])
+  @@index([page])
+  @@index([device])
 }

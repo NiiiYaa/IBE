@@ -1,0 +1,2 @@
+ALTER TABLE "IBEVisit" ADD COLUMN IF NOT EXISTS "device" TEXT NOT NULL DEFAULT 'desktop';
+CREATE INDEX IF NOT EXISTS "IBEVisit_device_idx" ON "IBEVisit"("device");

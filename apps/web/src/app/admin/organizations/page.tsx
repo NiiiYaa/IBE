@@ -92,6 +92,7 @@ function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => v
   const [name, setName] = useState(org.name)
   const [hgOrgId, setHgOrgId] = useState(org.hyperGuestOrgId ?? '')
   const [orgType, setOrgType] = useState<OrgType>(org.orgType)
+  const [token, setToken] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -101,7 +102,12 @@ function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => v
     if (!name.trim()) return
     setSaving(true); setError(null)
     try {
-      const updated = await apiClient.updateOrg(org.id, { name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, orgType })
+      const updated = await apiClient.updateOrg(org.id, {
+        name: name.trim(),
+        hyperGuestOrgId: hgOrgId.trim() || null,
+        orgType,
+        ...(token.trim() !== '' ? { hyperGuestBearerToken: token.trim() } : {}),
+      })
       onSaved(updated)
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to save')
@@ -120,6 +126,10 @@ function EditModal({ org, onClose, onSaved }: { org: OrgRecord; onClose: () => v
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">HyperGuest Org ID</label>
             <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} className={`${inputCls} font-mono`} placeholder="optional" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">HyperGuest Bearer Token <span className="normal-case font-normal">(leave blank to keep current)</span></label>
+            <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Paste new token to update" className={`${inputCls} font-mono`} />
           </div>
           <OrgTypeSelector value={orgType} onChange={setOrgType} />
         </div>
@@ -140,6 +150,7 @@ export default function OrganizationsPage() {
 
   const [name, setName] = useState('')
   const [hgOrgId, setHgOrgId] = useState('')
+  const [token, setToken] = useState('')
   const [orgType, setOrgType] = useState<OrgType>('seller')
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
@@ -171,11 +182,11 @@ export default function OrganizationsPage() {
     if (!name.trim() || !adminName.trim() || !adminEmail.trim()) return
     setSaveError(null); setIsSaving(true)
     try {
-      const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, orgType })
+      const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, hyperGuestBearerToken: token.trim() || null, orgType })
       const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id })
       await qc.invalidateQueries({ queryKey: ['super-orgs'] })
       setCreatedCreds({ orgName: org.name, hyperGuestOrgId: org.hyperGuestOrgId ?? hgOrgId.trim(), email: user.email, temporaryPassword: user.temporaryPassword })
-      setName(''); setHgOrgId(''); setOrgType('seller'); setAdminName(''); setAdminEmail('')
+      setName(''); setHgOrgId(''); setToken(''); setOrgType('seller'); setAdminName(''); setAdminEmail('')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create account')
     } finally { setIsSaving(false) }
@@ -236,7 +247,11 @@ export default function OrganizationsPage() {
           </div>
           <div>
             <label className={labelCls}>HyperGuest Org ID <span className="normal-case font-normal">(optional)</span></label>
-            <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} placeholder="e.g. demand-org-123" className={`${inputCls} font-mono`} />
+            <input type="text" value={hgOrgId} onChange={e => setHgOrgId(e.target.value)} placeholder="e.g. 141580" className={`${inputCls} font-mono`} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>HyperGuest Bearer Token <span className="normal-case font-normal">(optional)</span></label>
+            <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Paste API token" className={`${inputCls} font-mono`} />
           </div>
         </div>
         <div className="mb-1 border-t border-[var(--color-border)] pt-4">

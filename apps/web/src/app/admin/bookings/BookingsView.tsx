@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { AdminBookingRow } from '@ibe/shared'
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -46,6 +47,22 @@ const COLUMNS: ColDef[] = [
 ]
 
 const DEFAULT_VISIBLE = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.id))
+
+function colsLsKey(adminId?: number) {
+  return `ibe_booking_cols_${adminId ?? 'anon'}`
+}
+
+function loadCols(adminId?: number): Set<string> {
+  try {
+    const raw = localStorage.getItem(colsLsKey(adminId))
+    if (raw) {
+      const parsed: string[] = JSON.parse(raw)
+      const valid = parsed.filter(id => COLUMNS.some(c => c.id === id))
+      if (valid.length > 0) return new Set(valid)
+    }
+  } catch { /* ignore */ }
+  return new Set(DEFAULT_VISIBLE)
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -276,9 +293,16 @@ interface BookingsViewProps {
 }
 
 export function BookingsView({ title, preset, initialFilters }: BookingsViewProps) {
+  const { admin } = useAdminAuth()
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, ...initialFilters })
   const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE)
+  useEffect(() => { setVisibleCols(loadCols(admin?.id)) }, [admin?.id])
+
+  function updateVisibleCols(next: Set<string>) {
+    setVisibleCols(next)
+    localStorage.setItem(colsLsKey(admin?.id), JSON.stringify([...next]))
+  }
 
   const handleFiltersChange = useCallback((f: Filters) => {
     setFilters(f)
@@ -319,7 +343,7 @@ export function BookingsView({ title, preset, initialFilters }: BookingsViewProp
           )}
         </div>
         <div className="flex items-center gap-2">
-          <ColumnPicker visible={visibleCols} onChange={setVisibleCols} />
+          <ColumnPicker visible={visibleCols} onChange={updateVisibleCols} />
           {data && data.bookings.length > 0 && (
             <button
               onClick={() => exportCsv(data.bookings, visibleCols)}

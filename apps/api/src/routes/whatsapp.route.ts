@@ -87,6 +87,7 @@ async function processInbound(phoneNumberId: string, from: string, text: string)
     message: text,
     session,
     sessionId,
+    channel: 'whatsapp',
     ...(propertyId ? { propertyId } : {}),
     orgId: org.organizationId,
   })

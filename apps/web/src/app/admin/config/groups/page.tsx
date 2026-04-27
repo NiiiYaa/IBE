@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
@@ -299,8 +299,8 @@ function ChainGroupsConfig({ orgId }: { orgId?: number }) {
     })
   }
 
-  if (isLoading || !form) return <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
   if (isError) return <p className="text-sm text-[var(--color-error)]">Failed to load.</p>
+  if (isLoading || !form) return <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
 
   return (
     <div className="space-y-5">
@@ -626,8 +626,8 @@ function PropertyGroupsOverride({ propertyId }: { propertyId: number }) {
     })
   }
 
-  if (isLoading || !form) return <p className="text-sm text-[var(--color-text-muted)]">Loading property override…</p>
   if (isError) return <p className="text-sm text-[var(--color-error)]">Failed to load property override.</p>
+  if (isLoading || !form) return <p className="text-sm text-[var(--color-text-muted)]">Loading property override…</p>
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
@@ -693,8 +693,21 @@ function PropertyGroupsOverride({ propertyId }: { propertyId: number }) {
 export default function GroupsConfigPage() {
   const { admin } = useAdminAuth()
   const { propertyId, orgId: contextOrgId } = useAdminProperty()
+  const qc = useQueryClient()
   const isSuper = admin?.role === 'super'
-  const orgId = isSuper ? (contextOrgId ?? undefined) : (admin?.organizationId ?? undefined)
+
+  // For super admins, contextOrgId may be null if they navigated directly or
+  // auto-select ran before the fix. Fall back to the cached property list.
+  const orgId = useMemo(() => {
+    if (!isSuper) return admin?.organizationId ?? undefined
+    if (contextOrgId != null) return contextOrgId
+    if (propertyId != null) {
+      const cached = qc.getQueryData<{ properties: { propertyId: number; orgId?: number }[] }>(['admin-super-properties'])
+      const match = cached?.properties.find(p => p.propertyId === propertyId)
+      if (match?.orgId) return match.orgId
+    }
+    return undefined
+  }, [isSuper, admin?.organizationId, contextOrgId, propertyId, qc])
 
   return (
     <div className="space-y-6">

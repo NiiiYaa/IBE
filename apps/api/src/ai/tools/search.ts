@@ -59,7 +59,7 @@ function pushToFuture(dateStr: string): string {
   return d.toISOString().slice(0, 10)
 }
 
-export async function executeSearchAvailability(args: Record<string, unknown>): Promise<SearchResult | { error: string }> {
+export async function executeSearchAvailability(args: Record<string, unknown>, channel?: string): Promise<SearchResult | { error: string }> {
   const propertyId = args.propertyId as number
   const checkIn = pushToFuture(args.checkIn as string)
   const checkOut = pushToFuture(args.checkOut as string)
@@ -74,7 +74,7 @@ export async function executeSearchAvailability(args: Record<string, unknown>): 
       checkOut,
       rooms: [{ adults, ...(childAges.length > 0 ? { childAges } : {}) }],
       currency,
-    })
+    }, undefined, channel)
 
     const result = response.results[0]
     if (!result) return { error: 'No availability found for these dates.' }

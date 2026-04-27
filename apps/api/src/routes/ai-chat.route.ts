@@ -76,6 +76,7 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
         message,
         session,
         sessionId: sessionId ?? 'anon',
+        channel: 'aiSearchBar',
         ...(propertyId ? { propertyId } : {}),
         ...(orgId ? { orgId } : {}),
       })

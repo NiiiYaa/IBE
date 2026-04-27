@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { listUsers, listAllUsers, createUser, updateUser, deleteUser, resetUserPassword, setOrgHyperGuestId, setUserPropertyIds, listOrgs, createOrg, updateOrg, setOrgActive, softDeleteOrg } from '../services/user.service.js'
 import { listProperties } from '../services/property-registry.service.js'
+import { updateOrgSettings } from '../services/org.service.js'
 
 const ALLOWED_ROLES = ['admin', 'observer', 'user']
 
@@ -23,10 +24,13 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/super/orgs', async (request, reply) => {
     if (request.admin.role !== 'super')
       return reply.status(403).send({ error: 'Forbidden' })
-    const { name, hyperGuestOrgId, orgType } = request.body as { name?: string; hyperGuestOrgId?: string; orgType?: string }
+    const { name, hyperGuestOrgId, hyperGuestBearerToken, orgType } = request.body as { name?: string; hyperGuestOrgId?: string; hyperGuestBearerToken?: string; orgType?: string }
     if (!name?.trim()) return reply.status(400).send({ error: 'name is required' })
     try {
       const org = await createOrg({ name, hyperGuestOrgId, orgType })
+      if (hyperGuestBearerToken?.trim()) {
+        await updateOrgSettings(org.id, { hyperGuestBearerToken: hyperGuestBearerToken.trim() })
+      }
       return reply.status(201).send(org)
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to create org' })
@@ -37,9 +41,12 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/super/orgs/:orgId', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
-    const { name, hyperGuestOrgId, orgType } = request.body as { name?: string; hyperGuestOrgId?: string; orgType?: string }
+    const { name, hyperGuestOrgId, orgType, hyperGuestBearerToken } = request.body as { name?: string; hyperGuestOrgId?: string; orgType?: string; hyperGuestBearerToken?: string | null }
     try {
       const org = await updateOrg(orgId, { name, hyperGuestOrgId, orgType })
+      if (hyperGuestBearerToken !== undefined) {
+        await updateOrgSettings(org.id, { hyperGuestBearerToken: hyperGuestBearerToken?.trim() || null })
+      }
       return reply.send(org)
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to update' })

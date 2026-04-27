@@ -140,7 +140,7 @@ async function handleToolCall(
         checkIn,
         checkOut,
         rooms: [{ adults, ...(children > 0 ? { childAges: Array<number>(children).fill(10) } : {}) }],
-      })
+      }, undefined, 'mcp')
       const summary = results.results.flatMap(r => r.rooms).map(room => ({
         roomId: room.roomId,
         roomName: room.roomName,
