@@ -33,14 +33,10 @@ export async function getDashboardStats(
   if (propertyId != null) {
     scopedPropertyIds = [propertyId]
   } else if (organizationId !== null) {
-    scopedPropertyIds = (await prisma.property.findMany({ where: { organizationId, deletedAt: null }, select: { id: true } })).map(p => p.id)
+    scopedPropertyIds = (await prisma.property.findMany({ where: { organizationId, deletedAt: null }, select: { propertyId: true } })).map(p => p.propertyId)
   } else {
     scopedPropertyIds = null
   }
-
-  const propertyFilter = scopedPropertyIds !== null
-    ? { property: { id: { in: scopedPropertyIds } } }
-    : {}
 
   const propertyIdFilter = scopedPropertyIds !== null
     ? { propertyId: { in: scopedPropertyIds } }
