@@ -118,7 +118,7 @@ export function HomePageClient({
 
   if (heroStyle === 'quilt') {
     return (
-      <div className="flex-1 bg-[var(--color-background)]">
+      <div className="sm:flex-1 bg-[var(--color-background)]">
         {PageStyle}
         {!aiLayout && MobileRectangleHero}
         {!aiLayout && (
@@ -131,12 +131,12 @@ export function HomePageClient({
             />
           </div>
         )}
-        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-6'}`}>
+        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-4 sm:py-6'}`}>
           {!aiLayout && (
-            <div className="mb-4 text-center">
-              <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
-              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
-              {tagline && <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
+            <div className="mb-3 sm:mb-4 text-center">
+              <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-xs sm:text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
+              {tagline && <p className="mt-1 sm:mt-2 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
           <SearchBar {...searchBarProps} />
@@ -151,10 +151,10 @@ export function HomePageClient({
 
   if (heroStyle === 'rectangle') {
     return (
-      <div className="flex-1 bg-[var(--color-background)]">
+      <div className="sm:flex-1 bg-[var(--color-background)]">
         {PageStyle}
         {!aiLayout && (
-          <div className="relative h-52 sm:h-[50vh] w-full overflow-hidden">
+          <div className="relative h-44 sm:h-[50vh] w-full overflow-hidden">
             {heroImageMode === 'carousel' ? (
               <HeroCarousel images={carouselImages} alt={displayName} variant="rectangle" intervalSeconds={heroCarouselInterval} />
             ) : heroImageUrl ? (
@@ -164,12 +164,12 @@ export function HomePageClient({
             )}
           </div>
         )}
-        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-6'}`}>
+        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-4 sm:py-6'}`}>
           {!aiLayout && (
-            <div className="mb-4 text-center">
-              <h1 className="text-3xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
-              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
-              {tagline && <p className="mt-3 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
+            <div className="mb-3 sm:mb-4 text-center">
+              <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-xs sm:text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
+              {tagline && <p className="mt-1 sm:mt-3 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
           <SearchBar {...searchBarProps} />
@@ -188,14 +188,14 @@ export function HomePageClient({
       {PageStyle}
 
       {/* Mobile: rectangle hero + title + search */}
-      <div className="sm:hidden flex-1 bg-[var(--color-background)]">
+      <div className="sm:hidden bg-[var(--color-background)]">
         {!aiLayout && MobileRectangleHero}
-        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-6'}`}>
+        <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-8' : 'py-4'}`}>
           {!aiLayout && (
-            <div className="mb-4 text-center">
-              <h1 className="text-3xl font-bold text-[var(--color-text)]">{displayName}</h1>
-              {chainLabel && <p className="mt-1 text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
-              {tagline && <p className="mt-2 text-lg text-[var(--color-text-muted)]">{tagline}</p>}
+            <div className="mb-3 text-center">
+              <h1 className="text-2xl font-bold text-[var(--color-text)]">{displayName}</h1>
+              {chainLabel && <p className="mt-1 text-xs font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
+              {tagline && <p className="mt-1 text-base text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
           <SearchBar {...searchBarProps} />
