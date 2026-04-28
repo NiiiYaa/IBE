@@ -19,6 +19,15 @@ export const searchAvailabilityTool: ToolDefinition = {
   },
 }
 
+export interface RateOffer {
+  ratePlanId: number
+  ratePlanCode: string
+  boardLabel: string
+  boardAbbr: string
+  isRefundable: boolean
+  price: number
+}
+
 export interface RoomSummary {
   roomId: number
   roomName: string
@@ -26,15 +35,31 @@ export interface RoomSummary {
   bedding: string
   lowestPrice: number
   currency: string
-  boardType: string
-  boardLabel: string
-  isRefundable: boolean
-  ratePlanId: number
-  ratePlanCode: string
   availableCount: number
-  refundablePrice: number | null
-  refundableRatePlanId: number | null
-  refundableRatePlanCode: string | null
+  offers: RateOffer[]
+}
+
+const BOARD_ABBR: Record<string, string> = {
+  'RO': 'RO', 'ROOM_ONLY': 'RO', 'ROOMONLY': 'RO', 'NO_MEALS': 'RO',
+  'BB': 'BB', 'BED_AND_BREAKFAST': 'BB', 'BEDANDBREAKFAST': 'BB', 'BREAKFAST': 'BB',
+  'HB': 'HB', 'HALF_BOARD': 'HB', 'HALFBOARD': 'HB',
+  'FB': 'FB', 'FULL_BOARD': 'FB', 'FULLBOARD': 'FB',
+  'AI': 'AI', 'ALL_INCLUSIVE': 'AI', 'ALLINCLUSIVE': 'AI',
+  'SC': 'SC', 'SELF_CATERING': 'SC',
+}
+
+function boardAbbr(board: string, label: string): string {
+  const upper = board.toUpperCase().replace(/[^A-Z_]/g, '')
+  if (BOARD_ABBR[upper]) return BOARD_ABBR[upper]
+  // Fallback: match common words in the label
+  const l = label.toLowerCase()
+  if (l.includes('all inclusive')) return 'AI'
+  if (l.includes('full board')) return 'FB'
+  if (l.includes('half board')) return 'HB'
+  if (l.includes('breakfast')) return 'BB'
+  if (l.includes('room only') || l.includes('no meal')) return 'RO'
+  // Last resort: first letters of each word
+  return label.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3)
 }
 
 export interface SearchResult {
@@ -80,30 +105,37 @@ export async function executeSearchAvailability(args: Record<string, unknown>, c
     if (!result) return { error: 'No availability found for these dates.' }
 
     const rooms: RoomSummary[] = result.rooms.map(room => {
-      const cheapestRate = room.rates.reduce((min, r) =>
-        r.prices.sell.amount < min.prices.sell.amount ? r : min
-      )
       const bedding = room.bedding.map(b => `${b.quantity} ${b.type}`).join(', ') || 'Standard'
-      const refundableRates = room.rates.filter(r => r.isRefundable)
-      const cheapestRefundable = refundableRates.length > 0
-        ? refundableRates.reduce((min, r) => r.prices.sell.amount < min.prices.sell.amount ? r : min)
-        : null
+
+      // One offer per (board, isRefundable) pair — cheapest price wins
+      const byKey = new Map<string, RateOffer>()
+      for (const rate of room.rates) {
+        const key = `${rate.board}-${rate.isRefundable ? '1' : '0'}`
+        const existing = byKey.get(key)
+        if (!existing || rate.prices.sell.amount < existing.price) {
+          byKey.set(key, {
+            ratePlanId: rate.ratePlanId,
+            ratePlanCode: rate.ratePlanCode,
+            boardLabel: rate.boardLabel,
+            boardAbbr: boardAbbr(rate.board, rate.boardLabel),
+            isRefundable: rate.isRefundable,
+            price: rate.prices.sell.amount,
+          })
+        }
+      }
+      const offers = [...byKey.values()].sort((a, b) => a.price - b.price)
+      const lowestPrice = offers[0]?.price ?? 0
+      const currency = room.rates[0]?.prices.sell.currency ?? 'EUR'
+
       return {
         roomId: room.roomId,
         roomName: room.roomName,
         maxOccupancy: room.maxOccupancy,
         bedding,
-        lowestPrice: cheapestRate.prices.sell.amount,
-        currency: cheapestRate.prices.sell.currency,
-        boardType: cheapestRate.board,
-        boardLabel: cheapestRate.boardLabel,
-        isRefundable: cheapestRate.isRefundable,
-        ratePlanId: cheapestRate.ratePlanId,
-        ratePlanCode: cheapestRate.ratePlanCode,
+        lowestPrice,
+        currency,
         availableCount: room.availableCount,
-        refundablePrice: cheapestRefundable ? cheapestRefundable.prices.sell.amount : null,
-        refundableRatePlanId: cheapestRefundable ? cheapestRefundable.ratePlanId : null,
-        refundableRatePlanCode: cheapestRefundable ? cheapestRefundable.ratePlanCode : null,
+        offers,
       }
     })
 

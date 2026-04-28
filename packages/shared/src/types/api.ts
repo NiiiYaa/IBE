@@ -489,7 +489,7 @@ export interface UpdatePromoCodeRequest {
 // ── Communication ─────────────────────────────────────────────────────────────
 
 export type EmailProvider = 'smtp' | 'sendgrid' | 'mailgun'
-export type WhatsAppProvider = 'meta' | 'twilio'
+export type WhatsAppProvider = 'meta' | 'twilio' | 'wwebjs'
 export type SmsProvider = 'twilio' | 'vonage' | 'aws'
 
 export interface CommunicationSettingsResponse {
@@ -513,6 +513,8 @@ export interface CommunicationSettingsResponse {
   whatsappTwilioAccountSid: string
   whatsappTwilioAuthTokenSet: boolean
   whatsappTwilioNumber: string
+  whatsappWebjsServiceUrl: string
+  whatsappWebjsServiceUrlOwn: string
   whatsappSystemServiceDisabled: boolean
 
   smsEnabled: boolean
@@ -549,6 +551,7 @@ export interface UpdateCommunicationSettingsRequest {
   whatsappTwilioAccountSid?: string
   whatsappTwilioAuthToken?: string
   whatsappTwilioNumber?: string
+  whatsappWebjsServiceUrl?: string
 
   smsEnabled?: boolean
   smsProvider?: SmsProvider

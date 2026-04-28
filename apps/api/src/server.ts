@@ -44,6 +44,11 @@ async function start() {
 
   // Background warmup: pre-populate HyperGuest static cache so the first request is never cold
   void warmupStaticCache()
+
+  // Restore WhatsApp sessions from DB (non-fatal)
+  void import('./services/whatsapp-manager.service.js').then(m => m.initAllSessions()).catch(err =>
+    logger.warn({ err }, '[Server] WhatsApp session restore failed (non-fatal)'),
+  )
 }
 
 async function warmupStaticCache() {

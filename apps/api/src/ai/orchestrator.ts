@@ -1,4 +1,4 @@
-import { resolveAIConfig, resolveContextPropertyIds } from '../services/ai-config.service.js'
+import { resolveAIConfig, resolveChainContext, type ChainContext } from '../services/ai-config.service.js'
 import { getProviderAdapter } from './adapters/index.js'
 import { ALL_TOOLS, executeTool } from './tools/index.js'
 import { logger } from '../utils/logger.js'
@@ -28,7 +28,7 @@ export interface OrchestratorResult {
   error?: string
 }
 
-function buildSystemPrompt(custom?: string, propertyIds?: number[]): string {
+function buildSystemPrompt(custom?: string, chainCtx?: ChainContext): string {
   const today = new Date().toISOString().slice(0, 10)
   const base = `You are a helpful hotel booking assistant. Your role is to:
 1. Help guests find available rooms based on their dates, preferences, and budget
@@ -43,22 +43,49 @@ Examples (assuming today is ${today}): "Aug 6" → pick whichever of this year o
 When searching, always confirm the dates with the guest before searching.
 When presenting rooms, highlight the most relevant options clearly.
 When the guest is ready to book, use prepare_booking to generate the booking link.
-Never invent prices or availability — always use the search_availability tool to get real data.`
+Never invent prices or availability — always use the search_availability tool to get real data.
+
+IMPORTANT: Never mention property IDs or numeric hotel identifiers to guests. Always refer to hotels by their name. If you need a hotel's name and don't have it yet, call get_property_info first, then use the name in your response.`
+
+  const { homePropertyId, propertyIds, chainName, isChainMember, isChainEngine } = chainCtx ?? {
+    propertyIds: [],
+    isChainMember: false,
+    isChainEngine: false,
+  }
 
   let resolved = custom
-  if (resolved && propertyIds && propertyIds.length > 0) {
+  if (resolved && propertyIds.length > 0) {
     resolved = resolved.replace(/\[hotel\]/gi, propertyIds.join(', '))
   }
 
   let context = ''
-  if (propertyIds && propertyIds.length === 1) {
-    context = `\n\nProperty context: You are embedded in the booking engine for property ID ${propertyIds[0]}. Always use propertyId ${propertyIds[0]} in all tool calls. Never ask the user which hotel — the property is already known.`
-  } else if (propertyIds && propertyIds.length > 1) {
+
+  if (isChainEngine) {
+    // Browsing at org/chain level — no fixed home property
+    const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
     const isLargeChain = propertyIds.length > 20
     const chainInstruction = isLargeChain
       ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool.`
-      : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with ALL ${propertyIds.length} property IDs.`
-    context = `\n\nProperty context: You are embedded in a hotel chain booking engine with ${propertyIds.length} hotels. The property IDs are: ${propertyIds.join(', ')}. ${chainInstruction} Once the user selects a hotel, use that property ID for search_availability and get_property_info.`
+      : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with all ${propertyIds.length} property IDs.`
+    context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
+You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
+Internal IDs for tool calls only: ${propertyIds.join(', ')}.
+${chainInstruction}
+Once the user selects a hotel, use that hotel's internal ID for search_availability and get_property_info — but always address the hotel by name in your replies.`
+  } else if (homePropertyId && isChainMember) {
+    // Single hotel page that belongs to a chain
+    const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
+    const chainLabel = chainName ? `the ${chainName} chain` : 'a hotel chain'
+    const siblingIds = propertyIds.filter(id => id !== homePropertyId)
+    context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
+You are the booking assistant for this hotel (internal tool ID: ${homePropertyId}). Use this ID for search_availability, get_property_info, and prepare_booking. Never ask the guest which hotel — it is fixed.
+Sister hotel internal IDs for tool calls only: ${siblingIds.join(', ')}.
+
+This hotel is part of ${chainRef}. If a guest asks whether this hotel is part of a chain, say: "Yes, this hotel is part of ${chainLabel}." If the guest asks about other hotels, or no availability is found for their dates, offer to check sister properties by calling list_chain_hotels with the sister IDs above — then present results by hotel name only. Say something like: "Let me check our other properties in the area for those dates."`
+  } else if (homePropertyId) {
+    // Standalone single hotel
+    context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
+You are the booking assistant for this hotel (internal tool ID: ${homePropertyId}). Use this ID in all tool calls. Never ask the guest which hotel — it is fixed. Always refer to this hotel by its name (call get_property_info if you don't have it yet).`
   }
 
   const parts = [base, context, resolved ? `Additional instructions:\n${resolved}` : ''].filter(Boolean)
@@ -79,8 +106,14 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   }
 
   const adapter = getProviderAdapter(aiConfig.provider)
-  const propertyIds = await resolveContextPropertyIds(propertyId, input.orgId)
-  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, propertyIds)
+  const chainCtx = await resolveChainContext(propertyId, input.orgId)
+
+  // WhatsApp-specific additions: plain URLs only, concise formatting
+  const channelHint = channel === 'whatsapp'
+    ? '\n\nCHANNEL: WhatsApp. Rules: (1) Never use Markdown links [text](url) — paste the full URL as plain text instead so it is clickable. (2) Keep responses concise — no bullet-heavy lists. (3) Use *bold* sparingly for hotel names or key info only.'
+    : ''
+
+  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, chainCtx) + channelHint
 
   const history = await session.load(sessionId)
   const userMessage: ChatMessage = { role: 'user', content: message }

@@ -1172,6 +1172,44 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/communication/whatsapp/test', { method: 'POST', body: JSON.stringify({ orgId }) })
   },
 
+  getWebjsStatus(orgId?: number): Promise<{ status: 'disconnected' | 'qr' | 'connected'; phoneNumber?: string }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/communication/wwebjs/status${qs}`)
+  },
+
+  getWebjsQr(orgId?: number): Promise<{ qr: string }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/communication/wwebjs/qr${qs}`)
+  },
+
+  disconnectWwebjs(orgId?: number): Promise<{ ok: boolean }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/communication/wwebjs/disconnect${qs}`, { method: 'POST' })
+  },
+
+  getPropertyWebjsSettings(propertyId: number): Promise<{ whatsappWebjsServiceUrl: string; whatsappSystemServiceDisabled: boolean; inheritedProvider: string | null; inheritedWebjsUrl: string | null; inheritedDisabled: boolean }> {
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs?propertyId=${propertyId}`)
+  },
+
+  updatePropertyWebjsSettings(propertyId: number, data: { whatsappWebjsServiceUrl?: string; whatsappSystemServiceDisabled?: boolean }): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs?propertyId=${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPropertyWebjsStatus(propertyId: number, orgId?: number): Promise<{ status: 'disconnected' | 'qr' | 'connected'; phoneNumber?: string }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs/status?${qs}`)
+  },
+
+  getPropertyWebjsQr(propertyId: number, orgId?: number): Promise<{ qr: string }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs/qr?${qs}`)
+  },
+
+  disconnectPropertyWwebjs(propertyId: number, orgId?: number): Promise<{ ok: boolean }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs/disconnect?${qs}`, { method: 'POST' })
+  },
+
   // ── Weather ───────────────────────────────────────────────────────────────────
 
   getSystemWeatherConfig(): Promise<WeatherConfigResponse> {

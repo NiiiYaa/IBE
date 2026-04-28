@@ -280,7 +280,7 @@ export function SearchBar({
             {/* AI Mode — far left */}
             {aiEnabled && (
               <>
-                <div className="flex items-center py-2 pl-3 pr-2">
+                <div className="flex items-center py-2 pl-2 pr-1">
                   <AiModeButton active={aiMode} onClick={toggleAiMode} />
                 </div>
                 <Divider />
@@ -318,7 +318,7 @@ export function SearchBar({
               value={displayDate(checkIn) || 'Select date'}
               active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
               onClick={() => openCalendar('checkin')}
-              flex={1.3}
+              flex={1.8}
             />
 
             <Divider />
@@ -328,7 +328,7 @@ export function SearchBar({
               value={displayDate(checkOut) || 'Select date'}
               active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
               onClick={() => openCalendar('checkout')}
-              flex={1.3}
+              flex={1.8}
             />
 
             <Divider />
@@ -363,12 +363,12 @@ export function SearchBar({
             />
 
             {/* CTA */}
-            <div className="flex items-center py-2 pl-1 pr-2">
+            <div className="flex items-center py-2 pl-1 pr-1.5">
               <button
                 ref={checkBtnRef}
                 onClick={handleSearch}
                 disabled={nights <= 0}
-                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-5 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Check availability
               </button>
@@ -789,7 +789,7 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
     return (
       <button
         onClick={onClick}
-        className="flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-light)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)] transition-all duration-200 hover:bg-[var(--color-border)]"
+        className="flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-light)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-primary)] transition-all duration-200 hover:bg-[var(--color-border)]"
         title="Exit AI Mode"
       >
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -807,7 +807,7 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
     >
       <button
         onClick={onClick}
-        className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-colors hover:bg-white/90"
+        className="flex items-center gap-1 rounded-full bg-white px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-colors hover:bg-white/90"
         title="Switch to AI Mode"
       >
         <span className="ai-spark-icon inline-flex">

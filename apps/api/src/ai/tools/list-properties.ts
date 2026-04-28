@@ -59,10 +59,15 @@ export async function executeListProperties(args: Record<string, unknown>): Prom
         const description = data.descriptions?.find(d => d.language === 'en')?.description
           ?? data.descriptions?.[0]?.description
           ?? null
-        // If query provided, also filter by city name (second-pass for unmatched DB names)
-        if (query && city && !city.toLowerCase().includes(query)) {
-          const dbName = rows.find(r => r.propertyId === propertyId)?.name ?? ''
-          if (!dbName.toLowerCase().includes(query)) return null
+        // If query provided, filter by city or hotel name (HyperGuest name takes priority over DB name)
+        if (query) {
+          const hgName = (data.name ?? '').toLowerCase()
+          const dbName = (rows.find(r => r.propertyId === propertyId)?.name ?? '').toLowerCase()
+          const cityStr = (city ?? '').toLowerCase()
+          // Split multi-word queries so "Quentin Prague" matches city="Prague" AND name="Quentin..."
+          const words = query.split(/\s+/).filter(Boolean)
+          const matches = (s: string) => words.some(w => s.includes(w))
+          if (!matches(cityStr) && !matches(hgName) && !matches(dbName)) return null
         }
         return {
           propertyId,

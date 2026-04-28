@@ -1,3 +1,12 @@
+export interface RateOffer {
+  ratePlanId: number
+  ratePlanCode: string
+  boardLabel: string
+  boardAbbr: string
+  isRefundable: boolean
+  price: number
+}
+
 export interface RoomSummary {
   roomId: number
   roomName: string
@@ -5,12 +14,8 @@ export interface RoomSummary {
   bedding: string
   lowestPrice: number
   currency: string
-  boardType: string
-  boardLabel: string
-  isRefundable: boolean
-  ratePlanId: number
-  ratePlanCode: string
   availableCount: number
+  offers: RateOffer[]
 }
 
 export interface SearchResult {

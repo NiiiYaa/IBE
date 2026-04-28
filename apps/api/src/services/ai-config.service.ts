@@ -238,16 +238,62 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
   return null
 }
 
-export async function resolveContextPropertyIds(propertyId?: number, orgId?: number): Promise<number[]> {
+export interface ChainContext {
+  homePropertyId?: number
+  propertyIds: number[]
+  chainName?: string
+  isChainMember: boolean
+  isChainEngine: boolean  // true when browsing at org level (no single home property)
+}
+
+export async function resolveChainContext(propertyId?: number, orgId?: number): Promise<ChainContext> {
+  // Org-level booking engine (chain homepage — no single home property)
   if (orgId) {
-    const props = await prisma.property.findMany({
-      where: { organizationId: orgId, deletedAt: null },
-      select: { propertyId: true },
-    })
-    return props.map(p => p.propertyId)
+    const [org, props] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      prisma.property.findMany({ where: { organizationId: orgId, deletedAt: null }, select: { propertyId: true } }),
+    ])
+    const propertyIds = props.map(p => p.propertyId)
+    return {
+      ...(propertyId !== undefined ? { homePropertyId: propertyId } : {}),
+      ...(org?.name ? { chainName: org.name } : {}),
+      propertyIds,
+      isChainMember: propertyIds.length > 1,
+      isChainEngine: true,
+    }
   }
-  if (propertyId) return [propertyId]
-  return []
+
+  // Single property — look up its org to detect chain membership
+  if (propertyId) {
+    const property = await prisma.property.findUnique({
+      where: { propertyId },
+      select: { organizationId: true },
+    })
+    if (property) {
+      const [org, props] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: property.organizationId }, select: { name: true } }),
+        prisma.property.findMany({ where: { organizationId: property.organizationId, deletedAt: null }, select: { propertyId: true } }),
+      ])
+      const propertyIds = props.map(p => p.propertyId)
+      const isChainMember = propertyIds.length > 1
+      return {
+        homePropertyId: propertyId,
+        ...(isChainMember && org?.name ? { chainName: org.name } : {}),
+        propertyIds,
+        isChainMember,
+        isChainEngine: false,
+      }
+    }
+    return { homePropertyId: propertyId, propertyIds: [propertyId], isChainMember: false, isChainEngine: false }
+  }
+
+  // System-wide mode (e.g. system wwebjs number with no org context):
+  // load all active properties so the AI can search the full catalogue.
+  const allProps = await prisma.property.findMany({
+    where: { deletedAt: null },
+    select: { propertyId: true },
+  })
+  return { propertyIds: allProps.map(p => p.propertyId), isChainMember: true, isChainEngine: true }
 }
 
 // ── Connection test ───────────────────────────────────────────────────────────

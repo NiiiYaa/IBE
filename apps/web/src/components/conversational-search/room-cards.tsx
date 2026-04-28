@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import type { SearchResult, BookingHandoff } from './types'
+import type { SearchResult, RateOffer, BookingHandoff } from './types'
 
 function fmtDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
@@ -38,32 +38,49 @@ export function SearchResultCards({ data, currency, fallbackPropertyId }: { data
         {data.found} room{data.found !== 1 ? 's' : ''} · {fmtDate(data.checkIn)} → {fmtDate(data.checkOut)} ({data.nights} night{data.nights !== 1 ? 's' : ''})
       </p>
       {data.rooms.map(room => (
-        <div key={room.roomId} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          <div className="flex items-start justify-between gap-2">
+        <div key={room.roomId} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
+          {/* Room header */}
+          <div className="mb-1.5 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[var(--color-text)]">{room.roomName}</p>
               <p className="text-xs text-[var(--color-text-muted)]">{room.bedding} · up to {room.maxOccupancy} guests</p>
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                {room.boardLabel}
-                {room.isRefundable
-                  ? <span className="ml-1 text-[var(--color-success)]">· Free cancellation</span>
-                  : <span className="ml-1 text-[var(--color-error)]">· Non-refundable</span>}
-              </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-base font-bold text-[var(--color-primary)]">{fmt(room.lowestPrice)}</p>
+              <p className="text-[10px] text-[var(--color-text-muted)]">Starting from</p>
+              <p className="text-sm font-bold text-[var(--color-primary)]">{fmt(room.lowestPrice)}</p>
               <p className="text-[10px] text-[var(--color-text-muted)]">per night</p>
             </div>
           </div>
-          <button
-            onClick={() => router.push(buildBookingUrl(data, room.roomId, room.ratePlanId, fallbackPropertyId))}
-            className="mt-2.5 w-full rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
-          >
-            Book · {fmt(room.lowestPrice * data.nights)}
-          </button>
+
+          {/* Offer buttons — one per board+refundable combo */}
+          <div className="flex flex-wrap gap-1.5">
+            {room.offers.map(offer => (
+              <OfferButton
+                key={`${offer.ratePlanId}`}
+                offer={offer}
+                total={fmt(offer.price * data.nights)}
+                onClick={() => router.push(buildBookingUrl(data, room.roomId, offer.ratePlanId, fallbackPropertyId))}
+              />
+            ))}
+          </div>
         </div>
       ))}
     </div>
+  )
+}
+
+function OfferButton({ offer, total, onClick }: { offer: RateOffer; total: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-0 rounded-lg bg-[var(--color-primary)] px-2.5 py-1 text-center transition-opacity hover:opacity-90"
+    >
+      <span className="text-xs font-extrabold uppercase tracking-wide text-white">Book</span>
+      <span className={`text-[9px] font-semibold ${offer.isRefundable ? 'text-emerald-300' : 'text-orange-300'}`}>
+        {offer.boardAbbr} / {offer.isRefundable ? 'Refundable' : 'Non-refundable'}
+      </span>
+      <span className="text-sm font-extrabold text-white">{total}</span>
+    </button>
   )
 }
 

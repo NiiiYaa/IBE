@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify'
-import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings, testEmailConnection, testWhatsappConnection } from '../services/communication.service.js'
+import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings, testEmailConnection, testWhatsappConnection, getPropertyWebjsSettings, upsertPropertyWebjsSettings } from '../services/communication.service.js'
 import type { CommSettings } from '../services/communication.service.js'
+import { getStatus, getQrDataUrl, disconnectClient, initClient, clientKey } from '../services/whatsapp-manager.service.js'
+import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 
-function maskSensitive(s: CommSettings) {
+function maskSensitive(s: CommSettings, ownWebjsUrl = '') {
   return {
     emailEnabled: s.emailEnabled,
     emailProvider: s.emailProvider,
@@ -24,6 +26,8 @@ function maskSensitive(s: CommSettings) {
     whatsappTwilioAccountSid: s.whatsappTwilioAccountSid,
     whatsappTwilioAuthTokenSet: !!s.whatsappTwilioAuthToken,
     whatsappTwilioNumber: s.whatsappTwilioNumber,
+    whatsappWebjsServiceUrl: s.whatsappWebjsServiceUrl,
+    whatsappWebjsServiceUrlOwn: ownWebjsUrl,
     whatsappSystemServiceDisabled: s.whatsappSystemServiceDisabled,
     smsEnabled: s.smsEnabled,
     smsProvider: s.smsProvider,
@@ -43,7 +47,7 @@ export async function communicationRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/communication/system', async (request, reply) => {
     if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const s = await getSystemCommSettings()
-    return reply.send(maskSensitive(s))
+    return reply.send(maskSensitive(s, s.whatsappWebjsServiceUrl))
   })
 
   // PUT /admin/communication/system — update system-level defaults (super only)
@@ -51,6 +55,7 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const body = request.body as Partial<CommSettings>
     await updateSystemCommSettings(body)
+    if (body.whatsappProvider === 'wwebjs' && body.whatsappEnabled) void initClient({})
     return reply.send({ ok: true })
   })
 
@@ -60,7 +65,11 @@ export async function communicationRoutes(fastify: FastifyInstance) {
       ? parseInt(rawOrgId, 10)
       : request.admin.organizationId!
     const s = await getCommSettings(orgId)
-    return reply.send(maskSensitive(s))
+    const orgRow = await prisma.communicationSettings.findUnique({
+      where: { organizationId: orgId },
+      select: { whatsappWebjsServiceUrl: true },
+    })
+    return reply.send(maskSensitive(s, orgRow?.whatsappWebjsServiceUrl ?? ''))
   })
 
   fastify.get('/admin/communication/whatsapp-webhook', async (_request, reply) => {
@@ -84,7 +93,9 @@ export async function communicationRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Only super admins can disable system services' })
     }
 
-    await updateCommSettings(orgId, body as never)
+    const { orgId: _omit, ...safeData } = body
+    await updateCommSettings(orgId, safeData as never)
+    if ((safeData as any).whatsappProvider === 'wwebjs' && (safeData as any).whatsappEnabled) void initClient({ orgId })
     return reply.send({ ok: true })
   })
 
@@ -104,5 +115,92 @@ export async function communicationRoutes(fastify: FastifyInstance) {
       ? (rawOrgId ? Number(rawOrgId) : null)
       : (request as any).admin.organizationId as number
     return reply.send(await testWhatsappConnection(orgId))
+  })
+
+  // ── Local WhatsApp (Baileys) — direct manager calls ──────────────────────────
+
+  function resolveOrgId(request: any): number | null {
+    const rawOrgId = (request.query as Record<string, string>).orgId
+    return (request as any).admin.role === 'super'
+      ? (rawOrgId ? Number(rawOrgId) : null)
+      : (request as any).admin.organizationId as number
+  }
+
+  function resolvePropertyId(request: any): number | null {
+    const raw = (request.query as Record<string, string>).propertyId
+    return raw ? parseInt(raw, 10) : null
+  }
+
+  function ctxFromIds(orgId: number | null, propertyId: number | null) {
+    if (propertyId) return { propertyId }
+    if (orgId) return { orgId }
+    return {}
+  }
+
+  fastify.get('/admin/communication/wwebjs/status', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), null)
+    return reply.send({ ...getStatus(ctx), configured: true })
+  })
+
+  fastify.get('/admin/communication/wwebjs/qr', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), null)
+    // Trigger initClient if not yet started (first time after saving settings)
+    void initClient(ctx)
+    const qr = getQrDataUrl(ctx)
+    if (!qr) return reply.status(404).send({ error: 'No QR available' })
+    return reply.send({ qr })
+  })
+
+  fastify.post('/admin/communication/wwebjs/disconnect', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), null)
+    await disconnectClient(ctx)
+    return reply.send({ ok: true })
+  })
+
+  // ── Property-level Local WhatsApp ──────────────────────────────────────────
+
+  fastify.get('/admin/communication/property/wwebjs', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    const row = await getPropertyWebjsSettings(propertyId)
+    const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+    const orgSettings = prop ? await getCommSettings(prop.organizationId) : null
+    return reply.send({
+      whatsappWebjsServiceUrl: row?.whatsappWebjsServiceUrl ?? '',
+      whatsappSystemServiceDisabled: row?.whatsappSystemServiceDisabled ?? false,
+      inheritedProvider: orgSettings?.whatsappProvider ?? null,
+      inheritedWebjsUrl: orgSettings?.whatsappWebjsServiceUrl ?? null,
+      inheritedDisabled: orgSettings?.whatsappSystemServiceDisabled ?? false,
+    })
+  })
+
+  fastify.put('/admin/communication/property/wwebjs', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    const body = request.body as { whatsappWebjsServiceUrl?: string; whatsappSystemServiceDisabled?: boolean }
+    if (body.whatsappSystemServiceDisabled !== undefined && (request as any).admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
+    await upsertPropertyWebjsSettings(propertyId, body)
+    return reply.send({ ok: true })
+  })
+
+  fastify.get('/admin/communication/property/wwebjs/status', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), resolvePropertyId(request))
+    return reply.send({ ...getStatus(ctx), configured: true })
+  })
+
+  fastify.get('/admin/communication/property/wwebjs/qr', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), resolvePropertyId(request))
+    void initClient(ctx)
+    const qr = getQrDataUrl(ctx)
+    if (!qr) return reply.status(404).send({ error: 'No QR available' })
+    return reply.send({ qr })
+  })
+
+  fastify.post('/admin/communication/property/wwebjs/disconnect', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), resolvePropertyId(request))
+    await disconnectClient(ctx)
+    return reply.send({ ok: true })
   })
 }

@@ -553,6 +553,7 @@ model CommunicationSettings {
   whatsappTwilioAccountSid  String  @default("")
   whatsappTwilioAuthToken   String?
   whatsappTwilioNumber      String  @default("")
+  whatsappWebjsServiceUrl   String  @default("")
 
   // SMS
   smsEnabled          Boolean @default(false)
@@ -568,6 +569,17 @@ model CommunicationSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ── Property-level WhatsApp overrides ────────────────────────────────────────
+
+model PropertyCommunicationSettings {
+  id                            Int      @id @default(autoincrement())
+  propertyId                    Int      @unique
+  whatsappWebjsServiceUrl       String   @default("")
+  whatsappSystemServiceDisabled Boolean  @default(false)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
 }
 
 // ── Message Rules ─────────────────────────────────────────────────────────────
@@ -986,6 +998,7 @@ model SystemCommunicationSettings {
   whatsappTwilioAccountSid  String  @default("")
   whatsappTwilioAuthToken   String?
   whatsappTwilioNumber      String  @default("")
+  whatsappWebjsServiceUrl   String  @default("")
 
   // SMS
   smsEnabled          Boolean @default(false)
@@ -999,6 +1012,16 @@ model SystemCommunicationSettings {
   smsAwsSecretKey     String?
   smsAwsRegion        String  @default("")
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── WhatsApp Session Storage (Baileys) ───────────────────────────────────────
+
+model WhatsAppSession {
+  id        Int      @id @default(autoincrement())
+  clientKey String   @unique // "system" | "org-{id}" | "property-{id}"
+  authData  Json              // Baileys auth state files serialised as JSON
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

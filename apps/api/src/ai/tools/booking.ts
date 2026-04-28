@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../adapters/types.js'
+import { env } from '../../config/env.js'
 
 export const prepareBookingTool: ToolDefinition = {
   name: 'prepare_booking',
@@ -49,7 +50,7 @@ export function executePrepareBooking(args: Record<string, unknown>): BookingHan
   })
 
   return {
-    url: `/booking?${params.toString()}`,
+    url: `${env.WEB_BASE_URL}/booking?${params.toString()}`,
     propertyId,
     roomId,
     ratePlanId,
