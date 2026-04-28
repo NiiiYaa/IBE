@@ -351,17 +351,19 @@ export default function WhatsAppPage() {
 
         {error && <ErrorBanner message={error} />}
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
-            className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
-            {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-          </button>
-          {testResult && (
-            <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
-              {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
-            </p>
-          )}
-        </div>
+        {provider !== 'wwebjs' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+              className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testResult && (
+              <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+                {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+              </p>
+            )}
+          </div>
+        )}
 
         <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
       </div>
@@ -468,17 +470,21 @@ export default function WhatsAppPage() {
 
       {error && <ErrorBanner message={error} />}
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
-          className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
-          {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-        </button>
-        {testResult && (
-          <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
-            {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
-          </p>
-        )}
-      </div>
+      {/* Test Connection only makes sense for API-based providers (Meta / Twilio).
+          For Local, the status panel already shows the real connection state. */}
+      {data?.whatsappProvider !== 'wwebjs' && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+            className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+            {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+          </button>
+          {testResult && (
+            <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+              {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+            </p>
+          )}
+        </div>
+      )}
 
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
     </div>
