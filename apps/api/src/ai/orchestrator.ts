@@ -95,7 +95,7 @@ You are the booking assistant for this hotel (internal tool ID: ${homePropertyId
 export async function runOrchestrator(input: OrchestratorInput): Promise<OrchestratorResult> {
   const { message, session, sessionId, propertyId, customSystemPrompt, channel } = input
 
-  const aiConfig = await resolveAIConfig(propertyId)
+  const aiConfig = await resolveAIConfig(propertyId, input.orgId)
   if (!aiConfig) {
     return {
       text: 'AI assistant is not configured for this hotel. Please contact the hotel directly.',

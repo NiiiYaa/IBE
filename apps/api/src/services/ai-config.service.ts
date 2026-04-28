@@ -189,7 +189,7 @@ export interface ResolvedAIConfig {
   source: 'property' | 'org' | 'system'
 }
 
-export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAIConfig | null> {
+export async function resolveAIConfig(propertyId?: number, orgId?: number): Promise<ResolvedAIConfig | null> {
   let propRow: Awaited<ReturnType<typeof prisma.propertyAIConfig.findUnique>> | null = null
   let orgRow: Awaited<ReturnType<typeof prisma.orgAIConfig.findUnique>> | null = null
 
@@ -222,6 +222,20 @@ export async function resolveAIConfig(propertyId?: number): Promise<ResolvedAICo
     }
     // If system service is disabled for this property or its org, don't fall through
     if (propRow?.systemServiceDisabled || orgRow?.systemServiceDisabled) return null
+  } else if (orgId) {
+    // WhatsApp org-level channel: no single property, resolve via org directly
+    orgRow = await prisma.orgAIConfig.findUnique({ where: { organizationId: orgId } })
+    const isFakeOrg = orgRow?.provider === 'fake'
+    if (orgRow && !orgRow.useInherited && orgRow.provider && (isFakeOrg || orgRow.apiKey) && orgRow.enabled) {
+      return {
+        provider: orgRow.provider as AIProvider,
+        model: orgRow.model!,
+        apiKey: isFakeOrg ? '' : decryptApiKey(orgRow.apiKey!),
+        systemPrompt: orgRow.systemPrompt,
+        source: 'org',
+      }
+    }
+    if (orgRow?.systemServiceDisabled) return null
   }
   // Fall through to system
   const systemRow = await prisma.systemAIConfig.findFirst()
