@@ -1,1 +1,6 @@
 chrome-libs/
+.wwebjs_session/
+.wwebjs_cache/
+node_modules/
+dist/
+
