@@ -11,7 +11,9 @@ import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
 import { useGuestAuth } from '@/hooks/use-guest-auth'
 import { useB2BAgentAuth } from '@/hooks/use-b2b-agent-auth'
 import { MapButton } from '@/components/map/MapButton'
+import { NavMenu } from '@/components/layout/NavMenu'
 import type { HeaderMapData } from '@/components/layout/Header'
+import type { NavItem } from '@ibe/shared'
 
 // ── Shared dropdown shell ─────────────────────────────────────────────────────
 
@@ -301,6 +303,7 @@ interface HeaderSelectorsProps {
   mapData?: HeaderMapData
   showGroupsButton?: boolean
   groupsPropertyId?: number
+  navItems?: NavItem[]
 }
 
 export function HeaderSelectors({
@@ -312,11 +315,13 @@ export function HeaderSelectors({
   mapData,
   showGroupsButton,
   groupsPropertyId,
+  navItems = [],
 }: HeaderSelectorsProps) {
   const { setLocale, setCurrency } = usePreferences()
   const { selection } = useSearchSelection()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const effectiveGroupsPropertyId = selection.propertyId ?? groupsPropertyId
 
@@ -328,29 +333,89 @@ export function HeaderSelectors({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultLocale, defaultCurrency])
 
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [pathname])
+
   const showLocale = enabledLocales.length > 1
 
   const currentUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
 
+  const groupsHref = pathname.startsWith('/groups')
+    ? (searchParams.get('returnTo') ?? '/')
+    : (effectiveGroupsPropertyId ? `/groups?hotelId=${effectiveGroupsPropertyId}` : '/groups') +
+      `&returnTo=${encodeURIComponent(currentUrl)}`
+
   return (
-    <div className="flex items-center gap-1">
-      {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
-      {showGroupsButton && (
-        <a
-          href={
-            pathname.startsWith('/groups')
-              ? (searchParams.get('returnTo') ?? '/')
-              : (effectiveGroupsPropertyId ? `/groups?hotelId=${effectiveGroupsPropertyId}` : '/groups') +
-                `&returnTo=${encodeURIComponent(currentUrl)}`
-          }
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
-        >
-          {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
-        </a>
+    <>
+      {/* Desktop selectors */}
+      <div className="hidden sm:flex items-center gap-1">
+        {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
+        {showGroupsButton && (
+          <a
+            href={groupsHref}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+          >
+            {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
+          </a>
+        )}
+        {mapData && <MapButton mapData={mapData} />}
+        <CurrencySelector enabledCurrencies={enabledCurrencies} />
+        {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
+      </div>
+
+      {/* Mobile hamburger button */}
+      <button
+        className="sm:hidden flex items-center justify-center w-9 h-9 rounded-lg text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)]"
+        onClick={() => setMenuOpen(v => !v)}
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+      >
+        {menuOpen ? (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
+      </button>
+
+      {/* Mobile menu panel */}
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setMenuOpen(false)} />
+          <div
+            className="fixed inset-x-0 top-14 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg sm:hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {navItems.length > 0 && (
+              <div className="border-b border-[var(--color-border)] px-4 py-3">
+                <NavMenu
+                  items={navItems}
+                  className="flex flex-col gap-1"
+                  itemClassName="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+                />
+              </div>
+            )}
+            <div className="flex flex-col px-2 py-2">
+              {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
+              {showGroupsButton && (
+                <a
+                  href={groupsHref}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
+                </a>
+              )}
+              {mapData && <MapButton mapData={mapData} />}
+              <CurrencySelector enabledCurrencies={enabledCurrencies} />
+              {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
+            </div>
+          </div>
+        </>
       )}
-      {mapData && <MapButton mapData={mapData} />}
-      <CurrencySelector enabledCurrencies={enabledCurrencies} />
-      {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
-    </div>
+    </>
   )
 }

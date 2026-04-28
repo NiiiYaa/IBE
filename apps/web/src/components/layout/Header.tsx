@@ -49,7 +49,7 @@ export function Header({
         <div className="flex items-center gap-4">
           <NavMenu
             items={navItems}
-            className="flex items-center gap-4"
+            className="hidden sm:flex items-center gap-4"
             itemClassName="text-sm text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-primary)]"
           />
           <Suspense>
@@ -59,6 +59,7 @@ export function Header({
               defaultLocale={defaultLocale}
               defaultCurrency={defaultCurrency}
               isB2BMode={isB2BMode}
+              navItems={navItems}
               {...(mapData ? { mapData } : {})}
               {...(showGroupsButton ? { showGroupsButton } : {})}
               {...(propertyId ? { groupsPropertyId: propertyId } : {})}

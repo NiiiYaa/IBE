@@ -164,7 +164,7 @@ export default function WhatsAppPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const chainName = orgSettingsData?.orgName ?? admin?.orgName ?? null
+  const chainName = orgSettingsData?.orgName ?? null
 
   const { data: webhookInfo } = useQuery({
     queryKey: ['whatsapp-webhook-info'],
