@@ -361,7 +361,7 @@ export default async function HomePage({
     ...(defaultPropertyId ? { propertyId: defaultPropertyId } : {}),
     ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
     whatsappPrefilledMessage: isMulti
-      ? `Hello, I'd like to find out about ${displayName}'s properties.`
+      ? `Hello, I'd like to find out about ${displayName}${displayName.toLowerCase().includes('collection') ? '' : ' Collection'}.`
       : `Hello, I'd like to find out about ${displayName}.`,
   }
 

@@ -126,6 +126,51 @@ function WhatsAppInheritedBadge({ data }: { data: CommData | undefined }) {
   )
 }
 
+function LocalConsentModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const [checked, setChecked] = useState(false)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl space-y-5">
+        <h2 className="text-base font-semibold text-[var(--color-text)]">Important notice — Local WhatsApp service</h2>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-3">
+          <p>
+            We strongly recommend obtaining a WhatsApp Business number and API credentials for integration.
+            Alternative configuration methods may be available; however, using a local WhatsApp service is{' '}
+            <strong>not recommended</strong>, as it is unreliable and does not guarantee any service level.
+          </p>
+          <p>
+            Additionally, using the local service may conflict with Meta/WhatsApp&apos;s terms of use.
+            If you choose to use your own number, please be aware that this could result in{' '}
+            <strong>your number being banned</strong>.
+          </p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={e => setChecked(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+          />
+          <span className="text-sm text-[var(--color-text)]">
+            I understand, confirm, and accept the above, and I choose to use the local service.
+            I acknowledge that I will have no complaints or claims regarding its use.
+          </span>
+        </label>
+        <div className="flex justify-end gap-3 pt-1">
+          <button type="button" onClick={onCancel}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors">
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={!checked}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-40 hover:opacity-90 transition-opacity">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WhatsAppPage() {
   const qc = useQueryClient()
   const { propertyId, orgId } = useAdminProperty()
@@ -149,6 +194,7 @@ export default function WhatsAppPage() {
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [showLocalConsent, setShowLocalConsent] = useState<'select' | 'enable' | false>(false)
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -232,6 +278,17 @@ export default function WhatsAppPage() {
     return <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
   }
 
+  const localConsentModal = showLocalConsent && (
+    <LocalConsentModal
+      onConfirm={() => {
+        if (showLocalConsent === 'select') { setProvider('wwebjs'); markDirty() }
+        if (showLocalConsent === 'enable') { setEnabled(true); markDirty() }
+        setShowLocalConsent(false)
+      }}
+      onCancel={() => setShowLocalConsent(false)}
+    />
+  )
+
   function markDirty() { setIsDirty(true) }
 
   const systemDisabled = data?.whatsappSystemServiceDisabled ?? false
@@ -240,7 +297,14 @@ export default function WhatsAppPage() {
     <>
       <div className="flex gap-2">
         {PROVIDERS.map(p => (
-          <button key={p.value} type="button" onClick={() => { setProvider(p.value); markDirty() }}
+          <button key={p.value} type="button"
+            onClick={() => {
+              if (p.value === 'wwebjs') {
+                setShowLocalConsent('select')
+              } else {
+                setProvider(p.value); markDirty()
+              }
+            }}
             className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
               provider === p.value
                 ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
@@ -308,6 +372,7 @@ export default function WhatsAppPage() {
 
   if (isSystemLevel) {
     return (
+      <>
       <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
         <div>
           <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp — System defaults</h1>
@@ -323,7 +388,10 @@ export default function WhatsAppPage() {
                 <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
               </div>
-              <Toggle enabled={enabled} onChange={v => { setEnabled(v); markDirty() }} />
+              <Toggle enabled={enabled} onChange={v => {
+                if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
+                else { setEnabled(v); markDirty() }
+              }} />
             </div>
             <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
               {credentialForm(true)}
@@ -367,12 +435,15 @@ export default function WhatsAppPage() {
 
         <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
       </div>
+      {localConsentModal}
+      </>
     )
   }
 
   // ── Org level ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
@@ -417,7 +488,10 @@ export default function WhatsAppPage() {
                 <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
               </div>
-              <Toggle enabled={enabled} onChange={v => { setEnabled(v); markDirty() }} />
+              <Toggle enabled={enabled} onChange={v => {
+                if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
+                else { setEnabled(v); markDirty() }
+              }} />
             </div>
             <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
               {credentialForm(true)}
@@ -444,6 +518,15 @@ export default function WhatsAppPage() {
                   whatsappProvider: 'wwebjs',
                   ...(orgId ? { orgId } : {}),
                 } as never).then(() => void qc.invalidateQueries({ queryKey }))
+              }}
+              onDeactivate={() => {
+                void Promise.all([
+                  apiClient.disconnectWwebjs(orgId ?? undefined),
+                  apiClient.updateCommunicationSettings({
+                    whatsappEnabled: false,
+                    ...(orgId ? { orgId } : {}),
+                  } as never),
+                ]).then(() => void qc.invalidateQueries({ queryKey }))
               }}
             />
           </div>
@@ -488,6 +571,8 @@ export default function WhatsAppPage() {
 
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
     </div>
+    {localConsentModal}
+    </>
   )
 }
 
@@ -607,7 +692,10 @@ function WebjsStatusPanel({ orgId, inherited }: { orgId?: number | undefined; in
 
 // ── Own number on system wwebjs (org level) ───────────────────────────────────
 
-function OwnWebjsNumberSection({ orgId, onActivate }: { orgId?: number | undefined; onActivate: () => void }) {
+function OwnWebjsNumberSection({ orgId, onActivate, onDeactivate }: { orgId?: number | undefined; onActivate: () => void; onDeactivate: () => void }) {
+  const [showConsent, setShowConsent] = useState(false)
+  const [showGlobalConsent, setShowGlobalConsent] = useState(false)
+
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['wwebjs-status', orgId],
     queryFn: () => apiClient.getWebjsStatus(orgId),
@@ -618,20 +706,29 @@ function OwnWebjsNumberSection({ orgId, onActivate }: { orgId?: number | undefin
   const isActive = status === 'connected' || status === 'qr'
 
   return (
+    <>
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">
-          Own WhatsApp number
-          <span className="ml-2 rounded-full bg-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Local QR</span>
-        </h2>
-        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-          Scan a QR code to connect a dedicated number for this chain via the local WhatsApp bridge.
-          Available because the super admin has enabled this for your account.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--color-text)]">
+            Own WhatsApp number
+            <span className="ml-2 rounded-full bg-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Local QR</span>
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+            Scan a QR code to connect a dedicated number for this chain via the local WhatsApp bridge.
+            Available because the super admin has enabled this for your account.
+          </p>
+        </div>
+        {isActive && (
+          <button type="button" onClick={() => setShowGlobalConsent(true)}
+            className="shrink-0 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:border-[var(--color-error)] hover:text-[var(--color-error)] transition-colors">
+            Use global number
+          </button>
+        )}
       </div>
 
       {!isLoading && !isActive && (
-        <button type="button" onClick={onActivate}
+        <button type="button" onClick={() => setShowConsent(true)}
           className="rounded-lg border border-[var(--color-primary)]/40 px-4 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors">
           Generate QR code
         </button>
@@ -639,6 +736,19 @@ function OwnWebjsNumberSection({ orgId, onActivate }: { orgId?: number | undefin
 
       {isActive && <WebjsStatusPanel orgId={orgId} inherited={false} />}
     </div>
+    {showConsent && (
+      <LocalConsentModal
+        onConfirm={() => { setShowConsent(false); onActivate() }}
+        onCancel={() => setShowConsent(false)}
+      />
+    )}
+    {showGlobalConsent && (
+      <LocalConsentModal
+        onConfirm={() => { setShowGlobalConsent(false); onDeactivate() }}
+        onCancel={() => setShowGlobalConsent(false)}
+      />
+    )}
+    </>
   )
 }
 
@@ -656,6 +766,7 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
   const [showOwn, setShowOwn] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [serviceUrlOwn, setServiceUrlOwn] = useState('')
+  const [showLocalConsent, setShowLocalConsent] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -681,6 +792,7 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
   const systemDisabled = data?.whatsappSystemServiceDisabled ?? false
 
   return (
+    <>
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
@@ -746,7 +858,7 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
             {ownUrl && <PropertyWebjsStatusPanel propertyId={propertyId} orgId={orgId ?? undefined} hasOwn={true} />}
           </>
         ) : (
-          <button type="button" onClick={() => setShowOwn(true)}
+          <button type="button" onClick={() => setShowLocalConsent(true)}
             className="rounded-lg border border-[var(--color-primary)]/40 px-4 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors">
             + Set up own number
           </button>
@@ -755,6 +867,13 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
 
       <SaveBar isDirty={isDirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate()} />
     </div>
+    {showLocalConsent && (
+      <LocalConsentModal
+        onConfirm={() => { setShowLocalConsent(false); setShowOwn(true) }}
+        onCancel={() => setShowLocalConsent(false)}
+      />
+    )}
+    </>
   )
 }
 

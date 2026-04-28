@@ -280,6 +280,10 @@ export async function setWaSessionContext(sessionId: string, ctx: { orgId?: numb
   await cacheSet(`ai:wa-ctx:${sessionId}`, ctx, WA_CTX_TTL)
 }
 
+export async function clearWaSessionContext(sessionId: string): Promise<void> {
+  await cacheSet(`ai:wa-ctx:${sessionId}`, null, 1)
+}
+
 // ── wwebjs phone registry (in-memory, refreshed on every connect/message) ─────
 
 const _webjsPhoneRegistry = new Map<string, { orgId?: number; propertyId?: number }>()

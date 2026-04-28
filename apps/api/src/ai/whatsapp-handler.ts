@@ -1,7 +1,7 @@
 import { runOrchestrator } from './orchestrator.js'
 import { RedisSession } from './sessions/redis-session.js'
 import { prisma } from '../db/client.js'
-import { registerWebjsPhone, resolveWebjsPhoneContext, getWaSessionContext, setWaSessionContext } from '../services/communication.service.js'
+import { registerWebjsPhone, resolveWebjsPhoneContext, getWaSessionContext, setWaSessionContext, clearWaSessionContext } from '../services/communication.service.js'
 import { logger } from '../utils/logger.js'
 
 function extractPropertyIdFromToolResults(toolResults: { tool: string; data: unknown }[]): number | null {
@@ -35,9 +35,21 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
   const { from, message, myPhone } = params
   let { orgId, propertyId } = params
 
-  const sessionId = `wa-${from}`
+  const sessionId = orgId ? `wa-${orgId}-${from}` : myPhone ? `wa-${myPhone}-${from}` : `wa-${from}`
 
   if (myPhone) registerWebjsPhone(myPhone, { orgId, propertyId })
+
+  // Fresh greeting (e.g. prefilled "Hello, I'd like to find out about X") — reset session
+  // so a user switching between chains/hotels on a shared global number starts clean.
+  const isFreshGreeting = /^hello,?\s+i['']d like to find out about\b/i.test(message.trim())
+  if (isFreshGreeting && !orgId && !propertyId) {
+    const session = new RedisSession()
+    await Promise.all([
+      session.save(sessionId, []),
+      clearWaSessionContext(sessionId),
+    ])
+    logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
+  }
 
   // Resolve context: phone registry → saved session context
   let waCtxAlreadySaved = false

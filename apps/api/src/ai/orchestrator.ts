@@ -62,16 +62,22 @@ IMPORTANT: Never mention property IDs or numeric hotel identifiers to guests. Al
 
   if (isChainEngine) {
     // Browsing at org/chain level — no fixed home property
-    const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
+    const chainSuffix = chainName && chainName.toLowerCase().includes('collection') ? '' : ' Collection'
+    const chainRef = chainName ? `the ${chainName}${chainSuffix}` : 'a hotel collection'
     const isLargeChain = propertyIds.length > 20
     const chainInstruction = isLargeChain
       ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool.`
       : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with all ${propertyIds.length} property IDs.`
+
+    const systemWideGreeting = !chainName
+      ? `\nIMPORTANT: Do not call any tools and do not discuss availability or rooms until the guest explicitly names a specific hotel or chain. If their first message does not mention one, reply only with: "Welcome! Which hotel or chain can I help you with today?"`
+      : ''
+
     context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
 You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
 Internal IDs for tool calls only: ${propertyIds.join(', ')}.
 ${chainInstruction}
-Once the user selects a hotel, use that hotel's internal ID for search_availability and get_property_info — but always address the hotel by name in your replies.`
+Once the user selects a hotel, use that hotel's internal ID for search_availability and get_property_info — but always address the hotel by name in your replies.${systemWideGreeting}`
   } else if (homePropertyId && isChainMember) {
     // Single hotel page that belongs to a chain
     const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
