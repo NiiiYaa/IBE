@@ -3,7 +3,9 @@ import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 import { runOrchestrator } from '../ai/orchestrator.js'
 import { RedisSession } from '../ai/sessions/redis-session.js'
-import { resolveOrgByPhoneNumberId, getOrgPropertyId, sendWhatsAppMessage } from '../services/whatsapp.service.js'
+import { resolveOrgByPhoneNumberId, sendWhatsAppMessage } from '../services/whatsapp.service.js'
+import { getWaSessionContext, setWaSessionContext, clearWaSessionContext } from '../services/communication.service.js'
+import { extractPropertyIdFromToolResults } from '../ai/whatsapp-handler.js'
 
 interface WhatsAppWebhookBody {
   object: string
@@ -77,8 +79,19 @@ async function processInbound(phoneNumberId: string, from: string, text: string)
     return
   }
 
-  const propertyId = await getOrgPropertyId(org.organizationId)
   const sessionId = `wa:${phoneNumberId}:${from}`
+
+  // Fresh greeting from IBE button — reset session so hotel context doesn't carry over
+  const isFreshGreeting = /^hello,?\s+i['']d like to find out about\b/i.test(text.trim())
+  if (isFreshGreeting) {
+    const session = new RedisSession()
+    await Promise.all([session.save(sessionId, []), clearWaSessionContext(sessionId)])
+    logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
+  }
+
+  // Use hotel locked from a previous turn; fall back to chain-level (no home property)
+  const savedCtx = isFreshGreeting ? null : await getWaSessionContext(sessionId)
+  const propertyId = savedCtx?.propertyId
 
   logger.info({ from, orgId: org.organizationId, propertyId, sessionId }, '[WhatsApp] Routing message')
 
@@ -91,6 +104,15 @@ async function processInbound(phoneNumberId: string, from: string, text: string)
     ...(propertyId ? { propertyId } : {}),
     orgId: org.organizationId,
   })
+
+  // Lock session to the hotel the AI resolved on this turn
+  if (!propertyId && result.toolResults.length > 0) {
+    const resolvedPropId = extractPropertyIdFromToolResults(result.toolResults)
+    if (resolvedPropId) {
+      void setWaSessionContext(sessionId, { orgId: org.organizationId, propertyId: resolvedPropId })
+      logger.info({ sessionId, propertyId: resolvedPropId }, '[WhatsApp] Session locked to property')
+    }
+  }
 
   if (result.text) {
     await sendWhatsAppMessage(org.phoneNumberId, org.accessToken, from, result.text)

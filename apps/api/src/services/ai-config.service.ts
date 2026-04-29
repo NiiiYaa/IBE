@@ -262,25 +262,7 @@ export interface ChainContext {
 }
 
 export async function resolveChainContext(propertyId?: number, orgId?: number): Promise<ChainContext> {
-  // Org-level booking engine (chain homepage — no single home property)
-  if (orgId) {
-    const [org, props, orgDesign] = await Promise.all([
-      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
-      prisma.property.findMany({ where: { organizationId: orgId, deletedAt: null }, select: { propertyId: true } }),
-      prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId }, select: { defaultCurrency: true } }),
-    ])
-    const propertyIds = props.map(p => p.propertyId)
-    return {
-      ...(propertyId !== undefined ? { homePropertyId: propertyId } : {}),
-      ...(org?.name ? { chainName: org.name } : {}),
-      ...(orgDesign?.defaultCurrency ? { defaultCurrency: orgDesign.defaultCurrency } : {}),
-      propertyIds,
-      isChainMember: propertyIds.length > 1,
-      isChainEngine: true,
-    }
-  }
-
-  // Single property — look up its org to detect chain membership
+  // Single property — takes priority over org context (e.g. WhatsApp session locked to a hotel)
   if (propertyId) {
     const property = await prisma.property.findUnique({
       where: { propertyId },
@@ -304,6 +286,23 @@ export async function resolveChainContext(propertyId?: number, orgId?: number): 
       }
     }
     return { homePropertyId: propertyId, propertyIds: [propertyId], isChainMember: false, isChainEngine: false }
+  }
+
+  // Org-level booking engine (chain homepage — no single home property)
+  if (orgId) {
+    const [org, props, orgDesign] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      prisma.property.findMany({ where: { organizationId: orgId, deletedAt: null }, select: { propertyId: true } }),
+      prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId }, select: { defaultCurrency: true } }),
+    ])
+    const propertyIds = props.map(p => p.propertyId)
+    return {
+      ...(org?.name ? { chainName: org.name } : {}),
+      ...(orgDesign?.defaultCurrency ? { defaultCurrency: orgDesign.defaultCurrency } : {}),
+      propertyIds,
+      isChainMember: propertyIds.length > 1,
+      isChainEngine: true,
+    }
   }
 
   // System-wide mode (e.g. system wwebjs number with no org context):

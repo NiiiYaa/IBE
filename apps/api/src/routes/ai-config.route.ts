@@ -7,7 +7,9 @@ import {
   getPropertyAIConfig,
   upsertPropertyAIConfig,
   testAIConnection,
+  decryptApiKey,
 } from '../services/ai-config.service.js'
+import { prisma } from '../db/client.js'
 import type { AIProvider } from '@ibe/shared'
 
 export async function aiConfigRoutes(fastify: FastifyInstance) {
@@ -71,11 +73,45 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
     return reply.send(await upsertPropertyAIConfig(propertyId, body))
   })
 
-  // POST /admin/ai/test — test a provider connection
+  // POST /admin/ai/test — test a provider connection (with a freshly-pasted key)
   fastify.post('/admin/ai/test', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { provider, apiKey, model } = request.body as { provider: AIProvider; apiKey: string; model: string }
     if (!provider || !model) return reply.status(400).send({ error: 'provider and model are required' })
     if (provider !== 'fake' && !apiKey) return reply.status(400).send({ error: 'apiKey is required' })
     return reply.send(await testAIConnection(provider, apiKey ?? '', model))
+  })
+
+  // POST /admin/ai/test-stored — test the already-stored (encrypted) key for a given level
+  fastify.post('/admin/ai/test-stored', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { level, orgId: rawOrgId, propertyId: rawPropertyId } =
+      request.body as { level: 'system' | 'org' | 'property'; orgId?: number; propertyId?: number }
+
+    if (level === 'system') {
+      if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+      const row = await prisma.systemAIConfig.findFirst()
+      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+    }
+
+    if (level === 'org') {
+      const orgId = request.admin.role === 'super'
+        ? (rawOrgId ?? request.admin.organizationId)
+        : request.admin.organizationId
+      if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+      const row = await prisma.orgAIConfig.findUnique({ where: { organizationId: orgId } })
+      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+    }
+
+    if (level === 'property') {
+      if (!rawPropertyId) return reply.status(400).send({ error: 'propertyId required' })
+      const prop = await prisma.property.findUnique({ where: { propertyId: rawPropertyId } })
+      if (!prop) return reply.status(404).send({ error: 'Property not found' })
+      const row = await prisma.propertyAIConfig.findUnique({ where: { propertyId: prop.id } })
+      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+    }
+
+    return reply.status(400).send({ error: 'Invalid level' })
   })
 }

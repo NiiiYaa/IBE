@@ -153,6 +153,7 @@ type SendChannel = 'email' | 'whatsapp'
 export default function ConfirmationPage({ params }: PageProps) {
   const [confirmation, setConfirmation] = useState<StoredConfirmation | null>(null)
   const [property, setProperty] = useState<PropertyDetail | null>(null)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [emailEnabled, setEmailEnabled] = useState(false)
   const [whatsappEnabled, setWhatsappEnabled] = useState(false)
   const [sendChannel, setSendChannel] = useState<SendChannel | null>(null)
@@ -173,6 +174,7 @@ export default function ConfirmationPage({ params }: PageProps) {
     apiClient.getHotelConfig(pid).then(cfg => {
       setEmailEnabled(cfg.emailEnabled)
       setWhatsappEnabled(cfg.whatsappEnabled)
+      if (cfg.logoUrl) setLogoUrl(cfg.logoUrl)
     }).catch(() => {})
     apiClient.getProperty(pid).then(setProperty).catch(() => {})
   }, [confirmation?.propertyId])
@@ -225,6 +227,12 @@ export default function ConfirmationPage({ params }: PageProps) {
         <div className="overflow-hidden rounded-2xl border border-[var(--color-success)]/20 bg-[var(--color-surface)] shadow-md print:shadow-none print:border-gray-300">
           {/* Top bar */}
           <div className="bg-success px-8 py-6 text-center text-white print:py-4">
+            {logoUrl && (
+              <div className="mx-auto mb-4 flex h-16 w-40 items-center justify-center rounded-xl bg-white px-3 py-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt="Hotel logo" className="max-h-full max-w-full object-contain" />
+              </div>
+            )}
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white/20 print:hidden">
               <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />

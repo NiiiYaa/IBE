@@ -10,6 +10,7 @@ import { getCommSettings, getSystemCommSettings } from '../services/communicatio
 import { sendWhatsAppMessage } from '../services/whatsapp.service.js'
 import { sendMessage as sendWebjsMessage, clientKey } from '../services/whatsapp-manager.service.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
+import { getHotelDesignConfig } from '../services/config.service.js'
 
 interface RoomInfo { roomCode: string; board: string }
 interface NightlyEntry { date: string; sell: number; currency: string }
@@ -31,6 +32,15 @@ function fmtDate(iso: string): string {
 
 function fmtDateShort(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+}
+
+function fmtDateWa(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })
+  const day = d.getUTCDate()
+  const month = d.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })
+  const year = d.getUTCFullYear()
+  return `${weekday}, ${day}-${month}-${year}`
 }
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -61,8 +71,9 @@ function bookingEmailHtml(opts: {
   selectedRooms?: SelectedRoomInfo[]
   hotelUrl?: string
   hotelContact?: HotelContact
+  logoUrl?: string | null
 }): string {
-  const { guestName, hotelName, ref, hyperGuestBookingId, checkIn, checkOut, total, currency, rooms, selectedRooms, hotelUrl, hotelContact } = opts
+  const { guestName, hotelName, ref, hyperGuestBookingId, checkIn, checkOut, total, currency, rooms, selectedRooms, hotelUrl, hotelContact, logoUrl } = opts
   const n = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : null
 
   const row = (label: string, value: string, bold = false) =>
@@ -87,11 +98,17 @@ function bookingEmailHtml(opts: {
 
   // Nightly breakdown rows
   let nightlyRows = ''
-  const allNightly = selectedRooms?.flatMap(sr => sr.nightlyBreakdown) ?? []
-  if (allNightly.length > 0) {
+  const roomsWithNightly = (selectedRooms ?? []).filter(sr => sr.nightlyBreakdown.length > 0)
+  if (roomsWithNightly.length > 0) {
     nightlyRows += sectionHeader('Nightly Breakdown')
-    for (const n of allNightly) {
-      nightlyRows += row(fmtDateShort(n.date), fmtAmt(n.sell, n.currency))
+    const multiRoom = roomsWithNightly.length > 1
+    for (const sr of roomsWithNightly) {
+      if (multiRoom) {
+        nightlyRows += `<tr><td colspan="2" style="padding:6px 24px 2px;font-size:12px;font-weight:600;color:#374151;">${sr.roomName}</td></tr>`
+      }
+      for (const n of sr.nightlyBreakdown) {
+        nightlyRows += row(fmtDateShort(n.date), fmtAmt(n.sell, n.currency))
+      }
     }
   }
 
@@ -142,8 +159,8 @@ function bookingEmailHtml(opts: {
 
   <!-- Header -->
   <div style="background:#16a34a;padding:28px 32px;text-align:center">
-    <div style="display:inline-block;background:rgba(255,255,255,.2);border-radius:50%;width:52px;height:52px;line-height:52px;font-size:24px;margin-bottom:12px">✓</div>
-    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700">Booking Confirmed</h1>
+    ${logoUrl ? `<div style="display:inline-block;background:#fff;border-radius:10px;padding:10px 20px;margin-bottom:16px;line-height:0"><img src="${logoUrl}" alt="${hotelName ?? 'Hotel'}" style="max-height:48px;max-width:180px;object-fit:contain;display:block"></div>` : ''}
+    <h1 style="margin:0 0 0;color:#fff;font-size:22px;font-weight:700">✓ Booking Confirmed</h1>
     <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">${hotelName ?? 'Your reservation is confirmed'}</p>
   </div>
 
@@ -248,11 +265,12 @@ export async function bookingRoutes(fastify: FastifyInstance) {
         const base = (process.env.WEB_BASE_URL ?? '').replace(/\/$/, '')
         const hotelUrl = base && pid ? `${base}/?hotelId=${pid}` : undefined
 
-        // Fetch hotel contact info from HyperGuest static (best-effort)
+        // Fetch hotel contact info and logo (best-effort, parallel)
         let hotelContact: HotelContact | undefined
-        if (pid) {
-          try {
-            const s = await fetchPropertyStatic(pid)
+        let logoUrl: string | null = null
+        let logoInlineImage: { cid: string; content: Buffer; contentType: string } | null = null
+        await Promise.all([
+          pid ? fetchPropertyStatic(pid).then(s => {
             hotelContact = {
               ...(s.location.address ? { address: s.location.address } : {}),
               ...(s.location.city?.name ? { city: s.location.city.name } : {}),
@@ -263,8 +281,22 @@ export async function bookingRoutes(fastify: FastifyInstance) {
               ...(s.contact.website ? { website: s.contact.website } : {}),
               ...(s.rating ? { starRating: s.rating } : {}),
             }
-          } catch { /* static fetch is best-effort */ }
-        }
+          }).catch(() => {}) : Promise.resolve(),
+          pid ? getHotelDesignConfig(pid).then(cfg => {
+            if (cfg.logoUrl) {
+              if (cfg.logoUrl.startsWith('data:')) {
+                // Base64 data URL — convert to inline CID attachment for email client compatibility
+                const match = cfg.logoUrl.match(/^data:([^;]+);base64,(.+)$/)
+                if (match) {
+                  logoInlineImage = { cid: 'hotel-logo', content: Buffer.from(match[2], 'base64'), contentType: match[1] }
+                  logoUrl = 'cid:hotel-logo'
+                }
+              } else {
+                logoUrl = cfg.logoUrl.startsWith('http') ? cfg.logoUrl : `${base}${cfg.logoUrl.startsWith('/') ? '' : '/'}${cfg.logoUrl}`
+              }
+            }
+          }).catch(() => {}) : Promise.resolve(),
+        ])
 
         const html = bookingEmailHtml({
           guestName, hotelName, ref, checkIn, checkOut, total,
@@ -274,9 +306,10 @@ export async function bookingRoutes(fastify: FastifyInstance) {
           ...(body.selectedRooms !== undefined ? { selectedRooms: body.selectedRooms } : {}),
           ...(hotelUrl !== undefined ? { hotelUrl } : {}),
           ...(hotelContact !== undefined ? { hotelContact } : {}),
+          logoUrl,
         })
         const subject = `Booking confirmed ${ref}${hotelName ? ` — ${hotelName}` : ''}`
-        const result = await sendEmail(orgId, { to, subject, html })
+        const result = await sendEmail(orgId, { to, subject, html, ...(logoInlineImage ? { inlineImages: [logoInlineImage] } : {}) })
         if (!result.ok) return reply.status(502).send({ error: result.error ?? 'Email send failed' })
         return reply.send({ ok: true })
       }
@@ -286,14 +319,29 @@ export async function bookingRoutes(fastify: FastifyInstance) {
           ? await getCommSettings(orgId)
           : await getSystemCommSettings()
         if (!settings.whatsappEnabled) return reply.status(400).send({ error: 'WhatsApp not configured' })
-        const text = [
+
+        const waPid = Number.isFinite(numericId)
+          ? (await prisma.booking.findUnique({ where: { id: numericId }, select: { propertyId: true } }))?.propertyId
+          : body.propertyId
+        let waAddress: string | null = null
+        if (waPid) {
+          await fetchPropertyStatic(waPid).then(s => {
+            const parts = [s.location.address, s.location.city?.name, s.location.countryCode].filter(Boolean)
+            if (parts.length) waAddress = parts.join(', ')
+          }).catch(() => {})
+        }
+
+        const lines = [
           `✓ Booking confirmed${hotelName ? ` at ${hotelName}` : ''}`,
+          ...(waAddress ? [waAddress] : []),
+          ``,
           `Reference: ${ref}`,
           `Guest: ${guestName}`,
-          `Check-in: ${checkIn}`,
-          `Check-out: ${checkOut}`,
+          `Check-in: ${checkIn ? fmtDateWa(checkIn) : ''}`,
+          `Check-out: ${checkOut ? fmtDateWa(checkOut) : ''}`,
           `Total: ${total}`,
-        ].join('\n')
+        ]
+        const text = lines.join('\n')
 
         if (settings.whatsappProvider === 'meta') {
           if (!settings.whatsappPhoneNumberId || !settings.whatsappAccessToken) {

@@ -240,6 +240,11 @@ function SystemConfigSection() {
     onSuccess: (result) => setTestResult(result),
   })
 
+  const testStoredMutation = useMutation({
+    mutationFn: () => apiClient.testStoredAIConnection('system'),
+    onSuccess: (result) => setTestResult(result),
+  })
+
   if (isLoading) return <SectionCard title="System Default" badge="Super"><p className="text-sm text-[var(--color-text-muted)]">Loading…</p></SectionCard>
 
   return (
@@ -247,6 +252,23 @@ function SystemConfigSection() {
       <p className="mb-4 text-sm text-[var(--color-text-muted)]">
         Used as fallback for any chain or hotel that has not configured their own AI provider.
       </p>
+      {data?.apiKeySet && (
+        <div className="mb-4 flex items-center gap-3">
+          <button
+            type="button"
+            disabled={testStoredMutation.isPending}
+            onClick={() => testStoredMutation.mutate()}
+            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[var(--color-background)] disabled:opacity-40"
+          >
+            {testStoredMutation.isPending ? 'Testing…' : 'Test stored key'}
+          </button>
+          {testResult && !testMutation.isPending && (
+            <span className={`text-sm ${testResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>
+              {testResult.ok ? '✓ Connection successful' : `✗ ${testResult.error}`}
+            </span>
+          )}
+        </div>
+      )}
       <AIConfigForm
         initialProvider={(data?.provider as AIProvider) ?? null}
         initialModel={data?.model ?? null}
@@ -257,7 +279,7 @@ function SystemConfigSection() {
         onTest={(provider, apiKey, model) => testMutation.mutate({ provider, apiKey, model })}
         saving={saveMutation.isPending}
         testing={testMutation.isPending}
-        testResult={testResult}
+        testResult={testMutation.isSuccess || testMutation.isPending ? testResult : null}
       />
       {saveMutation.isError && <p className="mt-2 text-sm text-[var(--color-error)]">Save failed. Please try again.</p>}
     </SectionCard>
@@ -283,6 +305,11 @@ function OrgConfigSection({ orgId, isSuper }: { orgId?: number; isSuper: boolean
   const testMutation = useMutation({
     mutationFn: ({ provider, apiKey, model }: { provider: AIProvider; apiKey: string; model: string }) =>
       apiClient.testAIConnection(provider, apiKey, model),
+    onSuccess: (result) => setTestResult(result),
+  })
+
+  const testStoredMutation = useMutation({
+    mutationFn: () => apiClient.testStoredAIConnection('org', orgId ? { orgId } : undefined),
     onSuccess: (result) => setTestResult(result),
   })
 
@@ -319,18 +346,37 @@ function OrgConfigSection({ orgId, isSuper }: { orgId?: number; isSuper: boolean
           <InheritedBadge config={data?.inherited ?? null} from="system" />
         </div>
       ) : (
-        <AIConfigForm
-          initialProvider={(data?.provider as AIProvider) ?? null}
-          initialModel={data?.model ?? null}
-          initialSystemPrompt={data?.systemPrompt ?? null}
-          initialEnabled={data?.enabled ?? false}
-          isSuper={isSuper}
-          onSave={d => saveMutation.mutate({ ...d, useInherited: false, ...(orgId && { orgId }) })}
-          onTest={(provider, apiKey, model) => testMutation.mutate({ provider, apiKey, model })}
-          saving={saveMutation.isPending}
-          testing={testMutation.isPending}
-          testResult={testResult}
-        />
+        <>
+          {data?.apiKeySet && (
+            <div className="mb-3 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={testStoredMutation.isPending}
+                onClick={() => testStoredMutation.mutate()}
+                className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[var(--color-background)] disabled:opacity-40"
+              >
+                {testStoredMutation.isPending ? 'Testing…' : 'Test stored key'}
+              </button>
+              {testResult && !testMutation.isPending && (
+                <span className={`text-sm ${testResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>
+                  {testResult.ok ? '✓ Connection successful' : `✗ ${testResult.error}`}
+                </span>
+              )}
+            </div>
+          )}
+          <AIConfigForm
+            initialProvider={(data?.provider as AIProvider) ?? null}
+            initialModel={data?.model ?? null}
+            initialSystemPrompt={data?.systemPrompt ?? null}
+            initialEnabled={data?.enabled ?? false}
+            isSuper={isSuper}
+            onSave={d => saveMutation.mutate({ ...d, useInherited: false, ...(orgId && { orgId }) })}
+            onTest={(provider, apiKey, model) => testMutation.mutate({ provider, apiKey, model })}
+            saving={saveMutation.isPending}
+            testing={testMutation.isPending}
+            testResult={testMutation.isSuccess || testMutation.isPending ? testResult : null}
+          />
+        </>
       )}
       {saveMutation.isError && <p className="mt-2 text-sm text-[var(--color-error)]">Save failed. Please try again.</p>}
     </SectionCard>
@@ -356,6 +402,11 @@ function PropertyConfigSection({ propertyId, isSuper }: { propertyId: number; is
   const testMutation = useMutation({
     mutationFn: ({ provider, apiKey, model }: { provider: AIProvider; apiKey: string; model: string }) =>
       apiClient.testAIConnection(provider, apiKey, model),
+    onSuccess: (result) => setTestResult(result),
+  })
+
+  const testStoredMutation = useMutation({
+    mutationFn: () => apiClient.testStoredAIConnection('property', { propertyId }),
     onSuccess: (result) => setTestResult(result),
   })
 
@@ -393,18 +444,37 @@ function PropertyConfigSection({ propertyId, isSuper }: { propertyId: number; is
           <InheritedBadge config={data?.inherited ?? null} from={inheritedLabel.toLowerCase()} />
         </div>
       ) : (
-        <AIConfigForm
-          initialProvider={(data?.provider as AIProvider) ?? null}
-          initialModel={data?.model ?? null}
-          initialSystemPrompt={data?.systemPrompt ?? null}
-          initialEnabled={data?.enabled ?? false}
-          isSuper={isSuper}
-          onSave={d => saveMutation.mutate({ ...d, useInherited: false })}
-          onTest={(provider, apiKey, model) => testMutation.mutate({ provider, apiKey, model })}
-          saving={saveMutation.isPending}
-          testing={testMutation.isPending}
-          testResult={testResult}
-        />
+        <>
+          {data?.apiKeySet && (
+            <div className="mb-3 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={testStoredMutation.isPending}
+                onClick={() => testStoredMutation.mutate()}
+                className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[var(--color-background)] disabled:opacity-40"
+              >
+                {testStoredMutation.isPending ? 'Testing…' : 'Test stored key'}
+              </button>
+              {testResult && !testMutation.isPending && (
+                <span className={`text-sm ${testResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>
+                  {testResult.ok ? '✓ Connection successful' : `✗ ${testResult.error}`}
+                </span>
+              )}
+            </div>
+          )}
+          <AIConfigForm
+            initialProvider={(data?.provider as AIProvider) ?? null}
+            initialModel={data?.model ?? null}
+            initialSystemPrompt={data?.systemPrompt ?? null}
+            initialEnabled={data?.enabled ?? false}
+            isSuper={isSuper}
+            onSave={d => saveMutation.mutate({ ...d, useInherited: false })}
+            onTest={(provider, apiKey, model) => testMutation.mutate({ provider, apiKey, model })}
+            saving={saveMutation.isPending}
+            testing={testMutation.isPending}
+            testResult={testMutation.isSuccess || testMutation.isPending ? testResult : null}
+          />
+        </>
       )}
       {saveMutation.isError && <p className="mt-2 text-sm text-[var(--color-error)]">Save failed. Please try again.</p>}
     </SectionCard>

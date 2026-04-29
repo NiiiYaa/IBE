@@ -6,12 +6,19 @@ interface EmailAttachment {
   contentType: string
 }
 
+interface InlineImage {
+  cid: string
+  content: Buffer
+  contentType: string
+}
+
 interface EmailPayload {
   to: string
   subject: string
   html: string
   replyTo?: string
   attachments?: EmailAttachment[]
+  inlineImages?: InlineImage[]
 }
 
 export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{ ok: boolean; error?: string }> {
@@ -25,6 +32,21 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
 
     if (settings.emailProvider === 'sendgrid') {
       if (!settings.emailApiKey) return { ok: false, error: 'SendGrid API key not configured' }
+      const sgAttachments = [
+        ...(payload.attachments ?? []).map(a => ({
+          filename: a.filename,
+          content: a.content.toString('base64'),
+          type: a.contentType,
+          disposition: 'attachment',
+        })),
+        ...(payload.inlineImages ?? []).map(img => ({
+          filename: img.cid,
+          content: img.content.toString('base64'),
+          type: img.contentType,
+          disposition: 'inline',
+          content_id: img.cid,
+        })),
+      ]
       const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
         method: 'POST',
         headers: { Authorization: `Bearer ${settings.emailApiKey}`, 'Content-Type': 'application/json' },
@@ -34,12 +56,7 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
           reply_to: payload.replyTo ? { email: payload.replyTo } : undefined,
           subject: payload.subject,
           content: [{ type: 'text/html', value: payload.html }],
-          attachments: payload.attachments?.map(a => ({
-            filename: a.filename,
-            content: a.content.toString('base64'),
-            type: a.contentType,
-            disposition: 'attachment',
-          })),
+          ...(sgAttachments.length > 0 ? { attachments: sgAttachments } : {}),
         }),
       })
       if (res.ok || res.status === 202) return { ok: true }
@@ -58,6 +75,9 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
       if (payload.replyTo) formData.append('h:Reply-To', payload.replyTo)
       payload.attachments?.forEach(a => {
         formData.append('attachment', new Blob([a.content], { type: a.contentType }), a.filename)
+      })
+      payload.inlineImages?.forEach(img => {
+        formData.append('inline', new Blob([img.content], { type: img.contentType }), img.cid)
       })
       const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
         method: 'POST',
@@ -86,11 +106,19 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
         replyTo: payload.replyTo,
         subject: payload.subject,
         html: payload.html,
-        attachments: payload.attachments?.map(a => ({
-          filename: a.filename,
-          content: a.content,
-          contentType: a.contentType,
-        })),
+        attachments: [
+          ...(payload.attachments ?? []).map(a => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          })),
+          ...(payload.inlineImages ?? []).map(img => ({
+            filename: img.cid,
+            content: img.content,
+            contentType: img.contentType,
+            cid: img.cid,
+          })),
+        ],
       })
       return { ok: true }
     }

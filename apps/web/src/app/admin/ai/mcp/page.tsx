@@ -8,6 +8,20 @@ import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { AIChannelSettings } from '@ibe/shared'
 
+function copyText(text: string): Promise<void> {
+  if (navigator.clipboard) return navigator.clipboard.writeText(text)
+  // Fallback for non-secure contexts (HTTP in dev)
+  const el = document.createElement('textarea')
+  el.value = text
+  el.style.position = 'fixed'
+  el.style.opacity = '0'
+  document.body.appendChild(el)
+  el.select()
+  document.execCommand('copy')
+  document.body.removeChild(el)
+  return Promise.resolve()
+}
+
 // Computed client-side from window.location.origin so it reflects the
 // public-facing URL (via Next.js proxy) rather than the internal API host.
 function getMcpEndpoint(): string {
@@ -46,7 +60,7 @@ function mcpJsonSnippet(endpoint: string, apiKey: string) {
 function CodeBlock({ code, language = 'json' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false)
   function copy() {
-    navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+    copyText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
   return (
     <div className="relative rounded-lg border border-[var(--color-border)] bg-[var(--color-background)]">
@@ -110,57 +124,67 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
     </div>
   )
 
-  if (platform === 'chatgpt') return (
-    <div className="space-y-4 text-sm">
-      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-        <strong>Auth limitation:</strong> ChatGPT Apps only support OAuth 2.1 or no authentication — Bearer API keys are not supported. Until OAuth is implemented, the MCP endpoint can be used without authentication (contact support to enable public mode).
-      </div>
+  if (platform === 'chatgpt') {
+    const chatgptUrl = `${endpoint}/${apiKey}`
+    return (
+      <div className="space-y-4 text-sm">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
+          <p className="text-xs text-[var(--color-text-muted)]">
+            ChatGPT Apps don&apos;t support Bearer auth — the API key is embedded in the URL instead. Use <em>No authentication</em> in ChatGPT; the URL below already contains your key.
+          </p>
+          <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+            {chatgptUrl}
+          </div>
+          <button
+            type="button"
+            onClick={() => copyText(chatgptUrl)}
+            className="text-xs text-[var(--color-primary)] hover:underline"
+          >
+            Copy URL
+          </button>
+        </div>
 
-      <div>
-        <p className="mb-2 font-medium text-[var(--color-text)]">Your MCP endpoint</p>
-        <EndpointInfo endpoint={endpoint} apiKey={apiKey} protocol="MCP JSON-RPC 2.0 (Streamable HTTP)" />
-      </div>
+        <div className="space-y-3">
+          <p className="font-medium text-[var(--color-text)]">Setup steps in ChatGPT</p>
+          <ol className="space-y-3 text-[var(--color-text-muted)]">
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
+              <span>In ChatGPT go to <strong>Settings → Apps &amp; Connectors → Advanced settings</strong> and enable <strong>Developer mode</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
+              <span>Under <strong>Connectors</strong>, click <strong>Create</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
+              <div className="space-y-1">
+                <p>Fill in the form:</p>
+                <ul className="ml-3 space-y-1 list-disc list-inside">
+                  <li><strong>Connector name</strong> — e.g. &quot;Hotel Booking&quot;</li>
+                  <li><strong>Description</strong> — e.g. &quot;Search rooms and create booking links&quot;</li>
+                  <li><strong>Connector URL</strong> — paste the URL above (key is already in the URL)</li>
+                  <li><strong>Authentication</strong> — select <strong>No authentication</strong></li>
+                </ul>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
+              <span>Click <strong>Create</strong>. ChatGPT will discover the available tools automatically.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
+              <span>Start a conversation, click <strong>+</strong> to add the connector, and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
+            </li>
+          </ol>
+        </div>
 
-      <div className="space-y-3">
-        <p className="font-medium text-[var(--color-text)]">Setup steps in ChatGPT</p>
-        <ol className="space-y-3 text-[var(--color-text-muted)]">
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
-            <span>In ChatGPT go to <strong>Settings → Apps &amp; Connectors → Advanced settings</strong> and enable <strong>Developer mode</strong>.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
-            <span>Under <strong>Connectors</strong>, click <strong>Create</strong>.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
-            <div className="space-y-1">
-              <p>Fill in the form:</p>
-              <ul className="ml-3 space-y-1 list-disc list-inside">
-                <li><strong>Connector name</strong> — e.g. &quot;Hotel Booking&quot;</li>
-                <li><strong>Description</strong> — e.g. &quot;Search rooms and create booking links&quot;</li>
-                <li><strong>Connector URL</strong> — paste the endpoint above</li>
-                <li><strong>Authentication</strong> — select <em>No authentication</em> (OAuth coming soon)</li>
-              </ul>
-            </div>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
-            <span>Click <strong>Create</strong>. ChatGPT will discover the available tools automatically.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
-            <span>Start a conversation, click <strong>+</strong> to add the connector, and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
-          </li>
-        </ol>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          After updating tools on the server, click <strong>Refresh</strong> in the connector settings to pull the latest definitions.{' '}
+          <a href="https://developers.openai.com/apps-sdk/deploy/connect-chatgpt" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Full docs ↗</a>
+        </p>
       </div>
-
-      <p className="text-xs text-[var(--color-text-muted)]">
-        After updating tools on the server, click <strong>Refresh</strong> in the connector settings to pull the latest definitions.{' '}
-        <a href="https://developers.openai.com/apps-sdk/deploy/connect-chatgpt" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Full docs ↗</a>
-      </p>
-    </div>
-  )
+    )
+  }
 
   if (platform === 'openai') return (
     <div className="space-y-3 text-sm">
@@ -209,7 +233,7 @@ function ApiKeyDisplay({ apiKey, onRotate, rotating }: { apiKey: string; onRotat
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
   function copy() {
-    navigator.clipboard.writeText(apiKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+    copyText(apiKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
   const display = revealed ? apiKey : `${apiKey.slice(0, 8)}${'•'.repeat(24)}${apiKey.slice(-4)}`
   return (
@@ -438,7 +462,7 @@ export default function AdminMcpPage() {
             <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-sm text-[var(--color-text)] break-all">
               {mcpEndpoint}
             </div>
-            <button type="button" onClick={() => navigator.clipboard.writeText(mcpEndpoint)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+            <button type="button" onClick={() => copyText(mcpEndpoint)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
               Copy
             </button>
           </div>

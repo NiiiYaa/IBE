@@ -4,7 +4,7 @@ import { prisma } from '../db/client.js'
 import { registerWebjsPhone, resolveWebjsPhoneContext, getWaSessionContext, setWaSessionContext, clearWaSessionContext } from '../services/communication.service.js'
 import { logger } from '../utils/logger.js'
 
-function extractPropertyIdFromToolResults(toolResults: { tool: string; data: unknown }[]): number | null {
+export function extractPropertyIdFromToolResults(toolResults: { tool: string; data: unknown }[]): number | null {
   for (const tr of toolResults) {
     const d = tr.data as Record<string, unknown> | null
     if (!d) continue
@@ -55,17 +55,20 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
   }
 
   // Resolve context: phone registry → saved session context
+  // Always fill gaps — orgId from registry, propertyId from saved session (even when orgId is already known)
   let waCtxAlreadySaved = false
-  if (!orgId && !propertyId) {
-    if (myPhone) {
-      const phoneCtx = resolveWebjsPhoneContext(myPhone)
-      if (phoneCtx) { orgId = phoneCtx.orgId; propertyId = phoneCtx.propertyId }
+  if (myPhone && (!orgId || !propertyId)) {
+    const phoneCtx = resolveWebjsPhoneContext(myPhone)
+    if (phoneCtx) {
+      if (!orgId) orgId = phoneCtx.orgId
+      if (!propertyId) propertyId = phoneCtx.propertyId
     }
-    if (!orgId && !propertyId) {
-      const savedCtx = await getWaSessionContext(sessionId)
-      if (savedCtx) {
-        orgId = savedCtx.orgId; propertyId = savedCtx.propertyId; waCtxAlreadySaved = true
-      }
+  }
+  if (!propertyId) {
+    const savedCtx = await getWaSessionContext(sessionId)
+    if (savedCtx) {
+      if (!orgId) orgId = savedCtx.orgId
+      if (savedCtx.propertyId) { propertyId = savedCtx.propertyId; waCtxAlreadySaved = true }
     }
   }
 
@@ -79,7 +82,7 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
   })
 
   // Lock session to resolved hotel after first successful tool call
-  if (!waCtxAlreadySaved && !orgId && !propertyId && result.toolResults.length > 0) {
+  if (!waCtxAlreadySaved && !propertyId && result.toolResults.length > 0) {
     const resolvedPropId = extractPropertyIdFromToolResults(result.toolResults)
     if (resolvedPropId) {
       const prop = await prisma.property.findUnique({

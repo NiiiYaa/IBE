@@ -510,6 +510,26 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // ── Key-in-URL endpoint (ChatGPT App — no Bearer header support) ──────────
+  // ChatGPT only supports OAuth 2.1 or no auth; embed the key in the path instead.
+  fastify.post('/mcp/:apiKey', async (request, reply) => {
+    const { apiKey } = request.params as { apiKey: string }
+    const scope = await validateApiKey(apiKey)
+    if (!scope) {
+      return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
+    }
+    const defaultPropertyId = await resolveDefaultProperty(scope)
+    const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
+    try {
+      const response = await dispatchJsonRpc(body, defaultPropertyId)
+      if (!response) return reply.status(204).send()
+      return reply.send(response)
+    } catch (err) {
+      logger.error({ err }, '[MCP] Unhandled error')
+      return reply.send({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: body.id ?? null })
+    }
+  })
+
   // ── SSE transport — GET (n8n connects here) ───────────────────────────────
   fastify.get('/mcp', async (request, reply) => {
     const authHeader = (request.headers['authorization'] as string | undefined) ?? ''
