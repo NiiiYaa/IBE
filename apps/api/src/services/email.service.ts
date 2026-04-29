@@ -1,10 +1,17 @@
 import { getCommSettings } from './communication.service.js'
 
+interface EmailAttachment {
+  filename: string
+  content: Buffer
+  contentType: string
+}
+
 interface EmailPayload {
   to: string
   subject: string
   html: string
   replyTo?: string
+  attachments?: EmailAttachment[]
 }
 
 export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{ ok: boolean; error?: string }> {
@@ -27,6 +34,12 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
           reply_to: payload.replyTo ? { email: payload.replyTo } : undefined,
           subject: payload.subject,
           content: [{ type: 'text/html', value: payload.html }],
+          attachments: payload.attachments?.map(a => ({
+            filename: a.filename,
+            content: a.content.toString('base64'),
+            type: a.contentType,
+            disposition: 'attachment',
+          })),
         }),
       })
       if (res.ok || res.status === 202) return { ok: true }
@@ -37,12 +50,19 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
       if (!settings.emailApiKey) return { ok: false, error: 'Mailgun API key not configured' }
       const domain = settings.emailFromAddress.split('@')[1] ?? ''
       const credentials = Buffer.from(`api:${settings.emailApiKey}`).toString('base64')
-      const body = new URLSearchParams({ from, to: payload.to, subject: payload.subject, html: payload.html })
-      if (payload.replyTo) body.set('h:Reply-To', payload.replyTo)
+      const formData = new FormData()
+      formData.append('from', from)
+      formData.append('to', payload.to)
+      formData.append('subject', payload.subject)
+      formData.append('html', payload.html)
+      if (payload.replyTo) formData.append('h:Reply-To', payload.replyTo)
+      payload.attachments?.forEach(a => {
+        formData.append('attachment', new Blob([a.content], { type: a.contentType }), a.filename)
+      })
       const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
         method: 'POST',
         headers: { Authorization: `Basic ${credentials}` },
-        body,
+        body: formData,
       })
       if (res.ok) return { ok: true }
       return { ok: false, error: `Mailgun error: ${res.status}` }
@@ -50,13 +70,9 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
 
     if (settings.emailProvider === 'smtp') {
       if (!settings.emailSmtpHost) return { ok: false, error: 'SMTP host not configured' }
-      // Lazy-load nodemailer to avoid import issues
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const nodemailer = (await import('nodemailer')) as any
       const port = settings.emailSmtpPort ?? 587
-      // Port 465 = SMTPS (direct TLS). All other ports (587, 25, 2525…) use STARTTLS.
-      // Ignore the stored emailSmtpSecure flag — deriving from port is always correct
-      // and avoids the "wrong version number" SSL error when port 587 has secure=true.
       const secure = port === 465
       const transporter = nodemailer.createTransport({
         host: settings.emailSmtpHost,
@@ -70,6 +86,11 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
         replyTo: payload.replyTo,
         subject: payload.subject,
         html: payload.html,
+        attachments: payload.attachments?.map(a => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
       })
       return { ok: true }
     }

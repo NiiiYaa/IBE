@@ -1,5 +1,5 @@
 /**
- * Groups page — server wrapper passes propertyId to the client component.
+ * Groups page — server wrapper passes propertyId + orgId to the client component.
  */
 import dynamic from 'next/dynamic'
 
@@ -19,12 +19,23 @@ const GroupsContent = dynamic(
 )
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'] || 0)
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
-export default function GroupsPage({
+async function fetchOrgId(propertyId: number): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/config/properties?propertyId=${propertyId}`, { next: { revalidate: 60 } })
+    if (!res.ok) return null
+    const data = await res.json() as { orgId?: number }
+    return data.orgId ?? null
+  } catch { return null }
+}
+
+export default async function GroupsPage({
   searchParams,
 }: {
   searchParams: { hotelId?: string; returnTo?: string }
 }) {
   const propertyId = searchParams.hotelId ? Number(searchParams.hotelId) || DEFAULT_PROPERTY_ID : DEFAULT_PROPERTY_ID
-  return <GroupsContent propertyId={propertyId} returnTo={searchParams.returnTo} />
+  const orgId = await fetchOrgId(propertyId)
+  return <GroupsContent propertyId={propertyId} returnTo={searchParams.returnTo} {...(orgId != null ? { orgId } : {})} />
 }

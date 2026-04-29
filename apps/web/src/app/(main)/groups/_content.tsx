@@ -119,7 +119,7 @@ type MealSelection = { selected: boolean; adults: number; children: number; infa
 
 const MEAL_LABELS: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
 
-export function GroupsContent({ propertyId, returnTo }: { propertyId: number; returnTo?: string }) {
+export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: number; returnTo?: string; orgId?: number }) {
   const today = todayIso()
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -181,8 +181,8 @@ export function GroupsContent({ propertyId, returnTo }: { propertyId: number; re
 
   // ── Fetch public groups config ────────────────────────────────────────────
   const { data: groupCfg, isLoading: cfgLoading } = useQuery({
-    queryKey: ['public-group-config', propertyId],
-    queryFn: () => apiClient.getPublicGroupConfig(propertyId),
+    queryKey: ['public-group-config', propertyId, orgId],
+    queryFn: () => apiClient.getPublicGroupConfig(propertyId, orgId),
     enabled: !!propertyId,
   })
 

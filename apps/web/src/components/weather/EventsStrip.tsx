@@ -98,25 +98,30 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
     return () => clearTimeout(t)
   }, [data])
 
-  if (!data || !data.enabled || dismissed || !data.events?.length) return null
+  if (!data || !data.enabled || dismissed) return null
+
+  const hasEvents = (data.events?.length ?? 0) > 0
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-1.5 cursor-pointer select-none"
-        onClick={() => setFolded(f => !f)}
+        className={['flex items-center justify-between px-3 py-1.5 select-none', hasEvents ? 'cursor-pointer' : ''].join(' ')}
+        onClick={() => hasEvents && setFolded(f => !f)}
       >
         <div className="flex items-center gap-2">
           <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
           </svg>
           <span className="text-xs font-medium text-[var(--color-text)]">Events nearby during your stay</span>
-          <span className="text-[10px] text-[var(--color-text-muted)]">within {data.radiusKm} km</span>
+          {hasEvents
+            ? <span className="text-[10px] text-[var(--color-text-muted)]">within {data.radiusKm} km</span>
+            : <span className="text-[10px] text-[var(--color-text-muted)]">No events found for these dates</span>
+          }
         </div>
         <div className="flex items-center gap-1">
           <svg
-            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
+            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', (!hasEvents || folded) ? '' : 'rotate-180'].join(' ')}
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -132,7 +137,7 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
       </div>
 
       {/* Cards */}
-      {!folded && (
+      {hasEvents && !folded && (
       <div className="flex overflow-x-auto px-2 py-1.5 gap-1.5 scrollbar-hide border-t border-[var(--color-border)]">
         {data.events!.map((event, i) => (
           <div key={i}

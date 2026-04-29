@@ -203,9 +203,10 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-async function fetchGroupsEnabled(propertyId: number): Promise<boolean> {
+async function fetchGroupsEnabled(propertyId: number, orgId?: number | null): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/groups/config/${propertyId}`, fetchCache)
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    const res = await fetch(`${API_URL}/api/v1/groups/config/${propertyId}${qs}`, fetchCache)
     if (!res.ok) return false
     const d = await res.json() as { enabled: boolean }
     return d.enabled === true
@@ -235,7 +236,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       ? { mode: 'hotel' as const, propertyId, lat: coords.latitude, lng: coords.longitude, name: property?.name ?? displayName ?? '', address: property?.location?.address ?? '', ...(orgId ? { orgId } : {}) }
       : undefined
 
-  const showGroupsButton = propertyId ? await fetchGroupsEnabled(propertyId) : false
+  const showGroupsButton = propertyId ? await fetchGroupsEnabled(propertyId, orgId) : false
 
   const shell = (pageContent: React.ReactNode, b2b = false) => (
     <>

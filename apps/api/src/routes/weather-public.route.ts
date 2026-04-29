@@ -57,15 +57,15 @@ export async function weatherPublicRoutes(fastify: FastifyInstance) {
     const startDate = qs.startDate ?? today
     const endDate = qs.endDate ?? addDays(startDate, 6)
 
-    const [property, cfg] = await Promise.all([
-      fetchPropertyStatic(propertyId),
+    const [propertyResult, cfg] = await Promise.all([
+      fetchPropertyStatic(propertyId).catch(() => null),
       getResolvedWeatherConfig(propertyId, fallbackOrgId),
     ])
 
     if (!cfg.enabled) return reply.send({ enabled: false })
 
-    const lat = property.coordinates?.latitude
-    const lng = property.coordinates?.longitude
+    const lat = propertyResult?.coordinates?.latitude
+    const lng = propertyResult?.coordinates?.longitude
     if (!lat || !lng) return reply.send({ enabled: false })
 
     const forecastLimit = addDays(today, FORECAST_HORIZON_DAYS)

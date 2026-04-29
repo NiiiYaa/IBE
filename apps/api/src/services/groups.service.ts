@@ -123,12 +123,13 @@ export async function upsertPropertyGroupOverride(
 }
 
 // Public: resolved config for a property (hotel override ?? chain)
-export async function getResolvedGroupConfig(propertyId: number): Promise<PublicGroupConfig | null> {
+export async function getResolvedGroupConfig(propertyId: number, fallbackOrgId?: number): Promise<PublicGroupConfig | null> {
   const prop = await prisma.property.findUnique({ where: { propertyId } })
-  if (!prop) return null
+  const orgId = prop?.organizationId ?? fallbackOrgId
+  if (!orgId) return null
   const [chain, override] = await Promise.all([
-    prisma.groupConfig.findUnique({ where: { organizationId: prop.organizationId } }),
-    prisma.propertyGroupConfig.findUnique({ where: { propertyId: prop.id } }),
+    prisma.groupConfig.findUnique({ where: { organizationId: orgId } }),
+    prop ? prisma.propertyGroupConfig.findUnique({ where: { propertyId: prop.id } }) : null,
   ])
   const c = chain
   const o = override

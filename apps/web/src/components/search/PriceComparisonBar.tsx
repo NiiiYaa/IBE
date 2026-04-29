@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useExchangeRates } from '@/hooks/use-exchange-rates'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 
 interface Props {
   checkin: string
@@ -16,6 +17,9 @@ interface Props {
 }
 
 export function PriceComparisonBar({ checkin, checkout, adults, children, rooms, propertyId, directPrice, currency }: Props) {
+  const { admin } = useAdminAuth()
+  const isAdmin = !!admin
+
   const { data, isLoading } = useQuery({
     queryKey: ['price-comparison', checkin, checkout, adults, children, rooms, propertyId],
     queryFn: () => apiClient.getPriceComparison({ checkin, checkout, adults, children, rooms, propertyId }),
@@ -29,7 +33,6 @@ export function PriceComparisonBar({ checkin, checkout, adults, children, rooms,
 
   const { data: usdRates } = useExchangeRates('USD')
 
-  // Convert any price from its native OTA currency → the selected display currency
   const toSelected = (price: number, fromCurrency: string): number => {
     if (!usdRates || fromCurrency === currency) return price
     const inUsd = fromCurrency === 'USD' ? price : price / (usdRates.rates[fromCurrency] ?? 1)
@@ -39,26 +42,29 @@ export function PriceComparisonBar({ checkin, checkout, adults, children, rooms,
 
   const results = data?.results ?? []
   const isPending = results.some(r => r.status === 'pending')
-  const okResults = results.filter(r => r.status === 'ok' && r.price !== null)
+  const allOkResults = results.filter(r => r.status === 'ok' && r.price !== null)
 
-  // Don't render if no OTAs configured and not loading
-  if (!isLoading && results.length === 0) return null
-  // Don't render if the only result is a nameless Xotelo pending placeholder
-  const showSkeleton = isLoading || (isPending && okResults.length === 0)
+  // Hide until fully loaded — no skeleton
+  if (isLoading || isPending) return null
+  if (allOkResults.length === 0) return null
 
-  // Xotelo returns per-night rates — multiply by nights to get total-stay price
-  // so we compare apples-to-apples with our total directPrice
   const msPerDay = 24 * 60 * 60 * 1000
   const nights = Math.max(1, Math.round((new Date(checkout).getTime() - new Date(checkin).getTime()) / msPerDay))
   const otaTotalPrice = (r: { price: number | null; currency: string }) =>
     r.price !== null ? toSelected(r.price * nights, r.currency) : null
 
-  // Compute savings % against cheapest OTA — compare in the selected currency
-  const lowestOta = okResults.length > 0
-    ? Math.min(...okResults.map(r => otaTotalPrice(r)!))
+  // For guests: only show OTAs priced higher than our direct price; hide strip if none qualify
+  const visibleResults = isAdmin
+    ? allOkResults
+    : allOkResults.filter(r => directPrice === null || otaTotalPrice(r)! > directPrice)
+
+  if (!isAdmin && visibleResults.length === 0) return null
+
+  const lowestVisible = visibleResults.length > 0
+    ? Math.min(...visibleResults.map(r => otaTotalPrice(r)!))
     : null
-  const savings = directPrice && lowestOta && lowestOta > directPrice
-    ? Math.round(((lowestOta - directPrice) / lowestOta) * 100)
+  const savings = directPrice && lowestVisible && lowestVisible > directPrice
+    ? Math.round(((lowestVisible - directPrice) / lowestVisible) * 100)
     : null
 
   const fmt = (price: number, cur: string) =>
@@ -69,27 +75,16 @@ export function PriceComparisonBar({ checkin, checkout, adults, children, rooms,
       <span className="shrink-0 font-medium text-[var(--color-text-muted)]">Online rates</span>
       <span className="h-4 w-px shrink-0 bg-[var(--color-border)]" />
 
-      {showSkeleton ? (
-        <>
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-7 w-28 animate-pulse rounded-full bg-[var(--color-border)]" />
-          ))}
-        </>
-      ) : (
-        <>
-          {okResults.map((r, i) => (
-            <div
-              key={`${r.otaId}-${i}`}
-              className="flex items-center gap-1.5 rounded-full bg-pink-50 px-3 py-1 text-pink-800 ring-1 ring-inset ring-pink-200"
-            >
-              <span className="font-medium">{r.otaName}</span>
-              <span>{fmt(otaTotalPrice(r)!, currency)}</span>
-            </div>
-          ))}
-        </>
-      )}
+      {visibleResults.map((r, i) => (
+        <div
+          key={`${r.otaId}-${i}`}
+          className="flex items-center gap-1.5 rounded-full bg-pink-50 px-3 py-1 text-pink-800 ring-1 ring-inset ring-pink-200"
+        >
+          <span className="font-medium">{r.otaName}</span>
+          <span>{fmt(otaTotalPrice(r)!, currency)}</span>
+        </div>
+      ))}
 
-      {/* Direct booking pill */}
       {directPrice !== null && (
         <>
           <span className="h-4 w-px shrink-0 bg-[var(--color-border)]" />

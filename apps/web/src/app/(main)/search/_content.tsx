@@ -166,7 +166,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         )
       })()}
 
-      {searchParams.hotelId > 0 && (
+      {searchParams.hotelId > 0 && (hotelConfig?.priceComparisonEnabled ?? true) && (
         <PriceComparisonBar
           checkin={searchParams.checkIn}
           checkout={searchParams.checkOut}

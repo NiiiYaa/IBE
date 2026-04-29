@@ -1412,8 +1412,9 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/groups/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
   },
 
-  getPublicGroupConfig(propertyId: number): Promise<import('@ibe/shared').PublicGroupConfig> {
-    return apiRequest(`/api/v1/groups/config/${propertyId}`)
+  getPublicGroupConfig(propertyId: number, orgId?: number | null): Promise<import('@ibe/shared').PublicGroupConfig> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/groups/config/${propertyId}${qs}`)
   },
 
   submitGroupInquiry(data: import('@ibe/shared').GroupInquiryRequest): Promise<{ ok: boolean; guestEmailSent: boolean }> {
