@@ -8,6 +8,7 @@ export interface WAProvider {
   initClient(ctx: ClientContext, sessionPath: string, onMessage: OnMessageFn, onReady?: OnReadyFn): Promise<void>
   getStatus(ctx?: ClientContext): { status: ConnectionStatus; phoneNumber?: string }
   getQrDataUrl(ctx?: ClientContext): string | null
+  sendMessage(ctx: ClientContext, to: string, text: string): Promise<void>
   disconnectClient(ctx?: ClientContext): Promise<void>
   findExistingSessions(sessionPath: string): ClientContext[]
 }

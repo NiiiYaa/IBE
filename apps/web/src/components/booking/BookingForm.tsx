@@ -117,7 +117,7 @@ export function BookingForm({
           propertyId,
           checkIn: c.checkIn,
           checkOut: c.checkOut,
-          leadGuest: c.leadGuest,
+          leadGuest: { ...c.leadGuest, phone: getValues('leadGuest.phone') },
           rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board, cancellationFrames: r.cancellationFrames })),
           hyperGuestBookingId: c.hyperGuestBookingId,
           selectedRooms: rooms.map(({ room, rate }) => ({
@@ -188,7 +188,17 @@ export function BookingForm({
       rooms: rooms.map(({ room, rate }) => ({
         roomCode: room.roomName,
         board: rate.boardLabel,
-        cancellationFrames: [],
+        cancellationFrames: rate.cancellationDeadlines
+          .filter(d => d.type === 'penalty')
+          .map(d => {
+            const total = rate.prices.sell.amount
+            const amount = d.penaltyType === 'percent'
+              ? Math.round(total * d.penaltyAmount) / 100
+              : d.penaltyType === 'nights' && rate.nightlyBreakdown.length
+                ? Math.round(rate.nightlyBreakdown.slice(0, d.penaltyAmount).reduce((s, n) => s + n.sell, 0) * 100) / 100
+                : d.penaltyAmount
+            return { from: d.deadline, to: null, penaltyAmount: amount, currency: rate.prices.sell.currency }
+          }),
       })),
       selectedRooms: rooms.map(({ room, rate }) => ({
         roomName: room.roomName,

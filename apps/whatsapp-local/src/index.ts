@@ -44,6 +44,19 @@ app.post('/disconnect', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.post('/send-message', async (req, res) => {
+  const { to, message } = req.body as { to?: string; message?: string }
+  if (!to || !message) return res.status(400).json({ error: 'to and message are required' })
+  try {
+    await provider.sendMessage(parseCtx(req), to, message)
+    res.json({ ok: true })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[wa] sendMessage error:', msg)
+    res.status(500).json({ error: msg })
+  }
+})
+
 app.post('/configure', (req, res) => {
   const { ibeApiUrl, orgId, propertyId } = req.body as { ibeApiUrl?: string; orgId?: number; propertyId?: number }
   configure({ ibeApiUrl })

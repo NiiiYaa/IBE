@@ -9,16 +9,20 @@ import { getOrgIdForProperty } from '../services/property-registry.service.js'
 import type { UpdateOnsiteConversionRequest, UpdateOnsiteConversionOverridesRequest } from '@ibe/shared'
 
 export async function onsiteConversionRoutes(fastify: FastifyInstance) {
-  // GET /admin/onsite-conversion/global
+  // GET /admin/onsite-conversion/global?orgId=X
   fastify.get('/admin/onsite-conversion/global', async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const { orgId: rawOrgId } = request.query as { orgId?: string }
+    const admin = request.admin
+    const orgId = admin.role === 'super' && rawOrgId ? parseInt(rawOrgId, 10) : (admin.organizationId ?? null)
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     return getOnsiteConversionSettings(orgId)
   })
 
   // PUT /admin/onsite-conversion/global
   fastify.put('/admin/onsite-conversion/global', async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const { orgId: rawOrgId } = request.query as { orgId?: string }
+    const admin = request.admin
+    const orgId = admin.role === 'super' && rawOrgId ? parseInt(rawOrgId, 10) : (admin.organizationId ?? null)
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     return updateOnsiteConversionSettings(orgId, request.body as UpdateOnsiteConversionRequest)
   })

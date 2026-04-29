@@ -1,6 +1,7 @@
 import type { HotelDesignConfig, UpdateDesignConfigRequest, OrgDesignDefaultsConfig } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
+import { getCommSettings, getSystemCommSettings } from './communication.service.js'
 
 const GOOGLE_FONTS_BASE = 'https://fonts.googleapis.com/css2'
 
@@ -123,6 +124,10 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     ? await prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } })
     : null
 
+  const commSettings = property
+    ? await getCommSettings(property.organizationId).catch(() => null)
+    : await getSystemCommSettings().catch(() => null)
+
   // d = resolved system defaults (DB row merged with hardcoded fallback)
   const d = {
     colorPrimary:      sys.colorPrimary      ?? HARDCODED_DEFAULTS.colorPrimary,
@@ -165,7 +170,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const faviconUrl        = c?.faviconUrl        || o?.faviconUrl        || null
   const displayName       = c?.displayName       ?? property?.name       ?? null
   const tagline           = c?.tagline           ?? o?.tagline           ?? null
-  const tabTitle          = c?.tabTitle          ?? null
+  const tabTitle          = c?.tabTitle          ?? o?.tabTitle          ?? null
   const defaultCurrency   = c?.defaultCurrency   ?? o?.defaultCurrency   ?? d.defaultCurrency
   const defaultLocale     = c?.defaultLocale     ?? o?.defaultLocale     ?? d.defaultLocale
   const textDirection     = (c?.textDirection    ?? o?.textDirection     ?? d.textDirection) as 'ltr' | 'rtl'
@@ -211,6 +216,8 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
     chainHeroImageUrl: orgDefaults?.chainHeroImageUrl ?? null,
+    emailEnabled: commSettings?.emailEnabled ?? false,
+    whatsappEnabled: commSettings?.whatsappEnabled ?? false,
   }
 }
 
@@ -295,6 +302,8 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
+    emailEnabled: false,
+    whatsappEnabled: false,
   }
 }
 

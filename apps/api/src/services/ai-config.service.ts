@@ -256,6 +256,7 @@ export interface ChainContext {
   homePropertyId?: number
   propertyIds: number[]
   chainName?: string
+  defaultCurrency?: string
   isChainMember: boolean
   isChainEngine: boolean  // true when browsing at org level (no single home property)
 }
@@ -263,14 +264,16 @@ export interface ChainContext {
 export async function resolveChainContext(propertyId?: number, orgId?: number): Promise<ChainContext> {
   // Org-level booking engine (chain homepage — no single home property)
   if (orgId) {
-    const [org, props] = await Promise.all([
+    const [org, props, orgDesign] = await Promise.all([
       prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
       prisma.property.findMany({ where: { organizationId: orgId, deletedAt: null }, select: { propertyId: true } }),
+      prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId }, select: { defaultCurrency: true } }),
     ])
     const propertyIds = props.map(p => p.propertyId)
     return {
       ...(propertyId !== undefined ? { homePropertyId: propertyId } : {}),
       ...(org?.name ? { chainName: org.name } : {}),
+      ...(orgDesign?.defaultCurrency ? { defaultCurrency: orgDesign.defaultCurrency } : {}),
       propertyIds,
       isChainMember: propertyIds.length > 1,
       isChainEngine: true,
@@ -284,15 +287,17 @@ export async function resolveChainContext(propertyId?: number, orgId?: number): 
       select: { organizationId: true },
     })
     if (property) {
-      const [org, props] = await Promise.all([
+      const [org, props, hotelConfig] = await Promise.all([
         prisma.organization.findUnique({ where: { id: property.organizationId }, select: { name: true } }),
         prisma.property.findMany({ where: { organizationId: property.organizationId, deletedAt: null }, select: { propertyId: true } }),
+        prisma.hotelConfig.findUnique({ where: { propertyId }, select: { defaultCurrency: true } }),
       ])
       const propertyIds = props.map(p => p.propertyId)
       const isChainMember = propertyIds.length > 1
       return {
         homePropertyId: propertyId,
         ...(isChainMember && org?.name ? { chainName: org.name } : {}),
+        ...(hotelConfig?.defaultCurrency ? { defaultCurrency: hotelConfig.defaultCurrency } : {}),
         propertyIds,
         isChainMember,
         isChainEngine: false,
@@ -303,11 +308,16 @@ export async function resolveChainContext(propertyId?: number, orgId?: number): 
 
   // System-wide mode (e.g. system wwebjs number with no org context):
   // load all active properties so the AI can search the full catalogue.
-  const allProps = await prisma.property.findMany({
-    where: { deletedAt: null },
-    select: { propertyId: true },
-  })
-  return { propertyIds: allProps.map(p => p.propertyId), isChainMember: true, isChainEngine: true }
+  const [allProps, sysDesign] = await Promise.all([
+    prisma.property.findMany({ where: { deletedAt: null }, select: { propertyId: true } }),
+    prisma.systemDesignConfig.findFirst({ select: { defaultCurrency: true } }),
+  ])
+  return {
+    propertyIds: allProps.map(p => p.propertyId),
+    ...(sysDesign?.defaultCurrency ? { defaultCurrency: sysDesign.defaultCurrency } : {}),
+    isChainMember: true,
+    isChainEngine: true,
+  }
 }
 
 // ── Connection test ───────────────────────────────────────────────────────────

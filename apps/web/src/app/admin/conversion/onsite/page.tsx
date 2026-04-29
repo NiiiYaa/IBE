@@ -207,12 +207,12 @@ function mergeEffective(
 
 // ── Global editor ──────────────────────────────────────────────────────────────
 
-function GlobalEditor({ promoCodes }: { promoCodes: PromoCode[] }) {
+function GlobalEditor({ promoCodes, orgId }: { promoCodes: PromoCode[]; orgId: number | null }) {
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['onsite-conversion-global'],
-    queryFn: () => apiClient.getOnsiteConversionGlobal(),
+    queryKey: ['onsite-conversion-global', orgId],
+    queryFn: () => apiClient.getOnsiteConversionGlobal(orgId),
     staleTime: 30_000,
   })
 
@@ -224,9 +224,9 @@ function GlobalEditor({ promoCodes }: { promoCodes: PromoCode[] }) {
   const activeChannels = marketingSettings?.onsiteConversion ?? ['b2c', 'b2b']
 
   const mutation = useMutation({
-    mutationFn: (draft: OnsiteConversionSettings) => apiClient.updateOnsiteConversionGlobal(draft),
+    mutationFn: (draft: OnsiteConversionSettings) => apiClient.updateOnsiteConversionGlobal(draft, orgId),
     onSuccess: (updated) => {
-      qc.setQueryData(['onsite-conversion-global'], updated)
+      qc.setQueryData(['onsite-conversion-global', orgId], updated)
       setDraft(updated)
     },
   })
@@ -576,7 +576,7 @@ function PromoCodeSelect({ value, onChange, promoCodes }: { value: string | null
 
 export default function OnsiteConversionPage() {
   const { isAuthenticated } = useAdminAuth()
-  const { propertyId } = useAdminProperty()
+  const { propertyId, orgId } = useAdminProperty()
 
   const { data: promoCodes = [] } = useQuery({
     queryKey: ['promo-codes', propertyId],
@@ -601,7 +601,7 @@ export default function OnsiteConversionPage() {
       {!propertyId && <div className="mb-6" />}
 
       {propertyId === null
-        ? <GlobalEditor promoCodes={promoCodes} />
+        ? <GlobalEditor promoCodes={promoCodes} orgId={orgId} />
         : <PropertyEditor propertyId={propertyId} promoCodes={promoCodes} />
       }
     </div>

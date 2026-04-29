@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { formatCurrency } from '@ibe/shared'
+import { facilityIcon } from '@/lib/facility-icon'
 import { RateRow } from './RateRow'
 import { RoomDetailModal } from './RoomDetailModal'
 
@@ -173,7 +174,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                   <div className="mt-2 flex flex-wrap gap-1">
                     {top.map(f => (
                       <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
-                        {f.name}
+                        {facilityIcon(f.name)}{f.name}
                       </span>
                     ))}
                   </div>

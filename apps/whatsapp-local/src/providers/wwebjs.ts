@@ -88,6 +88,16 @@ export async function initClient(
   await state.client.initialize()
 }
 
+export async function sendMessage(ctx: ClientContext = {}, to: string, text: string): Promise<void> {
+  const key = clientKey(ctx)
+  const state = clients.get(key)
+  if (!state || state.status !== 'connected') {
+    throw new Error(`No connected client for context ${key}`)
+  }
+  const chatId = to.replace(/^\+/, '') + '@c.us'
+  await state.client.sendMessage(chatId, text)
+}
+
 export async function disconnectClient(ctx: ClientContext = {}): Promise<void> {
   const key = clientKey(ctx)
   const state = clients.get(key)

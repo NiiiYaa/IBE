@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import type { RoomOption, RoomDetail } from '@ibe/shared'
+import { facilityIcon } from '@/lib/facility-icon'
 
 interface RoomDetailModalProps {
   room: RoomOption
@@ -148,7 +149,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
               <div className="flex flex-wrap gap-1.5">
                 {roomDetail.facilities.map(f => (
                   <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-0.5 text-xs text-muted">
-                    {f.name}
+                    {facilityIcon(f.name)}{f.name}
                   </span>
                 ))}
               </div>

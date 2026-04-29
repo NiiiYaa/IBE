@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { RoomOption, RateOption } from '@ibe/shared'
-import { formatCurrency, nightsBetween, TaxRelation } from '@ibe/shared'
+import { formatCurrency, nightsBetween, TaxRelation, formatCancellationDeadline, formatCancellationPenalty, formatPenaltyAmount } from '@ibe/shared'
 import { MealBadge } from '@/components/search/MealBadge'
 
 export interface SelectedRoom { room: RoomOption; rate: RateOption }
@@ -108,9 +108,23 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <MealBadge board={rate.board} />
                 {rate.isRefundable ? (
-                  <span className="text-xs text-success font-medium">Free cancellation</span>
+                  <span className="text-xs text-success font-medium">
+                    {rate.cancellationDeadlines[0]
+                      ? `Free cancellation until ${formatCancellationDeadline(rate.cancellationDeadlines[0].deadline, locale)}`
+                      : 'Free cancellation'}
+                  </span>
                 ) : (
                   <span className="text-xs text-error font-medium">Non-refundable</span>
+                )}
+                {rate.isRefundable && rate.cancellationDeadlines.filter(d => d.type === 'penalty').map((d, i) => (
+                  <span key={i} className="text-xs text-amber-700">
+                    {formatCancellationPenalty(d.deadline, d.penaltyType, d.penaltyAmount, locale, rate.prices.sell.currency)}
+                  </span>
+                ))}
+                {!rate.isRefundable && rate.cancellationDeadlines[0] && (
+                  <span className="text-xs text-error">
+                    Cancellation fee: {formatPenaltyAmount(rate.cancellationDeadlines[0].penaltyType, rate.cancellationDeadlines[0].penaltyAmount, locale, rate.prices.sell.currency)}
+                  </span>
                 )}
               </div>
               <div className="mt-1 flex justify-between text-xs text-muted">

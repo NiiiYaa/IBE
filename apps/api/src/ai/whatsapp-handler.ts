@@ -37,7 +37,10 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
 
   const sessionId = orgId ? `wa-${orgId}-${from}` : myPhone ? `wa-${myPhone}-${from}` : `wa-${from}`
 
-  if (myPhone) registerWebjsPhone(myPhone, { orgId, propertyId })
+  if (myPhone) registerWebjsPhone(myPhone, {
+    ...(orgId !== undefined ? { orgId } : {}),
+    ...(propertyId !== undefined ? { propertyId } : {}),
+  })
 
   // Fresh greeting (e.g. prefilled "Hello, I'd like to find out about X") — reset session
   // so a user switching between chains/hotels on a shared global number starts clean.

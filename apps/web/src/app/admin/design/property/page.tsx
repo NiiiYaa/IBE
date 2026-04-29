@@ -250,8 +250,9 @@ export default function PropertyBrandPage() {
             <OverrideTextRow label="Tagline" hint="Short brand message shown on the homepage"
               fieldKey="tagline" placeholder="e.g. Your home away from home"
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
-            <OverrideTextRow label="Browser tab title" hint="Defaults to the property name if not set"
+            <OverrideTextRow label="Browser tab title" hint="Defaults to the chain title if set, otherwise the hotel name"
               fieldKey="tabTitle" placeholder="e.g. Book Direct — Grand Palace"
+              hgFallback={designData?.hgName ?? null}
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Logo URL" hint="Direct link or base64 data URL"
               fieldKey="logoUrl" placeholder="https://..."
@@ -317,10 +318,15 @@ function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft
 }) {
   const raw = draft[fieldKey] as string | null | undefined
   const isOverriding = raw != null
-  const inherited = hgFallback !== undefined ? (hgFallback ?? null) : (orgDefaults[fieldKey] as string | null)
+  const chainValue = orgDefaults[fieldKey] as string | null
+  const inherited = hgFallback !== undefined
+    ? (chainValue ?? hgFallback ?? null)
+    : chainValue
   const source: 'hotel' | 'chain' | 'system' | 'hyperguest' = isOverriding
     ? 'hotel'
-    : hgFallback !== undefined ? 'hyperguest' : sourceLabel(fieldKey as string, orgDefaults)
+    : hgFallback !== undefined
+      ? (chainValue != null ? 'chain' : (hgFallback != null ? 'hyperguest' : 'system'))
+      : sourceLabel(fieldKey as string, orgDefaults)
 
   return (
     <FormRow label={label} hint={hint}>

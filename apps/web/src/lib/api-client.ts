@@ -94,6 +94,10 @@ import type {
   WeatherConfigUpdate,
   EventsConfigResponse,
   EventsConfigUpdate,
+  PropertyEmailSettingsResponse,
+  UpdatePropertyEmailSettingsRequest,
+  PropertyWhatsAppSettingsResponse,
+  UpdatePropertyWhatsAppSettingsRequest,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -237,6 +241,33 @@ export const apiClient = {
     return apiRequest<BookingConfirmation>('/api/v1/bookings', {
       method: 'POST',
       body: JSON.stringify(data),
+    })
+  },
+
+  sendBookingConfirmation(
+    bookingId: string | number,
+    channel: 'email' | 'whatsapp',
+    to: string,
+    inline?: {
+      propertyId?: number
+      guestName?: string
+      checkIn?: string
+      checkOut?: string
+      totalAmount?: number
+      currency?: string
+      hyperGuestBookingId?: number
+      rooms?: Array<{ roomCode: string; board: string }>
+      selectedRooms?: Array<{
+        roomName: string
+        nightlyBreakdown: Array<{ date: string; sell: number; currency: string }>
+        sellTaxes: Array<{ description: string; amount: number; currency: string; relation: string }>
+        fees: Array<{ description: string; amount: number; currency: string; relation: string }>
+      }>
+    },
+  ): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/bookings/${bookingId}/send-confirmation`, {
+      method: 'POST',
+      body: JSON.stringify({ channel, to, ...inline }),
     })
   },
 
@@ -556,12 +587,14 @@ export const apiClient = {
 
   // ── Admin: Onsite Conversion ───────────────────────────────────────────────
 
-  getOnsiteConversionGlobal(): Promise<OnsiteConversionSettings> {
-    return apiRequest<OnsiteConversionSettings>('/api/v1/admin/onsite-conversion/global')
+  getOnsiteConversionGlobal(orgId?: number | null): Promise<OnsiteConversionSettings> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<OnsiteConversionSettings>(`/api/v1/admin/onsite-conversion/global${qs}`)
   },
 
-  updateOnsiteConversionGlobal(data: UpdateOnsiteConversionRequest): Promise<OnsiteConversionSettings> {
-    return apiRequest<OnsiteConversionSettings>('/api/v1/admin/onsite-conversion/global', {
+  updateOnsiteConversionGlobal(data: UpdateOnsiteConversionRequest, orgId?: number | null): Promise<OnsiteConversionSettings> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<OnsiteConversionSettings>(`/api/v1/admin/onsite-conversion/global${qs}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
@@ -1208,6 +1241,46 @@ export const apiClient = {
   disconnectPropertyWwebjs(propertyId: number, orgId?: number): Promise<{ ok: boolean }> {
     const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
     return apiRequest(`/api/v1/admin/communication/property/wwebjs/disconnect?${qs}`, { method: 'POST' })
+  },
+
+  sendWebjsTestMessage(to: string, orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/communication/wwebjs/send-test${qs}`, { method: 'POST', body: JSON.stringify({ to }) })
+  },
+
+  sendPropertyWebjsTestMessage(to: string, propertyId: number, orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/wwebjs/send-test?${qs}`, { method: 'POST', body: JSON.stringify({ to }) })
+  },
+
+  getPropertyEmailSettings(propertyId: number, orgId?: number): Promise<PropertyEmailSettingsResponse> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/email?${qs}`)
+  },
+
+  updatePropertyEmailSettings(propertyId: number, data: UpdatePropertyEmailSettingsRequest, orgId?: number): Promise<PropertyEmailSettingsResponse> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/email?${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  testPropertyEmailConnection(propertyId: number, orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/email/test?${qs}`, { method: 'POST' })
+  },
+
+  getPropertyWhatsAppSettings(propertyId: number, orgId?: number): Promise<PropertyWhatsAppSettingsResponse> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/whatsapp?${qs}`)
+  },
+
+  updatePropertyWhatsAppSettings(propertyId: number, data: UpdatePropertyWhatsAppSettingsRequest, orgId?: number): Promise<PropertyWhatsAppSettingsResponse> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/whatsapp?${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  testPropertyWhatsAppConnection(propertyId: number, orgId?: number): Promise<{ ok: boolean; error?: string }> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId), ...(orgId ? { orgId: String(orgId) } : {}) }).toString()
+    return apiRequest(`/api/v1/admin/communication/property/whatsapp/test?${qs}`, { method: 'POST' })
   },
 
   // ── Weather ───────────────────────────────────────────────────────────────────

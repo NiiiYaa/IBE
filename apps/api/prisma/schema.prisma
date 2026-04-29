@@ -576,8 +576,38 @@ model CommunicationSettings {
 model PropertyCommunicationSettings {
   id                            Int      @id @default(autoincrement())
   propertyId                    Int      @unique
+
+  // Email
+  emailEnabled                  Boolean  @default(false)
+  emailProvider                 String   @default("smtp")
+  emailFromName                 String   @default("")
+  emailFromAddress              String   @default("")
+  emailSmtpHost                 String   @default("")
+  emailSmtpPort                 Int      @default(587)
+  emailSmtpUser                 String   @default("")
+  emailSmtpPassword             String   @default("")
+  emailSmtpSecure               Boolean  @default(true)
+  emailApiKey                   String   @default("")
+  emailSystemServiceDisabled    Boolean  @default(false)
+
+  // Own-config flags (explicit toggle; false = use inherited)
+  useOwnEmail                   Boolean  @default(false)
+  useOwnWhatsapp                Boolean  @default(false)
+
+  // WhatsApp wwebjs / Local (existing)
   whatsappWebjsServiceUrl       String   @default("")
   whatsappSystemServiceDisabled Boolean  @default(false)
+
+  // WhatsApp Meta / Twilio
+  whatsappEnabled               Boolean  @default(false)
+  whatsappProvider              String   @default("meta")
+  whatsappPhoneNumberId         String   @default("")
+  whatsappBusinessAccountId     String   @default("")
+  whatsappAccessToken           String   @default("")
+  whatsappTwilioAccountSid      String   @default("")
+  whatsappTwilioAuthToken       String   @default("")
+  whatsappTwilioNumber          String   @default("")
+
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 }

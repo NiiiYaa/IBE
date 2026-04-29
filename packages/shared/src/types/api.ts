@@ -302,6 +302,8 @@ export interface HotelDesignConfig {
   tripadvisorHotelKey: string | null
   priceComparisonEnabled: boolean
   chainHeroImageUrl: string | null
+  emailEnabled: boolean
+  whatsappEnabled: boolean
 }
 
 export interface UpdateDesignConfigRequest {
@@ -585,6 +587,94 @@ export interface MessageRule {
   propertyId: number | null
   isGlobal: boolean
   propertyEnabled: boolean | null  // null = no property-level override; inherit enabled
+}
+
+// ── Property-level Email settings (with inheritance) ─────────────────────────
+
+export interface PropertyEmailInheritedConfig {
+  enabled: boolean
+  provider: EmailProvider
+  fromName: string
+  fromAddress: string
+  smtpHost: string
+  smtpPort: number
+  smtpUser: string
+  smtpSecure: boolean
+  passwordSet: boolean
+  apiKeySet: boolean
+}
+
+export interface PropertyEmailSettingsResponse {
+  useOwn: boolean
+  enabled: boolean
+  provider: EmailProvider
+  fromName: string
+  fromAddress: string
+  smtpHost: string
+  smtpPort: number
+  smtpUser: string
+  smtpSecure: boolean
+  passwordSet: boolean
+  apiKeySet: boolean
+  systemServiceDisabled: boolean
+  inherited: PropertyEmailInheritedConfig | null
+  inheritedFrom: 'org' | 'system' | null
+}
+
+export interface UpdatePropertyEmailSettingsRequest {
+  useOwn?: boolean
+  enabled?: boolean
+  provider?: EmailProvider
+  fromName?: string
+  fromAddress?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpUser?: string
+  smtpSecure?: boolean
+  smtpPassword?: string
+  apiKey?: string
+  systemServiceDisabled?: boolean
+}
+
+// ── Property-level WhatsApp settings (with inheritance) ───────────────────────
+
+export interface PropertyWhatsAppInheritedConfig {
+  enabled: boolean
+  provider: WhatsAppProvider
+  phoneNumberId: string
+  businessAccountId: string
+  accessTokenSet: boolean
+  twilioAccountSid: string
+  twilioAuthTokenSet: boolean
+  twilioNumber: string
+}
+
+export interface PropertyWhatsAppSettingsResponse {
+  useOwn: boolean
+  enabled: boolean
+  provider: WhatsAppProvider
+  phoneNumberId: string
+  businessAccountId: string
+  accessTokenSet: boolean
+  twilioAccountSid: string
+  twilioAuthTokenSet: boolean
+  twilioNumber: string
+  systemServiceDisabled: boolean
+  inherited: PropertyWhatsAppInheritedConfig | null
+  inheritedFrom: 'org' | 'system' | null
+}
+
+export interface UpdatePropertyWhatsAppSettingsRequest {
+  useOwn?: boolean
+  enabled?: boolean
+  provider?: WhatsAppProvider
+  phoneNumberId?: string
+  businessAccountId?: string
+  accessToken?: string
+  twilioAccountSid?: string
+  twilioAuthToken?: string
+  twilioNumber?: string
+  systemServiceDisabled?: boolean
 }
 
 export interface CreateMessageRuleRequest {

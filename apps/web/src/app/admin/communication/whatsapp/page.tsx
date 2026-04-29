@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { WhatsAppProvider } from '@ibe/shared'
+import type { WhatsAppProvider, PropertyWhatsAppSettingsResponse } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
 import { useAdminProperty } from '../../property-context'
@@ -275,7 +275,7 @@ export default function WhatsAppPage() {
   if (isLoading) return <Spinner />
 
   if (propertyId) {
-    return <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
+    return <PropertyWhatsAppSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
   }
 
   const localConsentModal = showLocalConsent && (
@@ -605,6 +605,9 @@ function ErrorBanner({ message }: { message: string }) {
 
 function WebjsStatusPanel({ orgId, inherited }: { orgId?: number | undefined; inherited?: boolean | undefined }) {
   const qc = useQueryClient()
+  const [testTo, setTestTo] = useState('')
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [showTest, setShowTest] = useState(false)
 
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['wwebjs-status', orgId],
@@ -629,6 +632,12 @@ function WebjsStatusPanel({ orgId, inherited }: { orgId?: number | undefined; in
   const disconnectMutation = useMutation({
     mutationFn: () => apiClient.disconnectWwebjs(orgId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['wwebjs-status', orgId] }),
+  })
+
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.sendWebjsTestMessage(testTo.trim(), orgId),
+    onSuccess: (r) => setTestResult(r),
+    onError: (e) => setTestResult({ ok: false, error: String(e) }),
   })
 
   if (isLoading) return null
@@ -677,14 +686,51 @@ function WebjsStatusPanel({ orgId, inherited }: { orgId?: number | undefined; in
       )}
 
       {status === 'connected' && (
-        <button
-          type="button"
-          onClick={() => disconnectMutation.mutate()}
-          disabled={disconnectMutation.isPending}
-          className="rounded-lg border border-[var(--color-error)]/40 px-4 py-1.5 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/5 disabled:opacity-40 transition-colors"
-        >
-          {disconnectMutation.isPending ? 'Disconnecting…' : 'Disconnect'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setShowTest(v => !v); setTestResult(null) }}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+          >
+            Send test message
+          </button>
+          <button
+            type="button"
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+            className="rounded-lg border border-[var(--color-error)]/40 px-4 py-1.5 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/5 disabled:opacity-40 transition-colors"
+          >
+            {disconnectMutation.isPending ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </div>
+      )}
+
+      {status === 'connected' && showTest && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 space-y-2">
+          <p className="text-xs text-[var(--color-text-muted)]">Send a test message to verify the connection is live.</p>
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              value={testTo}
+              onChange={e => { setTestTo(e.target.value); setTestResult(null) }}
+              placeholder="+1234567890"
+              className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+            />
+            <button
+              type="button"
+              onClick={() => testMutation.mutate()}
+              disabled={testMutation.isPending || !testTo.trim()}
+              className="rounded-md bg-[var(--color-primary)] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            >
+              {testMutation.isPending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          {testResult && (
+            <p className={testResult.ok ? 'text-xs text-[var(--color-success)]' : 'text-xs text-[var(--color-error)]'}>
+              {testResult.ok ? '✓ Message sent successfully' : '✗ ' + testResult.error}
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
@@ -749,6 +795,249 @@ function OwnWebjsNumberSection({ orgId, onActivate, onDeactivate }: { orgId?: nu
       />
     )}
     </>
+  )
+}
+
+// ── Property-level WhatsApp section (Meta / Twilio + Local) ──────────────────
+
+function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: number; orgId: number | null | undefined; isSuper: boolean }) {
+  const qc = useQueryClient()
+  const queryKey = ['property-whatsapp', propertyId]
+
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => apiClient.getPropertyWhatsAppSettings(propertyId, orgId ?? undefined),
+  })
+
+  const [useOwn, setUseOwn] = useState(false)
+  const [enabled, setEnabled] = useState(false)
+  const [provider, setProvider] = useState<WhatsAppProvider>('meta')
+  const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [businessAccountId, setBusinessAccountId] = useState('')
+  const [accessToken, setAccessToken] = useState('')
+  const [twilioAccountSid, setTwilioAccountSid] = useState('')
+  const [twilioAuthToken, setTwilioAuthToken] = useState('')
+  const [twilioNumber, setTwilioNumber] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+
+  useEffect(() => {
+    if (!data) return
+    setUseOwn(data.useOwn)
+    setEnabled(data.enabled)
+    setProvider(data.provider)
+    setPhoneNumberId(data.phoneNumberId)
+    setBusinessAccountId(data.businessAccountId)
+    setTwilioAccountSid(data.twilioAccountSid)
+    setTwilioNumber(data.twilioNumber)
+  }, [data])
+
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.testPropertyWhatsAppConnection(propertyId, orgId ?? undefined),
+    onSuccess: (r) => setTestResult(r),
+    onError: (e) => setTestResult({ ok: false, error: String(e) }),
+  })
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => apiClient.updatePropertyWhatsAppSettings(propertyId, {
+      useOwn,
+      enabled,
+      provider,
+      phoneNumberId,
+      businessAccountId,
+      twilioAccountSid,
+      twilioNumber,
+      ...(accessToken ? { accessToken } : {}),
+      ...(twilioAuthToken ? { twilioAuthToken } : {}),
+    }, orgId ?? undefined),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey })
+      setAccessToken('')
+      setTwilioAuthToken('')
+      setIsDirty(false)
+      setError(null)
+    },
+    onError: (err: unknown) => setError(err instanceof Error ? err.message : 'Save failed'),
+  })
+
+  const disableMutation = useMutation({
+    mutationFn: (disabled: boolean) => apiClient.updatePropertyWhatsAppSettings(propertyId, { systemServiceDisabled: disabled }, orgId ?? undefined),
+    onSuccess: () => void qc.invalidateQueries({ queryKey }),
+  })
+
+  if (isLoading) return <Spinner />
+
+  function markDirty() { setIsDirty(true) }
+
+  const inh = data?.inherited
+  const inheritedLabel = data?.inheritedFrom === 'org' ? 'Chain' : 'System'
+  const systemDisabled = data?.systemServiceDisabled ?? false
+
+  const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
+
+  return (
+    <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">WhatsApp configuration for this hotel.</p>
+      </div>
+
+      {/* Inherited Meta/Twilio service status */}
+      {!useOwn && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">
+                Inherited WhatsApp service
+                <span className="ml-2 rounded-full bg-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{inheritedLabel}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                {systemDisabled
+                  ? 'Inherited service is disabled for this hotel.'
+                  : inh
+                    ? `Using ${inheritedLabel.toLowerCase()} WhatsApp provider (${inh.provider.toUpperCase()}${inh.phoneNumberId ? ` · ${inh.phoneNumberId}` : inh.twilioNumber ? ` · ${inh.twilioNumber}` : ''}).`
+                    : 'No inherited WhatsApp service configured.'}
+              </p>
+            </div>
+            {isSuper ? (
+              <button type="button" role="switch" aria-checked={!systemDisabled}
+                onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
+                className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
+                  !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+                <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+              </button>
+            ) : (
+              <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                systemDisabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
+              ].join(' ')}>
+                {systemDisabled ? 'Disabled' : 'Active'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toggle: use inherited vs own */}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <button type="button" role="switch" aria-checked={useOwn}
+            onClick={() => { setUseOwn(v => !v); markDirty() }}
+            className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+              useOwn ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+            <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+              useOwn ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+          </button>
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Use own WhatsApp configuration</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {useOwn ? 'Hotel uses its own credentials.' : `Hotel inherits from ${inheritedLabel.toLowerCase()}.`}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Own credentials */}
+      {useOwn && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
+            </div>
+            <button type="button" role="switch" aria-checked={enabled}
+              onClick={() => { setEnabled(v => !v); markDirty() }}
+              className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+              <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                enabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+            </button>
+          </div>
+
+          <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
+            {/* Provider selector — meta / twilio only (no local at property level) */}
+            <div className="flex gap-2">
+              {PROVIDERS.filter(p => p.value !== 'wwebjs').map(p => (
+                <button key={p.value} type="button"
+                  onClick={() => { setProvider(p.value); markDirty() }}
+                  className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
+                    provider === p.value
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
+                  ].join(' ')}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">{PROVIDERS.find(p => p.value === provider)?.hint}</p>
+
+            {provider === 'meta' && (
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Phone Number ID</label>
+                  <input type="text" value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); markDirty() }}
+                    placeholder="123456789012345" className={inputCls} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp Business Account ID</label>
+                  <input type="text" value={businessAccountId} onChange={e => { setBusinessAccountId(e.target.value); markDirty() }}
+                    placeholder="987654321098765" className={inputCls} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Access Token</label>
+                  <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); markDirty() }}
+                    placeholder={data?.accessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
+                    className={inputCls} />
+                </div>
+              </div>
+            )}
+
+            {provider === 'twilio' && (
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Account SID</label>
+                  <input type="text" value={twilioAccountSid} onChange={e => { setTwilioAccountSid(e.target.value); markDirty() }}
+                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Auth Token</label>
+                  <input type="password" value={twilioAuthToken} onChange={e => { setTwilioAuthToken(e.target.value); markDirty() }}
+                    placeholder={data?.twilioAuthTokenSet ? '(stored — leave blank to keep)' : 'Paste auth token'}
+                    className={inputCls} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp number</label>
+                  <input type="text" value={twilioNumber} onChange={e => { setTwilioNumber(e.target.value); markDirty() }}
+                    placeholder="whatsapp:+14155238886" className={inputCls} />
+                </div>
+              </div>
+            )}
+          </fieldset>
+
+          {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
+
+          <div className="flex items-center gap-3 flex-wrap pt-1">
+            <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+              className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testResult && (
+              <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+                {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
+
+      {/* Local / wwebjs section */}
+      <div className="border-t border-[var(--color-border)] pt-6">
+        <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
+      </div>
+    </div>
   )
 }
 
@@ -879,6 +1168,9 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
 
 function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: number; orgId?: number | undefined; hasOwn: boolean }) {
   const qc = useQueryClient()
+  const [testTo, setTestTo] = useState('')
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [showTest, setShowTest] = useState(false)
 
   const { data: statusData } = useQuery({
     queryKey: ['property-wwebjs-status', propertyId],
@@ -896,6 +1188,12 @@ function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: n
   const disconnectMutation = useMutation({
     mutationFn: () => apiClient.disconnectPropertyWwebjs(propertyId, orgId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['property-wwebjs-status', propertyId] }),
+  })
+
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.sendPropertyWebjsTestMessage(testTo.trim(), propertyId, orgId),
+    onSuccess: (r) => setTestResult(r),
+    onError: (e) => setTestResult({ ok: false, error: String(e) }),
   })
 
   const status = statusData?.status ?? 'disconnected'
@@ -926,11 +1224,46 @@ function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: n
           <img src={qrData.qr} alt="WhatsApp QR code" className="h-48 w-48 rounded-lg border border-[var(--color-border)]" />
         </div>
       )}
-      {status === 'connected' && hasOwn && (
-        <button type="button" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}
-          className="rounded-lg border border-[var(--color-error)]/40 px-4 py-1.5 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/5 disabled:opacity-40 transition-colors">
-          {disconnectMutation.isPending ? 'Disconnecting…' : 'Disconnect'}
-        </button>
+      {status === 'connected' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => { setShowTest(v => !v); setTestResult(null) }}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors">
+            Send test message
+          </button>
+          {hasOwn && (
+            <button type="button" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}
+              className="rounded-lg border border-[var(--color-error)]/40 px-4 py-1.5 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/5 disabled:opacity-40 transition-colors">
+              {disconnectMutation.isPending ? 'Disconnecting…' : 'Disconnect'}
+            </button>
+          )}
+        </div>
+      )}
+      {status === 'connected' && showTest && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 space-y-2">
+          <p className="text-xs text-[var(--color-text-muted)]">Send a test message to verify the connection is live.</p>
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              value={testTo}
+              onChange={e => { setTestTo(e.target.value); setTestResult(null) }}
+              placeholder="+1234567890"
+              className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+            />
+            <button
+              type="button"
+              onClick={() => testMutation.mutate()}
+              disabled={testMutation.isPending || !testTo.trim()}
+              className="rounded-md bg-[var(--color-primary)] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            >
+              {testMutation.isPending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+          {testResult && (
+            <p className={testResult.ok ? 'text-xs text-[var(--color-success)]' : 'text-xs text-[var(--color-error)]'}>
+              {testResult.ok ? '✓ Message sent successfully' : '✗ ' + testResult.error}
+            </p>
+          )}
+        </div>
       )}
     </div>
   )

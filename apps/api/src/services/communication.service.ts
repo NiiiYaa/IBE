@@ -313,6 +313,255 @@ export async function upsertPropertyWebjsSettings(
   })
 }
 
+// ── Property-level email settings ─────────────────────────────────────────────
+
+import type { PropertyEmailSettingsResponse, PropertyWhatsAppSettingsResponse } from '@ibe/shared'
+
+async function resolvePropertyInheritedEmail(orgId: number | null) {
+  if (orgId === null) return { settings: await loadSystemCommSettings(), from: 'system' as const }
+  const orgRow = await prisma.communicationSettings.findUnique({ where: { organizationId: orgId } })
+  const hasOrgOwn = !!(orgRow?.emailApiKey || orgRow?.emailSmtpPassword)
+  const settings = await getCommSettings(orgId)
+  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const }
+}
+
+async function resolvePropertyInheritedWhatsApp(orgId: number | null) {
+  if (orgId === null) return { settings: await loadSystemCommSettings(), from: 'system' as const }
+  const orgRow = await prisma.communicationSettings.findUnique({ where: { organizationId: orgId } })
+  const hasOrgOwn = !!(orgRow?.whatsappAccessToken || orgRow?.whatsappTwilioAuthToken || orgRow?.whatsappWebjsServiceUrl)
+  const settings = await getCommSettings(orgId)
+  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const }
+}
+
+export async function getPropertyEmailSettingsAdmin(propertyId: number): Promise<PropertyEmailSettingsResponse> {
+  const [propRow, prop] = await Promise.all([
+    prisma.propertyCommunicationSettings.findUnique({ where: { propertyId } }),
+    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
+  ])
+  const { settings: inh, from: inheritedFrom } = await resolvePropertyInheritedEmail(prop?.organizationId ?? null)
+  return {
+    useOwn: propRow?.useOwnEmail ?? false,
+    enabled: propRow?.emailEnabled ?? false,
+    provider: (propRow?.emailProvider ?? 'smtp') as import('@ibe/shared').EmailProvider,
+    fromName: propRow?.emailFromName ?? '',
+    fromAddress: propRow?.emailFromAddress ?? '',
+    smtpHost: propRow?.emailSmtpHost ?? '',
+    smtpPort: propRow?.emailSmtpPort ?? 587,
+    smtpUser: propRow?.emailSmtpUser ?? '',
+    smtpSecure: propRow?.emailSmtpSecure ?? true,
+    passwordSet: !!(propRow?.emailSmtpPassword),
+    apiKeySet: !!(propRow?.emailApiKey),
+    systemServiceDisabled: propRow?.emailSystemServiceDisabled ?? false,
+    inherited: {
+      enabled: inh.emailEnabled,
+      provider: inh.emailProvider as import('@ibe/shared').EmailProvider,
+      fromName: inh.emailFromName,
+      fromAddress: inh.emailFromAddress,
+      smtpHost: inh.emailSmtpHost,
+      smtpPort: inh.emailSmtpPort,
+      smtpUser: inh.emailSmtpUser,
+      smtpSecure: inh.emailSmtpSecure,
+      passwordSet: !!(inh.emailSmtpPassword),
+      apiKeySet: !!(inh.emailApiKey),
+    },
+    inheritedFrom,
+  }
+}
+
+export async function upsertPropertyEmailSettings(propertyId: number, data: {
+  useOwn?: boolean
+  emailEnabled?: boolean
+  emailProvider?: string
+  emailFromName?: string
+  emailFromAddress?: string
+  emailSmtpHost?: string
+  emailSmtpPort?: number
+  emailSmtpUser?: string
+  emailSmtpPassword?: string
+  emailSmtpSecure?: boolean
+  emailApiKey?: string
+  emailSystemServiceDisabled?: boolean
+}): Promise<PropertyEmailSettingsResponse> {
+  await prisma.propertyCommunicationSettings.upsert({
+    where: { propertyId },
+    create: { propertyId, ...data },
+    update: data,
+  })
+  return getPropertyEmailSettingsAdmin(propertyId)
+}
+
+// ── Property-level WhatsApp (Meta/Twilio) settings ────────────────────────────
+
+export async function getPropertyWhatsAppSettingsAdmin(propertyId: number): Promise<PropertyWhatsAppSettingsResponse> {
+  const [propRow, prop] = await Promise.all([
+    prisma.propertyCommunicationSettings.findUnique({ where: { propertyId } }),
+    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
+  ])
+  const { settings: inh, from: inheritedFrom } = await resolvePropertyInheritedWhatsApp(prop?.organizationId ?? null)
+  return {
+    useOwn: propRow?.useOwnWhatsapp ?? false,
+    enabled: propRow?.whatsappEnabled ?? false,
+    provider: (propRow?.whatsappProvider ?? 'meta') as import('@ibe/shared').WhatsAppProvider,
+    phoneNumberId: propRow?.whatsappPhoneNumberId ?? '',
+    businessAccountId: propRow?.whatsappBusinessAccountId ?? '',
+    accessTokenSet: !!(propRow?.whatsappAccessToken),
+    twilioAccountSid: propRow?.whatsappTwilioAccountSid ?? '',
+    twilioAuthTokenSet: !!(propRow?.whatsappTwilioAuthToken),
+    twilioNumber: propRow?.whatsappTwilioNumber ?? '',
+    systemServiceDisabled: propRow?.whatsappSystemServiceDisabled ?? false,
+    inherited: {
+      enabled: inh.whatsappEnabled,
+      provider: inh.whatsappProvider as import('@ibe/shared').WhatsAppProvider,
+      phoneNumberId: inh.whatsappPhoneNumberId,
+      businessAccountId: inh.whatsappBusinessAccountId,
+      accessTokenSet: !!(inh.whatsappAccessToken),
+      twilioAccountSid: inh.whatsappTwilioAccountSid,
+      twilioAuthTokenSet: !!(inh.whatsappTwilioAuthToken),
+      twilioNumber: inh.whatsappTwilioNumber,
+    },
+    inheritedFrom,
+  }
+}
+
+export async function upsertPropertyWhatsAppSettings(propertyId: number, data: {
+  useOwn?: boolean
+  whatsappEnabled?: boolean
+  whatsappProvider?: string
+  whatsappPhoneNumberId?: string
+  whatsappBusinessAccountId?: string
+  whatsappAccessToken?: string
+  whatsappTwilioAccountSid?: string
+  whatsappTwilioAuthToken?: string
+  whatsappTwilioNumber?: string
+  whatsappSystemServiceDisabled?: boolean
+}): Promise<PropertyWhatsAppSettingsResponse> {
+  await prisma.propertyCommunicationSettings.upsert({
+    where: { propertyId },
+    create: { propertyId, ...data },
+    update: data,
+  })
+  return getPropertyWhatsAppSettingsAdmin(propertyId)
+}
+
+// ── Property-level inherited resolved settings ────────────────────────────────
+
+export async function getPropertyCommSettings(propertyId: number): Promise<CommSettings> {
+  const propRow = await prisma.propertyCommunicationSettings.findUnique({ where: { propertyId } })
+  const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+  const orgId = prop?.organizationId ?? null
+
+  const inherited = orgId !== null ? await getCommSettings(orgId) : await loadSystemCommSettings()
+
+  if (!propRow) return inherited
+
+  const useOwnEmail = propRow.useOwnEmail
+  const useOwnWhatsapp = propRow.useOwnWhatsapp
+
+  return {
+    ...inherited,
+    ...(useOwnEmail ? {
+      emailEnabled: propRow.emailEnabled,
+      emailProvider: propRow.emailProvider,
+      emailFromName: propRow.emailFromName,
+      emailFromAddress: propRow.emailFromAddress,
+      emailSmtpHost: propRow.emailSmtpHost,
+      emailSmtpPort: propRow.emailSmtpPort,
+      emailSmtpUser: propRow.emailSmtpUser,
+      emailSmtpSecure: propRow.emailSmtpSecure,
+      emailSmtpPassword: propRow.emailSmtpPassword || null,
+      emailApiKey: propRow.emailApiKey || null,
+      emailSystemServiceDisabled: false,
+    } : propRow.emailSystemServiceDisabled ? {
+      emailEnabled: false,
+      emailSystemServiceDisabled: true,
+    } : {}),
+    ...(useOwnWhatsapp ? {
+      whatsappEnabled: propRow.whatsappEnabled,
+      whatsappProvider: propRow.whatsappProvider,
+      whatsappPhoneNumberId: propRow.whatsappPhoneNumberId,
+      whatsappBusinessAccountId: propRow.whatsappBusinessAccountId,
+      whatsappAccessToken: propRow.whatsappAccessToken || null,
+      whatsappTwilioAccountSid: propRow.whatsappTwilioAccountSid,
+      whatsappTwilioAuthToken: propRow.whatsappTwilioAuthToken || null,
+      whatsappTwilioNumber: propRow.whatsappTwilioNumber,
+    } : propRow.whatsappSystemServiceDisabled ? {
+      whatsappEnabled: false,
+      whatsappSystemServiceDisabled: true,
+    } : {}),
+    // wwebjs override at property level is still resolved via resolveWebjsTarget (existing logic)
+    ...(propRow.whatsappWebjsServiceUrl ? { whatsappWebjsServiceUrl: propRow.whatsappWebjsServiceUrl } : {}),
+  }
+}
+
+// ── Property-level connection tests ──────────────────────────────────────────
+
+export async function testPropertyEmailConnection(propertyId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const settings = await getPropertyCommSettings(propertyId)
+    const { emailProvider, emailSmtpHost, emailSmtpPort, emailSmtpPassword, emailApiKey } = settings
+
+    if (emailProvider === 'smtp') {
+      if (!emailSmtpHost) return { ok: false, error: 'SMTP host not configured' }
+      await tcpCheck(emailSmtpHost, emailSmtpPort)
+      return { ok: true }
+    }
+
+    if (emailProvider === 'sendgrid') {
+      if (!emailApiKey) return { ok: false, error: 'SendGrid API key not configured' }
+      const res = await fetch('https://api.sendgrid.com/v3/scopes', {
+        headers: { Authorization: `Bearer ${emailApiKey}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `SendGrid returned ${res.status}` }
+    }
+
+    if (emailProvider === 'mailgun') {
+      if (!emailApiKey) return { ok: false, error: 'Mailgun API key not configured' }
+      const credentials = Buffer.from(`api:${emailApiKey}`).toString('base64')
+      const res = await fetch('https://api.mailgun.net/v3/domains', {
+        headers: { Authorization: `Basic ${credentials}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Mailgun returned ${res.status}` }
+    }
+
+    return { ok: false, error: `Unknown email provider: ${emailProvider}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function testPropertyWhatsAppConnection(propertyId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const settings = await getPropertyCommSettings(propertyId)
+    const { whatsappProvider, whatsappPhoneNumberId, whatsappAccessToken, whatsappTwilioAccountSid, whatsappTwilioAuthToken } = settings
+
+    if (whatsappProvider === 'meta') {
+      if (!whatsappAccessToken) return { ok: false, error: 'Meta access token not configured' }
+      if (!whatsappPhoneNumberId) return { ok: false, error: 'Phone number ID not configured' }
+      const res = await fetch(`https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}?access_token=${whatsappAccessToken}`)
+      if (res.ok) return { ok: true }
+      const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+      return { ok: false, error: body?.error?.message ?? `Meta API returned ${res.status}` }
+    }
+
+    if (whatsappProvider === 'twilio') {
+      if (!whatsappTwilioAccountSid) return { ok: false, error: 'Twilio Account SID not configured' }
+      if (!whatsappTwilioAuthToken) return { ok: false, error: 'Twilio Auth Token not configured' }
+      const credentials = Buffer.from(`${whatsappTwilioAccountSid}:${whatsappTwilioAuthToken}`).toString('base64')
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${whatsappTwilioAccountSid}.json`, {
+        headers: { Authorization: `Basic ${credentials}` },
+      })
+      if (res.ok) return { ok: true }
+      return { ok: false, error: `Twilio returned ${res.status}` }
+    }
+
+    return { ok: false, error: `Unknown WhatsApp provider: ${whatsappProvider}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 // Resolve wwebjs service URL + client param: property → org → system
 async function resolveWebjsTarget(
   propertyId: number | null,

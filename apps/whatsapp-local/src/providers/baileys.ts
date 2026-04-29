@@ -153,6 +153,16 @@ export async function initClient(
   await connect()
 }
 
+export async function sendMessage(ctx: ClientContext = {}, to: string, text: string): Promise<void> {
+  const key = clientKey(ctx)
+  const state = clients.get(key)
+  if (!state?.socket || state.status !== 'connected') {
+    throw new Error(`No connected client for context ${key}`)
+  }
+  const jid = to.replace(/^\+/, '') + '@s.whatsapp.net'
+  await state.socket.sendMessage(jid, { text })
+}
+
 export async function disconnectClient(ctx: ClientContext = {}): Promise<void> {
   const key = clientKey(ctx)
   const state = clients.get(key)

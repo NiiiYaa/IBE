@@ -37,6 +37,8 @@ export interface RoomSummary {
   currency: string
   availableCount: number
   offers: RateOffer[]
+  isRefundable?: boolean
+  boardType?: string
 }
 
 const BOARD_ABBR: Record<string, string> = {

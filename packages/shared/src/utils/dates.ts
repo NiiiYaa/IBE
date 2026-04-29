@@ -63,6 +63,56 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function formatDeadlineDatetime(isoDatetime: string, locale: string): string {
+  const [datePart, timePart] = isoDatetime.split('T') as [string, string | undefined]
+  const dateStr = formatDate(datePart, locale)
+  const time = (timePart ?? '').slice(0, 5) // "HH:MM"
+  if (!time || time === '00:00') return dateStr
+  const [hourStr, minuteStr] = time.split(':') as [string, string]
+  const hour = parseInt(hourStr, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12
+  return `${dateStr} at ${hour12}:${minuteStr}${ampm}`
+}
+
+/**
+ * Formats a cancellation deadline for the free-cancellation label.
+ * Appends "local time" when a time component is present.
+ */
+export function formatCancellationDeadline(isoDatetime: string, locale: string): string {
+  const base = formatDeadlineDatetime(isoDatetime, locale)
+  return base.includes(' at ') ? `${base} local time` : base
+}
+
+/**
+ * Formats a penalty amount into a human-readable string.
+ * penaltyType: 'currency' | 'percent' | 'nights'
+ */
+export function formatPenaltyAmount(
+  penaltyType: string,
+  penaltyAmount: number,
+  locale: string,
+  currency: string,
+): string {
+  if (penaltyType === 'percent') return `${penaltyAmount}% of stay`
+  if (penaltyType === 'nights') return `${penaltyAmount} night${penaltyAmount !== 1 ? 's' : ''} charged`
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(penaltyAmount)
+}
+
+/**
+ * Formats a penalty cancellation tier as "After [date/time]: [penalty description]".
+ */
+export function formatCancellationPenalty(
+  isoDatetime: string,
+  penaltyType: string,
+  penaltyAmount: number,
+  locale: string,
+  currency: string,
+): string {
+  const dateStr = formatDeadlineDatetime(isoDatetime, locale)
+  return `After ${dateStr}: ${formatPenaltyAmount(penaltyType, penaltyAmount, locale, currency)}`
+}
+
 /**
  * Adds N days to a YYYY-MM-DD string and returns the result.
  */

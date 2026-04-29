@@ -1,9 +1,12 @@
 'use client'
 
 import type { RateOption } from '@ibe/shared'
-import { formatCurrency, formatDate, TaxRelation } from '@ibe/shared'
+import { formatCurrency, TaxRelation } from '@ibe/shared'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CancellationSummary } from './CancellationSummary'
+import { TaxesSummary } from './TaxesSummary'
+import { RemarksSummary } from './RemarksSummary'
 
 interface RateCardProps {
   rate: RateOption
@@ -24,9 +27,6 @@ export function RateCard({ rate, currency, locale, onSelect }: RateCardProps) {
     ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Optional),
     ...rate.prices.fees.filter(f => f.relation === TaxRelation.Optional),
   ]
-  const hasMandatoryFees = displayFees.length > 0
-
-  const deadline = rate.cancellationDeadlines[0]
 
   return (
     <div className="rounded-lg border border-gray-200 p-4 transition-shadow hover:shadow-sm">
@@ -44,48 +44,12 @@ export function RateCard({ rate, currency, locale, onSelect }: RateCardProps) {
             {rate.isPromotion && <Badge variant="yellow">Promotion</Badge>}
           </div>
 
-          {/* Cancellation info */}
-          {rate.isRefundable && deadline && (
-            <p className="text-xs text-green-700">
-              Free cancellation until{' '}
-              <span className="font-medium">
-                {formatDate(deadline.deadline.slice(0, 10), locale)}
-              </span>
-            </p>
-          )}
+          {/* Cancellation summary (compact + hover for full detail) */}
+          <CancellationSummary rate={rate} locale={locale} currency={displayCurrency} />
 
-          {/* Mandatory display fees */}
-          {hasMandatoryFees && (
-            <div className="space-y-0.5">
-              {displayFees.map((fee, i) => (
-                <p key={i} className="text-xs text-amber-700">
-                  {formatCurrency(fee.amount, fee.currency, locale)} {fee.description} — not included, paid at hotel
-                </p>
-              ))}
-            </div>
-          )}
+          <TaxesSummary displayFees={displayFees} optionalFees={optionalFees} locale={locale} />
 
-          {/* Optional fees */}
-          {optionalFees.length > 0 && (
-            <div className="space-y-0.5">
-              {optionalFees.map((fee, i) => (
-                <p key={i} className="text-xs text-blue-700">
-                  {formatCurrency(fee.amount, fee.currency, locale)} {fee.description} — not included, optionally paid at hotel
-                </p>
-              ))}
-            </div>
-          )}
-
-          {/* Remarks */}
-          {rate.remarks.length > 0 && (
-            <ul className="space-y-0.5">
-              {rate.remarks.map((remark, i) => (
-                <li key={i} className="text-xs text-gray-500">
-                  • {remark}
-                </li>
-              ))}
-            </ul>
-          )}
+          <RemarksSummary remarks={rate.remarks} />
         </div>
 
         {/* Right: price + CTA */}

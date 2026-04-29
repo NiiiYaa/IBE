@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Image from 'next/image'
 import type { PropertyFacility } from '@ibe/shared'
+import { facilityIcon } from '@/lib/facility-icon'
 
 interface PropertyDetailModalProps {
   id: number
@@ -106,7 +107,7 @@ export function PropertyDetailModal({
               <div className="flex flex-wrap gap-1.5">
                 {popularFacilities.map(f => (
                   <span key={f.id} className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-primary-light)] px-2.5 py-0.5 text-xs font-medium text-primary">
-                    {f.name}
+                    {facilityIcon(f.name)}{f.name}
                   </span>
                 ))}
               </div>
@@ -122,7 +123,7 @@ export function PropertyDetailModal({
                   <div className="flex flex-wrap gap-1">
                     {items.map(f => (
                       <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
-                        {f.name}
+                        {facilityIcon(f.name)}{f.name}
                       </span>
                     ))}
                   </div>

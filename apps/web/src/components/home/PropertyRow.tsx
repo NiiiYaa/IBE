@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import type { PropertyFacility } from '@ibe/shared'
 import { PropertyDetailModal } from './PropertyDetailModal'
+import { facilityIcon } from '@/lib/facility-icon'
 
 interface PropertyRowProps {
   id: number
@@ -88,7 +89,7 @@ export function PropertyRow({ id, name, starRating, imageUrl, city, address, des
                 key={f.id}
                 className="shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted"
               >
-                {f.name}
+                {facilityIcon(f.name)}{f.name}
               </span>
             ))}
             <button

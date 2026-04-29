@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings, testEmailConnection, testWhatsappConnection, getPropertyWebjsSettings, upsertPropertyWebjsSettings } from '../services/communication.service.js'
+import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings, testEmailConnection, testWhatsappConnection, getPropertyWebjsSettings, upsertPropertyWebjsSettings, getPropertyEmailSettingsAdmin, upsertPropertyEmailSettings, getPropertyWhatsAppSettingsAdmin, upsertPropertyWhatsAppSettings, testPropertyEmailConnection, testPropertyWhatsAppConnection, getPropertyCommSettings } from '../services/communication.service.js'
 import type { CommSettings } from '../services/communication.service.js'
-import { getStatus, getQrDataUrl, disconnectClient, initClient, clientKey } from '../services/whatsapp-manager.service.js'
+import { getStatus, getQrDataUrl, disconnectClient, initClient, clientKey, sendMessage } from '../services/whatsapp-manager.service.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 
@@ -157,6 +157,18 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
+  fastify.post('/admin/communication/wwebjs/send-test', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), null)
+    const { to } = request.body as { to?: string }
+    if (!to) return reply.status(400).send({ error: 'to is required' })
+    try {
+      await sendMessage(ctx, to, '✓ Test message from IBE — your WhatsApp connection is working!')
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
   // ── Property-level Local WhatsApp ──────────────────────────────────────────
 
   fastify.get('/admin/communication/property/wwebjs', async (request, reply) => {
@@ -202,5 +214,91 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     const ctx = ctxFromIds(resolveOrgId(request), resolvePropertyId(request))
     await disconnectClient(ctx)
     return reply.send({ ok: true })
+  })
+
+  fastify.post('/admin/communication/property/wwebjs/send-test', async (request, reply) => {
+    const ctx = ctxFromIds(resolveOrgId(request), resolvePropertyId(request))
+    const { to } = request.body as { to?: string }
+    if (!to) return reply.status(400).send({ error: 'to is required' })
+    try {
+      await sendMessage(ctx, to, '✓ Test message from IBE — your WhatsApp connection is working!')
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  // ── Property-level Email settings ──────────────────────────────────────────
+
+  fastify.get('/admin/communication/property/email', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    return reply.send(await getPropertyEmailSettingsAdmin(propertyId))
+  })
+
+  fastify.put('/admin/communication/property/email', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    const body = request.body as Record<string, unknown>
+    if (body.systemServiceDisabled !== undefined && (request as any).admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
+    const data = {
+      ...(body.useOwn !== undefined && { useOwnEmail: body.useOwn as boolean }),
+      ...(body.enabled !== undefined && { emailEnabled: body.enabled as boolean }),
+      ...(body.provider !== undefined && { emailProvider: body.provider as string }),
+      ...(body.fromName !== undefined && { emailFromName: body.fromName as string }),
+      ...(body.fromAddress !== undefined && { emailFromAddress: body.fromAddress as string }),
+      ...(body.smtpHost !== undefined && { emailSmtpHost: body.smtpHost as string }),
+      ...(body.smtpPort !== undefined && { emailSmtpPort: body.smtpPort as number }),
+      ...(body.smtpUser !== undefined && { emailSmtpUser: body.smtpUser as string }),
+      ...(body.smtpSecure !== undefined && { emailSmtpSecure: body.smtpSecure as boolean }),
+      ...(body.smtpPassword !== undefined && { emailSmtpPassword: body.smtpPassword as string }),
+      ...(body.apiKey !== undefined && { emailApiKey: body.apiKey as string }),
+      ...(body.systemServiceDisabled !== undefined && { emailSystemServiceDisabled: body.systemServiceDisabled as boolean }),
+    }
+    return reply.send(await upsertPropertyEmailSettings(propertyId, data))
+  })
+
+  fastify.post('/admin/communication/property/email/test', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    return reply.send(await testPropertyEmailConnection(propertyId))
+  })
+
+  // ── Property-level WhatsApp Meta/Twilio settings ────────────────────────────
+
+  fastify.get('/admin/communication/property/whatsapp', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    return reply.send(await getPropertyWhatsAppSettingsAdmin(propertyId))
+  })
+
+  fastify.put('/admin/communication/property/whatsapp', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    const body = request.body as Record<string, unknown>
+    if (body.systemServiceDisabled !== undefined && (request as any).admin.role !== 'super') {
+      return reply.status(403).send({ error: 'Only super admins can disable system services' })
+    }
+    const data = {
+      ...(body.useOwn !== undefined && { useOwnWhatsapp: body.useOwn as boolean }),
+      ...(body.enabled !== undefined && { whatsappEnabled: body.enabled as boolean }),
+      ...(body.provider !== undefined && { whatsappProvider: body.provider as string }),
+      ...(body.phoneNumberId !== undefined && { whatsappPhoneNumberId: body.phoneNumberId as string }),
+      ...(body.businessAccountId !== undefined && { whatsappBusinessAccountId: body.businessAccountId as string }),
+      ...(body.accessToken !== undefined && { whatsappAccessToken: body.accessToken as string }),
+      ...(body.twilioAccountSid !== undefined && { whatsappTwilioAccountSid: body.twilioAccountSid as string }),
+      ...(body.twilioAuthToken !== undefined && { whatsappTwilioAuthToken: body.twilioAuthToken as string }),
+      ...(body.twilioNumber !== undefined && { whatsappTwilioNumber: body.twilioNumber as string }),
+      ...(body.systemServiceDisabled !== undefined && { whatsappSystemServiceDisabled: body.systemServiceDisabled as boolean }),
+    }
+    return reply.send(await upsertPropertyWhatsAppSettings(propertyId, data))
+  })
+
+  fastify.post('/admin/communication/property/whatsapp/test', async (request, reply) => {
+    const propertyId = resolvePropertyId(request)
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
+    return reply.send(await testPropertyWhatsAppConnection(propertyId))
   })
 }

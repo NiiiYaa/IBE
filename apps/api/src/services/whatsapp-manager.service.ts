@@ -46,7 +46,7 @@ const silentLogger = {
   error: (...a: unknown[]) => logger.error(a, '[Baileys]'),
   fatal: (...a: unknown[]) => logger.error(a, '[Baileys]'),
   child: () => silentLogger,
-} as unknown as Parameters<typeof makeWASocket>[0]['logger']
+} as unknown as NonNullable<Parameters<typeof makeWASocket>[0]['logger']>
 
 // ── Session persistence ───────────────────────────────────────────────────────
 
@@ -108,13 +108,12 @@ export async function initClient(ctx: ClientContext): Promise<void> {
       version,
       auth: {
         creds: authState.creds,
-        keys: makeCacheableSignalKeyStore(authState.keys, silentLogger),
+        keys: makeCacheableSignalKeyStore(authState.keys, silentLogger!),
       },
       logger: silentLogger,
       printQRInTerminal: false,
       browser: ['IBE', 'Chrome', '1.0'],
       connectTimeoutMs: 60_000,
-      defaultQueryTimeoutMs: undefined,
     })
 
     state.socket = sock
@@ -141,7 +140,7 @@ export async function initClient(ctx: ClientContext): Promise<void> {
         state.status = 'connected'
         state.qrDataUrl = null
         const jid = sock.user?.id ?? ''
-        state.phoneNumber = jid.split(':')[0].split('@')[0] || null
+        state.phoneNumber = jid.split(':')[0]?.split('@')[0] || null
         logger.info({ key, phone: state.phoneNumber }, '[WA] Connected')
         if (state.phoneNumber) registerWebjsPhone(state.phoneNumber, ctx)
       }
@@ -183,9 +182,9 @@ export async function initClient(ctx: ClientContext): Promise<void> {
           const reply = await runWhatsAppTurn({
             from,
             message: text,
-            myPhone: state.phoneNumber ?? undefined,
-            orgId: ctx.orgId,
-            propertyId: ctx.propertyId,
+            ...(state.phoneNumber ? { myPhone: state.phoneNumber } : {}),
+            ...(ctx.orgId !== undefined ? { orgId: ctx.orgId } : {}),
+            ...(ctx.propertyId !== undefined ? { propertyId: ctx.propertyId } : {}),
           })
           await sock.sendMessage(from, { text: reply })
         } catch (err) {
@@ -196,6 +195,20 @@ export async function initClient(ctx: ClientContext): Promise<void> {
   }
 
   await connect()
+}
+
+export async function sendMessage(ctx: ClientContext = {}, to: string, text: string): Promise<void> {
+  const key = clientKey(ctx)
+  let state = clients.get(key)
+  // Fall back to system client when no org/property-specific client is connected
+  if ((!state || state.status !== 'connected') && (ctx.orgId !== undefined || ctx.propertyId !== undefined)) {
+    state = clients.get('system')
+  }
+  if (!state?.socket || state.status !== 'connected') {
+    throw new Error(`No connected client for context ${key}`)
+  }
+  const jid = to.replace(/^\+/, '') + '@s.whatsapp.net'
+  await state.socket.sendMessage(jid, { text })
 }
 
 export async function disconnectClient(ctx: ClientContext = {}): Promise<void> {
@@ -211,7 +224,10 @@ export async function disconnectClient(ctx: ClientContext = {}): Promise<void> {
 
 export function getStatus(ctx: ClientContext = {}): { status: ConnectionStatus; phoneNumber?: string } {
   const state = clients.get(clientKey(ctx))
-  return { status: state?.status ?? 'disconnected', phoneNumber: state?.phoneNumber ?? undefined }
+  const phone = state?.phoneNumber || undefined
+  return phone
+    ? { status: state?.status ?? 'disconnected', phoneNumber: phone }
+    : { status: state?.status ?? 'disconnected' }
 }
 
 export function getQrDataUrl(ctx: ClientContext = {}): string | null {

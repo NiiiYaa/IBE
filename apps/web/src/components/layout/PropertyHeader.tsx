@@ -1,5 +1,6 @@
 import type { PropertyDetail } from '@ibe/shared'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
+import { facilityIcon } from '@/lib/facility-icon'
 
 interface PropertyHeaderProps {
   property: PropertyDetail
@@ -94,7 +95,7 @@ export function PropertyHeader({
             key={f.id}
             className="flex items-center gap-1 rounded-full bg-[var(--color-primary-light)] px-2.5 py-1 text-xs font-medium text-primary"
           >
-            {f.name}
+            {facilityIcon(f.name)}{f.name}
           </span>
         ))}
       </div>

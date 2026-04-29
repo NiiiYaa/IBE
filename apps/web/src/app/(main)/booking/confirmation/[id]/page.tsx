@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
-import type { BookingCancellationFrame, TaxEntry, HGNightlyEntry as NightlyEntry } from '@ibe/shared'
+import type { BookingCancellationFrame, TaxEntry, NightlyPrice, PropertyDetail } from '@ibe/shared'
 import { TaxRelation } from '@ibe/shared'
+import { apiClient } from '@/lib/api-client'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
@@ -16,7 +17,7 @@ interface StoredRoom {
 
 interface StoredSelectedRoom {
   roomName: string
-  nightlyBreakdown: NightlyEntry[]
+  nightlyBreakdown: NightlyPrice[]
   sellTaxes: TaxEntry[]
   fees: TaxEntry[]
 }
@@ -27,7 +28,7 @@ interface StoredConfirmation {
   propertyId?: number
   checkIn?: string
   checkOut?: string
-  leadGuest?: { firstName: string; lastName: string; email: string }
+  leadGuest?: { firstName: string; lastName: string; email: string; phone?: string }
   rooms?: StoredRoom[]
   hyperGuestBookingId?: number
   selectedRooms?: StoredSelectedRoom[]
@@ -76,14 +77,9 @@ function CancellationPolicy({ frames, currency }: { frames: BookingCancellationF
 
   if (penaltyFrames.length === 0) {
     return (
-      <div className="flex items-start gap-3 rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
-        <svg className="mt-0.5 h-4 w-4 shrink-0 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-        </svg>
-        <div>
-          <p className="text-sm font-medium text-success">Free cancellation</p>
-          <p className="text-xs text-success/80 mt-0.5">You will not be charged if you cancel this booking.</p>
-        </div>
+      <div className="rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
+        <p className="text-sm font-medium text-success">✓ Free cancellation</p>
+        <p className="text-xs text-success/80 mt-0.5">You will not be charged if you cancel this booking.</p>
       </div>
     )
   }
@@ -94,15 +90,24 @@ function CancellationPolicy({ frames, currency }: { frames: BookingCancellationF
 
   if (penaltyStartsNow) {
     return (
-      <div className="flex items-start gap-3 rounded-lg bg-[var(--color-error-light)] border border-error/20 px-4 py-3">
-        <svg className="mt-0.5 h-4 w-4 shrink-0 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-        </svg>
-        <div>
-          <p className="text-sm font-medium text-error">Non-refundable</p>
-          <p className="text-xs text-error/80 mt-0.5">
-            Cancellation fee: <strong>{fmtAmount(firstPenalty.penaltyAmount, firstPenalty.currency || currency)}</strong> — this charge applies to any cancellation.
-          </p>
+      <div className="space-y-2">
+        <div className="flex items-start gap-3 rounded-lg bg-[var(--color-error-light)] border border-error/20 px-4 py-3">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <p className="text-sm font-medium text-error">Non-refundable — fees apply</p>
+        </div>
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 space-y-1.5">
+          {penaltyFrames.map((f, i) => (
+            <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
+              <span className="text-[var(--color-text-muted)]">
+                {i === 0 ? 'Any cancellation' : `After ${fmtDate(f.from)}`}
+              </span>
+              <span className="font-medium text-error shrink-0">
+                {fmtAmount(f.penaltyAmount, f.currency || currency)}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -110,22 +115,30 @@ function CancellationPolicy({ frames, currency }: { frames: BookingCancellationF
 
   return (
     <div className="space-y-2">
-      <div className="flex items-start gap-3 rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
-        <svg className="mt-0.5 h-4 w-4 shrink-0 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-        </svg>
-        <div>
-          <p className="text-sm font-medium text-success">Free cancellation until {fmtDate(firstPenalty.from)}</p>
-          <p className="text-xs text-success/80 mt-0.5">Cancel before this date at no charge.</p>
-        </div>
+      {/* Free window */}
+      <div className="rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
+        <p className="text-sm font-medium text-success">✓ Free cancellation until {fmtDate(firstPenalty.from)}</p>
+        <p className="text-xs text-success/80 mt-0.5">Cancel before this date at no charge.</p>
       </div>
-      <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
-        <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-        </svg>
-        <p className="text-xs text-amber-700">
-          After {fmtDate(firstPenalty.from)}: cancellation fee of <strong>{fmtAmount(firstPenalty.penaltyAmount, firstPenalty.currency || currency)}</strong>.
-        </p>
+
+      {/* All penalty tiers */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
+        <p className="text-xs font-semibold text-amber-800 mb-2">✘ Cancellation fees after {fmtDate(firstPenalty.from)}</p>
+        {penaltyFrames.map((f, i) => (
+          <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
+            <span className="text-amber-700">
+              {penaltyFrames.length === 1
+                ? 'Any cancellation'
+                : i === penaltyFrames.length - 1
+                  ? `After ${fmtDate(f.from)}`
+                  : `${fmtDate(f.from)}${penaltyFrames[i + 1] ? ` – ${fmtDate(penaltyFrames[i + 1]!.from)}` : ''}`
+              }
+            </span>
+            <span className="font-medium text-amber-900 shrink-0">
+              {fmtAmount(f.penaltyAmount, f.currency || currency)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -135,8 +148,17 @@ interface PageProps {
   params: { id: string }
 }
 
+type SendChannel = 'email' | 'whatsapp'
+
 export default function ConfirmationPage({ params }: PageProps) {
   const [confirmation, setConfirmation] = useState<StoredConfirmation | null>(null)
+  const [property, setProperty] = useState<PropertyDetail | null>(null)
+  const [emailEnabled, setEmailEnabled] = useState(false)
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
+  const [sendChannel, setSendChannel] = useState<SendChannel | null>(null)
+  const [sendTo, setSendTo] = useState('')
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [sendError, setSendError] = useState('')
 
   useEffect(() => {
     try {
@@ -144,6 +166,54 @@ export default function ConfirmationPage({ params }: PageProps) {
       if (raw) setConfirmation(JSON.parse(raw))
     } catch {}
   }, [params.id])
+
+  useEffect(() => {
+    const pid = confirmation?.propertyId ?? PROPERTY_ID
+    if (!pid) return
+    apiClient.getHotelConfig(pid).then(cfg => {
+      setEmailEnabled(cfg.emailEnabled)
+      setWhatsappEnabled(cfg.whatsappEnabled)
+    }).catch(() => {})
+    apiClient.getProperty(pid).then(setProperty).catch(() => {})
+  }, [confirmation?.propertyId])
+
+  function openSend(channel: SendChannel) {
+    setSendChannel(channel)
+    setSendState('idle')
+    setSendError('')
+    if (channel === 'email') setSendTo(confirmation?.leadGuest?.email ?? '')
+    if (channel === 'whatsapp') setSendTo(confirmation?.leadGuest?.phone ?? '')
+  }
+
+  async function submitSend() {
+    if (!sendChannel || !sendTo.trim()) return
+    setSendState('sending')
+    try {
+      const c = confirmation
+      const guestName = c?.leadGuest ? `${c.leadGuest.firstName} ${c.leadGuest.lastName}`.trim() : undefined
+      const inline = {
+        ...(c?.propertyId !== undefined ? { propertyId: c.propertyId } : {}),
+        ...(guestName ? { guestName } : {}),
+        ...(c?.checkIn ? { checkIn: c.checkIn } : {}),
+        ...(c?.checkOut ? { checkOut: c.checkOut } : {}),
+        ...(c?.totalAmount !== undefined ? { totalAmount: c.totalAmount } : {}),
+        ...(c?.currency ? { currency: c.currency } : {}),
+        ...(c?.hyperGuestBookingId !== undefined ? { hyperGuestBookingId: c.hyperGuestBookingId } : {}),
+        ...(c?.rooms ? { rooms: c.rooms.map(r => ({ roomCode: r.roomCode, board: r.board })) } : {}),
+        ...(c?.selectedRooms ? { selectedRooms: c.selectedRooms.map(sr => ({
+          roomName: sr.roomName,
+          nightlyBreakdown: sr.nightlyBreakdown,
+          sellTaxes: sr.sellTaxes,
+          fees: sr.fees,
+        })) } : {}),
+      }
+      await apiClient.sendBookingConfirmation(params.id, sendChannel, sendTo.trim(), inline)
+      setSendState('sent')
+    } catch (err) {
+      setSendState('error')
+      setSendError(err instanceof Error ? err.message : 'Send failed')
+    }
+  }
 
   const n = confirmation?.checkIn && confirmation?.checkOut
     ? nights(confirmation.checkIn, confirmation.checkOut)
@@ -180,6 +250,43 @@ export default function ConfirmationPage({ params }: PageProps) {
                 </svg>
               </div>
             </div>
+
+            {/* Hotel info */}
+            {property && (
+              <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Hotel</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-semibold text-[var(--color-text)]">{property.name}</p>
+                  {property.starRating > 0 && (
+                    <span className="text-amber-400 text-sm leading-none">{'★'.repeat(property.starRating)}</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 mt-1">
+                  {property.location.address && (
+                    <div className="flex items-start gap-1.5 text-xs text-muted">
+                      <svg className="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                      <span>{property.location.address}</span>
+                    </div>
+                  )}
+                  {property.contact.phone && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <svg className="h-3.5 w-3.5 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                      <a href={`tel:${property.contact.phone}`} className="text-primary hover:underline">{property.contact.phone}</a>
+                    </div>
+                  )}
+                  {property.contact.email && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <svg className="h-3.5 w-3.5 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                      <a href={`mailto:${property.contact.email}`} className="text-primary hover:underline">{property.contact.email}</a>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <svg className="h-3.5 w-3.5 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <a href={`/?hotelId=${property.propertyId}`} className="text-primary hover:underline">Hotel page</a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Guest & stay details */}
             {confirmation?.leadGuest && (
@@ -234,7 +341,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                         {sr.nightlyBreakdown.map((n, ni) => (
                           <div key={ni} className="flex justify-between text-xs">
                             <span className="text-muted">{new Date(n.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
-                            <span className="text-[var(--color-text)]">{n.prices?.sell ? fmtAmount(n.prices.sell.price, n.prices.sell.currency) : '—'}</span>
+                            <span className="text-[var(--color-text)]">{fmtAmount(n.sell, n.currency)}</span>
                           </div>
                         ))}
                       </div>
@@ -305,29 +412,97 @@ export default function ConfirmationPage({ params }: PageProps) {
           </div>
 
           {/* Actions */}
-          <div className="border-t border-[var(--color-border)] px-8 py-5 flex flex-wrap items-center justify-center gap-3 print:hidden">
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download confirmation
-            </button>
-            <Link
-              href={(() => {
-                if (!confirmation?.propertyId) return '/'
-                const qs = new URLSearchParams({ hotelId: String(confirmation.propertyId) })
-                if (confirmation.checkIn) qs.set('checkIn', confirmation.checkIn)
-                if (confirmation.checkOut) qs.set('checkOut', confirmation.checkOut)
-                qs.set('rooms[0][adults]', '2')
-                return `/search?${qs.toString()}`
-              })()}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-5 py-2.5 text-sm font-medium text-[var(--color-text)] hover:border-primary hover:text-primary transition-colors"
-            >
-              Make another booking
-            </Link>
+          <div className="border-t border-[var(--color-border)] px-8 py-5 space-y-4 print:hidden">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+
+              {emailEnabled && (
+                <button
+                  onClick={() => openSend('email')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Email
+                </button>
+              )}
+
+              {whatsappEnabled && (
+                <button
+                  onClick={() => openSend('whatsapp')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                >
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                    <path d="M12 0C5.374 0 0 5.374 0 12c0 2.117.554 4.103 1.523 5.828L.057 23.486a.5.5 0 00.609.61l5.757-1.51A11.943 11.943 0 0012 24c6.626 0 12-5.374 12-12S18.626 0 12 0zm0 21.818a9.805 9.805 0 01-5.031-1.383l-.36-.214-3.733.979.996-3.637-.235-.374A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+                  </svg>
+                  WhatsApp
+                </button>
+              )}
+
+              <Link
+                href={(() => {
+                  if (!confirmation?.propertyId) return '/'
+                  const qs = new URLSearchParams({ hotelId: String(confirmation.propertyId) })
+                  if (confirmation.checkIn) qs.set('checkIn', confirmation.checkIn)
+                  if (confirmation.checkOut) qs.set('checkOut', confirmation.checkOut)
+                  qs.set('rooms[0][adults]', '2')
+                  return `/search?${qs.toString()}`
+                })()}
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+              >
+                Make another booking
+              </Link>
+            </div>
+
+            {/* Inline send form */}
+            {sendChannel && (
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
+                <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+                  Send confirmation via {sendChannel === 'email' ? 'Email' : 'WhatsApp'}
+                </p>
+                {sendState === 'sent' ? (
+                  <p className="text-sm text-success font-medium">
+                    ✓ Confirmation sent to {sendTo}
+                  </p>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type={sendChannel === 'email' ? 'email' : 'tel'}
+                      value={sendTo}
+                      onChange={e => setSendTo(e.target.value)}
+                      placeholder={sendChannel === 'email' ? 'Email address' : 'Phone number (e.g. +1234567890)'}
+                      className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <button
+                      onClick={submitSend}
+                      disabled={sendState === 'sending' || !sendTo.trim()}
+                      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                    >
+                      {sendState === 'sending' ? 'Sending…' : 'Send'}
+                    </button>
+                    <button
+                      onClick={() => setSendChannel(null)}
+                      className="rounded-md border border-[var(--color-border)] px-3 py-2 text-sm text-muted hover:text-[var(--color-text)] transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                {sendState === 'error' && (
+                  <p className="text-xs text-error">{sendError}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>

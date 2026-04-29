@@ -1,8 +1,11 @@
 'use client'
 
 import type { RateOption, RoomOption } from '@ibe/shared'
-import { formatCurrency, formatDate, TaxRelation } from '@ibe/shared'
+import { formatCurrency, TaxRelation } from '@ibe/shared'
 import { MealBadge } from './MealBadge'
+import { CancellationSummary } from './CancellationSummary'
+import { TaxesSummary } from './TaxesSummary'
+import { RemarksSummary } from './RemarksSummary'
 
 interface RateRowProps {
   rate: RateOption
@@ -21,7 +24,6 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
   const dispCur = displayCurrency ?? rate.prices.sell.currency
   const price = conv(rate.prices.sell.amount)
   const perNight = nights > 0 ? price / nights : price
-  const deadline = rate.cancellationDeadlines[0]
   const displayFees = [
     ...rate.prices.sell.taxes.filter(t => t.relation === TaxRelation.Display),
     ...rate.prices.fees.filter(f => f.relation === TaxRelation.Display),
@@ -68,31 +70,12 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
           )}
         </div>
 
-        {/* Cancellation detail */}
-        {rate.isRefundable && deadline && (
-          <p className="text-xs text-success">
-            Free cancellation until {formatDate(deadline.deadline.slice(0, 10), locale)}
-          </p>
-        )}
+        {/* Cancellation summary (compact + hover for full detail) */}
+        <CancellationSummary rate={rate} locale={locale} currency={dispCur} />
 
-        {/* Display fees (mandatory, paid at hotel) */}
-        {displayFees.length > 0 && (
-          <p className="text-xs text-amber-700">
-            {displayFees.map(f => `${formatCurrency(conv(f.amount), dispCur, locale)} ${f.description}`).join(' · ')} — not included, paid at hotel
-          </p>
-        )}
+        <TaxesSummary displayFees={displayFees} optionalFees={optionalFees} locale={locale} displayCurrency={dispCur} {...(convert ? { convert } : {})} />
 
-        {/* Optional fees */}
-        {optionalFees.length > 0 && (
-          <p className="text-xs text-blue-600">
-            {optionalFees.map(f => `${formatCurrency(conv(f.amount), dispCur, locale)} ${f.description}`).join(' · ')} — not included, optionally paid at hotel
-          </p>
-        )}
-
-        {/* Remarks */}
-        {rate.remarks.slice(0, 1).map((r, i) => (
-          <p key={i} className="text-xs text-muted line-clamp-1">• {r}</p>
-        ))}
+        <RemarksSummary remarks={rate.remarks} />
       </div>
 
       {/* Right: price + CTA */}
