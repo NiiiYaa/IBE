@@ -68,7 +68,11 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
     const savedCtx = await getWaSessionContext(sessionId)
     if (savedCtx) {
       if (!orgId) orgId = savedCtx.orgId
-      if (savedCtx.propertyId) { propertyId = savedCtx.propertyId; waCtxAlreadySaved = true }
+      // Only restore saved propertyId if it belongs to the current org (prevents cross-org contamination)
+      if (savedCtx.propertyId && (!orgId || savedCtx.orgId === orgId)) {
+        propertyId = savedCtx.propertyId
+        waCtxAlreadySaved = true
+      }
     }
   }
 

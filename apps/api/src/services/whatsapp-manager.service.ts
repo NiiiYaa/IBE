@@ -13,6 +13,12 @@ import { prisma } from '../db/client.js'
 import { registerWebjsPhone } from './communication.service.js'
 import { runWhatsAppTurn } from '../ai/whatsapp-handler.js'
 import { logger } from '../utils/logger.js'
+import { getRedis } from '../utils/redis.js'
+
+// Each running instance should set INSTANCE_ID (e.g. "dev", "prod") so that when
+// the same WhatsApp number is connected from multiple environments (linked devices),
+// only the instance that most recently connected that phone will respond to messages.
+const INSTANCE_ID = process.env.INSTANCE_ID ?? 'default'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -141,8 +147,14 @@ export async function initClient(ctx: ClientContext): Promise<void> {
         state.qrDataUrl = null
         const jid = sock.user?.id ?? ''
         state.phoneNumber = jid.split(':')[0]?.split('@')[0] || null
-        logger.info({ key, phone: state.phoneNumber }, '[WA] Connected')
-        if (state.phoneNumber) registerWebjsPhone(state.phoneNumber, ctx)
+        logger.info({ key, phone: state.phoneNumber, instanceId: INSTANCE_ID }, '[WA] Connected')
+        if (state.phoneNumber) {
+          registerWebjsPhone(state.phoneNumber, ctx)
+          // Claim active-responder for this phone number so other instances (e.g. prod
+          // while dev is testing) see this instance and skip their own responses.
+          await getRedis().set(`wa:active:${state.phoneNumber}`, INSTANCE_ID, 'EX', 600).catch(() => {})
+          logger.info({ phone: state.phoneNumber, instanceId: INSTANCE_ID }, '[WA] Claimed active responder')
+        }
       }
 
       if (connection === 'close') {
@@ -177,7 +189,18 @@ export async function initClient(ctx: ClientContext): Promise<void> {
           || ''
         if (!text.trim()) continue
 
-        logger.info({ key, from, text: text.slice(0, 60) }, '[WA] Incoming message')
+        // Skip if another instance has claimed this phone — prevents prod+dev duplicate responses
+        if (state.phoneNumber) {
+          const activeId = await getRedis().get(`wa:active:${state.phoneNumber}`).catch(() => INSTANCE_ID)
+          if (activeId && activeId !== INSTANCE_ID) {
+            logger.info({ key, from, phone: state.phoneNumber, activeId, instanceId: INSTANCE_ID }, '[WA] Skipping — not active responder')
+            continue
+          }
+          // Renew claim TTL on each message (keeps this instance active while in use)
+          await getRedis().set(`wa:active:${state.phoneNumber}`, INSTANCE_ID, 'EX', 600).catch(() => {})
+        }
+
+        logger.info({ key, from, instanceId: INSTANCE_ID, text: text.slice(0, 60) }, '[WA] Incoming message')
         try {
           const reply = await runWhatsAppTurn({
             from,
