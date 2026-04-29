@@ -68,9 +68,10 @@ interface EventsStripProps {
   startDate: string
   endDate: string
   showTicketLink?: boolean
+  orgId?: number | null
 }
 
-export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = false }: EventsStripProps) {
+export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = false, orgId }: EventsStripProps) {
   const [data, setData] = useState<EventsData | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
@@ -80,11 +81,13 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
     setData(null)
     setDismissed(false)
     setFolded(false)
-    fetch(`/api/v1/events?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`)
+    const qs = new URLSearchParams({ propertyId: String(propertyId), startDate, endDate })
+    if (orgId) qs.set('orgId', String(orgId))
+    fetch(`/api/v1/events?${qs.toString()}`)
       .then(r => r.ok ? r.json() as Promise<EventsData> : null)
       .then(d => { if (d) setData(d) })
       .catch(() => {})
-  }, [propertyId, startDate, endDate])
+  }, [propertyId, startDate, endDate, orgId])
 
   useEffect(() => {
     if (!data?.enabled) return

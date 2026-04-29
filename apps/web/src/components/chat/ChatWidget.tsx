@@ -33,7 +33,9 @@ export function ChatWidget({ propertyId, orgId, whatsappPrefilledMessage }: Prop
 
   function openWhatsApp() {
     const num = whatsappNumber!.replace(/\D/g, '')
-    const text = whatsappPrefilledMessage ?? 'Hello, I would like to find out more about your property.'
+    const name = chatConfig?.name
+    const text = whatsappPrefilledMessage
+      ?? (name ? `Hello, I'd like to find out about ${name}.` : `Hello, I'd like to find out about your property.`)
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
   }
 

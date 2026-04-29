@@ -1124,7 +1124,7 @@ export const apiClient = {
     return apiRequest(`/api/v1/ai/enabled${qs}`)
   },
 
-  getChatConfig(propertyId?: number): Promise<{ aiEnabled: boolean; whatsappNumber: string | null }> {
+  getChatConfig(propertyId?: number): Promise<{ aiEnabled: boolean; whatsappNumber: string | null; name: string | null }> {
     const qs = propertyId ? `?propertyId=${propertyId}` : ''
     return apiRequest(`/api/v1/ai/chat-config${qs}`)
   },

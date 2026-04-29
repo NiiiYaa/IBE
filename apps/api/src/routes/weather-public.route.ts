@@ -51,6 +51,7 @@ export async function weatherPublicRoutes(fastify: FastifyInstance) {
     const qs = request.query as Record<string, string>
     const propertyId = qs.propertyId ? parseInt(qs.propertyId, 10) : null
     if (!propertyId || isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
+    const fallbackOrgId = qs.orgId ? parseInt(qs.orgId, 10) : undefined
 
     const today = new Date().toISOString().split('T')[0]!
     const startDate = qs.startDate ?? today
@@ -58,7 +59,7 @@ export async function weatherPublicRoutes(fastify: FastifyInstance) {
 
     const [property, cfg] = await Promise.all([
       fetchPropertyStatic(propertyId),
-      getResolvedWeatherConfig(propertyId),
+      getResolvedWeatherConfig(propertyId, fallbackOrgId),
     ])
 
     if (!cfg.enabled) return reply.send({ enabled: false })

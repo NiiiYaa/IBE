@@ -176,36 +176,9 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
             </div>
           )}
 
-          {/* Input row: pill — [New chat] [Standard] */}
-          <div className="flex items-end gap-2">
-            <div className="flex flex-1 items-center overflow-hidden rounded-2xl bg-white shadow-2xl ring-2 ring-violet-400">
-              <div className="flex flex-1 items-center gap-2 px-4 py-3">
-                <span className="shrink-0"><SparkleIcon /></span>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  dir={input ? detectDir(input) : 'ltr'}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about rooms, dates, availability…"
-                  disabled={isLoading}
-                  className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-50"
-                />
-              </div>
-              <div className="flex items-center py-2 pr-3">
-                <button
-                  onClick={handleSend}
-                  disabled={isLoading || !input.trim()}
-                  className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-6 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isLoading ? '…' : 'Ask'}
-                </button>
-              </div>
-            </div>
-
-            {/* Right chips */}
-            <div className="flex shrink-0 flex-col gap-1.5 pb-1">
+          {/* Chips row: New chat · Standard */}
+          {(messages.length > 0 || onClose) && (
+            <div className="flex items-center gap-2 mb-1.5">
               {messages.length > 0 && (
                 <button
                   onClick={reset}
@@ -227,6 +200,34 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
                 </button>
               )}
             </div>
+          )}
+
+          {/* Input row: pill + Ask */}
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center overflow-hidden rounded-2xl bg-white shadow-2xl ring-2 ring-violet-400">
+              <div className="flex flex-1 items-center gap-2 px-4 py-3">
+                <span className="shrink-0"><SparkleIcon /></span>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  dir={input ? detectDir(input) : 'ltr'}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about rooms, dates, availability…"
+                  disabled={isLoading}
+                  className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+              className="shrink-0 whitespace-nowrap rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-2xl transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoading ? '…' : 'Ask'}
+            </button>
           </div>
           <p className="mt-1.5 text-center text-[10px] text-[var(--color-text-muted)]">
             AI-powered · Results based on live availability

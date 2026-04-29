@@ -77,10 +77,11 @@ export interface ResolvedEventsConfig {
   stripAutoFoldSecs: number
 }
 
-export async function getResolvedEventsConfig(propertyId: number): Promise<ResolvedEventsConfig> {
+export async function getResolvedEventsConfig(propertyId: number, fallbackOrgId?: number): Promise<ResolvedEventsConfig> {
   const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+  const orgId = prop?.organizationId ?? fallbackOrgId
   const [orgRow, sysRow] = await Promise.all([
-    prop ? prisma.orgEventsConfig.findUnique({ where: { organizationId: prop.organizationId } }) : null,
+    orgId ? prisma.orgEventsConfig.findUnique({ where: { organizationId: orgId } }) : null,
     prisma.systemEventsConfig.findFirst(),
   ])
 

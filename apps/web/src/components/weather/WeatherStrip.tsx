@@ -155,9 +155,10 @@ interface WeatherStripProps {
   propertyId: number
   startDate: string
   endDate: string
+  orgId?: number | null
 }
 
-export function WeatherStrip({ propertyId, startDate, endDate }: WeatherStripProps) {
+export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherStripProps) {
   const [data, setData] = useState<WeatherData | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
@@ -167,7 +168,9 @@ export function WeatherStrip({ propertyId, startDate, endDate }: WeatherStripPro
     setData(null)
     setDismissed(false)
     setFolded(false)
-    fetch(`/api/v1/weather?propertyId=${propertyId}&startDate=${startDate}&endDate=${endDate}`)
+    const qs = new URLSearchParams({ propertyId: String(propertyId), startDate, endDate })
+    if (orgId) qs.set('orgId', String(orgId))
+    fetch(`/api/v1/weather?${qs.toString()}`)
       .then(r => r.ok ? r.json() as Promise<WeatherData> : null)
       .then(d => { if (d) setData(d) })
       .catch(() => {})

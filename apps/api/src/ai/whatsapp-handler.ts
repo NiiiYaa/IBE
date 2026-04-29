@@ -42,10 +42,10 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
     ...(propertyId !== undefined ? { propertyId } : {}),
   })
 
-  // Fresh greeting (e.g. prefilled "Hello, I'd like to find out about X") — reset session
-  // so a user switching between chains/hotels on a shared global number starts clean.
+  // Fresh greeting from the IBE WhatsApp button — always reset session so a user switching
+  // between chains/hotels (or returning after a previous conversation) starts clean.
   const isFreshGreeting = /^hello,?\s+i['']d like to find out about\b/i.test(message.trim())
-  if (isFreshGreeting && !orgId && !propertyId) {
+  if (isFreshGreeting) {
     const session = new RedisSession()
     await Promise.all([
       session.save(sessionId, []),

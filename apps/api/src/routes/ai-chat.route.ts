@@ -63,9 +63,10 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
     const propertyId = rawId ? parseInt(rawId, 10) : NaN
 
     const pid = !isNaN(propertyId) ? propertyId : undefined
-    const [aiConfig, orgId] = await Promise.all([
+    const [aiConfig, orgId, property] = await Promise.all([
       resolveAIConfig(pid),
       pid ? getOrgIdForProperty(pid) : Promise.resolve(undefined),
+      pid ? prisma.property.findUnique({ where: { propertyId: pid }, select: { name: true, organizationId: true } }) : Promise.resolve(null),
     ])
 
     let whatsappNumber: string | null = null
@@ -94,8 +95,15 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Resolve display name: property name for single hotel, org name for chain
+    let name: string | null = property?.name ?? null
+    if (!name && orgId) {
+      const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
+      name = org?.name ?? null
+    }
+
     void reply.header('Cache-Control', 'public, max-age=60')
-    return reply.send({ aiEnabled: !!aiConfig, whatsappNumber })
+    return reply.send({ aiEnabled: !!aiConfig, whatsappNumber, name })
   })
 
   // POST /api/v1/ai/chat — guest-facing conversational search

@@ -35,7 +35,7 @@ const ConversationalSearchPanel = dynamic(
 
 const LOCALE = 'en'
 
-export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false }: { aiEnabled?: boolean; searchAiLayoutDefault?: boolean }) {
+export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false, orgId }: { aiEnabled?: boolean; searchAiLayoutDefault?: boolean; orgId?: number | null }) {
   const router = useRouter()
   const rawParams = useSearchParams()
   const searchParams = decodeSearchParams(rawParams)
@@ -186,6 +186,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
           propertyId={searchParams.hotelId}
           startDate={searchParams.checkIn}
           endDate={searchParams.checkOut}
+          {...(orgId != null ? { orgId } : {})}
         />
       )}
 
@@ -194,6 +195,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
           propertyId={searchParams.hotelId}
           startDate={searchParams.checkIn}
           endDate={searchParams.checkOut}
+          {...(orgId != null ? { orgId } : {})}
         />
       )}
 

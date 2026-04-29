@@ -70,10 +70,11 @@ export interface ResolvedWeatherConfig {
   stripAutoFoldSecs: number
 }
 
-export async function getResolvedWeatherConfig(propertyId: number): Promise<ResolvedWeatherConfig> {
+export async function getResolvedWeatherConfig(propertyId: number, fallbackOrgId?: number): Promise<ResolvedWeatherConfig> {
   const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+  const orgId = prop?.organizationId ?? fallbackOrgId
   const [orgRow, sysRow] = await Promise.all([
-    prop ? prisma.orgWeatherConfig.findUnique({ where: { organizationId: prop.organizationId } }) : null,
+    orgId ? prisma.orgWeatherConfig.findUnique({ where: { organizationId: orgId } }) : null,
     prisma.systemWeatherConfig.findFirst(),
   ])
   if (orgRow?.systemServiceDisabled) {
