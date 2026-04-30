@@ -7,66 +7,72 @@ interface Feature {
   id: string
   label: string
   subLabel?: string
+  description: string
   rate: number | null  // $/room/month, null = bundle
   pct: number | null   // % of fulfilled booking, null = bundle
   children?: Feature[]
 }
 
-function leaf(id: string, label: string, rate: number, pct: number): Feature {
-  return { id, label, rate, pct }
+function leaf(id: string, label: string, rate: number, pct: number, description: string): Feature {
+  return { id, label, rate, pct, description }
 }
 
 const FEATURES: Feature[] = [
-  { id: 'base', label: 'Base', rate: 0.5, pct: 0.5 },
+  { id: 'base', label: 'Base', rate: 0.5, pct: 0.5, description: 'The core booking engine — property listings, availability calendar, room display, and the complete reservation flow.' },
   {
     id: 'channels', label: 'Channels', rate: null, pct: null,
+    description: 'Distribution channels for your IBE — choose which booking flows to activate for your guests and partners.',
     children: [
-      leaf('b2c', 'B2C', 0.5, 0.5),
-      leaf('b2b', 'B2B', 0.5, 0.5),
+      leaf('b2c', 'B2C', 0.5, 0.5, 'Direct-to-consumer booking channel. Guests search availability and book directly from your website.'),
+      leaf('b2b', 'B2B', 0.5, 0.5, 'Business-to-business channel for travel agents and corporate accounts, with dedicated login and booking flows.'),
     ],
   },
-  leaf('dashboard', 'Dashboard & Reports', 0.5, 0.5),
-  leaf('bookings', 'Bookings', 0.5, 0.5),
+  leaf('dashboard', 'Dashboard & Reports', 0.5, 0.5, 'Analytics dashboard with booking statistics, revenue reports, occupancy rates, and performance insights.'),
+  leaf('bookings', 'Bookings', 0.5, 0.5, 'Full reservation management — view, search, modify, cancel, and export all bookings from one place.'),
   {
     id: 'marketing', label: 'Marketing', rate: null, pct: null,
+    description: 'A suite of tools to attract more direct bookings — from promotions and price comparison to retargeting and analytics.',
     children: [
-      leaf('promo_codes', 'Promo Codes', 0.5, 0.5),
-      leaf('price_comparison', 'Price Comparison', 0.5, 0.5),
-      leaf('onsite_conversion', 'Onsite Conversion', 0.5, 0.5),
-      leaf('affiliates', 'Affiliates', 0.5, 0.5),
-      leaf('campaigns', 'Campaigns', 0.5, 0.5),
-      leaf('tracking_analytics', 'Tracking & Analytics', 0.5, 0.5),
+      leaf('promo_codes', 'Promo Codes', 0.5, 0.5, 'Create and manage discount codes for promotions, loyalty programs, and special offers.'),
+      leaf('price_comparison', 'Price Comparison', 0.5, 0.5, 'Show guests a live comparison of your direct rate vs. OTA prices (e.g. Booking.com) to highlight the direct booking advantage.'),
+      leaf('onsite_conversion', 'Onsite Conversion', 0.5, 0.5, 'Smart pop-ups, banners, and widgets that appear at the right moment to convert website visitors into direct bookers.'),
+      leaf('affiliates', 'Affiliates', 0.5, 0.5, 'Referral and affiliate program — track partner-driven traffic and automatically reward affiliates for bookings they generate.'),
+      leaf('campaigns', 'Campaigns', 0.5, 0.5, 'Create targeted campaigns to re-engage past guests and attract new ones via email and other channels.'),
+      leaf('tracking_analytics', 'Tracking & Analytics', 0.5, 0.5, 'Pixel-based tracking integrations for Google Analytics, Meta Pixel, and other ad platforms to measure campaign ROI.'),
     ],
   },
   {
     id: 'cross_sell', label: 'Cross Sell', rate: null, pct: null,
+    description: 'Increase revenue per booking by offering guests relevant add-ons, upgrades, and third-party experiences.',
     children: [
-      leaf('internal', 'Internal', 0.5, 0.5),
-      leaf('external', 'External (Ticketmaster)', 0.5, 0.5),
+      leaf('internal', 'Internal', 0.5, 0.5, 'Upsell your own hotel\'s add-ons, room upgrades, and packages to guests during checkout.'),
+      leaf('external', 'External (Ticketmaster)', 0.5, 0.5, 'Cross-sell third-party experiences, events, and activities via Ticketmaster integration, creating additional revenue streams.'),
     ],
   },
-  leaf('groups', 'Groups', 0.5, 0.5),
+  leaf('groups', 'Groups', 0.5, 0.5, 'Dedicated group booking flow with RFQ forms, custom pricing, CSV exports, and inquiry management for large reservations.'),
   {
     id: 'ai', label: 'AI', subLabel: 'AI Assistant', rate: null, pct: null,
+    description: 'Artificial intelligence features — conversational booking assistant, WhatsApp integration, and MCP server connections to AI platforms.',
     children: [
-      leaf('ai_whatsapp', 'AI WhatsApp', 0.5, 0.5),
-      leaf('mcps', 'MCPs', 0.5, 0.5),
+      leaf('ai_whatsapp', 'AI WhatsApp', 0.5, 0.5, 'AI-powered conversational booking assistant via WhatsApp — guests can search, ask questions, and complete bookings in chat.'),
+      leaf('mcps', 'MCPs', 0.5, 0.5, 'Model Context Protocol servers to connect your IBE with AI platforms like ChatGPT, enabling natural language booking.'),
     ],
   },
-  leaf('guests', 'Guests Management', 0.5, 0.5),
-  leaf('domain', 'Domain', 0.5, 0.5),
-  leaf('payment_gateway', 'Payment Gateway', 0.5, 0.5),
+  leaf('guests', 'Guests Management', 0.5, 0.5, 'Centralized guest profiles with booking history, preferences, and contact details for personalizing every stay.'),
+  leaf('domain', 'Domain', 0.5, 0.5, 'Custom domain setup for your booking engine (e.g. book.yourhotel.com) with SSL certificate and DNS management.'),
+  leaf('payment_gateway', 'Payment Gateway', 0.5, 0.5, 'Secure payment processing via Stripe and other providers — supporting cards, 3D Secure, and local payment methods.'),
   {
     id: 'communication', label: 'Communication', rate: null, pct: null,
+    description: 'Automated guest communication across email, WhatsApp, and SMS throughout the entire booking lifecycle.',
     children: [
-      leaf('emails', 'Emails', 0.5, 0.5),
-      leaf('whatsapp_comm', 'WhatsApp', 0.5, 0.5),
-      leaf('sms', 'SMS', 0.5, 0.5),
+      leaf('emails', 'Emails', 0.5, 0.5, 'Automated transactional emails — booking confirmations, pre-arrival reminders, post-stay follow-ups, and cancellation notices.'),
+      leaf('whatsapp_comm', 'WhatsApp', 0.5, 0.5, 'Automated WhatsApp messages for booking confirmations, check-in reminders, and real-time guest communication.'),
+      leaf('sms', 'SMS', 0.5, 0.5, 'SMS notifications for booking confirmations and important guest updates, as an alternative or complement to email.'),
     ],
   },
-  leaf('maps', 'Maps', 0.5, 0.5),
-  leaf('weather', 'Weather', 0.5, 0.5),
-  leaf('reputation', 'Reputation', 0.5, 0.5),
+  leaf('maps', 'Maps', 0.5, 0.5, 'Interactive maps showing your property location, nearby attractions, and points of interest to help guests plan their stay.'),
+  leaf('weather', 'Weather', 0.5, 0.5, 'Live weather widget displaying the forecast for your property\'s destination, helping guests pack and plan activities.'),
+  leaf('reputation', 'Reputation', 0.5, 0.5, 'Guest review collection and display — gather post-stay feedback and showcase ratings to build trust and drive direct bookings.'),
 ]
 
 function getLeafIds(features: Feature[]): string[] {
@@ -202,6 +208,40 @@ function MultiSelect({
   )
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  const [coords, setCoords] = useState<{ x: number; y: number } | null>(null)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  const show = () => {
+    if (!ref.current) return
+    const r = ref.current.getBoundingClientRect()
+    setCoords({ x: r.left + r.width / 2, y: r.top })
+  }
+
+  return (
+    <span
+      ref={ref}
+      className="inline-flex shrink-0 items-center"
+      onMouseEnter={show}
+      onMouseLeave={() => setCoords(null)}
+      onClick={e => e.stopPropagation()}
+    >
+      <svg className="h-3.5 w-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-help" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+      </svg>
+      {coords && (
+        <div
+          className="fixed z-50 w-60 bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl pointer-events-none leading-relaxed"
+          style={{ left: coords.x, top: coords.y - 10, transform: 'translate(-50%, -100%)' }}
+        >
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </span>
+  )
+}
+
 export function PricingCalculator() {
   const [type, setType] = useState<'single' | 'chain'>('single')
   const [chainSize, setChainSize] = useState('2-10')
@@ -319,6 +359,7 @@ export function PricingCalculator() {
             {isBundle && (
               <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">bundle</span>
             )}
+            <InfoTooltip text={feature.description} />
           </div>
           <div className="shrink-0 flex items-center gap-3">
             {(model === 'fix' || model === 'hybrid') && (
@@ -533,6 +574,7 @@ export function PricingCalculator() {
                 <div className="flex-1 flex items-center gap-2 min-w-0">
                   <span className="text-sm font-bold text-gray-900">All (inclusive bundle)</span>
                   <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">bundle</span>
+                  <InfoTooltip text="Select all available features at once — the complete IBE package." />
                 </div>
                 <div className="shrink-0 flex items-center gap-3">
                   {(model === 'fix' || model === 'hybrid') && (
