@@ -1236,6 +1236,18 @@ model IBEVisit {
   @@index([device])
 }
 
+// ── MCP OAuth Clients ─────────────────────────────────────────────────────────
+// Registered OAuth 2.0 clients — static (claude_ai) + DCR-registered (ChatGPT).
+model OAuthClient {
+  id           Int      @id @default(autoincrement())
+  clientId     String   @unique
+  clientSecret String
+  clientName   String?
+  redirectUris String   // JSON array of allowed redirect URI prefixes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 // ── MCP OAuth Identities ──────────────────────────────────────────────────────
 // Maps an OAuth provider subject (Auth0 sub) to an org or property scope,
 // allowing ChatGPT/Claude.ai connectors to authenticate via OAuth instead of API keys.

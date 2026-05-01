@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { validateApiKey } from '../services/mcp.service.js'
-import { isJwt, validateMcpJwt, getOAuthScope } from '../services/oauth.service.js'
+import { isJwt, validateMcpJwt, getOAuthScope, getOAuthAudience, getOAuthIssuer } from '../services/oauth.service.js'
 import { search } from '../services/search.service.js'
 import { getPropertyDetail } from '../services/static.service.js'
 import { prisma } from '../db/client.js'

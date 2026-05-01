@@ -112,14 +112,14 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
       <div className="space-y-4 text-sm">
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Claude.ai connectors don&apos;t support Bearer auth — the API key is embedded in the URL instead. Leave the OAuth fields empty; the URL below already contains your key.
+            Use the OAuth credentials from the <strong>OAuth Connection</strong> section above for the Advanced settings fields. Paste the MCP endpoint URL (without any key) into the connector URL field.
           </p>
           <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-            {claudeUrl}
+            {endpoint}
           </div>
           <button
             type="button"
-            onClick={() => copyText(claudeUrl)}
+            onClick={() => copyText(endpoint)}
             className="text-xs text-[var(--color-primary)] hover:underline"
           >
             Copy URL
@@ -408,9 +408,9 @@ export default function AdminMcpPage() {
     enabled: !isSystemLevel,
   })
 
-  const { data: oauthData } = useQuery({
+  const { data: oauthData, refetch: refetchOAuth } = useQuery({
     queryKey: oauthQKey,
-    queryFn: () => apiClient.getMcpOAuthConfig(superOrgId),
+    queryFn: () => apiClient.getMcpOAuthConfig(),
     enabled: !isSystemLevel,
   })
 
@@ -464,9 +464,9 @@ export default function AdminMcpPage() {
     },
   })
 
-  const { mutate: unlinkOAuth, isPending: unlinking } = useMutation({
-    mutationFn: () => apiClient.unlinkMcpOAuth(superOrgId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauthQKey }),
+  const { mutate: rotateClaudeSecret, isPending: rotatingClaude } = useMutation({
+    mutationFn: () => apiClient.rotateClaudeClientSecret(),
+    onSuccess: () => { void refetchOAuth() },
   })
 
   const { mutate: updateChannels, isPending: channelsSaving } = useMutation({
@@ -544,80 +544,68 @@ export default function AdminMcpPage() {
         )}
       </div>
 
-      {/* OAuth — ChatGPT & Claude.ai */}
+      {/* OAuth — built-in server for ChatGPT & Claude.ai */}
       {oauthData && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-sm font-medium text-[var(--color-text)]">OAuth Connection</h2>
               <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                Enables ChatGPT and Claude.ai to authenticate via OAuth instead of the API key. Required for customer-facing connectors.
+                Built-in OAuth 2.0 server — no external service needed. ChatGPT and Claude.ai users sign in with their hotel admin credentials.
               </p>
             </div>
-            {oauthData.configured && (
-              <span className={[
-                'shrink-0 rounded px-2 py-1 text-xs font-semibold',
-                oauthData.linked ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700',
-              ].join(' ')}>
-                {oauthData.linked ? 'Linked' : 'Not linked'}
-              </span>
-            )}
+            <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">Active</span>
           </div>
 
-          {!oauthData.configured ? (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-xs text-[var(--color-text-muted)] space-y-1">
-              <p className="font-medium text-[var(--color-text)]">Auth0 not configured</p>
-              <p>Set <code className="font-mono">AUTH0_DOMAIN</code>, <code className="font-mono">AUTH0_AUDIENCE</code>, <code className="font-mono">AUTH0_CLIENT_ID</code>, and <code className="font-mono">AUTH0_CLIENT_SECRET</code> in your environment to enable OAuth.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Claude.ai credentials */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-[var(--color-text)]">Claude.ai credentials</p>
-                <p className="text-xs text-[var(--color-text-muted)]">Paste these into the Claude.ai <strong>Add custom connector</strong> dialog under Advanced settings.</p>
-                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[var(--color-text-muted)] w-28 shrink-0">OAuth Client ID</span>
-                    <span className="text-[var(--color-text)] break-all">{oauthData.clientId}</span>
-                    <button type="button" onClick={() => copyText(oauthData.clientId!)} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[var(--color-text-muted)] w-28 shrink-0">OAuth Client Secret</span>
-                    <span className="text-[var(--color-text)] break-all">{'•'.repeat(20)}</span>
-                    <button type="button" onClick={() => copyText(oauthData.clientSecret!)} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
-                  </div>
+          {/* Claude.ai static credentials */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-[var(--color-text)]">Claude.ai credentials</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Paste these into the <strong>Add custom connector</strong> dialog under <strong>Advanced settings</strong>.
+            </p>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-2">
+              {[
+                ['OAuth Client ID', oauthData.claude.clientId],
+                ['OAuth Client Secret', oauthData.claude.clientSecret],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-[var(--color-text-muted)] w-36 shrink-0">{label}</span>
+                  <span className="text-[var(--color-text)] break-all flex-1">{value}</span>
+                  <button type="button" onClick={() => copyText(value ?? '')} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
                 </div>
-              </div>
-
-              {/* Identity linking */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-[var(--color-text)]">Account linking</p>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Link your Auth0 identity so that ChatGPT and Claude.ai OAuth tokens are mapped to this organisation.
-                </p>
-                {oauthData.linked ? (
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-green-700">OAuth identity linked</span>
-                    <button
-                      type="button"
-                      onClick={() => unlinkOAuth()}
-                      disabled={unlinking}
-                      className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
-                    >
-                      {unlinking ? 'Unlinking…' : 'Unlink'}
-                    </button>
-                  </div>
-                ) : (
-                  <a
-                    href={oauthData.authUrl ?? '#'}
-                    className="inline-block rounded-lg bg-[var(--color-primary)] px-4 py-2 text-xs font-medium text-white hover:opacity-90 transition-opacity"
-                  >
-                    Connect via Auth0
-                  </a>
-                )}
-              </div>
+              ))}
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => rotateClaudeSecret()}
+              disabled={rotatingClaude}
+              className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
+            >
+              {rotatingClaude ? 'Rotating…' : 'Rotate secret'}
+            </button>
+          </div>
+
+          {/* ChatGPT DCR info */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-[var(--color-text)]">ChatGPT — Dynamic Registration</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              ChatGPT registers itself automatically using the DCR endpoint below — no manual credentials needed.
+            </p>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-xs text-[var(--color-text)] break-all">
+              {oauthData.registerUrl}
+            </div>
+          </div>
+
+          {/* Discovery URL */}
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-[var(--color-text)]">OAuth discovery</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-xs text-[var(--color-text)] break-all">
+                {oauthData.discoveryUrl}
+              </div>
+              <button type="button" onClick={() => copyText(oauthData.discoveryUrl)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+            </div>
+          </div>
         </div>
       )}
 

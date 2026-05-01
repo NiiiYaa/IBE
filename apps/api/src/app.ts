@@ -44,6 +44,7 @@ import { aiChatRoutes } from './routes/ai-chat.route.js'
 import { whatsappRoutes } from './routes/whatsapp.route.js'
 import { mcpRoutes } from './routes/mcp.route.js'
 import { adminMcpRoutes } from './routes/admin-mcp.route.js'
+import { oauthRoutes } from './routes/oauth.route.js'
 import { mapsConfigRoutes } from './routes/maps-config.route.js'
 import { mapsPublicRoutes } from './routes/maps-public.route.js'
 import { weatherPublicRoutes } from './routes/weather-public.route.js'
@@ -170,8 +171,11 @@ export async function buildApp() {
   // WhatsApp Cloud API webhook (public — called by Meta, verified by token)
   await app.register(whatsappRoutes, { prefix: '/api/v1' })
 
-  // MCP server endpoint (public — auth via Bearer API key in JSON-RPC handler)
+  // MCP server endpoint (public — auth via Bearer API key or OAuth JWT)
   await app.register(mcpRoutes, { prefix: '/api/v1' })
+
+  // Built-in OAuth 2.0 server (public — for ChatGPT and Claude.ai connectors)
+  await app.register(oauthRoutes, { prefix: '/api/v1' })
 
   // ── Protected admin routes ─────────────────────────────────────────────────
 
