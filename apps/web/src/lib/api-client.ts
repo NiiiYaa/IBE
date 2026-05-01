@@ -1397,6 +1397,20 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
 
+  getMcpOAuthConfig(orgId?: number): Promise<{ configured: boolean; linked: boolean; clientId: string | null; clientSecret: string | null; authUrl: string | null }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/mcp/oauth/config${qs}`)
+  },
+
+  linkMcpOAuth(data: { code: string; state: string }): Promise<{ linked: boolean }> {
+    return apiRequest('/api/v1/admin/ai/mcp/oauth/link', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  unlinkMcpOAuth(orgId?: number): Promise<{ linked: boolean }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/mcp/oauth/identity${qs}`, { method: 'DELETE' })
+  },
+
   // ── Groups ────────────────────────────────────────────────────────────────
 
   getGroupConfig(orgId?: number): Promise<import('@ibe/shared').GroupConfig> {

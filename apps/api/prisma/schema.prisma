@@ -1235,3 +1235,19 @@ model IBEVisit {
   @@index([page])
   @@index([device])
 }
+
+// ── MCP OAuth Identities ──────────────────────────────────────────────────────
+// Maps an OAuth provider subject (Auth0 sub) to an org or property scope,
+// allowing ChatGPT/Claude.ai connectors to authenticate via OAuth instead of API keys.
+model OAuthIdentity {
+  id             Int      @id @default(autoincrement())
+  provider       String   @default("auth0")
+  sub            String   @unique
+  organizationId Int?
+  propertyId     Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([propertyId])
+}

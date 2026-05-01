@@ -50,6 +50,12 @@ const EnvSchema = z.object({
 
   // WhatsApp Cloud API webhook verification token
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('ibe-whatsapp-verify'),
+
+  // Auth0 — MCP OAuth for ChatGPT and Claude.ai connectors (optional)
+  AUTH0_DOMAIN: z.string().optional(),        // e.g. myapp.auth0.com
+  AUTH0_AUDIENCE: z.string().optional(),      // e.g. https://mcp.yourdomain.com
+  AUTH0_CLIENT_ID: z.string().optional(),     // static client for Claude.ai
+  AUTH0_CLIENT_SECRET: z.string().optional(), // static client for Claude.ai
 })
 
 function loadEnv() {

@@ -390,6 +390,7 @@ export default function AdminMcpPage() {
     ? ['admin-mcp-property', propertyId]
     : ['admin-mcp-org', superOrgId]
   const channelsQKey = ['admin-ai-channels', superOrgId]
+  const oauthQKey = ['admin-mcp-oauth', superOrgId]
 
   // All hooks must be called unconditionally — no early returns before this point
   const { data: mcpData, isLoading: mcpLoading } = useQuery({
@@ -404,6 +405,12 @@ export default function AdminMcpPage() {
   const { data: channelsData, isLoading: channelsLoading } = useQuery({
     queryKey: channelsQKey,
     queryFn: () => apiClient.getOrgAIChannels(superOrgId),
+    enabled: !isSystemLevel,
+  })
+
+  const { data: oauthData } = useQuery({
+    queryKey: oauthQKey,
+    queryFn: () => apiClient.getMcpOAuthConfig(superOrgId),
     enabled: !isSystemLevel,
   })
 
@@ -455,6 +462,11 @@ export default function AdminMcpPage() {
       setApiKey(res.apiKey)
       qc.invalidateQueries({ queryKey: mcpQKey })
     },
+  })
+
+  const { mutate: unlinkOAuth, isPending: unlinking } = useMutation({
+    mutationFn: () => apiClient.unlinkMcpOAuth(superOrgId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: oauthQKey }),
   })
 
   const { mutate: updateChannels, isPending: channelsSaving } = useMutation({
@@ -531,6 +543,83 @@ export default function AdminMcpPage() {
           <p className="text-xs text-[var(--color-text-muted)]">Enable the MCP server to generate an API key.</p>
         )}
       </div>
+
+      {/* OAuth — ChatGPT & Claude.ai */}
+      {oauthData && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-medium text-[var(--color-text)]">OAuth Connection</h2>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                Enables ChatGPT and Claude.ai to authenticate via OAuth instead of the API key. Required for customer-facing connectors.
+              </p>
+            </div>
+            {oauthData.configured && (
+              <span className={[
+                'shrink-0 rounded px-2 py-1 text-xs font-semibold',
+                oauthData.linked ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700',
+              ].join(' ')}>
+                {oauthData.linked ? 'Linked' : 'Not linked'}
+              </span>
+            )}
+          </div>
+
+          {!oauthData.configured ? (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-xs text-[var(--color-text-muted)] space-y-1">
+              <p className="font-medium text-[var(--color-text)]">Auth0 not configured</p>
+              <p>Set <code className="font-mono">AUTH0_DOMAIN</code>, <code className="font-mono">AUTH0_AUDIENCE</code>, <code className="font-mono">AUTH0_CLIENT_ID</code>, and <code className="font-mono">AUTH0_CLIENT_SECRET</code> in your environment to enable OAuth.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Claude.ai credentials */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-[var(--color-text)]">Claude.ai credentials</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Paste these into the Claude.ai <strong>Add custom connector</strong> dialog under Advanced settings.</p>
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--color-text-muted)] w-28 shrink-0">OAuth Client ID</span>
+                    <span className="text-[var(--color-text)] break-all">{oauthData.clientId}</span>
+                    <button type="button" onClick={() => copyText(oauthData.clientId!)} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--color-text-muted)] w-28 shrink-0">OAuth Client Secret</span>
+                    <span className="text-[var(--color-text)] break-all">{'•'.repeat(20)}</span>
+                    <button type="button" onClick={() => copyText(oauthData.clientSecret!)} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Identity linking */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-[var(--color-text)]">Account linking</p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Link your Auth0 identity so that ChatGPT and Claude.ai OAuth tokens are mapped to this organisation.
+                </p>
+                {oauthData.linked ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-green-700">OAuth identity linked</span>
+                    <button
+                      type="button"
+                      onClick={() => unlinkOAuth()}
+                      disabled={unlinking}
+                      className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
+                    >
+                      {unlinking ? 'Unlinking…' : 'Unlink'}
+                    </button>
+                  </div>
+                ) : (
+                  <a
+                    href={oauthData.authUrl ?? '#'}
+                    className="inline-block rounded-lg bg-[var(--color-primary)] px-4 py-2 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                  >
+                    Connect via Auth0
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI Channels — MCP access */}
       <div className={[

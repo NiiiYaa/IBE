@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { getMcpConfig, upsertMcpConfig, rotateApiKey, getSystemMcpConfig, setSystemMcpEnabled } from '../services/mcp.service.js'
 import type { McpScope } from '../services/mcp.service.js'
+import { exchangeCodeForSub, getAuth0AuthUrl, getLinkedIdentity, isAuth0Configured, linkOAuthIdentity, unlinkOAuthIdentity } from '../services/oauth.service.js'
+import { env } from '../config/env.js'
 
 function resolveScope(request: { admin: { role: string; organizationId: number | null } }, query: Record<string, string>, params?: Record<string, string>): McpScope | null {
   const propertyId = params?.propertyId ? parseInt(params.propertyId, 10) : undefined
@@ -58,6 +60,51 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
     if (!scope) return reply.status(400).send({ error: 'No organization context' })
     const config = await upsertMcpConfig(scope, body.enabled)
     return reply.send(config)
+  })
+
+  // GET /admin/ai/mcp/oauth/config — Auth0 config + linked identity status
+  fastify.get('/admin/ai/mcp/oauth/config', async (request, reply) => {
+    const scope = resolveScope(request as any, request.query as Record<string, string>)
+    if (!scope) return reply.status(400).send({ error: 'No organization context' })
+    const configured = isAuth0Configured()
+    const identity = configured ? await getLinkedIdentity(scope) : null
+    const authUrl = configured
+      ? getAuth0AuthUrl(
+          `${env.WEB_BASE_URL}/admin/ai/mcp/oauth/callback`,
+          Buffer.from(JSON.stringify(scope)).toString('base64url'),
+        )
+      : null
+    return reply.send({
+      configured,
+      linked: !!identity,
+      clientId: env.AUTH0_CLIENT_ID ?? null,
+      clientSecret: env.AUTH0_CLIENT_SECRET ?? null,
+      authUrl,
+    })
+  })
+
+  // POST /admin/ai/mcp/oauth/link — exchange auth code, store OAuth identity
+  fastify.post('/admin/ai/mcp/oauth/link', async (request, reply) => {
+    const { code, state } = request.body as { code: string; state: string }
+    if (!code) return reply.status(400).send({ error: 'Missing code' })
+    const redirectUri = `${env.WEB_BASE_URL}/admin/ai/mcp/oauth/callback`
+    const result = await exchangeCodeForSub(code, redirectUri)
+    if (!result) return reply.status(400).send({ error: 'Failed to exchange code' })
+    let scope: McpScope | null = null
+    try {
+      scope = JSON.parse(Buffer.from(state, 'base64url').toString()) as McpScope
+    } catch { /* invalid state */ }
+    if (!scope) return reply.status(400).send({ error: 'Invalid state' })
+    await linkOAuthIdentity(result.sub, scope)
+    return reply.send({ linked: true })
+  })
+
+  // DELETE /admin/ai/mcp/oauth/identity — unlink OAuth identity
+  fastify.delete('/admin/ai/mcp/oauth/identity', async (request, reply) => {
+    const scope = resolveScope(request as any, request.query as Record<string, string>)
+    if (!scope) return reply.status(400).send({ error: 'No organization context' })
+    await unlinkOAuthIdentity(scope)
+    return reply.send({ linked: false })
   })
 
   // POST /admin/ai/mcp/rotate — generate a new API key

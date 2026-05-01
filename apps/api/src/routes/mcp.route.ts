@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { validateApiKey } from '../services/mcp.service.js'
+import { isJwt, validateMcpJwt, getOAuthScope } from '../services/oauth.service.js'
 import { search } from '../services/search.service.js'
 import { getPropertyDetail } from '../services/static.service.js'
 import { prisma } from '../db/client.js'
@@ -488,11 +489,19 @@ async function dispatchJsonRpc(
 
 export async function mcpRoutes(fastify: FastifyInstance) {
 
-  // ── Streamable HTTP (Claude Desktop, Cursor, Windsurf, OpenAI, Gemini, Grok) ──
+  // ── Streamable HTTP (Claude Desktop, Cursor, Windsurf, OpenAI, Gemini, Grok, OAuth) ──
   fastify.post('/mcp', async (request, reply) => {
     const authHeader = (request.headers['authorization'] as string | undefined) ?? ''
-    const apiKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
-    const scope = apiKey ? await validateApiKey(apiKey) : null
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
+    let scope: Awaited<ReturnType<typeof validateApiKey>> = null
+    if (token) {
+      if (isJwt(token)) {
+        const jwt = await validateMcpJwt(token)
+        if (jwt) scope = await getOAuthScope(jwt.sub)
+      } else {
+        scope = await validateApiKey(token)
+      }
+    }
     if (!scope) {
       return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
     }
