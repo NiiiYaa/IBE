@@ -29,10 +29,11 @@ function getMcpEndpoint(): string {
   return `${window.location.origin}/api/v1/mcp`
 }
 
-type Platform = 'claude' | 'cursor' | 'windsurf' | 'chatgpt' | 'openai' | 'gemini' | 'grok' | 'n8n'
+type Platform = 'claude' | 'claude_ai' | 'cursor' | 'windsurf' | 'chatgpt' | 'openai' | 'gemini' | 'grok' | 'n8n'
 
 const PLATFORMS: { id: Platform; label: string }[] = [
-  { id: 'claude',   label: 'Claude Desktop' },
+  { id: 'claude',    label: 'Claude Desktop' },
+  { id: 'claude_ai', label: 'Claude.ai' },
   { id: 'cursor',   label: 'Cursor' },
   { id: 'windsurf', label: 'Windsurf' },
   { id: 'chatgpt',  label: 'ChatGPT App' },
@@ -102,6 +103,47 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
         {' '}(Linux/Mac) or <code className="rounded bg-[var(--color-background)] px-1 py-px font-mono text-xs">%APPDATA%\Claude\claude_desktop_config.json</code> (Windows):
       </p>
       <CodeBlock code={json} />
+    </div>
+  )
+
+  if (platform === 'claude_ai') return (
+    <div className="space-y-4 text-sm">
+      <EndpointInfo endpoint={endpoint} apiKey={apiKey} />
+      <div className="space-y-3">
+        <p className="font-medium text-[var(--color-text)]">Setup steps in Claude.ai</p>
+        <ol className="space-y-3 text-[var(--color-text-muted)]">
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
+            <span>In <strong>claude.ai</strong>, click your profile (bottom left) → <strong>Settings</strong> → <strong>Connectors</strong>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
+            <span>Click <strong>Add connector</strong>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
+            <div className="space-y-1">
+              <p>Fill in the form:</p>
+              <ul className="ml-3 space-y-1 list-disc list-inside">
+                <li><strong>Name</strong> — e.g. &quot;Hotel Booking&quot;</li>
+                <li><strong>Connector URL</strong> — paste the endpoint above</li>
+              </ul>
+            </div>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
+            <span>When prompted for authentication, choose <strong>Header</strong> and set the header to <code className="rounded bg-[var(--color-background)] px-1 py-px font-mono text-xs">Authorization</code> / <code className="rounded bg-[var(--color-background)] px-1 py-px font-mono text-xs">Bearer {apiKey}</code>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
+            <span>Click <strong>Save</strong>. Claude will discover the available tools automatically.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="shrink-0 font-semibold text-[var(--color-primary)]">6.</span>
+            <span>In a new conversation, click the <strong>connectors icon</strong> (puzzle piece) and enable <em>Hotel Booking</em>, then test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
+          </li>
+        </ol>
+      </div>
     </div>
   )
 

@@ -37,6 +37,7 @@ const FEATURES: Feature[] = [
     ],
   },
   leaf('groups', 'Groups', 0.5, 0.5, 'Dedicated group booking flow with RFQ forms, custom pricing, CSV exports, and inquiry management for large reservations.'),
+  leaf('mobile_optimized', 'Mobile-optimized', 0.5, 0.5, 'Fully responsive booking experience optimized for mobile devices — guests can search, browse, and complete reservations seamlessly on any screen size.'),
   leaf('dashboard', 'Dashboard & Reports', 0.5, 0.5, 'Analytics dashboard with booking statistics, revenue reports, occupancy rates, and performance insights.'),
   {
     id: 'marketing', label: 'Marketing', rate: null, pct: null,
