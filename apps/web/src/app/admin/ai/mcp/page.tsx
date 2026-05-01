@@ -106,46 +106,61 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
     </div>
   )
 
-  if (platform === 'claude_ai') return (
-    <div className="space-y-4 text-sm">
-      <EndpointInfo endpoint={endpoint} apiKey={apiKey} />
-      <div className="space-y-3">
-        <p className="font-medium text-[var(--color-text)]">Setup steps in Claude.ai</p>
-        <ol className="space-y-3 text-[var(--color-text-muted)]">
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
-            <span>In <strong>claude.ai</strong>, click your profile (bottom left) → <strong>Settings</strong> → <strong>Connectors</strong>.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
-            <span>Click <strong>Add connector</strong>.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
-            <div className="space-y-1">
-              <p>Fill in the form:</p>
-              <ul className="ml-3 space-y-1 list-disc list-inside">
-                <li><strong>Name</strong> — e.g. &quot;Hotel Booking&quot;</li>
-                <li><strong>Connector URL</strong> — paste the endpoint above</li>
-              </ul>
-            </div>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
-            <span>When prompted for authentication, choose <strong>Header</strong> and set the header to <code className="rounded bg-[var(--color-background)] px-1 py-px font-mono text-xs">Authorization</code> / <code className="rounded bg-[var(--color-background)] px-1 py-px font-mono text-xs">Bearer {apiKey}</code>.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
-            <span>Click <strong>Save</strong>. Claude will discover the available tools automatically.</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="shrink-0 font-semibold text-[var(--color-primary)]">6.</span>
-            <span>In a new conversation, click the <strong>connectors icon</strong> (puzzle piece) and enable <em>Hotel Booking</em>, then test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
-          </li>
-        </ol>
+  if (platform === 'claude_ai') {
+    const claudeUrl = `${endpoint}/${apiKey}`
+    return (
+      <div className="space-y-4 text-sm">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Claude.ai connectors don&apos;t support Bearer auth — the API key is embedded in the URL instead. Leave the OAuth fields empty; the URL below already contains your key.
+          </p>
+          <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+            {claudeUrl}
+          </div>
+          <button
+            type="button"
+            onClick={() => copyText(claudeUrl)}
+            className="text-xs text-[var(--color-primary)] hover:underline"
+          >
+            Copy URL
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <p className="font-medium text-[var(--color-text)]">Setup steps in Claude.ai</p>
+          <ol className="space-y-3 text-[var(--color-text-muted)]">
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">1.</span>
+              <span>In <strong>claude.ai</strong>, click <strong>Customize</strong> in the left sidebar.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">2.</span>
+              <span>Under <strong>Connectors</strong>, click <strong>Add custom connector</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">3.</span>
+              <div className="space-y-1">
+                <p>Fill in the form:</p>
+                <ul className="ml-3 space-y-1 list-disc list-inside">
+                  <li><strong>Name</strong> — e.g. &quot;Hotel Booking&quot;</li>
+                  <li><strong>Remote MCP server URL</strong> — paste the URL above (key is already in the URL)</li>
+                  <li><strong>OAuth fields</strong> — leave empty</li>
+                </ul>
+              </div>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
+              <span>Click <strong>Add</strong>. Claude will discover the available tools automatically.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
+              <span>Start a conversation and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
+            </li>
+          </ol>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   if (platform === 'cursor') return (
     <div className="space-y-3 text-sm">
