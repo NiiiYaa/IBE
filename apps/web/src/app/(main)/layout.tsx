@@ -192,11 +192,13 @@ export async function generateMetadata(): Promise<Metadata> {
     const title = isChain
       ? (config?.tabTitle || config?.displayName || 'Hotel Booking')
       : (hotelConfig?.tabTitle || hotelConfig?.displayName || property?.name || 'Hotel Booking')
-    const favicon = isChain ? (config?.faviconUrl ?? null) : (hotelConfig?.faviconUrl || config?.faviconUrl)
+    const faviconUrl = isChain
+      ? (config?.faviconUrl || config?.logoUrl || null)
+      : (hotelConfig?.faviconUrl || hotelConfig?.logoUrl || config?.faviconUrl || config?.logoUrl || null)
     return {
       title,
       description: 'Book your stay directly',
-      icons: favicon ? [{ rel: 'icon', url: favicon }] : null,
+      icons: faviconUrl ? [{ rel: 'icon', url: faviconUrl }] : null,
     }
   } catch {
     return { title: 'Hotel Booking' }

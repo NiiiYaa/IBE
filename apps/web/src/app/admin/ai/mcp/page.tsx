@@ -93,7 +93,7 @@ function EndpointInfo({ endpoint, apiKey, protocol = 'MCP JSON-RPC 2.0 (Streamab
   )
 }
 
-function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; endpoint: string; apiKey: string }) {
+function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platform: Platform; endpoint: string; apiKey: string; claudeMcpUrl?: string }) {
   const json = mcpJsonSnippet(endpoint, apiKey)
 
   if (platform === 'claude') return (
@@ -115,11 +115,11 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
             Use the OAuth credentials from the <strong>OAuth Connection</strong> section above for the Advanced settings fields. Paste the MCP endpoint URL (without any key) into the connector URL field.
           </p>
           <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-            {endpoint}
+            {claudeMcpUrl ?? endpoint}
           </div>
           <button
             type="button"
-            onClick={() => copyText(endpoint)}
+            onClick={() => copyText(claudeMcpUrl ?? endpoint)}
             className="text-xs text-[var(--color-primary)] hover:underline"
           >
             Copy URL
@@ -182,7 +182,8 @@ function PlatformSnippet({ platform, endpoint, apiKey }: { platform: Platform; e
   )
 
   if (platform === 'chatgpt') {
-    const chatgptUrl = `${endpoint}/${apiKey}`
+    const chatgptBase = claudeMcpUrl ?? endpoint
+    const chatgptUrl = `${chatgptBase}/${apiKey}`
     return (
       <div className="space-y-4 text-sm">
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
@@ -687,7 +688,7 @@ export default function AdminMcpPage() {
               </button>
             ))}
           </div>
-          <PlatformSnippet platform={platform} endpoint={mcpEndpoint} apiKey={apiKey} />
+          <PlatformSnippet platform={platform} endpoint={mcpEndpoint} apiKey={apiKey} {...(oauthData?.mcpUrl ? { claudeMcpUrl: oauthData.mcpUrl } : {})} />
         </div>
       )}
 

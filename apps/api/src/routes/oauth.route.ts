@@ -68,6 +68,7 @@ function authorizeHtml(params: {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Select organisation — ${escHtml(params.hotelName ?? 'Hotel Booking')}</title>
+  ${params.logoUrl ? `<link rel="icon" href="${escHtml(params.logoUrl)}"/><meta property="og:image" content="${escHtml(params.logoUrl)}"/>` : ''}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
@@ -183,6 +184,7 @@ function authorizeHtml(params: {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sign in — ${escHtml(params.hotelName ?? 'Hotel Booking')}</title>
+  ${params.logoUrl ? `<link rel="icon" href="${escHtml(params.logoUrl)}"/><meta property="og:image" content="${escHtml(params.logoUrl)}"/>` : ''}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}

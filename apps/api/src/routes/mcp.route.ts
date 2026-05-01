@@ -180,7 +180,7 @@ const WIDGET_HTML = `<!DOCTYPE html>
         ratePlanId:        String(rate.ratePlanId),
         searchId:          meta.searchId ?? '',
       })
-      return meta.webBaseUrl + '/search?' + p
+      return meta.webBaseUrl + '/booking?' + p
     }
 
     function render(rooms, meta) {
@@ -211,13 +211,17 @@ const WIDGET_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-const SERVER_INFO = { name: 'IBE MCP Server', version: '1.0.0' }
 const PROTOCOL_VERSION = '2024-11-05'
 
 const MCP_TOOLS = [
   {
+    name: 'list_properties',
+    description: 'List all hotels available in this connection. For chain connections this returns multiple properties — always call this first to discover propertyId values before searching or fetching hotel info.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'search_availability',
-    description: 'Search for available rooms at the hotel for given dates and guests.',
+    description: 'Search for available rooms at a hotel for given dates and guests. For chain connections you must supply propertyId (use list_properties to discover IDs).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -225,18 +229,18 @@ const MCP_TOOLS = [
         checkOut:   { type: 'string',  description: 'Check-out date (YYYY-MM-DD)' },
         adults:     { type: 'integer', description: 'Number of adults', default: 2 },
         children:   { type: 'integer', description: 'Number of children', default: 0 },
-        propertyId: { type: 'integer', description: 'Property ID (required for chain-level connections)' },
+        propertyId: { type: 'integer', description: 'Property ID — required for chain connections' },
       },
       required: ['checkIn', 'checkOut'],
     },
   },
   {
     name: 'get_property_info',
-    description: 'Get hotel name, location, star rating, facilities and description.',
+    description: 'Get hotel name, location, star rating, facilities and description. For chain connections you must supply propertyId.',
     inputSchema: {
       type: 'object',
       properties: {
-        propertyId: { type: 'integer', description: 'Property ID (required for chain-level connections)' },
+        propertyId: { type: 'integer', description: 'Property ID — required for chain connections' },
       },
     },
   },
@@ -247,7 +251,7 @@ const MCP_TOOLS = [
       type: 'object',
       properties: {
         roomId:     { type: 'integer', description: 'Room ID from search_availability results' },
-        propertyId: { type: 'integer', description: 'Property ID (required for chain-level connections)' },
+        propertyId: { type: 'integer', description: 'Property ID — required for chain connections' },
       },
       required: ['roomId'],
     },
@@ -273,11 +277,11 @@ const MCP_TOOLS = [
 ]
 
 // ── SSE session store ─────────────────────────────────────────────────────────
-// Maps sessionId → { raw response stream, resolved default property }
 interface SseSession {
   write: (data: string) => void
   end: () => void
   defaultPropertyId: number | null
+  orgId: number | null
 }
 const sseSessions = new Map<string, SseSession>()
 
@@ -306,8 +310,31 @@ async function handleToolCall(
   toolName: string,
   args: Record<string, unknown>,
   defaultPropertyId: number | null,
+  orgId: number | null,
 ): Promise<{ content: { type: string; text: string }[]; structuredContent?: unknown; _meta?: unknown; isError?: boolean }> {
   const pid = (args['propertyId'] as number | undefined) ?? defaultPropertyId ?? 0
+
+  if (toolName === 'list_properties') {
+    const where = orgId
+      ? { organizationId: orgId, isActive: true }
+      : defaultPropertyId
+      ? { propertyId: defaultPropertyId, isActive: true }
+      : null
+    if (!where) return mcpError('No property context available')
+    const properties = await prisma.property.findMany({ where, select: { propertyId: true, name: true, isDefault: true }, orderBy: { isDefault: 'desc' } })
+    const pids = properties.map(p => p.propertyId)
+    const configs = await prisma.hotelConfig.findMany({
+      where: { propertyId: { in: pids } },
+      select: { propertyId: true, displayName: true },
+    })
+    const configMap = new Map(configs.map(c => [c.propertyId, c]))
+    const list = properties.map(p => ({
+      propertyId: p.propertyId,
+      name: configMap.get(p.propertyId)?.displayName || p.name || `Property ${p.propertyId}`,
+      isDefault: p.isDefault,
+    }))
+    return mcpResult(JSON.stringify({ properties: list, total: list.length }))
+  }
 
   if (toolName === 'get_property_info') {
     if (!pid) return mcpError('propertyId is required for chain-level connections')
@@ -419,7 +446,7 @@ async function handleToolCall(
     if (ratePlanId) params.set('ratePlanId', String(ratePlanId))
     if (searchId)   params.set('searchId',   searchId)
 
-    const url = `${env.WEB_BASE_URL}/search?${params.toString()}`
+    const url = `${env.WEB_BASE_URL}/booking?${params.toString()}`
     return mcpResult(JSON.stringify({ bookingUrl: url, message: 'Direct the guest to this URL to complete the booking.' }))
   }
 
@@ -429,15 +456,28 @@ async function handleToolCall(
 async function dispatchJsonRpc(
   body: { jsonrpc: string; method: string; params?: unknown; id?: string | number | null },
   defaultPropertyId: number | null,
+  orgId: number | null,
 ): Promise<object | null> {
   if (body.jsonrpc !== '2.0') {
     return { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid JSON-RPC version' }, id: body.id ?? null }
   }
 
   if (body.method === 'initialize') {
+    let serverName = 'IBE MCP Server'
+    if (orgId) {
+      const [org, count] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+        prisma.property.count({ where: { organizationId: orgId, isActive: true } }),
+      ])
+      if (org) {
+        serverName = count > 1
+          ? `${org.name} (${count} hotels — use list_properties to see all)`
+          : org.name
+      }
+    }
     return {
       jsonrpc: '2.0',
-      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {}, resources: {} }, serverInfo: SERVER_INFO },
+      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {}, resources: {} }, serverInfo: { name: serverName, version: '1.0.0' } },
       id: body.id ?? null,
     }
   }
@@ -478,7 +518,7 @@ async function dispatchJsonRpc(
 
   if (body.method === 'tools/call') {
     const p = body.params as { name?: string; arguments?: Record<string, unknown> } | undefined
-    const result = await handleToolCall(p?.name ?? '', p?.arguments ?? {}, defaultPropertyId)
+    const result = await handleToolCall(p?.name ?? '', p?.arguments ?? {}, defaultPropertyId, orgId)
     return { jsonrpc: '2.0', result, id: body.id ?? null }
   }
 
@@ -507,10 +547,11 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     }
 
     const defaultPropertyId = await resolveDefaultProperty(scope)
+    const orgId = scope.kind === 'org' ? scope.orgId : null
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
     try {
-      const response = await dispatchJsonRpc(body, defaultPropertyId)
+      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId)
       if (!response) return reply.status(204).send()
       return reply.send(response)
     } catch (err) {
@@ -528,9 +569,10 @@ export async function mcpRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
     }
     const defaultPropertyId = await resolveDefaultProperty(scope)
+    const orgId = scope.kind === 'org' ? scope.orgId : null
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
     try {
-      const response = await dispatchJsonRpc(body, defaultPropertyId)
+      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId)
       if (!response) return reply.status(204).send()
       return reply.send(response)
     } catch (err) {
@@ -551,6 +593,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     }
 
     const defaultPropertyId = await resolveDefaultProperty(scope)
+    const orgId = scope.kind === 'org' ? scope.orgId : null
     const sessionId = crypto.randomUUID()
 
     reply.hijack()
@@ -566,6 +609,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
       write: (data: string) => { try { res.write(data) } catch { /* client disconnected */ } },
       end:   () => { try { res.end() } catch { /* already ended */ } },
       defaultPropertyId,
+      orgId,
     }
     sseSessions.set(sessionId, session)
 
@@ -596,7 +640,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
     try {
-      const response = await dispatchJsonRpc(body, session.defaultPropertyId)
+      const response = await dispatchJsonRpc(body, session.defaultPropertyId, session.orgId)
       if (response) {
         session.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`)
       }

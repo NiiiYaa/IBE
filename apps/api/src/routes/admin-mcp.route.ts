@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { getMcpConfig, upsertMcpConfig, rotateApiKey, getSystemMcpConfig, setSystemMcpEnabled } from '../services/mcp.service.js'
 import type { McpScope } from '../services/mcp.service.js'
 import { getOAuthIssuer, getOAuthAudience, getOrCreateClaudeClient, rotateClientSecret } from '../services/oauth.service.js'
+import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 
 function resolveScope(request: { admin: { role: string; organizationId: number | null } }, query: Record<string, string>, params?: Record<string, string>): McpScope | null {
@@ -71,7 +72,17 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
       : req.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const base = env.WEB_BASE_URL
-    const claude = await getOrCreateClaudeClient(orgId)
+    const [claude, property] = await Promise.all([
+      getOrCreateClaudeClient(orgId),
+      prisma.property.findFirst({
+        where: { organizationId: orgId, isActive: true },
+        select: { subdomain: true },
+        orderBy: { propertyId: 'asc' },
+      }),
+    ])
+    const mcpUrl = property?.subdomain
+      ? `https://${property.subdomain}.hyperguest.net/api/v1/mcp`
+      : `${base}/api/v1/mcp`
     return reply.send({
       issuer: getOAuthIssuer(),
       authorizeUrl: `${base}/api/v1/oauth/authorize`,
@@ -79,6 +90,7 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
       jwksUrl: `${base}/.well-known/jwks.json`,
       discoveryUrl: `${base}/.well-known/oauth-authorization-server`,
       registerUrl: `${base}/api/v1/oauth/register`,
+      mcpUrl,
       claude: { clientId: claude.clientId, clientSecret: claude.clientSecret },
     })
   })

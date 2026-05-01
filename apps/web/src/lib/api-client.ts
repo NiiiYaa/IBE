@@ -1397,7 +1397,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
 
-  getMcpOAuthConfig(orgId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; claude: { clientId: string; clientSecret: string } }> {
+  getMcpOAuthConfig(orgId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; mcpUrl: string; claude: { clientId: string; clientSecret: string } }> {
     const qs = orgId ? `?orgId=${orgId}` : ''
     return apiRequest(`/api/v1/admin/ai/mcp/oauth/config${qs}`)
   },
