@@ -1397,12 +1397,13 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
 
-  getMcpOAuthConfig(): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; claude: { clientId: string; clientSecret: string } }> {
-    return apiRequest('/api/v1/admin/ai/mcp/oauth/config')
+  getMcpOAuthConfig(orgId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; claude: { clientId: string; clientSecret: string } }> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/ai/mcp/oauth/config${qs}`)
   },
 
-  rotateClaudeClientSecret(): Promise<{ clientId: string; clientSecret: string }> {
-    return apiRequest('/api/v1/admin/ai/mcp/oauth/claude/rotate', { method: 'POST', body: '{}' })
+  rotateClaudeClientSecret(orgId?: number): Promise<{ clientId: string; clientSecret: string }> {
+    return apiRequest('/api/v1/admin/ai/mcp/oauth/claude/rotate', { method: 'POST', body: JSON.stringify(orgId ? { orgId } : {}) })
   },
 
   // ── Groups ────────────────────────────────────────────────────────────────

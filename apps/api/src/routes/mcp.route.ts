@@ -497,7 +497,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     if (token) {
       if (isJwt(token)) {
         const jwt = await validateMcpJwt(token)
-        if (jwt) scope = await getOAuthScope(jwt.sub)
+        if (jwt) scope = await getOAuthScope(jwt.sub, jwt.org)
       } else {
         scope = await validateApiKey(token)
       }

@@ -410,7 +410,7 @@ export default function AdminMcpPage() {
 
   const { data: oauthData, refetch: refetchOAuth } = useQuery({
     queryKey: oauthQKey,
-    queryFn: () => apiClient.getMcpOAuthConfig(),
+    queryFn: () => apiClient.getMcpOAuthConfig(superOrgId),
     enabled: !isSystemLevel,
   })
 
@@ -465,7 +465,7 @@ export default function AdminMcpPage() {
   })
 
   const { mutate: rotateClaudeSecret, isPending: rotatingClaude } = useMutation({
-    mutationFn: () => apiClient.rotateClaudeClientSecret(),
+    mutationFn: () => apiClient.rotateClaudeClientSecret(superOrgId),
     onSuccess: () => { void refetchOAuth() },
   })
 

@@ -63,9 +63,15 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
   })
 
   // GET /admin/ai/mcp/oauth/config — built-in OAuth server info + Claude.ai credentials
-  fastify.get('/admin/ai/mcp/oauth/config', async (_request, reply) => {
+  fastify.get('/admin/ai/mcp/oauth/config', async (request, reply) => {
+    const req = request as any
+    const qOrgId = (request.query as Record<string, string>).orgId
+    const orgId: number | null = req.admin.role === 'super'
+      ? (qOrgId ? parseInt(qOrgId, 10) : null)
+      : req.admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const base = env.WEB_BASE_URL
-    const claude = await getOrCreateClaudeClient()
+    const claude = await getOrCreateClaudeClient(orgId)
     return reply.send({
       issuer: getOAuthIssuer(),
       authorizeUrl: `${base}/api/v1/oauth/authorize`,
@@ -78,10 +84,17 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
   })
 
   // POST /admin/ai/mcp/oauth/claude/rotate — rotate Claude.ai client secret
-  fastify.post('/admin/ai/mcp/oauth/claude/rotate', async (_request, reply) => {
-    const newSecret = await rotateClientSecret('claude_ai')
+  fastify.post('/admin/ai/mcp/oauth/claude/rotate', async (request, reply) => {
+    const req = request as any
+    const body = request.body as { orgId?: number }
+    const orgId: number | null = req.admin.role === 'super'
+      ? (body.orgId ?? null)
+      : req.admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    const clientId = `claude_ai_org_${orgId}`
+    const newSecret = await rotateClientSecret(clientId)
     if (!newSecret) return reply.status(404).send({ error: 'Claude.ai client not found' })
-    return reply.send({ clientId: 'claude_ai', clientSecret: newSecret })
+    return reply.send({ clientId, clientSecret: newSecret })
   })
 
   // POST /admin/ai/mcp/rotate — generate a new API key

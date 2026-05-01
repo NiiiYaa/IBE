@@ -50,9 +50,9 @@ export function getOAuthAudience(): string {
   return `${env.WEB_BASE_URL}/api/v1/mcp`
 }
 
-export async function signAccessToken(adminUserId: number): Promise<string> {
+export async function signAccessToken(adminUserId: number, orgId: number): Promise<string> {
   const { privateKey, kid } = await getKeyPair()
-  return new SignJWT({})
+  return new SignJWT({ org: orgId })
     .setProtectedHeader({ alg: 'RS256', kid })
     .setSubject(`user:${adminUserId}`)
     .setIssuer(getOAuthIssuer())
@@ -62,7 +62,7 @@ export async function signAccessToken(adminUserId: number): Promise<string> {
     .sign(privateKey)
 }
 
-export async function validateMcpJwt(token: string): Promise<{ sub: string } | null> {
+export async function validateMcpJwt(token: string): Promise<{ sub: string; org?: number } | null> {
   try {
     const { publicJwk, kid } = await getKeyPair()
     const JWKS = createLocalJWKSet({ keys: [publicJwk as Parameters<typeof createLocalJWKSet>[0]['keys'][0]] })
@@ -70,14 +70,27 @@ export async function validateMcpJwt(token: string): Promise<{ sub: string } | n
       issuer: getOAuthIssuer(),
       audience: getOAuthAudience(),
     })
-    return payload.sub ? { sub: payload.sub } : null
+    if (!payload.sub) return null
+    const org = typeof payload['org'] === 'number' ? payload['org'] : undefined
+    return org !== undefined ? { sub: payload.sub, org } : { sub: payload.sub }
   } catch {
     return null
   }
 }
 
-export async function getOAuthScope(sub: string): Promise<McpScope | null> {
-  // sub is "user:{adminUserId}" — look up the admin's org directly
+export async function getOAuthScope(sub: string, org?: number): Promise<McpScope | null> {
+  // If org is in the JWT payload, use it directly (handles super admins)
+  if (org) {
+    const match = sub.match(/^user:(\d+)$/)
+    if (!match?.[1]) return null
+    const user = await prisma.adminUser.findUnique({
+      where: { id: parseInt(match[1], 10) },
+      select: { isActive: true },
+    })
+    if (!user?.isActive) return null
+    return { kind: 'org', orgId: org }
+  }
+  // Fall back to looking up the admin's org
   const match = sub.match(/^user:(\d+)$/)
   if (!match?.[1]) return null
   const user = await prisma.adminUser.findUnique({
@@ -92,15 +105,16 @@ export async function getOAuthScope(sub: string): Promise<McpScope | null> {
 
 interface AuthCode {
   adminUserId: number
+  orgId: number
   clientId: string
   redirectUri: string
   expiresAt: number
 }
 const authCodes = new Map<string, AuthCode>()
 
-export function issueAuthCode(adminUserId: number, clientId: string, redirectUri: string): string {
+export function issueAuthCode(adminUserId: number, orgId: number, clientId: string, redirectUri: string): string {
   const code = randomUUID()
-  authCodes.set(code, { adminUserId, clientId, redirectUri, expiresAt: Date.now() + 5 * 60_000 })
+  authCodes.set(code, { adminUserId, orgId, clientId, redirectUri, expiresAt: Date.now() + 5 * 60_000 })
   return code
 }
 
@@ -135,23 +149,46 @@ export async function registerClient(clientName: string, redirectUris: string[])
   return { clientId, clientSecret }
 }
 
-export async function getOrCreateClaudeClient(): Promise<{ clientId: string; clientSecret: string }> {
-  const existing = await prisma.oAuthClient.findUnique({ where: { clientId: 'claude_ai' } })
+export async function getOrCreateClaudeClient(orgId: number): Promise<{ clientId: string; clientSecret: string }> {
+  const clientId = `claude_ai_org_${orgId}`
+  const existing = await prisma.oAuthClient.findUnique({ where: { clientId } })
   if (existing) return { clientId: existing.clientId, clientSecret: existing.clientSecret }
   const secret = randomUUID()
   await prisma.oAuthClient.create({
     data: {
-      clientId: 'claude_ai',
+      clientId,
       clientSecret: secret,
       clientName: 'Claude.ai',
       redirectUris: JSON.stringify(['https://claude.ai/', 'https://api.claude.ai/']),
+      organizationId: orgId,
     },
   })
-  return { clientId: 'claude_ai', clientSecret: secret }
+  return { clientId, clientSecret: secret }
 }
 
 export async function rotateClientSecret(clientId: string): Promise<string | null> {
   const newSecret = randomUUID()
   const updated = await prisma.oAuthClient.updateMany({ where: { clientId }, data: { clientSecret: newSecret } })
   return updated.count > 0 ? newSecret : null
+}
+
+export async function getClientBranding(clientId: string): Promise<{ logoUrl: string | null; name: string } | null> {
+  const client = await prisma.oAuthClient.findUnique({
+    where: { clientId },
+    select: {
+      clientName: true,
+      organization: {
+        select: {
+          name: true,
+          orgDesignDefaults: { select: { logoUrl: true, displayName: true } },
+        },
+      },
+    },
+  })
+  if (!client) return null
+  const org = client.organization
+  if (!org) return { logoUrl: null, name: client.clientName ?? clientId }
+  const logoUrl = org.orgDesignDefaults?.logoUrl ?? null
+  const name = org.orgDesignDefaults?.displayName ?? org.name
+  return { logoUrl, name }
 }

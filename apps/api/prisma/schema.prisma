@@ -52,6 +52,7 @@ model Organization {
   propertyCrossSellConfigs    PropertyCrossSellConfig[]
   groupConfig                 GroupConfig?
   propertyGroupConfigs        PropertyGroupConfig[]
+  oauthClients                OAuthClient[]
 }
 
 // roles: super | admin | observer | user
@@ -1239,13 +1240,15 @@ model IBEVisit {
 // ── MCP OAuth Clients ─────────────────────────────────────────────────────────
 // Registered OAuth 2.0 clients — static (claude_ai) + DCR-registered (ChatGPT).
 model OAuthClient {
-  id           Int      @id @default(autoincrement())
-  clientId     String   @unique
-  clientSecret String
-  clientName   String?
-  redirectUris String   // JSON array of allowed redirect URI prefixes
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             Int           @id @default(autoincrement())
+  clientId       String        @unique
+  clientSecret   String
+  clientName     String?
+  redirectUris   String        // JSON array of allowed redirect URI prefixes
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 // ── MCP OAuth Identities ──────────────────────────────────────────────────────
