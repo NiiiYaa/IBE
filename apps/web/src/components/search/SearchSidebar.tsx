@@ -299,7 +299,7 @@ export function SearchSidebar({
 
           {nights > 0 && (
             <p className="mt-2 text-center text-xs text-muted">
-              <span className="font-semibold text-primary">{nights}</span> night{nights !== 1 ? 's' : ''}
+              <span className="font-semibold text-primary">{nights}</span> {nights !== 1 ? t('nightPlural') : t('nightSingular')}
             </p>
           )}
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { RoomOption, RateOption } from '@ibe/shared'
-import { formatCurrency, nightsBetween, TaxRelation, formatCancellationDeadline, formatCancellationPenalty, formatPenaltyAmount } from '@ibe/shared'
+import { formatCurrency, nightsBetween, TaxRelation, formatCancellationDeadline } from '@ibe/shared'
 import { MealBadge } from '@/components/search/MealBadge'
 import { useT } from '@/context/translations'
 
@@ -62,6 +62,12 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale, checkInTime, 
 
   const currency = rooms[0]?.rate.prices.sell.currency ?? 'USD'
   const total = rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0)
+
+  function tPenaltyAmount(type: string, amount: number, cur: string): string {
+    if (type === 'percent') return tRooms('penaltyPercent', { pct: String(amount) })
+    if (type === 'nights') return amount === 1 ? tRooms('penaltyNightSingular') : tRooms('penaltyNightsPlural', { count: String(amount) })
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: cur }).format(amount)
+  }
   const allTaxes = rooms.flatMap(({ rate }) => rate.prices.sell.taxes.filter(t => t.relation !== TaxRelation.Ignore))
   const allFees = rooms.flatMap(({ rate }) => rate.prices.fees.filter(f => f.relation !== TaxRelation.Ignore))
   const hasDisplay = [...allTaxes, ...allFees].some(t => t.relation === TaxRelation.Display)
@@ -126,12 +132,12 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale, checkInTime, 
                 )}
                 {rate.isRefundable && rate.cancellationDeadlines.filter(d => d.type === 'penalty').map((d, i) => (
                   <span key={i} className="text-xs text-amber-700">
-                    {formatCancellationPenalty(d.deadline, d.penaltyType, d.penaltyAmount, locale, rate.prices.sell.currency)}
+                    {tRooms('afterDatePenalty', { date: formatCancellationDeadline(d.deadline, locale), penalty: tPenaltyAmount(d.penaltyType, d.penaltyAmount, rate.prices.sell.currency) })}
                   </span>
                 ))}
                 {!rate.isRefundable && rate.cancellationDeadlines[0] && (
                   <span className="text-xs text-error">
-                    {tRooms('cancellationFeeDetail', { amount: formatPenaltyAmount(rate.cancellationDeadlines[0].penaltyType, rate.cancellationDeadlines[0].penaltyAmount, locale, rate.prices.sell.currency) })}
+                    {tRooms('cancellationFeeDetail', { amount: tPenaltyAmount(rate.cancellationDeadlines[0].penaltyType, rate.cancellationDeadlines[0].penaltyAmount, rate.prices.sell.currency) })}
                   </span>
                 )}
               </div>

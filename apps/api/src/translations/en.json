@@ -159,6 +159,10 @@
     "freeUntil": "✓ Free until {date}",
     "feesApplyAfter": "✘ Fees apply after {date}",
     "cancellationFeeDetail": "Cancellation fee: {amount}",
+    "afterDatePenalty": "After {date}: {penalty}",
+    "penaltyNightSingular": "1 night charged",
+    "penaltyNightsPlural": "{count} nights charged",
+    "penaltyPercent": "{pct}% of stay",
     "noRoomsAdded": "No rooms added yet",
     "selectRoomToAdd": "Select a room from the list to add it here."
   },

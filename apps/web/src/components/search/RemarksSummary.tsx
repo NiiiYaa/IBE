@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useT } from '@/context/translations'
 
-const CHECK_IN_RE = /check[\s-]?in\s+from\s+(.+)/i
-const CHECK_OUT_RE = /check[\s-]?out\s+until\s+(.+)/i
+// Match "check-in" or "check-out" followed by any words in any language, then capture the time
+const CHECK_IN_RE = /check[\s-]?in\b.+?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+const CHECK_OUT_RE = /check[\s-]?out\b.+?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
 
 interface Props {
   remarks: string[]

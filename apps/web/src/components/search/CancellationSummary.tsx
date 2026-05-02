@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { RateOption } from '@ibe/shared'
-import { formatCancellationDeadline, formatCancellationPenalty, formatPenaltyAmount } from '@ibe/shared'
+import { formatCancellationDeadline } from '@ibe/shared'
 import { useT } from '@/context/translations'
 
 interface Props {
@@ -18,15 +18,21 @@ export function CancellationSummary({ rate, locale, currency }: Props) {
   const freeLine = rate.cancellationDeadlines.find(d => d.type === 'free') ?? rate.cancellationDeadlines[0]
   const penaltyLines = rate.cancellationDeadlines.filter(d => d.type === 'penalty')
 
+  function tPenaltyAmount(type: string, amount: number): string {
+    if (type === 'percent') return t('penaltyPercent', { pct: String(amount) })
+    if (type === 'nights') return amount === 1 ? t('penaltyNightSingular') : t('penaltyNightsPlural', { count: String(amount) })
+    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount)
+  }
+
   // Expanded detail: only penalty tiers (free-cancellation headline is already in the summary line)
   const detailLines: string[] = []
   if (rate.isRefundable && penaltyLines.length > 0) {
     for (const d of penaltyLines) {
-      detailLines.push(formatCancellationPenalty(d.deadline, d.penaltyType, d.penaltyAmount, locale, currency))
+      detailLines.push(t('afterDatePenalty', { date: formatCancellationDeadline(d.deadline, locale), penalty: tPenaltyAmount(d.penaltyType, d.penaltyAmount) }))
     }
   } else if (!rate.isRefundable && rate.cancellationDeadlines[0]) {
     const d = rate.cancellationDeadlines[0]
-    detailLines.push(t('cancellationFeeDetail', { amount: formatPenaltyAmount(d.penaltyType, d.penaltyAmount, locale, currency) }))
+    detailLines.push(t('cancellationFeeDetail', { amount: tPenaltyAmount(d.penaltyType, d.penaltyAmount) }))
   }
 
   return (

@@ -105,8 +105,8 @@ export function BookingContent() {
       <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
 
       {searchData.results.flatMap(r => r.remarks).map((remark, i) => {
-        const ci = /check[\s-]?in\s+from\s+(.+)/i.exec(remark)
-        const co = /check[\s-]?out\s+until\s+(.+)/i.exec(remark)
+        const ci = /check[\s-]?in\b.+?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i.exec(remark)
+        const co = /check[\s-]?out\b.+?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i.exec(remark)
         const label = ci ? t('checkInFrom', { time: ci[1]!.trim() }) : co ? t('checkOutUntil', { time: co[1]!.trim() }) : remark
         return (
           <div key={i} className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-primary-light)] px-4 py-3 text-sm text-primary">
