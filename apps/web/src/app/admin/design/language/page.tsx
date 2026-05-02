@@ -9,7 +9,7 @@ import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
 import { localeName, localeFlag } from '@/lib/locales'
 import { SaveBar, Section } from '../components'
-import { OverrideSelectRow, OverrideLocalesRow } from '../override-helpers'
+import { OverrideSelectRow, OverrideLocalesRow, OverrideToggleRow } from '../override-helpers'
 
 const ALL_LOCALES = [
   // European
@@ -52,7 +52,6 @@ export default function LanguagePage() {
 
 function GlobalLanguageEditor({ isSuper }: { isSuper: boolean }) {
   const { orgId: ctxOrgId } = useAdminProperty()
-  // System level = super admin with no org selected
   const isSystemLevel = isSuper && !ctxOrgId
 
   if (isSystemLevel) return <SystemLanguageEditor />
@@ -110,32 +109,20 @@ function SystemLanguageEditor() {
     setIsDirty(true)
   }
 
-  const enabledLocales = (draft.enabledLocales as string[] | undefined) ?? []
+  // 'en' is always active — normalise on read so the rest of the logic is uniform
+  const rawEnabledLocalesSys = (draft.enabledLocales as string[] | undefined) ?? []
+  const enabledLocales = rawEnabledLocalesSys.includes('en') ? rawEnabledLocalesSys : ['en', ...rawEnabledLocalesSys]
   const defaultLocale = draft.defaultLocale ?? 'en'
+  const localeAlphabetical = (draft.localeAlphabetical as boolean | null | undefined) ?? false
 
-  // English always first, then other enabled locales, then the rest
+  // Available-languages pill list: 'en' first, then enabled others, then remaining
   const sortedLocales = useMemo(() => {
     const enabledNonEn = ALL_LOCALES.filter(c => c !== 'en' && enabledLocales.includes(c))
     const rest = ALL_LOCALES.filter(c => c !== 'en' && !enabledLocales.includes(c))
     return ['en', ...enabledNonEn, ...rest]
   }, [enabledLocales])
 
-  // Per-language translation stats for the stats table
   const enabledNonEnLocales = useMemo(() => enabledLocales.filter(c => c !== 'en'), [enabledLocales])
-  const total = translationTotal?.total ?? 0
-  const langStats = useMemo(() => {
-    return enabledNonEnLocales
-      .map(code => {
-        const statusRow = translationStatus?.find(s => s.locale === code)
-        const translated = statusRow
-          ? statusRow.namespaces.reduce((sum, n) => sum + n.translated, 0)
-          : 0
-        const missing = total - translated
-        const pct = total > 0 ? Math.round((translated / total) * 100) : 0
-        return { code, translated, missing, pct }
-      })
-      .sort((a, b) => a.pct - b.pct)
-  }, [enabledNonEnLocales, translationStatus, total])
 
   if (isLoading) return <Spinner />
 
@@ -152,13 +139,15 @@ function SystemLanguageEditor() {
         <p className="mb-3 text-xs text-[var(--color-text-muted)]">Toggle languages to make them available across the platform.</p>
         <div className="flex flex-wrap gap-2">
           {sortedLocales.map(code => {
-            const active = enabledLocales.includes(code) || code === 'en'
+            const active = enabledLocales.includes(code)
             return (
               <button key={code} type="button"
                 onClick={() => {
                   if (code === 'en') return
-                  const current = (draft.enabledLocales as string[] | undefined) ?? []
-                  set('enabledLocales', current.includes(code) ? current.filter(l => l !== code) : [...current, code])
+                  // Always keep 'en' in the stored array
+                  const current = enabledLocales
+                  const next = current.includes(code) ? current.filter(l => l !== code) : [...current, code]
+                  set('enabledLocales', next.includes('en') ? next : ['en', ...next])
                 }}
                 disabled={code === 'en'}
                 className={['rounded-full border px-3 py-1 text-xs font-medium transition-all',
@@ -173,61 +162,9 @@ function SystemLanguageEditor() {
             )
           })}
         </div>
-
-        {/* Per-language translation stats */}
-        {enabledNonEnLocales.length > 0 && (
-          <div className="mt-4 rounded-xl border border-[var(--color-border)] overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Language</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Translated</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Missing</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)] w-40">Progress</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!translationTotal ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-3">
-                      <div className="h-4 w-48 animate-pulse rounded bg-[var(--color-border)]" />
-                    </td>
-                  </tr>
-                ) : langStats.map(({ code, translated, missing, pct }) => (
-                  <tr key={code} className="border-b border-[var(--color-border)] last:border-0">
-                    <td className="px-4 py-2.5 text-sm text-[var(--color-text)]">
-                      {localeFlag(code)} {localeName(code)}
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-right tabular-nums text-[var(--color-text)]">
-                      {translated}
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-right tabular-nums">
-                      {missing > 0
-                        ? <span className="text-amber-600">{missing}</span>
-                        : <span className="text-[var(--color-success)]">0</span>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-[var(--color-border)]">
-                          <div
-                            className={['h-full rounded-full transition-all',
-                              pct === 100 ? 'bg-[var(--color-success)]' : pct >= 50 ? 'bg-[var(--color-primary)]' : 'bg-amber-400',
-                            ].join(' ')}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-xs tabular-nums text-[var(--color-text-muted)] w-9 text-right">{pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </Section>
 
-      <Section title="Default Language">
+      <Section title="Default and Order">
         <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
           <div>
             <p className="text-sm font-medium text-[var(--color-text)]">System default language</p>
@@ -240,15 +177,48 @@ function SystemLanguageEditor() {
             onChange={e => set('defaultLocale', e.target.value)}
             className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
           >
-            {(enabledLocales.length > 0 ? enabledLocales : ALL_LOCALES).map(code => (
+            {enabledLocales.map(code => (
               <option key={code} value={code}>{localeFlag(code)}  {localeName(code)}</option>
             ))}
           </select>
         </div>
+
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <input
+            type="checkbox"
+            checked={localeAlphabetical}
+            onChange={e => set('localeAlphabetical', e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
+          />
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Alphabetical order</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              When checked, languages are shown alphabetically in the guest selector. Uncheck to set a custom order.
+            </p>
+          </div>
+        </label>
+
+        {!localeAlphabetical && enabledLocales.length > 1 && (
+          <LocaleOrderEditor
+            locales={enabledLocales}
+            onReorder={newOrder => set('enabledLocales', newOrder)}
+          />
+        )}
       </Section>
 
       {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
+
+      {enabledNonEnLocales.length > 0 && (
+        <Section title="Translation Coverage">
+          <p className="mb-3 text-xs text-[var(--color-text-muted)]">Translation progress for all enabled non-English languages.</p>
+          <TranslationStats
+            enabledLocales={enabledLocales}
+            translationStatus={translationStatus}
+            translationTotal={translationTotal}
+          />
+        </Section>
+      )}
 
       <TranslationAISection />
       <TranslationManager enabledLocales={enabledLocales} />
@@ -281,6 +251,18 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
     staleTime: 300_000,
   })
   const systemLocales = (systemData?.enabledLocales as string[] | undefined) ?? ALL_LOCALES
+
+  const { data: translationStatus } = useQuery({
+    queryKey: ['translation-status'],
+    queryFn: () => apiClient.getTranslationStatus(),
+    staleTime: 60_000,
+  })
+
+  const { data: translationTotal } = useQuery({
+    queryKey: ['translation-total'],
+    queryFn: () => apiClient.getTranslationTotal(),
+    staleTime: Infinity,
+  })
 
   useEffect(() => {
     initialized.current = false
@@ -315,12 +297,25 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
   if (isLoading) return <Spinner />
 
-  // Filter org's saved selection against the system pool — removes stale languages
+  // 'en' is always included — it's the invariant fallback language.
+  // Stored arrays may omit it (legacy), so normalise on read.
   const rawEnabledLocales = (draft.enabledLocales as string[] | undefined) ?? []
-  const enabledLocales = rawEnabledLocales.filter(c => systemLocales.includes(c))
+  // Use a system-pool that always includes 'en' so the 'en' filter below never strips it.
+  const systemLocalesWithEn = systemLocales.includes('en') ? systemLocales : ['en', ...systemLocales]
+  const filteredLocales = rawEnabledLocales.filter(c => systemLocalesWithEn.includes(c))
+  const enabledLocales = filteredLocales.includes('en') ? filteredLocales : ['en', ...filteredLocales]
   const defaultLocale = enabledLocales.includes(draft.defaultLocale ?? 'en')
     ? (draft.defaultLocale ?? 'en')
-    : enabledLocales[0] ?? 'en'
+    : 'en'
+  const localeAlphabetical = (draft.localeAlphabetical as boolean | null | undefined) ?? false
+
+  function toggleLocale(code: string) {
+    if (code === 'en') return  // 'en' is always on
+    const current = enabledLocales
+    const next = current.includes(code) ? current.filter(l => l !== code) : [...current, code]
+    // Guarantee 'en' is always present
+    set('enabledLocales', next.includes('en') ? next : ['en', ...next])
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 space-y-6">
@@ -333,18 +328,17 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
       <Section title="Enabled Languages">
         <div className="flex flex-wrap gap-2">
-          {systemLocales.map(code => {
+          {systemLocalesWithEn.map(code => {
             const active = enabledLocales.includes(code)
             return (
               <button key={code} type="button"
-                onClick={() => {
-                  const current = rawEnabledLocales.filter(c => systemLocales.includes(c))
-                  set('enabledLocales', current.includes(code) ? current.filter(l => l !== code) : [...current, code])
-                }}
+                onClick={() => toggleLocale(code)}
+                disabled={code === 'en'}
                 className={['rounded-full border px-3 py-1 text-xs font-medium transition-all',
                   active
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
                     : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]',
+                  code === 'en' ? 'cursor-default opacity-80' : '',
                 ].join(' ')}
               >
                 {localeFlag(code)} {localeName(code)}
@@ -354,7 +348,7 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
         </div>
       </Section>
 
-      <Section title="Default Language">
+      <Section title="Default and Order">
         <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
           <div>
             <p className="text-sm font-medium text-[var(--color-text)]">Default language</p>
@@ -367,12 +361,45 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
             onChange={e => set('defaultLocale', e.target.value)}
             className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
           >
-            {(enabledLocales.length > 0 ? enabledLocales : systemLocales).map(code => (
+            {enabledLocales.map(code => (
               <option key={code} value={code}>{localeFlag(code)}  {localeName(code)}</option>
             ))}
           </select>
         </div>
+
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <input
+            type="checkbox"
+            checked={localeAlphabetical}
+            onChange={e => set('localeAlphabetical', e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
+          />
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Alphabetical order</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              When checked, languages are shown alphabetically in the guest selector. Uncheck to set a custom order.
+            </p>
+          </div>
+        </label>
+
+        {!localeAlphabetical && enabledLocales.length > 1 && (
+          <LocaleOrderEditor
+            locales={enabledLocales}
+            onReorder={newOrder => set('enabledLocales', newOrder)}
+          />
+        )}
       </Section>
+
+      {enabledLocales.length > 1 && (
+        <Section title="Translation Coverage">
+          <p className="mb-3 text-xs text-[var(--color-text-muted)]">Translation progress for all enabled non-English languages.</p>
+          <TranslationStats
+            enabledLocales={enabledLocales}
+            translationStatus={translationStatus}
+            translationTotal={translationTotal}
+          />
+        </Section>
+      )}
 
       {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
@@ -551,7 +578,7 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
   const localeOptions = enabledLocales.filter(l => l !== 'en')
 
   // Fetch all namespaces in parallel for selected locale
-  const { data: allRowsByNs, isLoading: rowsLoading, refetch: refetchRows } = useQuery({
+  const { data: allRowsByNs, isLoading: rowsLoading, isError: rowsError, refetch: refetchRows } = useQuery({
     queryKey: ['translation-rows-all', selectedLocale],
     queryFn: () => Promise.all(
       TRANSLATION_NAMESPACES.map(ns =>
@@ -710,6 +737,10 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
             <div className="flex items-center justify-center py-10">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
             </div>
+          ) : rowsError ? (
+            <p className="py-10 text-center text-sm text-[var(--color-error)]">
+              Failed to load translations. Check your connection and try refreshing.
+            </p>
           ) : filteredGroups.length === 0 ? (
             <p className="py-10 text-center text-sm text-[var(--color-text-muted)]">
               {searchText || nsFilter ? 'No strings match your filters.' : 'All strings are translated.'}
@@ -907,6 +938,18 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
     staleTime: Infinity,
   })
 
+  const { data: translationStatus } = useQuery({
+    queryKey: ['translation-status'],
+    queryFn: () => apiClient.getTranslationStatus(),
+    staleTime: 60_000,
+  })
+
+  const { data: translationTotal } = useQuery({
+    queryKey: ['translation-total'],
+    queryFn: () => apiClient.getTranslationTotal(),
+    staleTime: Infinity,
+  })
+
   useEffect(() => {
     if (designData && !initialized) {
       setDraft(designData.overrides)
@@ -941,6 +984,7 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   if (!propertyId || isLoading) return <Spinner />
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
+  const setBool = set as (key: keyof OrgDesignDefaultsConfig, val: boolean) => void
   // Pool: org-enabled langs filtered against system pool → system pool → full list
   const sysPool: string[] = (sysDefs.enabledLocales as string[] | null | undefined) ?? ALL_LOCALES
   const orgPool = (orgDefaults.enabledLocales as string[] | null | undefined)
@@ -948,7 +992,12 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   const localeOptions = langPool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeName(code)}` }))
   const localeItems = langPool.map(code => ({ code, label: `${localeFlag(code)} ${localeName(code)}` }))
   const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
-  const activeLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
+  const rawActiveLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
+  const activeLocales = rawActiveLocales.includes('en') ? rawActiveLocales : ['en', ...rawActiveLocales]
+
+  // localeAlphabetical: inherit from chain if not overridden
+  const alphaOverride = draft.localeAlphabetical as boolean | null | undefined
+  const alphaEffective = alphaOverride ?? (orgDefaults.localeAlphabetical ?? (sysDefs.localeAlphabetical ?? false))
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -966,21 +1015,184 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
             draft={draft}
             orgDefaults={orgDefaults}
             onToggle={code => {
+              if (code === 'en') return
               const current = (draft.enabledLocales as string[] | null | undefined) ?? (orgDefaults.enabledLocales ?? ['en'])
-              set('enabledLocales', current.includes(code) ? current.filter((l: string) => l !== code) : [...current, code])
+              const next = current.includes(code) ? current.filter((l: string) => l !== code) : [...current, code]
+              set('enabledLocales', next.includes('en') ? next : ['en', ...next])
             }}
             onReset={reset}
-            onOverride={() => set('enabledLocales', orgDefaults.enabledLocales ?? ['en'])}
+            onOverride={() => {
+              const base = orgDefaults.enabledLocales ?? ['en']
+              set('enabledLocales', base.includes('en') ? base : ['en', ...base])
+            }}
           />
         </Section>
-        <Section title="Default Language">
+
+        <Section title="Default and Order">
           <OverrideSelectRow label="Default language" fieldKey="defaultLocale"
             {...(sysDefs.defaultLocale ? { systemDefault: sysDefs.defaultLocale } : {})}
             options={localeOptions}
             draft={draft} orgDefaults={orgDefaults} onSet={setStr} onReset={reset} />
+
+          <div className="mt-4">
+            <OverrideToggleRow
+              label="Alphabetical order"
+              description="When on, languages are shown alphabetically in the guest selector. Turn off to set a custom order."
+              fieldKey="localeAlphabetical"
+              draft={draft}
+              orgDefaults={orgDefaults}
+              systemDefault={sysDefs.localeAlphabetical ?? false}
+              onSet={setBool}
+              onReset={reset}
+            />
+          </div>
+
+          {!alphaEffective && enabledLocalesOverride != null && activeLocales.length > 1 && (
+            <LocaleOrderEditor
+              locales={activeLocales}
+              onReorder={newOrder => set('enabledLocales', newOrder)}
+            />
+          )}
+          {!alphaEffective && enabledLocalesOverride == null && activeLocales.length > 1 && (
+            <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+              To reorder languages for this hotel, override the languages list above first.
+            </p>
+          )}
         </Section>
+
+        {activeLocales.filter(c => c !== 'en').length > 0 && (
+          <Section title="Translation Coverage">
+            <p className="mb-3 text-xs text-[var(--color-text-muted)]">Translation progress for all enabled non-English languages.</p>
+            <TranslationStats
+              enabledLocales={activeLocales}
+              translationStatus={translationStatus}
+              translationTotal={translationTotal}
+            />
+          </Section>
+        )}
       </div>
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
+    </div>
+  )
+}
+
+// ── Shared UI helpers ─────────────────────────────────────────────────────────
+
+function TranslationStats({
+  enabledLocales,
+  translationStatus,
+  translationTotal,
+}: {
+  enabledLocales: string[]
+  translationStatus: Array<{ locale: string; namespaces: Array<{ translated: number }> }> | undefined
+  translationTotal: { total: number } | undefined
+}) {
+  const nonEn = useMemo(() => enabledLocales.filter(c => c !== 'en'), [enabledLocales])
+  const total = translationTotal?.total ?? 0
+  const stats = useMemo(
+    () => nonEn.map(code => {
+      const row = translationStatus?.find(s => s.locale === code)
+      const translated = row ? row.namespaces.reduce((s, n) => s + n.translated, 0) : 0
+      const missing = total - translated
+      const pct = total > 0 ? Math.round((translated / total) * 100) : 0
+      return { code, translated, missing, pct }
+    }).sort((a, b) => a.pct - b.pct),
+    [nonEn, translationStatus, total]
+  )
+
+  if (nonEn.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
+            <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Language</th>
+            <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Translated</th>
+            <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Missing</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)] w-40">Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          {!translationTotal ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-3">
+                <div className="h-4 w-48 animate-pulse rounded bg-[var(--color-border)]" />
+              </td>
+            </tr>
+          ) : stats.map(({ code, translated, missing, pct }) => (
+            <tr key={code} className="border-b border-[var(--color-border)] last:border-0">
+              <td className="px-4 py-2.5 text-sm text-[var(--color-text)]">{localeFlag(code)} {localeName(code)}</td>
+              <td className="px-4 py-2.5 text-sm text-right tabular-nums text-[var(--color-text)]">{translated}</td>
+              <td className="px-4 py-2.5 text-sm text-right tabular-nums">
+                {missing > 0
+                  ? <span className="text-amber-600">{missing}</span>
+                  : <span className="text-[var(--color-success)]">0</span>}
+              </td>
+              <td className="px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 rounded-full bg-[var(--color-border)]">
+                    <div
+                      className={['h-full rounded-full transition-all',
+                        pct === 100 ? 'bg-[var(--color-success)]' : pct >= 50 ? 'bg-[var(--color-primary)]' : 'bg-amber-400',
+                      ].join(' ')}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs tabular-nums text-[var(--color-text-muted)] w-9 text-right">{pct}%</span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function LocaleOrderEditor({
+  locales,
+  onReorder,
+}: {
+  locales: string[]
+  onReorder: (newOrder: string[]) => void
+}) {
+  if (locales.length <= 1) return null
+
+  function move(idx: number, dir: -1 | 1) {
+    const next = [...locales]
+    const target = idx + dir
+    if (target < 0 || target >= next.length) return
+    const tmp = next[idx]!; next[idx] = next[target]!; next[target] = tmp
+    onReorder(next)
+  }
+
+  return (
+    <div className="mt-3">
+      <p className="mb-2 text-xs text-[var(--color-text-muted)]">
+        Drag order — use arrows to set the order guests see in the language selector.
+      </p>
+      <div className="flex flex-col gap-1">
+        {locales.map((code, idx) => (
+          <div key={code} className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+            <span className="flex-1 text-sm text-[var(--color-text)]">{localeFlag(code)} {localeName(code)}</span>
+            <div className="flex flex-col gap-0">
+              <button
+                type="button"
+                disabled={idx === 0}
+                onClick={() => move(idx, -1)}
+                className="rounded px-1.5 py-0.5 text-xs leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30"
+              >↑</button>
+              <button
+                type="button"
+                disabled={idx === locales.length - 1}
+                onClick={() => move(idx, 1)}
+                className="rounded px-1.5 py-0.5 text-xs leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-30"
+              >↓</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

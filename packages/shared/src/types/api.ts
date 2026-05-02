@@ -275,6 +275,7 @@ export interface HotelDesignConfig {
   defaultLocale: string
   textDirection: 'ltr' | 'rtl'
   enabledLocales: string[]
+  localeAlphabetical: boolean
   enabledCurrencies: string[]
   // Payment features
   onlinePaymentEnabled: boolean
@@ -331,6 +332,7 @@ export interface UpdateDesignConfigRequest {
   defaultLocale?: string | null
   textDirection?: 'ltr' | 'rtl' | null
   enabledLocales?: string[] | null
+  localeAlphabetical?: boolean | null
   enabledCurrencies?: string[] | null
   onlinePaymentEnabled?: boolean | null
   payAtHotelEnabled?: boolean | null
@@ -394,6 +396,7 @@ export interface OrgDesignDefaultsConfig {
   defaultLocale: string | null
   textDirection: 'ltr' | 'rtl' | null
   enabledLocales: string[] | null
+  localeAlphabetical: boolean | null
   enabledCurrencies: string[] | null
   heroStyle: 'fullpage' | 'rectangle' | 'quilt' | null
   heroImageMode: 'fixed' | 'carousel' | null

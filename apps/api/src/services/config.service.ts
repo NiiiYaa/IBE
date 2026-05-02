@@ -36,6 +36,7 @@ const HARDCODED_DEFAULTS = {
   defaultLocale: 'en',
   textDirection: 'ltr' as const,
   enabledLocales: ['en'],
+  localeAlphabetical: false,
   enabledCurrencies: ['EUR'],
 }
 
@@ -50,7 +51,7 @@ function rowToSystemDesign(row: {
   colorSuccess: string | null; colorError: string | null; fontFamily: string | null
   borderRadius: number | null; logoUrl: string | null; faviconUrl: string | null
   tagline: string | null; defaultCurrency: string | null; defaultLocale: string | null
-  textDirection: string | null; enabledLocales: string | null; enabledCurrencies: string | null
+  textDirection: string | null; enabledLocales: string | null; localeAlphabetical: boolean | null; enabledCurrencies: string | null
   heroStyle: string | null; heroImageMode: string | null; heroCarouselInterval: number | null
   searchResultsImageUrl: string | null; searchResultsImageMode: string | null; searchResultsCarouselInterval: number | null
   searchSidebarPosition: string | null; propertyListLayout: string | null
@@ -82,6 +83,7 @@ function rowToSystemDesign(row: {
     defaultLocale: row?.defaultLocale ?? null,
     textDirection: (row?.textDirection ?? null) as 'ltr' | 'rtl' | null,
     enabledLocales: safeParseJson<string[] | null>(row?.enabledLocales ?? null, null),
+    localeAlphabetical: row?.localeAlphabetical ?? null,
     enabledCurrencies: safeParseJson<string[] | null>(row?.enabledCurrencies ?? null, null),
     heroStyle: (row?.heroStyle ?? null) as OrgDesignDefaultsConfig['heroStyle'],
     heroImageMode: (row?.heroImageMode ?? null) as OrgDesignDefaultsConfig['heroImageMode'],
@@ -147,8 +149,9 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     defaultCurrency:   sys.defaultCurrency   ?? HARDCODED_DEFAULTS.defaultCurrency,
     defaultLocale:     sys.defaultLocale     ?? HARDCODED_DEFAULTS.defaultLocale,
     textDirection:     (sys.textDirection    ?? HARDCODED_DEFAULTS.textDirection) as 'ltr' | 'rtl',
-    enabledLocales:    sys.enabledLocales    ?? HARDCODED_DEFAULTS.enabledLocales,
-    enabledCurrencies: sys.enabledCurrencies ?? HARDCODED_DEFAULTS.enabledCurrencies,
+    enabledLocales:        sys.enabledLocales        ?? HARDCODED_DEFAULTS.enabledLocales,
+    localeAlphabetical:    sys.localeAlphabetical    ?? HARDCODED_DEFAULTS.localeAlphabetical,
+    enabledCurrencies:     sys.enabledCurrencies     ?? HARDCODED_DEFAULTS.enabledCurrencies,
   }
   const o = orgDefaults
   const c = config
@@ -175,8 +178,9 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const defaultCurrency   = c?.defaultCurrency   ?? o?.defaultCurrency   ?? d.defaultCurrency
   const defaultLocale     = c?.defaultLocale     ?? o?.defaultLocale     ?? d.defaultLocale
   const textDirection     = (c?.textDirection    ?? o?.textDirection     ?? d.textDirection) as 'ltr' | 'rtl'
-  const enabledLocales    = safeParseJson<string[]>(c?.enabledLocales ?? o?.enabledLocales ?? null, d.enabledLocales)
-  const enabledCurrencies = safeParseJson<string[]>(c?.enabledCurrencies ?? o?.enabledCurrencies ?? null, d.enabledCurrencies)
+  const enabledLocales       = safeParseJson<string[]>(c?.enabledLocales ?? o?.enabledLocales ?? null, d.enabledLocales)
+  const localeAlphabetical   = c?.localeAlphabetical ?? o?.localeAlphabetical ?? d.localeAlphabetical
+  const enabledCurrencies    = safeParseJson<string[]>(c?.enabledCurrencies ?? o?.enabledCurrencies ?? null, d.enabledCurrencies)
 
   if (!config) {
     logger.debug({ propertyId }, '[Config] No property config found, using org/system defaults')
@@ -190,7 +194,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     fontUrl: buildFontUrl(fontFamily),
     borderRadius,
     logoUrl, faviconUrl, displayName, tagline, tabTitle,
-    defaultCurrency, defaultLocale, textDirection, enabledLocales, enabledCurrencies,
+    defaultCurrency, defaultLocale, textDirection, enabledLocales, localeAlphabetical, enabledCurrencies,
     onlinePaymentEnabled: config?.onlinePaymentEnabled ?? o?.onlinePaymentEnabled ?? true,
     payAtHotelEnabled: config?.payAtHotelEnabled ?? o?.payAtHotelEnabled ?? true,
     payAtHotelCardGuaranteeRequired: config?.payAtHotelCardGuaranteeRequired ?? o?.payAtHotelCardGuaranteeRequired ?? false,
@@ -245,8 +249,9 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     defaultCurrency:   sys.defaultCurrency   ?? HARDCODED_DEFAULTS.defaultCurrency,
     defaultLocale:     sys.defaultLocale     ?? HARDCODED_DEFAULTS.defaultLocale,
     textDirection:     (sys.textDirection    ?? HARDCODED_DEFAULTS.textDirection) as 'ltr' | 'rtl',
-    enabledLocales:    sys.enabledLocales    ?? HARDCODED_DEFAULTS.enabledLocales,
-    enabledCurrencies: sys.enabledCurrencies ?? HARDCODED_DEFAULTS.enabledCurrencies,
+    enabledLocales:        sys.enabledLocales        ?? HARDCODED_DEFAULTS.enabledLocales,
+    localeAlphabetical:    sys.localeAlphabetical    ?? HARDCODED_DEFAULTS.localeAlphabetical,
+    enabledCurrencies:     sys.enabledCurrencies     ?? HARDCODED_DEFAULTS.enabledCurrencies,
   }
 
   const fontFamily = o?.fontFamily ?? d.fontFamily
@@ -275,8 +280,9 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     defaultCurrency:   o?.defaultCurrency   ?? d.defaultCurrency,
     defaultLocale:     o?.defaultLocale     ?? d.defaultLocale,
     textDirection:     (o?.textDirection    ?? d.textDirection) as 'ltr' | 'rtl',
-    enabledLocales:    safeParseJson<string[]>(o?.enabledLocales ?? null, d.enabledLocales),
-    enabledCurrencies: safeParseJson<string[]>(o?.enabledCurrencies ?? null, d.enabledCurrencies),
+    enabledLocales:        safeParseJson<string[]>(o?.enabledLocales ?? null, d.enabledLocales),
+    localeAlphabetical:    o?.localeAlphabetical ?? d.localeAlphabetical,
+    enabledCurrencies:     safeParseJson<string[]>(o?.enabledCurrencies ?? null, d.enabledCurrencies),
     onlinePaymentEnabled: o?.onlinePaymentEnabled ?? true,
     payAtHotelEnabled: o?.payAtHotelEnabled ?? true,
     payAtHotelCardGuaranteeRequired: o?.payAtHotelCardGuaranteeRequired ?? false,
@@ -337,6 +343,7 @@ export async function upsertHotelDesignConfig(
     ...(updates.defaultLocale !== undefined && { defaultLocale: updates.defaultLocale }),
     ...(updates.textDirection !== undefined && { textDirection: updates.textDirection }),
     ...(updates.enabledLocales !== undefined && { enabledLocales: updates.enabledLocales != null ? JSON.stringify(updates.enabledLocales) : null }),
+    ...(updates.localeAlphabetical !== undefined && { localeAlphabetical: updates.localeAlphabetical }),
     ...(updates.enabledCurrencies !== undefined && { enabledCurrencies: updates.enabledCurrencies != null ? JSON.stringify(updates.enabledCurrencies) : null }),
     ...(updates.onlinePaymentEnabled != null && { onlinePaymentEnabled: updates.onlinePaymentEnabled }),
     ...(updates.payAtHotelEnabled != null && { payAtHotelEnabled: updates.payAtHotelEnabled }),
@@ -467,6 +474,7 @@ export async function upsertSystemDesignDefaults(updates: Partial<OrgDesignDefau
   const boolFields = [
     'roomRatesDefaultExpanded', 'onlinePaymentEnabled', 'payAtHotelEnabled',
     'payAtHotelCardGuaranteeRequired', 'aiLayoutDefault', 'searchAiLayoutDefault',
+    'localeAlphabetical',
   ] as const
 
   for (const f of strFields) {
@@ -512,6 +520,7 @@ export async function upsertOrgDesignDefaults(
     'searchSidebarPosition', 'propertyListLayout', 'roomRatesDefaultExpanded', 'roomSearchLayout', 'infantMaxAge', 'childMaxAge',
     'onlinePaymentEnabled', 'payAtHotelEnabled', 'payAtHotelCardGuaranteeRequired',
     'aiLayoutDefault', 'searchAiLayoutDefault',
+    'localeAlphabetical',
     'chainHeroImageUrl',
   ]
   for (const f of fields) {
@@ -539,7 +548,7 @@ function rowToOrgDefaults(row: {
   borderRadius: number | null; logoUrl: string | null; faviconUrl: string | null
   displayName: string | null; tagline: string | null; tabTitle: string | null
   defaultCurrency: string | null; defaultLocale: string | null; textDirection: string | null
-  enabledLocales: string | null; enabledCurrencies: string | null
+  enabledLocales: string | null; localeAlphabetical: boolean | null; enabledCurrencies: string | null
   heroStyle: string | null; heroImageMode: string | null; heroCarouselInterval: number | null
   searchResultsImageUrl: string | null; searchResultsImageMode: string | null; searchResultsCarouselInterval: number | null
   roomRatesDefaultExpanded: boolean | null; infantMaxAge: number | null; childMaxAge: number | null
@@ -572,6 +581,7 @@ function rowToOrgDefaults(row: {
     defaultLocale: row?.defaultLocale ?? null,
     textDirection: (row?.textDirection ?? null) as 'ltr' | 'rtl' | null,
     enabledLocales: safeParseJson<string[] | null>(row?.enabledLocales ?? null, null),
+    localeAlphabetical: row?.localeAlphabetical ?? null,
     enabledCurrencies: safeParseJson<string[] | null>(row?.enabledCurrencies ?? null, null),
     heroStyle: (row?.heroStyle ?? null) as OrgDesignDefaultsConfig['heroStyle'],
     heroImageMode: (row?.heroImageMode ?? null) as OrgDesignDefaultsConfig['heroImageMode'],

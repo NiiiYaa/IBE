@@ -320,6 +320,7 @@ model HotelConfig {
   defaultLocale                   String?
   textDirection                   String?
   enabledLocales                  String?
+  localeAlphabetical              Boolean?
   enabledCurrencies               String?
   onlinePaymentEnabled            Boolean  @default(true)
   payAtHotelEnabled               Boolean  @default(true)
@@ -460,6 +461,7 @@ model OrgDesignDefaults {
   defaultLocale     String?
   textDirection     String?
   enabledLocales    String?
+  localeAlphabetical Boolean?
   enabledCurrencies String?
   heroStyle                    String?
   heroImageMode                String?
@@ -992,6 +994,7 @@ model SystemDesignConfig {
   defaultLocale     String?
   textDirection     String?
   enabledLocales    String?
+  localeAlphabetical Boolean?
   enabledCurrencies String?
   heroStyle                     String?
   heroImageMode                 String?

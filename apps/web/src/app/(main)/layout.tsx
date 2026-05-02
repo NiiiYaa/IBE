@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { buildCssVars } from '@/lib/theme'
+import { localeName } from '@/lib/locales'
 import { B2BAuthGate } from '@/components/b2b/B2BAuthGate'
 import { AiModeProvider } from '@/context/ai-mode'
 import { TranslationsProvider } from '@/context/translations'
@@ -235,7 +236,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   // For locale/currency, use hotelConfig in chain mode — it already merges org defaults
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
   const activeLocale = localeConfig?.defaultLocale ?? 'en'
-  const enabledLocales = localeConfig?.enabledLocales ?? []
+  const rawEnabledLocales = localeConfig?.enabledLocales ?? []
+  const enabledLocales = localeConfig?.localeAlphabetical
+    ? [...rawEnabledLocales].sort((a, b) => localeName(a).localeCompare(localeName(b)))
+    : rawEnabledLocales
   const allLocales = Array.from(new Set([activeLocale, ...enabledLocales, 'en']))
   const translationMaps = Object.fromEntries(
     await Promise.all(allLocales.map(async loc => [loc, await fetchTranslations(loc)]))
