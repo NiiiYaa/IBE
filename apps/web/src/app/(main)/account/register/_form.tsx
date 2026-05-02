@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { validatePassword } from '@ibe/shared'
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { useT } from '@/context/translations'
 
 function GoogleIcon() {
   return (
@@ -20,6 +21,7 @@ function GoogleIcon() {
 }
 
 function RegisterFormInner({ propertyId }: { propertyId: number }) {
+  const t = useT('account')
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -41,7 +43,7 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
     e.preventDefault()
     const pwErrors = validatePassword(form.password)
     if (pwErrors.length > 0) { setError(pwErrors.join(', ')); return }
-    if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return }
+    if (form.password !== form.confirmPassword) { setError(t('errorPasswordsMismatch')); return }
     setError(null)
     setIsPending(true)
     try {
@@ -60,9 +62,9 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
       router.replace(returnTo)
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 409) {
-        setError('An account with this email already exists.')
+        setError(t('errorEmailExists'))
       } else {
-        setError('Registration failed. Please try again.')
+        setError(t('errorRegisterFailed'))
       }
     } finally {
       setIsPending(false)
@@ -74,7 +76,7 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
   return (
     <main className="flex min-h-[70vh] items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
-        <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Create account</h1>
+        <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('createAccount')}</h1>
 
         {googleEnabled && (
           <>
@@ -83,11 +85,11 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
               className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
             >
               <GoogleIcon />
-              Continue with Google
+              {t('continueWithGoogle')}
             </a>
             <div className="my-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-text-muted)]">or</span>
+              <span className="text-xs text-[var(--color-text-muted)]">{t('or')}</span>
               <div className="h-px flex-1 bg-[var(--color-border)]" />
             </div>
           </>
@@ -96,33 +98,35 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">First name</label>
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('firstName')}</label>
               <input type="text" value={form.firstName} onChange={set('firstName')} required autoComplete="given-name" className={inputCls} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Last name</label>
+              <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('lastName')}</label>
               <input type="text" value={form.lastName} onChange={set('lastName')} required autoComplete="family-name" className={inputCls} />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Email</label>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('emailLabel')}</label>
             <input type="email" value={form.email} onChange={set('email')} required autoComplete="email" className={inputCls} />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('passwordLabel')}</label>
             <PasswordInput value={form.password} onChange={set('password')} required autoComplete="new-password" className={inputCls} />
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Min. 8 characters with uppercase, lowercase, number and special character</p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('passwordHint')}</p>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Confirm password</label>
-            <PasswordInput value={form.confirmPassword} onChange={set('confirmPassword')} required autoComplete="new-password" placeholder="Repeat your password" className={inputCls} />
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('confirmPassword')}</label>
+            <PasswordInput value={form.confirmPassword} onChange={set('confirmPassword')} required autoComplete="new-password" placeholder={t('confirmPasswordPlaceholder')} className={inputCls} />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Phone <span className="font-normal text-[var(--color-text-muted)]">(optional)</span></label>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">
+              {t('phone')} <span className="font-normal text-[var(--color-text-muted)]">({t('optional')})</span>
+            </label>
             <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
           </div>
 
@@ -133,14 +137,14 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
             disabled={isPending}
             className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
           >
-            {isPending ? 'Creating account…' : 'Create account'}
+            {isPending ? t('creatingAccount') : t('createAccount')}
           </button>
         </form>
 
         <p className="mt-5 text-sm text-[var(--color-text-muted)]">
-          Already have an account?{' '}
+          {t('haveAccount')}{' '}
           <Link href={`/account/login?returnTo=${encodeURIComponent(returnTo)}`} className="font-medium text-[var(--color-primary)] hover:underline">
-            Sign in
+            {t('signIn')}
           </Link>
         </p>
 
@@ -149,7 +153,7 @@ function RegisterFormInner({ propertyId }: { propertyId: number }) {
             href={returnTo}
             className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
           >
-            Continue without signing in
+            {t('continueWithoutAccount')}
           </Link>
         </div>
       </div>

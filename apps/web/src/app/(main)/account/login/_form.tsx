@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { useT } from '@/context/translations'
 
 function GoogleIcon() {
   return (
@@ -19,6 +20,7 @@ function GoogleIcon() {
 }
 
 function LoginFormInner({ propertyId }: { propertyId: number }) {
+  const t = useT('account')
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -31,8 +33,8 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
 
   useEffect(() => {
     apiClient.getGuestAuthProviders().then(p => setGoogleEnabled(p.googleOAuth)).catch(() => {})
-    if (searchParams.get('error') === 'oauth_failed') setError('Google sign-in failed. Please try again.')
-  }, [searchParams])
+    if (searchParams.get('error') === 'oauth_failed') setError(t('errorGoogleFailed'))
+  }, [searchParams, t])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -45,9 +47,9 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
       router.replace(returnTo)
     } catch (err) {
       if (err instanceof ApiClientError) {
-        setError(err.status === 403 ? 'Your account has been suspended. Please contact support.' : 'Invalid email or password.')
+        setError(err.status === 403 ? t('errorSuspended') : t('errorInvalidCredentials'))
       } else {
-        setError('Sign in failed. Please try again.')
+        setError(t('errorSignInFailed'))
       }
     } finally {
       setIsPending(false)
@@ -57,7 +59,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
   return (
     <main className="flex min-h-[70vh] items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
-        <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Sign in</h1>
+        <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('signIn')}</h1>
 
         {googleEnabled && (
           <>
@@ -66,11 +68,11 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
               className="mb-4 flex w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
             >
               <GoogleIcon />
-              Continue with Google
+              {t('continueWithGoogle')}
             </a>
             <div className="my-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-text-muted)]">or</span>
+              <span className="text-xs text-[var(--color-text-muted)]">{t('or')}</span>
               <div className="h-px flex-1 bg-[var(--color-border)]" />
             </div>
           </>
@@ -78,7 +80,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Email</label>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('emailLabel')}</label>
             <input
               type="email"
               value={email}
@@ -90,7 +92,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">{t('passwordLabel')}</label>
             <PasswordInput
               value={password}
               onChange={e => setPassword(e.target.value)}
@@ -107,14 +109,14 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
             disabled={isPending}
             className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
           >
-            {isPending ? 'Signing in…' : 'Sign in'}
+            {isPending ? t('signingIn') : t('signInButton')}
           </button>
         </form>
 
         <p className="mt-5 text-sm text-[var(--color-text-muted)]">
-          Don&apos;t have an account?{' '}
+          {t('noAccount')}{' '}
           <Link href={`/account/register?returnTo=${encodeURIComponent(returnTo)}`} className="font-medium text-[var(--color-primary)] hover:underline">
-            Create account
+            {t('createAccount')}
           </Link>
         </p>
 
@@ -123,7 +125,7 @@ function LoginFormInner({ propertyId }: { propertyId: number }) {
             href={returnTo}
             className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
           >
-            Continue without signing in
+            {t('continueWithoutAccount')}
           </Link>
         </div>
       </div>

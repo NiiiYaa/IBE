@@ -284,7 +284,7 @@ export function SearchBar({
             {aiEnabled && (
               <>
                 <div className="flex items-center py-2 pl-2 pr-1">
-                  <AiModeButton active={aiMode} onClick={toggleAiMode} label={t('aiModeButton')} exitLabel={t('standard')} />
+                  <AiModeButton active={aiMode} onClick={toggleAiMode} label={`AI ${t('mode')}`} exitLabel={t('standard')} />
                 </div>
                 <Divider />
               </>
@@ -338,7 +338,7 @@ export function SearchBar({
 
             <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
               <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
-                {t('nights')}
+                {t('nightsLabel')}
               </span>
               <span className="text-sm font-semibold text-[var(--color-text)]">
                 {nights > 0 ? nights : '—'}
@@ -396,7 +396,7 @@ export function SearchBar({
           <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-lg ring-1 ring-black/10">
             <input
               type="text"
-              placeholder="Enter promo code"
+              placeholder={t('enterPromoCode')}
               value={promoCode}
               onChange={e => setPromoCode(e.target.value.toUpperCase())}
               autoFocus
