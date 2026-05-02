@@ -3,6 +3,7 @@ import { validateApiKey } from '../services/mcp.service.js'
 import { isJwt, validateMcpJwt, getOAuthScope, getOAuthAudience, getOAuthIssuer } from '../services/oauth.service.js'
 import { search } from '../services/search.service.js'
 import { getPropertyDetail } from '../services/static.service.js'
+import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
@@ -216,8 +217,15 @@ const PROTOCOL_VERSION = '2024-11-05'
 const MCP_TOOLS = [
   {
     name: 'list_properties',
-    description: 'List all hotels available in this connection. For chain connections this returns multiple properties — always call this first to discover propertyId values before searching or fetching hotel info.',
-    inputSchema: { type: 'object', properties: {} },
+    description: 'List hotels available in this connection. Returns up to 20 at a time — use query to filter by name/city and offset to paginate. Always call this first on chain connections to discover propertyId values.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query:  { type: 'string',  description: 'Filter by hotel name or city (case-insensitive)' },
+        limit:  { type: 'integer', description: 'Max results to return (default 20, max 50)' },
+        offset: { type: 'integer', description: 'Skip N results for pagination (default 0)' },
+      },
+    },
   },
   {
     name: 'search_availability',
@@ -315,25 +323,88 @@ async function handleToolCall(
   const pid = (args['propertyId'] as number | undefined) ?? defaultPropertyId ?? 0
 
   if (toolName === 'list_properties') {
-    const where = orgId
+    const baseWhere = orgId
       ? { organizationId: orgId, isActive: true }
       : defaultPropertyId
       ? { propertyId: defaultPropertyId, isActive: true }
       : null
-    if (!where) return mcpError('No property context available')
-    const properties = await prisma.property.findMany({ where, select: { propertyId: true, name: true, isDefault: true }, orderBy: { isDefault: 'desc' } })
+    if (!baseWhere) return mcpError('No property context available')
+
+    const query  = (args['query']  as string  | undefined)?.trim() || undefined
+    const limit  = Math.min((args['limit']  as number | undefined) ?? 20, 50)
+    const offset = (args['offset'] as number | undefined) ?? 0
+
+    const LARGE_CHAIN_THRESHOLD = 50
+
+    // For large chains with no query, return only the count and ask AI to request a filter
+    // instead of dumping a random page that would be unhelpful and invite pagination loops
+    const totalUnfiltered = await prisma.property.count({ where: baseWhere })
+    if (totalUnfiltered > LARGE_CHAIN_THRESHOLD && !query) {
+      return mcpResult(JSON.stringify({
+        properties: [],
+        total: totalUnfiltered,
+        note: `This chain has ${totalUnfiltered} hotels. Please ask the user which city, country, or hotel name they are looking for, then call list_properties again with a query parameter to filter the results.`,
+      }))
+    }
+
+    // Name filter applied in DB — matches property.name or hotelConfig.displayName
+    const nameWhere = query ? {
+      ...baseWhere,
+      OR: [
+        { name:       { contains: query, mode: 'insensitive' as const } },
+        { hotelConfig: { displayName: { contains: query, mode: 'insensitive' as const } } },
+      ],
+    } : baseWhere
+
+    const [total, properties] = await Promise.all([
+      query ? prisma.property.count({ where: nameWhere }) : Promise.resolve(totalUnfiltered),
+      prisma.property.findMany({
+        where: nameWhere,
+        select: { propertyId: true, name: true, isDefault: true },
+        orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
+        take: limit,
+        skip: offset,
+      }),
+    ])
+
     const pids = properties.map(p => p.propertyId)
-    const configs = await prisma.hotelConfig.findMany({
-      where: { propertyId: { in: pids } },
-      select: { propertyId: true, displayName: true },
-    })
+    const [configs, statics] = await Promise.all([
+      prisma.hotelConfig.findMany({
+        where: { propertyId: { in: pids } },
+        select: { propertyId: true, displayName: true },
+      }),
+      Promise.allSettled(pids.map(id => fetchPropertyStatic(id))),
+    ])
     const configMap = new Map(configs.map(c => [c.propertyId, c]))
-    const list = properties.map(p => ({
-      propertyId: p.propertyId,
-      name: configMap.get(p.propertyId)?.displayName || p.name || `Property ${p.propertyId}`,
-      isDefault: p.isDefault,
+    const staticMap = new Map(
+      statics.map((r, i) => [pids[i]!, r.status === 'fulfilled' ? r.value : null])
+    )
+    const list = properties.map(p => {
+      const s = staticMap.get(p.propertyId)
+      const cfg = configMap.get(p.propertyId)
+      return {
+        propertyId: p.propertyId,
+        name: cfg?.displayName || p.name || `Property ${p.propertyId}`,
+        isDefault: p.isDefault,
+        ...(s ? {
+          stars: s.rating ?? null,
+          address: s.location.address || null,
+          city: s.location.city.name || null,
+          country: s.location.countryCode || null,
+          coordinates: s.coordinates.latitude && s.coordinates.longitude
+            ? { lat: s.coordinates.latitude, lng: s.coordinates.longitude }
+            : null,
+          phone: s.contact.phone || null,
+          website: s.contact.website || null,
+        } : {}),
+      }
+    })
+    return mcpResult(JSON.stringify({
+      properties: list,
+      returned: list.length,
+      total,
+      ...(offset + list.length < total ? { note: `Showing ${offset + 1}–${offset + list.length} of ${total}. Use offset to get more.` } : {}),
     }))
-    return mcpResult(JSON.stringify({ properties: list, total: list.length }))
   }
 
   if (toolName === 'get_property_info') {
@@ -471,7 +542,7 @@ async function dispatchJsonRpc(
       ])
       if (org) {
         serverName = count > 1
-          ? `${org.name} (${count} hotels — use list_properties to see all)`
+          ? `${org.name} (${count} hotels — use list_properties to browse; supports query/limit/offset)`
           : org.name
       }
     }

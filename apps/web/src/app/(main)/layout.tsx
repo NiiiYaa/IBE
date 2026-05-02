@@ -188,13 +188,17 @@ async function resolveTenantConfig(): Promise<{
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
-    const { config, hotelConfig, property, isChain } = await resolveTenantConfig()
+    const { config, hotelConfig, property, isChain, orgId } = await resolveTenantConfig()
     const title = isChain
       ? (config?.tabTitle || config?.displayName || 'Hotel Booking')
       : (hotelConfig?.tabTitle || hotelConfig?.displayName || property?.name || 'Hotel Booking')
-    const faviconUrl = isChain
+    const rawFavicon = isChain
       ? (config?.faviconUrl || config?.logoUrl || null)
       : (hotelConfig?.faviconUrl || hotelConfig?.logoUrl || config?.faviconUrl || config?.logoUrl || null)
+    // data: URIs can't be fetched by external services (Claude.ai, ChatGPT) — serve via API instead
+    const faviconUrl = rawFavicon?.startsWith('data:') && orgId
+      ? `/api/v1/config/logo/${orgId}`
+      : rawFavicon
     return {
       title,
       description: 'Book your stay directly',

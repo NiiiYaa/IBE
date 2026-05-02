@@ -97,6 +97,26 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send({ logoUrl: config.logoUrl, displayName: config.displayName })
   })
 
+  // GET /config/logo/:orgId — public: serve org logo as image/png (decodes data URIs for external consumers like Claude.ai)
+  fastify.get('/config/logo/:orgId', async (request, reply) => {
+    const { orgId: rawId } = request.params as { orgId: string }
+    const orgId = parseInt(rawId, 10)
+    if (isNaN(orgId) || orgId <= 0) return reply.status(400).send({ error: 'Invalid org ID' })
+    const config = await getOrgDesignConfig(orgId)
+    const logoUrl = config.logoUrl
+    if (!logoUrl) return reply.status(404).send({ error: 'No logo' })
+    void reply.header('Cache-Control', 'public, max-age=3600, s-maxage=86400')
+    if (logoUrl.startsWith('data:')) {
+      const parts = logoUrl.split(',')
+      const mimeMatch = parts[0]?.match(/data:([^;]+)/)
+      const mime = mimeMatch?.[1] ?? 'image/png'
+      const buf = Buffer.from(parts[1] ?? '', 'base64')
+      void reply.header('Content-Type', mime)
+      return reply.send(buf)
+    }
+    return reply.redirect(302, logoUrl)
+  })
+
   // GET /config/org/:orgId — public org-level design config for chain page
   fastify.get('/config/org/:orgId', async (request, reply) => {
     const { orgId: rawId } = request.params as { orgId: string }

@@ -72,17 +72,27 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
       : req.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const base = env.WEB_BASE_URL
-    const [claude, property] = await Promise.all([
+    const [claude, org] = await Promise.all([
       getOrCreateClaudeClient(orgId),
-      prisma.property.findFirst({
-        where: { organizationId: orgId, isActive: true },
-        select: { subdomain: true },
-        orderBy: { propertyId: 'asc' },
+      prisma.organization.findUnique({
+        where: { id: orgId },
+        select: {
+          slug: true,
+          properties: {
+            where: { isActive: true },
+            select: { subdomain: true },
+            orderBy: { propertyId: 'asc' },
+            take: 1,
+          },
+        },
       }),
     ])
-    const mcpUrl = property?.subdomain
-      ? `https://${property.subdomain}.hyperguest.net/api/v1/mcp`
-      : `${base}/api/v1/mcp`
+    const propertySub = org?.properties[0]?.subdomain
+    const mcpUrl = propertySub
+      ? `https://${propertySub}.hyperguest.net/api/v1/mcp`
+      : org?.slug
+        ? `https://${org.slug}.hyperguest.net/api/v1/mcp`
+        : `${base}/api/v1/mcp`
     return reply.send({
       issuer: getOAuthIssuer(),
       authorizeUrl: `${base}/api/v1/oauth/authorize`,

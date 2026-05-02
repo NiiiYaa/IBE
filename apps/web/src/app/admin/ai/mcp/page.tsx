@@ -93,8 +93,37 @@ function EndpointInfo({ endpoint, apiKey, protocol = 'MCP JSON-RPC 2.0 (Streamab
   )
 }
 
-function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platform: Platform; endpoint: string; apiKey: string; claudeMcpUrl?: string }) {
+type OAuthData = {
+  mcpUrl: string
+  authorizeUrl: string
+  tokenUrl: string
+  registerUrl: string
+  discoveryUrl: string
+  claude: { clientId: string; clientSecret: string }
+}
+
+function CopyRow({ label, value, width = 'w-36' }: { label: string; value: string; width?: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() { copyText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[var(--color-text-muted)] shrink-0 ${width}`}>{label}</span>
+      <span className="text-[var(--color-text)] break-all flex-1">{value}</span>
+      <button type="button" onClick={copy} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">{copied ? 'Copied!' : 'Copy'}</button>
+    </div>
+  )
+}
+
+function PlatformSnippet({
+  platform, endpoint, apiKey, oauthData, onRotateClaude, rotatingClaude,
+}: {
+  platform: Platform; endpoint: string; apiKey: string
+  oauthData?: OAuthData
+  onRotateClaude?: () => void
+  rotatingClaude?: boolean
+}) {
   const json = mcpJsonSnippet(endpoint, apiKey)
+  const mcpBase = oauthData?.mcpUrl ?? endpoint
 
   if (platform === 'claude') return (
     <div className="space-y-3 text-sm">
@@ -107,25 +136,42 @@ function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platfor
   )
 
   if (platform === 'claude_ai') {
-    const claudeUrl = `${endpoint}/${apiKey}`
     return (
-      <div className="space-y-4 text-sm">
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Use the OAuth credentials from the <strong>OAuth Connection</strong> section above for the Advanced settings fields. Paste the MCP endpoint URL (without any key) into the connector URL field.
-          </p>
-          <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-            {claudeMcpUrl ?? endpoint}
+      <div className="space-y-5 text-sm">
+        {/* MCP URL */}
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-[var(--color-text)]">MCP server URL</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Paste into the <strong>Remote MCP server URL</strong> field — no API key in the URL.</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              {mcpBase}
+            </div>
+            <button type="button" onClick={() => copyText(mcpBase)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
           </div>
-          <button
-            type="button"
-            onClick={() => copyText(claudeMcpUrl ?? endpoint)}
-            className="text-xs text-[var(--color-primary)] hover:underline"
-          >
-            Copy URL
-          </button>
         </div>
 
+        {/* OAuth credentials */}
+        {oauthData && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-[var(--color-text)]">OAuth credentials</p>
+              <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700">Active</span>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">Paste into <strong>Advanced settings</strong> in the Add custom connector dialog.</p>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-2">
+              <CopyRow label="OAuth Client ID" value={oauthData.claude.clientId} />
+              <CopyRow label="OAuth Client Secret" value={oauthData.claude.clientSecret} />
+              <CopyRow label="Discovery URL" value={oauthData.discoveryUrl} />
+            </div>
+            {onRotateClaude && (
+              <button type="button" onClick={onRotateClaude} disabled={rotatingClaude} className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50">
+                {rotatingClaude ? 'Rotating…' : 'Rotate secret'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Steps */}
         <div className="space-y-3">
           <p className="font-medium text-[var(--color-text)]">Setup steps in Claude.ai</p>
           <ol className="space-y-3 text-[var(--color-text-muted)]">
@@ -143,20 +189,32 @@ function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platfor
                 <p>Fill in the form:</p>
                 <ul className="ml-3 space-y-1 list-disc list-inside">
                   <li><strong>Name</strong> — e.g. &quot;Hotel Booking&quot;</li>
-                  <li><strong>Remote MCP server URL</strong> — paste the URL above (key is already in the URL)</li>
-                  <li><strong>OAuth fields</strong> — leave empty</li>
+                  <li><strong>Remote MCP server URL</strong> — paste the MCP URL above</li>
+                  <li>Click <strong>Advanced settings</strong> and fill in the OAuth credentials above</li>
                 </ul>
               </div>
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
-              <span>Click <strong>Add</strong>. Claude will discover the available tools automatically.</span>
+              <span>Click <strong>Add</strong>. You&apos;ll be prompted to sign in with your hotel admin account.</span>
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
               <span>Start a conversation and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
             </li>
           </ol>
+        </div>
+
+        {/* Key-in-URL fallback */}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 space-y-1">
+          <p className="text-xs font-medium text-[var(--color-text)]">Fallback: key-in-URL (no OAuth)</p>
+          <p className="text-xs text-[var(--color-text-muted)]">If OAuth is unavailable, paste this URL directly — no Advanced settings needed:</p>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              {`${mcpBase}/${apiKey}`}
+            </div>
+            <button type="button" onClick={() => copyText(`${mcpBase}/${apiKey}`)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+          </div>
         </div>
       </div>
     )
@@ -182,26 +240,36 @@ function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platfor
   )
 
   if (platform === 'chatgpt') {
-    const chatgptBase = claudeMcpUrl ?? endpoint
-    const chatgptUrl = `${chatgptBase}/${apiKey}`
+    const chatgptKeyUrl = `${mcpBase}/${apiKey}`
     return (
-      <div className="space-y-4 text-sm">
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-2">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            ChatGPT Apps don&apos;t support Bearer auth — the API key is embedded in the URL instead. Use <em>No authentication</em> in ChatGPT; the URL below already contains your key.
-          </p>
-          <div className="font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-            {chatgptUrl}
+      <div className="space-y-5 text-sm">
+        {/* OAuth — primary flow */}
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-[var(--color-text)]">MCP server URL</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Paste into <strong>Connector URL</strong> — no API key in the URL; OAuth handles authentication.</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              {mcpBase}
+            </div>
+            <button type="button" onClick={() => copyText(mcpBase)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
           </div>
-          <button
-            type="button"
-            onClick={() => copyText(chatgptUrl)}
-            className="text-xs text-[var(--color-primary)] hover:underline"
-          >
-            Copy URL
-          </button>
         </div>
 
+        {oauthData && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-[var(--color-text)]">OAuth fields</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Select <strong>OAuth</strong> as the authentication type. ChatGPT auto-registers via Dynamic Client Registration — no manual credentials needed.
+            </p>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-2">
+              <CopyRow label="Authorization URL" value={oauthData.authorizeUrl} width="w-32" />
+              <CopyRow label="Token URL" value={oauthData.tokenUrl} width="w-32" />
+              <CopyRow label="DCR endpoint" value={oauthData.registerUrl} width="w-32" />
+            </div>
+          </div>
+        )}
+
+        {/* Steps */}
         <div className="space-y-3">
           <p className="font-medium text-[var(--color-text)]">Setup steps in ChatGPT</p>
           <ol className="space-y-3 text-[var(--color-text-muted)]">
@@ -220,20 +288,33 @@ function PlatformSnippet({ platform, endpoint, apiKey, claudeMcpUrl }: { platfor
                 <ul className="ml-3 space-y-1 list-disc list-inside">
                   <li><strong>Connector name</strong> — e.g. &quot;Hotel Booking&quot;</li>
                   <li><strong>Description</strong> — e.g. &quot;Search rooms and create booking links&quot;</li>
-                  <li><strong>Connector URL</strong> — paste the URL above (key is already in the URL)</li>
-                  <li><strong>Authentication</strong> — select <strong>No authentication</strong></li>
+                  <li><strong>Connector URL</strong> — paste the MCP URL above</li>
+                  <li><strong>Authentication</strong> — select <strong>OAuth</strong></li>
+                  <li>Fill in the Authorization URL, Token URL, and DCR endpoint from the OAuth fields above</li>
                 </ul>
               </div>
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 font-semibold text-[var(--color-primary)]">4.</span>
-              <span>Click <strong>Create</strong>. ChatGPT will discover the available tools automatically.</span>
+              <span>Click <strong>Create</strong>. ChatGPT will auto-register via DCR and prompt you to sign in with your hotel admin account.</span>
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 font-semibold text-[var(--color-primary)]">5.</span>
               <span>Start a conversation, click <strong>+</strong> to add the connector, and test with: <em>&quot;What rooms are available from Dec 10–14 for 2 adults?&quot;</em></span>
             </li>
           </ol>
+        </div>
+
+        {/* Key-in-URL fallback */}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 space-y-1">
+          <p className="text-xs font-medium text-[var(--color-text)]">Fallback: key-in-URL (no OAuth)</p>
+          <p className="text-xs text-[var(--color-text-muted)]">If OAuth is unavailable, use this URL with <strong>No authentication</strong>:</p>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              {chatgptKeyUrl}
+            </div>
+            <button type="button" onClick={() => copyText(chatgptKeyUrl)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+          </div>
         </div>
 
         <p className="text-xs text-[var(--color-text-muted)]">
@@ -545,71 +626,6 @@ export default function AdminMcpPage() {
         )}
       </div>
 
-      {/* OAuth — built-in server for ChatGPT & Claude.ai */}
-      {oauthData && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-medium text-[var(--color-text)]">OAuth Connection</h2>
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                Built-in OAuth 2.0 server — no external service needed. ChatGPT and Claude.ai users sign in with their hotel admin credentials.
-              </p>
-            </div>
-            <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">Active</span>
-          </div>
-
-          {/* Claude.ai static credentials */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-[var(--color-text)]">Claude.ai credentials</p>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Paste these into the <strong>Add custom connector</strong> dialog under <strong>Advanced settings</strong>.
-            </p>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs space-y-2">
-              {[
-                ['OAuth Client ID', oauthData.claude.clientId],
-                ['OAuth Client Secret', oauthData.claude.clientSecret],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center gap-2">
-                  <span className="text-[var(--color-text-muted)] w-36 shrink-0">{label}</span>
-                  <span className="text-[var(--color-text)] break-all flex-1">{value}</span>
-                  <button type="button" onClick={() => copyText(value ?? '')} className="shrink-0 text-[var(--color-primary)] hover:underline text-xs">Copy</button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => rotateClaudeSecret()}
-              disabled={rotatingClaude}
-              className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
-            >
-              {rotatingClaude ? 'Rotating…' : 'Rotate secret'}
-            </button>
-          </div>
-
-          {/* ChatGPT DCR info */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-[var(--color-text)]">ChatGPT — Dynamic Registration</p>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              ChatGPT registers itself automatically using the DCR endpoint below — no manual credentials needed.
-            </p>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-xs text-[var(--color-text)] break-all">
-              {oauthData.registerUrl}
-            </div>
-          </div>
-
-          {/* Discovery URL */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-[var(--color-text)]">OAuth discovery</p>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 font-mono text-xs text-[var(--color-text)] break-all">
-                {oauthData.discoveryUrl}
-              </div>
-              <button type="button" onClick={() => copyText(oauthData.discoveryUrl)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* AI Channels — MCP access */}
       <div className={[
         'rounded-xl border-2 p-6 space-y-4',
@@ -688,7 +704,16 @@ export default function AdminMcpPage() {
               </button>
             ))}
           </div>
-          <PlatformSnippet platform={platform} endpoint={mcpEndpoint} apiKey={apiKey} {...(oauthData?.mcpUrl ? { claudeMcpUrl: oauthData.mcpUrl } : {})} />
+          <PlatformSnippet
+            platform={platform}
+            endpoint={mcpEndpoint}
+            apiKey={apiKey}
+            {...(oauthData ? {
+              oauthData,
+              onRotateClaude: () => rotateClaudeSecret(),
+              rotatingClaude,
+            } : {})}
+          />
         </div>
       )}
 
