@@ -10,6 +10,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
 RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
 RUN cd /repo/apps/api && npx tsc --noEmitOnError false || true
+RUN cp -r /repo/apps/api/src/translations /repo/apps/api/dist/translations
 
 ENV NODE_ENV=production
 WORKDIR /repo/apps/api
