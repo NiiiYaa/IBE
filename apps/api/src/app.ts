@@ -79,6 +79,7 @@ export async function buildApp() {
     logger: logger,
     disableRequestLogging: env.NODE_ENV === 'production',
     bodyLimit: 50 * 1024 * 1024, // 50 MB — needed for base64-encoded image uploads
+    trustProxy: true,
   })
 
   // ── Plugins ────────────────────────────────────────────────────────────────
@@ -96,7 +97,7 @@ export async function buildApp() {
   })
 
   await app.register(rateLimit, {
-    max: 100,
+    max: 500,
     timeWindow: '1 minute',
     allowList: env.NODE_ENV !== 'production' ? ['127.0.0.1', '::1', '::ffff:127.0.0.1'] : [],
     errorResponseBuilder: () => ({

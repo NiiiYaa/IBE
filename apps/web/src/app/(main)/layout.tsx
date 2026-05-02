@@ -237,9 +237,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
   const activeLocale = localeConfig?.defaultLocale ?? 'en'
   const rawEnabledLocales = localeConfig?.enabledLocales ?? []
+  const normalisedLocales = rawEnabledLocales.includes('en') ? rawEnabledLocales : ['en', ...rawEnabledLocales]
   const enabledLocales = localeConfig?.localeAlphabetical
-    ? [...rawEnabledLocales].sort((a, b) => localeName(a).localeCompare(localeName(b)))
-    : rawEnabledLocales
+    ? [...normalisedLocales].sort((a, b) => localeName(a).localeCompare(localeName(b)))
+    : normalisedLocales
   const allLocales = Array.from(new Set([activeLocale, ...enabledLocales, 'en']))
   const translationMaps = Object.fromEntries(
     await Promise.all(allLocales.map(async loc => [loc, await fetchTranslations(loc)]))
@@ -265,7 +266,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           logoUrl={logoUrl}
           displayName={displayName}
           navItems={headerItems}
-          enabledLocales={localeConfig?.enabledLocales ?? []}
+          enabledLocales={enabledLocales}
           enabledCurrencies={localeConfig?.enabledCurrencies ?? []}
           defaultLocale={localeConfig?.defaultLocale ?? 'en'}
           defaultCurrency={localeConfig?.defaultCurrency ?? 'USD'}
