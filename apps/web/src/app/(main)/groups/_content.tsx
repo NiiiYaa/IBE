@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client'
 import { countryFlag, countryName } from '@/lib/countries'
 import { todayIso, addDays, nightsBetween } from '@ibe/shared'
 import { displayDate } from '@/lib/calendar-utils'
+import { useLocale } from '@/context/translations'
 import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { NationalityDropdown } from '@/components/search/NationalityDropdown'
 import { useCountryDetect } from '@/hooks/use-country-detect'
@@ -140,6 +141,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
 
   const containerRef = useRef<HTMLDivElement>(null)
   const detectedCountry = useCountryDetect()
+  const locale = useLocale()
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -396,14 +398,14 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
             <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
               <Segment
                 label="Check-in"
-                value={displayDate(checkIn) || 'Select date'}
+                value={displayDate(checkIn, locale) || 'Select date'}
                 active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
                 onClick={() => openCalendar('checkin')}
               />
               <Divider />
               <Segment
                 label="Check-out"
-                value={displayDate(checkOut) || 'Select date'}
+                value={displayDate(checkOut, locale) || 'Select date'}
                 active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
                 onClick={() => openCalendar('checkout')}
               />
@@ -436,7 +438,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               <div className="min-w-0 space-y-0.5">
                 <p className="truncate text-xs font-medium text-[var(--color-text-muted)]">
                   {checkIn && checkOut
-                    ? `${displayDate(checkIn)} – ${displayDate(checkOut)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
+                    ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
                     : 'Select dates'}
                 </p>
                 <p className="truncate text-sm font-semibold text-[var(--color-text)]">{nationalityLabel}</p>
@@ -506,7 +508,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">
-                {displayDate(checkIn)} → {displayDate(checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
+                {displayDate(checkIn, locale)} → {displayDate(checkOut, locale)} · {nights} night{nights !== 1 ? 's' : ''}
                 <span className="hidden sm:inline"> · {countryName(nationality)}</span>
               </p>
             </div>

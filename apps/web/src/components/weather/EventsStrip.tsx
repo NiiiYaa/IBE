@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useT, useLocale } from '@/context/translations'
 
 interface EventItem {
   name: string
@@ -56,10 +57,10 @@ function categoryColor(category: string | null): string {
   return 'text-[var(--color-text-muted)] bg-[var(--color-background)]'
 }
 
-function formatDate(dateStr: string | null, time: string | null): string {
+function formatDate(dateStr: string | null, time: string | null, locale: string): string {
   if (!dateStr) return ''
   const d = new Date(dateStr + 'T12:00:00')
-  const datePart = d.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
+  const datePart = d.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
   return time ? `${datePart} · ${time}` : datePart
 }
 
@@ -72,6 +73,8 @@ interface EventsStripProps {
 }
 
 export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = false, orgId }: EventsStripProps) {
+  const t = useT('events')
+  const locale = useLocale()
   const [data, setData] = useState<EventsData | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
@@ -113,10 +116,10 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
           </svg>
-          <span className="text-xs font-medium text-[var(--color-text)]">Events nearby during your stay</span>
+          <span className="text-xs font-medium text-[var(--color-text)]">{t('eventsNearby')}</span>
           {hasEvents
-            ? <span className="text-[10px] text-[var(--color-text-muted)]">within {data.radiusKm} km</span>
-            : <span className="text-[10px] text-[var(--color-text-muted)]">No events found for these dates</span>
+            ? <span className="text-[10px] text-[var(--color-text-muted)]">{t('withinKm', { count: String(data.radiusKm) })}</span>
+            : <span className="text-[10px] text-[var(--color-text-muted)]">{t('noEventsFound')}</span>
           }
         </div>
         <div className="flex items-center gap-1">
@@ -128,7 +131,7 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           </svg>
           <button onClick={e => { e.stopPropagation(); setDismissed(true) }}
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)] transition-colors"
-            aria-label="Dismiss events">
+            aria-label={t('dismissEvents')}>
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -162,7 +165,7 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
                 <p className="text-[9px] text-[var(--color-text-muted)]">{event.genre}</p>
               )}
               {event.date && (
-                <p className="text-[9px] text-[var(--color-primary)] font-medium">{formatDate(event.date, event.time)}</p>
+                <p className="text-[9px] text-[var(--color-primary)] font-medium">{formatDate(event.date, event.time, locale)}</p>
               )}
               {event.venue && (
                 <p className="text-[9px] text-[var(--color-text-muted)] truncate">{event.venue}</p>
@@ -170,7 +173,7 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
               {showTicketLink && event.ticketUrl && (
                 <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer"
                   className="mt-0.5 text-[9px] font-semibold text-[var(--color-primary)] hover:underline">
-                  Get tickets →
+                  {t('getTickets')}
                 </a>
               )}
             </div>

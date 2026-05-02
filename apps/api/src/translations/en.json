@@ -12,12 +12,24 @@
     "signOut": "Sign out",
     "backToResults": "← Back to results",
     "startNewSearch": "← Start a new search",
-    "continueWithoutSigningIn": "Continue without signing in"
+    "continueWithoutSigningIn": "Continue without signing in",
+    "groups": "Groups",
+    "fit": "FIT",
+    "map": "Map",
+    "viewHotelOnMap": "View hotel on map",
+    "viewAllHotelsOnMap": "View all hotels on map",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "search": {
     "checkIn": "Check-in",
     "checkOut": "Check-out",
     "guests": "Guests",
+    "city": "City",
+    "hotel": "Hotel",
+    "nights": "Nights",
+    "allCities": "All cities",
+    "selectProperty": "Select property",
     "adults": "Adults",
     "children": "Children",
     "infants": "Infants",
@@ -54,13 +66,31 @@
     "selectCountry": "Select country",
     "searchCountries": "Search countries…",
     "noCountriesFound": "No countries found",
-    "havePromoCode": "Have a promo code?",
+    "havePromoCode": "I have a promo code",
     "hidePromoCode": "Hide promo code",
     "enterPromoCode": "Enter promo code",
     "askAI": "Ask AI instead",
+    "aiMode": "AI",
+    "searchMode": "Search",
+    "switchToAiMode": "Switch to AI mode",
     "yourSelection": "Your selection",
     "nightsLabel": "Nights",
-    "seeMore": "See more"
+    "seeMore": "See more",
+    "adultSingular": "Adult",
+    "adultPlural": "Adults",
+    "childSingular": "Child",
+    "childPlural": "Children",
+    "infantSingular": "Infant",
+    "infantPlural": "Infants",
+    "roomSingular": "Room",
+    "roomPlural": "Rooms",
+    "nightSingular": "night",
+    "nightPlural": "nights",
+    "availableRooms": "Available rooms",
+    "addRoomsToBook": "Add rooms to book",
+    "canAddMoreRoom": "You can add 1 more room",
+    "canAddMoreRooms": "You can add up to {count} more rooms",
+    "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}."
   },
   "properties": {
     "bookNow": "Book now",
@@ -70,13 +100,17 @@
     "stars": "{count} stars",
     "noProperties": "No properties found.",
     "searchProperties": "Search {count} properties…",
-    "noPropertiesMatch": "No properties match \"{query}\""
+    "noPropertiesMatch": "No properties match \"{query}\"",
+    "ourHotels": "Our Hotels",
+    "highlights": "Highlights",
+    "allAmenities": "All Amenities"
   },
   "rooms": {
     "bookNow": "Book now",
     "addToBooking": "Add to booking",
     "select": "Select",
     "perNight": "per night",
+    "perNightFormat": "{amount}/night",
     "total": "Total",
     "freeCancellation": "Free cancellation",
     "freeCancellationUntil": "Free cancellation until {date}",
@@ -197,7 +231,9 @@
     "srOtherRequests": "Other requests",
     "srOtherPlaceholder": "Any other requests for the hotel…",
     "srAcknowledgment": "I understand and accept that special requests are subject to availability, are not guaranteed, and may incur additional charges payable directly to the hotel.",
-    "srAcknowledgmentRequired": "Please confirm you have read and accept this before continuing."
+    "srAcknowledgmentRequired": "Please confirm you have read and accept this before continuing.",
+    "checkInFrom": "Check-in from {time}",
+    "checkOutUntil": "Check-out until {time}"
   },
   "confirmation": {
     "bookingConfirmed": "Booking confirmed!",
@@ -383,5 +419,18 @@
     "skipConfirmation": "No thanks, skip to confirmation →",
     "getTickets": "Get tickets →",
     "includesTax": "Includes {pct}% tax"
+  },
+  "weather": {
+    "weatherForecast": "Weather forecast",
+    "historicalWeather": "Historical weather data",
+    "basedOnLastYear": "Based on last year",
+    "dismissWeather": "Dismiss weather"
+  },
+  "events": {
+    "eventsNearby": "Events nearby during your stay",
+    "withinKm": "within {count} km",
+    "noEventsFound": "No events found for these dates",
+    "getTickets": "Get tickets →",
+    "dismissEvents": "Dismiss events"
   }
 }

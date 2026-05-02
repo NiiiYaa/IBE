@@ -305,6 +305,8 @@ export interface HotelDesignConfig {
   chainHeroImageUrl: string | null
   emailEnabled: boolean
   whatsappEnabled: boolean
+  checkInTime: string | null
+  checkOutTime: string | null
 }
 
 export interface UpdateDesignConfigRequest {
@@ -357,6 +359,8 @@ export interface UpdateDesignConfigRequest {
   searchAiLayoutDefault?: boolean | null
   tripadvisorHotelKey?: string | null
   priceComparisonEnabled?: boolean
+  checkInTime?: string | null
+  checkOutTime?: string | null
 }
 
 export interface GlobalDesignAdminResponse {
@@ -417,6 +421,8 @@ export interface OrgDesignDefaultsConfig {
   searchAiLayoutDefault: boolean | null
   chainHeroImageUrl: string | null
   chainExcludedPropertyImageIds: number[] | null
+  checkInTime?: string | null
+  checkOutTime?: string | null
 }
 
 export interface OrgNavItem {

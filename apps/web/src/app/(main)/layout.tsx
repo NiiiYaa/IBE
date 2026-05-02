@@ -14,7 +14,7 @@ const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 const fetchCache = process.env.NODE_ENV === 'development'
   ? ({ cache: 'no-store' } as const)
-  : ({ next: { revalidate: 60 } } as const)
+  : ({ next: { revalidate: 30 } } as const)
 
 type TenantResolution =
   | { type: 'property'; propertyId: number; orgId: number }

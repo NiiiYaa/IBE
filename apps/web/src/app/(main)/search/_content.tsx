@@ -19,6 +19,7 @@ import { PriceComparisonBar } from '@/components/search/PriceComparisonBar'
 import { PropertyHeader } from '@/components/layout/PropertyHeader'
 import { OnsiteConversionOverlay } from '@/components/onsite/OnsiteConversionOverlay'
 import { ChatWidget } from '@/components/chat/ChatWidget'
+import { useT, useLocale } from '@/context/translations'
 import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
@@ -33,9 +34,9 @@ const ConversationalSearchPanel = dynamic(
   { ssr: false },
 )
 
-const LOCALE = 'en'
-
 export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false, orgId }: { aiEnabled?: boolean; searchAiLayoutDefault?: boolean; orgId?: number | null }) {
+  const t = useT('search')
+  const locale = useLocale()
   const router = useRouter()
   const rawParams = useSearchParams()
   const searchParams = decodeSearchParams(rawParams)
@@ -201,12 +202,12 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
 
       <div>
         <h2 className="text-lg font-semibold text-[var(--color-text)]">
-          {isLoading ? 'Searching…' : data
-            ? `${allRooms.length} room type${allRooms.length !== 1 ? 's' : ''} available`
-            : 'Available rooms'}
+          {isLoading ? t('searching') : data
+            ? t('roomsAvailable', { count: String(allRooms.length) })
+            : t('availableRooms')}
         </h2>
         <p className="text-sm text-muted">
-          {nights} night{nights !== 1 ? 's' : ''} · {searchParams.rooms.reduce((s, r) => s + r.adults, 0)} adult{searchParams.rooms.reduce((s, r) => s + r.adults, 0) !== 1 ? 's' : ''}
+          {nights} {nights !== 1 ? t('nightPlural') : t('nightSingular')} · {(() => { const adults = searchParams.rooms.reduce((s, r) => s + r.adults, 0); return `${adults} ${adults !== 1 ? t('adultPlural') : t('adultSingular')}` })()}
         </p>
       </div>
 
@@ -215,7 +216,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
           <svg className="h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          Prices shown in <strong className="mx-0.5">{displayCurrency}</strong> are estimates based on today&apos;s exchange rate. You will be charged in <strong className="mx-0.5">{nativeCurrency}</strong>.
+          {t('pricesEstimate', { currency: displayCurrency, chargeCurrency: nativeCurrency })}
         </div>
       )}
 
@@ -246,8 +247,8 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
 
       {data && allRooms.length === 0 && (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
-          <p className="font-medium text-[var(--color-text)]">No rooms available</p>
-          <p className="mt-1 text-sm text-muted">Try different dates or fewer guests.</p>
+          <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
+          <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
         </div>
       )}
 
@@ -258,7 +259,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
               key={room.roomId}
               room={room}
               nights={nights}
-              locale={LOCALE}
+              locale={locale}
               roomDetail={roomDetailMap.get(room.roomId)}
               remarks={data?.results.flatMap(r => r.remarks) ?? []}
               defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
@@ -269,7 +270,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
                 ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
                 : {})}
               {...(isMultiMode
-                ? { selectLabel: 'Add to booking', selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
+                ? { selectLabel: t('addToBooking'), selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
                 : {})}
             />
           ))}
@@ -280,7 +281,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
             key={room.roomId}
             room={room}
             nights={nights}
-            locale={LOCALE}
+            locale={locale}
             roomDetail={roomDetailMap.get(room.roomId)}
             remarks={data?.results.flatMap(r => r.remarks) ?? []}
             defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
@@ -291,7 +292,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
               ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
               : {})}
             {...(isMultiMode
-              ? { selectLabel: 'Add to booking', selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
+              ? { selectLabel: t('addToBooking'), selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
               : {})}
           />
         ))
@@ -360,11 +361,11 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
                       <p className="truncate text-xs text-muted">{item.rate.ratePlanName}</p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold text-primary">
-                      {formatCurrency(convert(item.rate.prices.sell.amount), dispCur, LOCALE)}
+                      {formatCurrency(convert(item.rate.prices.sell.amount), dispCur, locale)}
                     </span>
                     <button
                       onClick={() => setCartItems(prev => prev.filter(i => i.key !== item.key))}
-                      aria-label="Remove room"
+                      aria-label={t('removeRoom')}
                       className="shrink-0 rounded-full p-1 text-muted transition-colors hover:bg-[var(--color-error-light)] hover:text-error"
                     >
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -387,7 +388,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-[var(--color-text)]">
-                    {cartItems.length} of {effectiveMaxRooms} room{effectiveMaxRooms !== 1 ? 's' : ''} selected
+                    {t('roomsSelected', { selected: String(cartItems.length), max: String(effectiveMaxRooms) })}
                   </p>
                   <p className="truncate text-xs text-muted">
                     {cartItems.map(i => i.room.roomName).join(' · ')}
@@ -399,14 +400,14 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
               <div className="flex shrink-0 items-center gap-3">
                 <div className="text-right">
                   <p className="text-sm font-bold text-[var(--color-text)]">
-                    {formatCurrency(cartTotal, dispCur, LOCALE)}
+                    {formatCurrency(cartTotal, dispCur, locale)}
                   </p>
-                  <p className="text-xs text-muted">{nights} night{nights !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-muted">{nights} {nights !== 1 ? t('nightPlural') : t('nightSingular')}</p>
                 </div>
 
                 <button
                   onClick={() => setCartExpanded(v => !v)}
-                  aria-label={cartExpanded ? 'Collapse cart' : 'Expand cart'}
+                  aria-label={cartExpanded ? t('collapseCart') : t('expandCart')}
                   className="rounded-lg border border-[var(--color-border)] p-2 text-muted transition-colors hover:border-primary hover:text-primary"
                 >
                   <svg
@@ -421,7 +422,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
                   onClick={handleCartBook}
                   className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)]"
                 >
-                  Book {cartItems.length} room{cartItems.length !== 1 ? 's' : ''} →
+                  {t('bookRooms', { count: String(cartItems.length) })}
                 </button>
               </div>
             </div>

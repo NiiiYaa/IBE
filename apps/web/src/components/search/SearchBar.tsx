@@ -8,7 +8,7 @@ import { encodeSearchParams } from '@/lib/search-params'
 import { countryFlag, countryName } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { usePreferences } from '@/context/preferences'
-import { useT } from '@/context/translations'
+import { useT, useLocale } from '@/context/translations'
 import { useAiMode } from '@/context/ai-mode'
 import { useSearchSelection } from '@/context/search-selection'
 import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
@@ -137,6 +137,7 @@ export function SearchBar({
 
   const detectedCountry = useCountryDetect()
   const t = useT('search')
+  const locale = useLocale()
   const { currency } = usePreferences()
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(selectedPropertyId)
   const { data: groupConfig } = usePublicGroupConfig(selectedPropertyId)
@@ -190,10 +191,10 @@ export function SearchBar({
   const totalInfants = rooms.reduce((s, r) => s + r.infants, 0)
 
   const guestParts = [
-    `${totalAdults} Adult${totalAdults !== 1 ? 's' : ''}`,
-    totalChildren > 0 ? `${totalChildren} Child${totalChildren !== 1 ? 'ren' : ''}` : null,
-    totalInfants > 0 ? `${totalInfants} Infant${totalInfants !== 1 ? 's' : ''}` : null,
-    `${rooms.length} Room${rooms.length !== 1 ? 's' : ''}`,
+    `${totalAdults} ${totalAdults !== 1 ? t('adultPlural') : t('adultSingular')}`,
+    totalChildren > 0 ? `${totalChildren} ${totalChildren !== 1 ? t('childPlural') : t('childSingular')}` : null,
+    totalInfants > 0 ? `${totalInfants} ${totalInfants !== 1 ? t('infantPlural') : t('infantSingular')}` : null,
+    `${rooms.length} ${rooms.length !== 1 ? t('roomPlural') : t('roomSingular')}`,
   ].filter(Boolean)
   const guestSummary = guestParts.join(' · ')
 
@@ -292,8 +293,8 @@ export function SearchBar({
             {showCitySelector && cities.length > 1 && (
               <>
                 <Segment
-                  label="City"
-                  value={selectedCity || 'All'}
+                  label={t('city')}
+                  value={selectedCity || t('allCities')}
                   active={activePanel === 'city'}
                   onClick={() => openPanel('city')}
                   flex={0.7}
@@ -305,8 +306,8 @@ export function SearchBar({
             {properties && properties.length > 1 && (
               <>
                 <Segment
-                  label="Hotel"
-                  value={selectedProperty?.name ?? 'Select property'}
+                  label={t('hotel')}
+                  value={selectedProperty?.name ?? t('selectProperty')}
                   active={activePanel === 'property'}
                   onClick={() => openPanel('property')}
                   flex={2.5}
@@ -316,8 +317,8 @@ export function SearchBar({
             )}
 
             <Segment
-              label="Check-in"
-              value={displayDate(checkIn) || 'Select date'}
+              label={t('checkIn')}
+              value={displayDate(checkIn, locale) || t('selectDate')}
               active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
               onClick={() => openCalendar('checkin')}
               flex={1.8}
@@ -326,8 +327,8 @@ export function SearchBar({
             <Divider />
 
             <Segment
-              label="Check-out"
-              value={displayDate(checkOut) || 'Select date'}
+              label={t('checkOut')}
+              value={displayDate(checkOut, locale) || t('selectDate')}
               active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
               onClick={() => openCalendar('checkout')}
               flex={1.8}
@@ -337,7 +338,7 @@ export function SearchBar({
 
             <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
               <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
-                Nights
+                {t('nights')}
               </span>
               <span className="text-sm font-semibold text-[var(--color-text)]">
                 {nights > 0 ? nights : '—'}
@@ -389,7 +390,7 @@ export function SearchBar({
           onClick={() => setShowPromo(v => !v)}
           className="text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
         >
-          {showPromo ? 'Hide promo code ▴' : 'I have Promo code ▾'}
+          {showPromo ? `${t('hidePromoCode')} ▴` : `${t('havePromoCode')} ▾`}
         </button>
         {showPromo && (
           <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-lg ring-1 ring-black/10">
@@ -422,7 +423,7 @@ export function SearchBar({
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-[var(--color-text-muted)]">
             {checkIn && checkOut
-              ? `${displayDate(checkIn)} – ${displayDate(checkOut)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
+              ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
               : 'Select dates'}
           </p>
           <p className="truncate text-sm font-semibold text-[var(--color-text)]">{guestSummary}</p>
@@ -454,8 +455,8 @@ export function SearchBar({
             {/* City selector */}
             {showCitySelector && cities.length > 1 && (
               <MobileSection
-                label="City"
-                value={selectedCity || 'All cities'}
+                label={t('city')}
+                value={selectedCity || t('allCities')}
                 open={mobilePanel === 'city'}
                 onToggle={() => { if (mobilePanel === 'city') setCitySearch(''); toggleMobilePanel('city') }}
               >
@@ -469,7 +470,7 @@ export function SearchBar({
                   />
                 )}
                 <div className="space-y-1">
-                  {[{ value: '', label: 'All cities' }, ...cities.map(c => ({ value: c, label: c }))]
+                  {[{ value: '', label: t('allCities') }, ...cities.map(c => ({ value: c, label: c }))]
                     .filter(({ value, label }) => !citySearch || value === '' || label.toLowerCase().includes(citySearch.toLowerCase()))
                     .map(({ value, label }) => (
                       <button
@@ -491,8 +492,8 @@ export function SearchBar({
             {/* Property selector */}
             {properties && properties.length > 1 && (
               <MobileSection
-                label="Property"
-                value={selectedProperty?.name ?? 'Select property'}
+                label={t('hotel')}
+                value={selectedProperty?.name ?? t('selectProperty')}
                 open={mobilePanel === 'property'}
                 onToggle={() => { if (mobilePanel === 'property') setPropertySearch(''); toggleMobilePanel('property') }}
               >
@@ -529,7 +530,7 @@ export function SearchBar({
             <MobileSection
               label="Dates"
               value={checkIn && checkOut
-                ? `${displayDate(checkIn)} – ${displayDate(checkOut)}${nights > 0 ? ` (${nights} night${nights !== 1 ? 's' : ''})` : ''}`
+                ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` (${nights} night${nights !== 1 ? 's' : ''})` : ''}`
                 : 'Select dates'}
               open={mobilePanel === 'calendar'}
               onToggle={() => toggleMobilePanel('calendar')}
@@ -624,8 +625,8 @@ export function SearchBar({
             </div>
           )}
           <div className="max-h-64 overflow-y-auto">
-            {[{ value: '', label: 'All' }, ...cities.map(c => ({ value: c, label: c }))]
-              .filter(({ value, label }) => !citySearch || label === 'All' || label.toLowerCase().includes(citySearch.toLowerCase()))
+            {[{ value: '', label: t('allCities') }, ...cities.map(c => ({ value: c, label: c }))]
+              .filter(({ value, label }) => !citySearch || value === '' || label.toLowerCase().includes(citySearch.toLowerCase()))
               .map(({ value, label }) => (
                 <button
                   key={value || '__all__'}

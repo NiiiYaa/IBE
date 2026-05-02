@@ -35,6 +35,7 @@ export function PropertyDetailModal({
   id, name, starRating, imageUrl, city, address, description, facilities, onClose,
 }: PropertyDetailModalProps) {
   const t = useT('search')
+  const tProps = useT('properties')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
@@ -105,7 +106,7 @@ export function PropertyDetailModal({
 
           {popularFacilities.length > 0 && (
             <div className="mb-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Highlights</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">{tProps('highlights')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {popularFacilities.map(f => (
                   <span key={f.id} className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-primary-light)] px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -118,7 +119,7 @@ export function PropertyDetailModal({
 
           {categoryGroups.size > 0 && (
             <div className="mb-4 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">All Amenities</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">{tProps('allAmenities')}</p>
               {Array.from(categoryGroups.entries()).map(([cat, items]) => (
                 <div key={cat}>
                   <p className="mb-1 text-xs font-medium text-[var(--color-text)]">{cat}</p>

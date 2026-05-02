@@ -133,6 +133,8 @@ export function BookingContent() {
             checkIn={searchParams.checkIn}
             checkOut={searchParams.checkOut}
             locale={locale}
+            checkInTime={hotelConfig?.checkInTime ?? null}
+            checkOutTime={hotelConfig?.checkOutTime ?? null}
           />
         </div>
       </div>

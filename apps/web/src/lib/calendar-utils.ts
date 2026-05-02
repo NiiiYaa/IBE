@@ -29,16 +29,16 @@ export function toIso(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-export function monthTitle(ym: string): string {
+export function monthTitle(ym: string, locale = 'en'): string {
   const [y, m] = ym.split('-').map(Number) as [number, number]
-  return new Date(y, m - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' })
+  return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
 }
 
-/** Formats a YYYY-MM-DD string as "Mon, May 27". */
-export function displayDate(iso: string): string {
+/** Formats a YYYY-MM-DD string as "Mon, May 27" (localised). */
+export function displayDate(iso: string, locale = 'en'): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
-  return new Date(y, m - 1, d).toLocaleDateString('en', {
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',

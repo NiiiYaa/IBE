@@ -43,25 +43,22 @@ interface BookingSummaryProps {
   checkIn: string
   checkOut: string
   locale: string
+  checkInTime?: string | null
+  checkOutTime?: string | null
 }
 
-export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSummaryProps) {
+export function BookingSummary({ rooms, checkIn, checkOut, locale, checkInTime, checkOutTime }: BookingSummaryProps) {
   const t = useT('booking')
   const tRooms = useT('rooms')
+  const tSearch = useT('search')
   const nights = nightsBetween(checkIn, checkOut)
   const [showNightly, setShowNightly] = useState(false)
 
-  const formatDateShort = (d: string) => {
-    const [year, month, day] = d.split('-').map(Number) as [number, number, number]
-    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-    return `${day}-${MONTHS[month - 1]}-${year}`
-  }
+  const formatDateShort = (d: string) =>
+    new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(d + 'T12:00:00'))
 
-  const formatDateNight = (d: string) => {
-    const [, month, day] = d.split('-').map(Number) as [number, number, number]
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    return `${day} ${MONTHS[month - 1]}`
-  }
+  const formatDateNight = (d: string) =>
+    new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(d + 'T12:00:00'))
 
   const currency = rooms[0]?.rate.prices.sell.currency ?? 'USD'
   const total = rooms.reduce((s, { rate }) => s + rate.prices.sell.amount, 0)
@@ -99,6 +96,13 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
           </div>
         </div>
 
+        {(checkInTime || checkOutTime) && (
+          <div className="flex justify-between text-xs text-muted">
+            {checkInTime && <span>{t('checkInFrom', { time: checkInTime })}</span>}
+            {checkOutTime && <span>{t('checkOutUntil', { time: checkOutTime })}</span>}
+          </div>
+        )}
+
         <div className="border-t border-[var(--color-border)]" />
 
         {/* Rooms */}
@@ -132,7 +136,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
                 )}
               </div>
               <div className="mt-1 flex justify-between text-xs text-muted">
-                <span>{nights} night{nights !== 1 ? 's' : ''}</span>
+                <span>{nights} {nights !== 1 ? tSearch('nightPlural') : tSearch('nightSingular')}</span>
                 <span className="font-medium text-[var(--color-text)]">
                   {formatCurrency(rate.prices.sell.amount, rate.prices.sell.currency, locale)}
                 </span>

@@ -94,7 +94,7 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
           </p>
           {nights > 1 && (
             <p className="text-xs text-muted">
-              {formatCurrency(Math.round(perNight), dispCur, locale)}/night
+              {t('perNightFormat', { amount: formatCurrency(Math.round(perNight), dispCur, locale) })}
             </p>
           )}
         </div>

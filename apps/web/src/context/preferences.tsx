@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 
+const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur'])
+
 interface PreferencesContextValue {
   locale: string
   currency: string
@@ -26,6 +28,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (savedLocale) setLocaleState(savedLocale)
     if (savedCurrency) setCurrencyState(savedCurrency)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.lang = locale
+    document.documentElement.dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr'
+  }, [locale])
 
   function setLocale(v: string) {
     setLocaleState(v)

@@ -223,6 +223,8 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     chainHeroImageUrl: orgDefaults?.chainHeroImageUrl ?? null,
     emailEnabled: commSettings?.emailEnabled ?? false,
     whatsappEnabled: commSettings?.whatsappEnabled ?? false,
+    checkInTime: config?.checkInTime ?? null,
+    checkOutTime: config?.checkOutTime ?? null,
   }
 }
 
@@ -311,6 +313,8 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
     emailEnabled: false,
     whatsappEnabled: false,
+    checkInTime: null,
+    checkOutTime: null,
   }
 }
 
@@ -369,6 +373,8 @@ export async function upsertHotelDesignConfig(
     ...(updates.searchAiLayoutDefault != null && { searchAiLayoutDefault: updates.searchAiLayoutDefault }),
     ...(updates.tripadvisorHotelKey !== undefined && { tripadvisorHotelKey: updates.tripadvisorHotelKey }),
     ...(updates.priceComparisonEnabled !== undefined && { priceComparisonEnabled: updates.priceComparisonEnabled }),
+    ...(updates.checkInTime !== undefined && { checkInTime: updates.checkInTime }),
+    ...(updates.checkOutTime !== undefined && { checkOutTime: updates.checkOutTime }),
   }
 
   await prisma.hotelConfig.upsert({
@@ -557,6 +563,8 @@ function rowToOrgDefaults(row: {
   aiLayoutDefault?: boolean | null; searchAiLayoutDefault?: boolean | null
   chainHeroImageUrl?: string | null
   chainExcludedPropertyImageIds?: string | null
+  checkInTime?: string | null
+  checkOutTime?: string | null
 } | null): OrgDesignDefaultsConfig {
   return {
     colorPrimary: row?.colorPrimary ?? null,
@@ -602,6 +610,8 @@ function rowToOrgDefaults(row: {
     searchAiLayoutDefault: row?.searchAiLayoutDefault ?? null,
     chainHeroImageUrl: row?.chainHeroImageUrl ?? null,
     chainExcludedPropertyImageIds: safeParseJson<number[]>(row?.chainExcludedPropertyImageIds ?? null, []),
+    checkInTime: row?.checkInTime ?? null,
+    checkOutTime: row?.checkOutTime ?? null,
   }
 }
 

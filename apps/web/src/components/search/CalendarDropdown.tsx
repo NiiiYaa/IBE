@@ -158,7 +158,7 @@ export function CalendarDropdown({
           </NavBtn>
 
           <span className="text-sm font-semibold text-[var(--color-text)]">
-            {monthTitle(viewMonth)}
+            {monthTitle(viewMonth, locale)}
           </span>
 
           <div className="flex items-center gap-1">
@@ -192,8 +192,8 @@ export function CalendarDropdown({
 
         {/* Summary */}
         <div className="mt-3 grid grid-cols-3 gap-1 border-t border-[var(--color-border)] pt-3">
-          <SummaryItem label={effectiveLabelStart} value={checkIn ? displayDate(checkIn) : '—'} />
-          <SummaryItem label={effectiveLabelEnd} value={checkOut ? displayDate(checkOut) : '—'} />
+          <SummaryItem label={effectiveLabelStart} value={checkIn ? displayDate(checkIn, locale) : '—'} />
+          <SummaryItem label={effectiveLabelEnd} value={checkOut ? displayDate(checkOut, locale) : '—'} />
           <SummaryItem label={effectiveLabelDuration} value={nights > 0 ? String(nights) : '—'} />
         </div>
       </div>
@@ -217,8 +217,8 @@ export function CalendarDropdown({
         >
           ‹
         </NavBtn>
-        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} {...dayProps} />
-        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} {...dayProps} />
+        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} locale={locale} {...dayProps} />
+        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} locale={locale} {...dayProps} />
         <NavBtn onClick={() => setViewMonth(m => addMonths(m, 1))} aria-label="Next month">
           ›
         </NavBtn>
@@ -382,6 +382,7 @@ function InlineMonthGrid({
 interface DropdownMonthGridProps extends DayProps {
   ym: string
   weekdays: string[]
+  locale: string
 }
 
 function DropdownMonthGrid({
@@ -397,6 +398,7 @@ function DropdownMonthGrid({
   onDayHover,
   onMouseLeave,
   weekdays,
+  locale,
 }: DropdownMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
   const days = daysInMonth(year, month)
@@ -411,7 +413,7 @@ function DropdownMonthGrid({
   return (
     <div className="w-[224px]" onMouseLeave={onMouseLeave}>
       <p className="mb-3 text-center text-sm font-semibold text-[var(--color-text)]">
-        {monthTitle(ym)}
+        {monthTitle(ym, locale)}
       </p>
 
       <div className="grid grid-cols-7">

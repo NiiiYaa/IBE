@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useT } from '@/context/translations'
 import { usePreferences } from '@/context/preferences'
 import { useSearchSelection } from '@/context/search-selection'
 import { localeName, localeFlag } from '@/lib/locales'
@@ -110,6 +111,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ── Guest account button ──────────────────────────────────────────────────────
 
 function GuestAccountButton() {
+  const tAccount = useT('account')
   const { guest, isLoading, isAuthenticated } = useGuestAuth()
   const pathname = usePathname()
   const rawSearchParams = useSearchParams()
@@ -143,7 +145,7 @@ function GuestAccountButton() {
       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
-      <span className="hidden sm:inline">Sign in</span>
+      <span className="hidden sm:inline">{tAccount('signIn')}</span>
     </Link>
   )
 }
@@ -152,6 +154,8 @@ function GuestAccountButton() {
 
 function LanguageSelector({ enabledLocales }: { enabledLocales: string[] }) {
   const { locale, setLocale } = usePreferences()
+
+  const others = enabledLocales.filter(c => c !== locale)
 
   return (
     <Dropdown
@@ -164,10 +168,15 @@ function LanguageSelector({ enabledLocales }: { enabledLocales: string[] }) {
     >
       {close => (
         <div className="py-1">
-          {enabledLocales.map(code => (
+          <Option key={locale} active onClick={() => close()}>
+            <span className="text-base leading-none">{localeFlag(locale)}</span>
+            <span>{localeName(locale)}</span>
+          </Option>
+          {others.length > 0 && <div className="mx-4 my-1 border-t border-[var(--color-border)]" />}
+          {others.map(code => (
             <Option
               key={code}
-              active={locale === code}
+              active={false}
               onClick={() => { setLocale(code); close() }}
             >
               <span className="text-base leading-none">{localeFlag(code)}</span>
@@ -188,10 +197,9 @@ function CurrencySelector({ enabledCurrencies }: { enabledCurrencies: string[] }
   const pathname = usePathname()
   const rawParams = useSearchParams()
 
-  const pinnedSet = enabledCurrencies.length > 0 ? new Set(enabledCurrencies) : new Set(TOP_CURRENCIES)
-  const topList = TOP_CURRENCIES.filter(c => pinnedSet.has(c))
-  const topSet = new Set(topList)
-  const allList = ALL_CURRENCIES.filter(c => !topSet.has(c))
+  const restricted = enabledCurrencies.length > 0
+  const baseList = restricted ? enabledCurrencies : [...TOP_CURRENCIES, ...ALL_CURRENCIES.filter(c => !new Set(TOP_CURRENCIES).has(c))]
+  const others = baseList.filter(c => c !== currency)
 
   function handleSelect(code: string, close: () => void) {
     setCurrency(code)
@@ -210,22 +218,14 @@ function CurrencySelector({ enabledCurrencies }: { enabledCurrencies: string[] }
     <Dropdown trigger={<span>{currencyName(currency)}</span>} width="360px">
       {close => (
         <div className="max-h-80 overflow-y-auto py-1">
-          {topList.length > 0 && (
-            <>
-              <SectionLabel>Top currencies</SectionLabel>
-              {topList.map(code => (
-                <Option key={code} active={currency === code} onClick={() => handleSelect(code, close)}>
-                  <span className="w-8 shrink-0 text-center text-sm font-semibold text-[var(--color-text-muted)]">{currencySymbol(code)}</span>
-                  <span className="w-12 shrink-0 font-semibold text-[var(--color-text)]">{code}</span>
-                  <span className="text-[var(--color-text-muted)]">{currencyName(code)}</span>
-                </Option>
-              ))}
-              <div className="mx-4 my-2 border-t border-[var(--color-border)]" />
-              <SectionLabel>All currencies</SectionLabel>
-            </>
-          )}
-          {allList.map(code => (
-            <Option key={code} active={currency === code} onClick={() => handleSelect(code, close)}>
+          <Option active onClick={() => close()}>
+            <span className="w-8 shrink-0 text-center text-sm font-semibold text-[var(--color-text-muted)]">{currencySymbol(currency)}</span>
+            <span className="w-12 shrink-0 font-semibold text-[var(--color-text)]">{currency}</span>
+            <span className="text-[var(--color-text-muted)]">{currencyName(currency)}</span>
+          </Option>
+          {others.length > 0 && <div className="mx-4 my-1 border-t border-[var(--color-border)]" />}
+          {others.map(code => (
+            <Option key={code} active={false} onClick={() => handleSelect(code, close)}>
               <span className="w-8 shrink-0 text-center text-sm font-semibold text-[var(--color-text-muted)]">{currencySymbol(code)}</span>
               <span className="w-12 shrink-0 font-semibold text-[var(--color-text)]">{code}</span>
               <span className="text-[var(--color-text-muted)]">{currencyName(code)}</span>
@@ -317,6 +317,7 @@ export function HeaderSelectors({
   groupsPropertyId,
   navItems = [],
 }: HeaderSelectorsProps) {
+  const t = useT('common')
   const { setLocale, setCurrency } = usePreferences()
   const { selection } = useSearchSelection()
   const pathname = usePathname()
@@ -355,7 +356,7 @@ export function HeaderSelectors({
             href={groupsHref}
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
           >
-            {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
+            {pathname.startsWith('/groups') ? t('fit') : t('groups')}
           </a>
         )}
         {mapData && <MapButton mapData={mapData} />}
@@ -368,7 +369,7 @@ export function HeaderSelectors({
       <button
         className="sm:hidden flex items-center justify-center w-9 h-9 rounded-lg text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)]"
         onClick={() => setMenuOpen(v => !v)}
-        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
       >
         {menuOpen ? (
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,7 +406,7 @@ export function HeaderSelectors({
                   className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
                   onClick={() => setMenuOpen(false)}
                 >
-                  {pathname.startsWith('/groups') ? 'FIT' : 'Groups'}
+                  {pathname.startsWith('/groups') ? t('fit') : t('groups')}
                 </a>
               )}
               {mapData && <MapButton mapData={mapData} />}

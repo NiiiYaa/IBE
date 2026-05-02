@@ -151,7 +151,7 @@ function SystemCurrencyEditor() {
               onChange={e => set('defaultCurrency', e.target.value)}
               className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
             >
-              {ORDERED_CURRENCIES.map(code => (
+              {(enabledCurrencies.length > 0 ? enabledCurrencies : ORDERED_CURRENCIES).map(code => (
                 <option key={code} value={code}>{currencyLabel(code)}</option>
               ))}
             </select>
@@ -294,7 +294,7 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
               onChange={e => set('defaultCurrency', e.target.value)}
               className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
             >
-              {ORDERED_CURRENCIES.map(code => (
+              {(enabledCurrencies.length > 0 ? enabledCurrencies : ORDERED_CURRENCIES).map(code => (
                 <option key={code} value={code}>{currencyLabel(code)}</option>
               ))}
             </select>
@@ -377,7 +377,7 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
   if (isLoading) return <Spinner />
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
-  const currencyOptions = ORDERED_CURRENCIES.map(code => ({ value: code, label: currencyLabel(code) }))
+  const currencyOptions = (activeCurrencies.length > 0 ? activeCurrencies : ORDERED_CURRENCIES).map(code => ({ value: code, label: currencyLabel(code) }))
 
   // Full list, no restriction from chain — active ones float to top
   const enabledCurrenciesOverride = draft.enabledCurrencies as string[] | null | undefined

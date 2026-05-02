@@ -196,14 +196,14 @@ export function SearchSidebar({
         {/* Toggle button */}
         <button
           onClick={onToggle}
-          title="Expand search panel"
+          title={t('searchMode')}
           className="flex w-full flex-col items-center gap-1 px-2 py-3 text-primary hover:bg-[var(--color-primary-light)] transition-colors"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted" style={{ writingMode: 'vertical-rl' }}>
-            Search
+            {t('searchMode')}
           </span>
         </button>
 
@@ -225,11 +225,11 @@ export function SearchSidebar({
         {aiEnabled && onAiToggle && (
           <button
             onClick={onAiToggle}
-            title="Switch to AI mode"
+            title={t('switchToAiMode')}
             className="ai-mode-btn-wrap flex w-full flex-col items-center gap-1 border-t border-[var(--color-border)] px-2 py-3 text-primary hover:bg-[var(--color-primary-light)] transition-colors"
           >
             <span className="ai-spark-icon inline-flex"><AiSparkleIcon className="h-5 w-5" /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted" style={{ writingMode: 'vertical-rl' }}>AI</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted" style={{ writingMode: 'vertical-rl' }}>{t('aiMode')}</span>
           </button>
         )}
       </div>
@@ -276,7 +276,7 @@ export function SearchSidebar({
                     : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
                 ].join(' ')}
               >
-                {displayDate(checkIn) || t('selectDate')}
+                {displayDate(checkIn, locale) || t('selectDate')}
               </button>
             </div>
             <div>
@@ -292,7 +292,7 @@ export function SearchSidebar({
                     : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
                 ].join(' ')}
               >
-                {displayDate(checkOut) || t('selectDate')}
+                {displayDate(checkOut, locale) || t('selectDate')}
               </button>
             </div>
           </div>
@@ -453,7 +453,7 @@ export function SearchSidebar({
           disabled={nights <= 0}
           className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
         >
-          {nights > 0 ? `${t('search')} — ${nights} night${nights !== 1 ? 's' : ''}` : t('checkAvailability')}
+          {nights > 0 ? `${t('search')} — ${nights} ${nights !== 1 ? t('nightPlural') : t('nightSingular')}` : t('checkAvailability')}
         </button>
 
         {/* AI mode button */}

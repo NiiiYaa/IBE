@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useAiMode } from '@/context/ai-mode'
+import { useT } from '@/context/translations'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { QuiltHero } from '@/components/home/QuiltHero'
 import { PropertyGridClient, type PropertyData } from '@/components/home/PropertyGridClient'
@@ -78,6 +79,7 @@ export function HomePageClient({
   chatWidgetProps,
 }: HomePageClientProps) {
   const { aiLayout, setAiLayout } = useAiMode()
+  const tProps = useT('properties')
   const chainLabel = chainName
     ? (/^the\b/i.test(chainName) ? `Part of ${chainName} Collection` : `Part of The ${chainName} Collection`)
     : null
@@ -94,7 +96,7 @@ export function HomePageClient({
   const PropertyGrid = multiProperties && multiProperties.length > 1 ? (
     <div className="bg-[var(--color-background)] px-4 py-10">
       <div className="mx-auto max-w-6xl">
-        <h2 className="mb-6 text-2xl font-bold text-[var(--color-text)]">Our Properties</h2>
+        <h2 className="mb-6 text-2xl font-bold text-[var(--color-text)]">{tProps('ourHotels')}</h2>
         <PropertyGridClient
           initial={multiProperties}
           remaining={remainingEntries}

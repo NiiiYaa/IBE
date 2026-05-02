@@ -65,7 +65,7 @@ export async function configRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid property ID', code: IBE_ERROR_VALIDATION })
     }
     const config = await getHotelDesignConfig(propertyId)
-    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    void reply.header('Cache-Control', 'public, max-age=30, s-maxage=30')
     return reply.send(config)
   })
 
@@ -137,7 +137,7 @@ export async function configRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid org ID', code: IBE_ERROR_VALIDATION })
     }
     const config = await getOrgDesignConfig(orgId)
-    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    void reply.header('Cache-Control', 'public, max-age=30, s-maxage=30')
     return reply.send(config)
   })
 

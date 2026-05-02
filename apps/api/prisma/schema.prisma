@@ -366,6 +366,8 @@ model HotelConfig {
   searchAiLayoutDefault           Boolean  @default(false)
   tripadvisorHotelKey             String?
   priceComparisonEnabled          Boolean  @default(true)
+  checkInTime                     String?
+  checkOutTime                    String?
   isActive                        Boolean  @default(true)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt

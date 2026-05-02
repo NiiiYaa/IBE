@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useT, useLocale } from '@/context/translations'
 
 interface WeatherDay {
   date: string
@@ -146,9 +147,9 @@ function WeatherIcon({ code, size = 32 }: { code: number; size?: number }) {
 
 // ── Strip component ───────────────────────────────────────────────────────────
 
-function formatShortDate(dateStr: string): string {
+function formatShortDate(dateStr: string, locale: string): string {
   const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 interface WeatherStripProps {
@@ -159,6 +160,8 @@ interface WeatherStripProps {
 }
 
 export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherStripProps) {
+  const t = useT('weather')
+  const locale = useLocale()
   const [data, setData] = useState<WeatherData | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
@@ -201,11 +204,11 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
           </svg>
           <span className="text-xs font-medium text-[var(--color-text)]">
-            {isHistorical ? 'Historical weather data' : 'Weather forecast'}
+            {isHistorical ? t('historicalWeather') : t('weatherForecast')}
           </span>
           {isHistorical && (
             <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-              Based on last year
+              {t('basedOnLastYear')}
             </span>
           )}
         </div>
@@ -219,7 +222,7 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
           <button
             onClick={e => { e.stopPropagation(); setDismissed(true) }}
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)] transition-colors"
-            aria-label="Dismiss weather"
+            aria-label={t('dismissWeather')}
           >
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -237,7 +240,7 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
               title={day.description}
             >
               <span className="text-[9px] text-[var(--color-text-muted)] whitespace-nowrap leading-none">
-                {formatShortDate(day.date)}
+                {formatShortDate(day.date, locale)}
               </span>
               <WeatherIcon code={day.weatherCode} size={22} />
               <div className="flex items-baseline gap-0.5 leading-none">

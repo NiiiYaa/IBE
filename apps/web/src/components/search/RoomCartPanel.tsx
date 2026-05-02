@@ -45,7 +45,7 @@ export function RoomCartPanel({
         </p>
         {nights > 0 && (
           <p className="text-xs text-white/60 mt-0.5">
-            {nights} night{nights !== 1 ? 's' : ''} · {items.length}/{maxRooms} room{items.length !== 1 ? 's' : ''}
+            {nights} {nights !== 1 ? t('nightPlural') : t('nightSingular')} · {items.length}/{maxRooms} {items.length !== 1 ? t('roomPlural') : t('roomSingular')}
           </p>
         )}
       </div>
@@ -92,7 +92,7 @@ export function RoomCartPanel({
       <div className="shrink-0 border-t border-[var(--color-border)] p-4 space-y-2">
         {items.length < maxRooms && (
           <p className="text-center text-xs text-[var(--color-text-muted)]">
-            You can add up to {maxRooms - items.length} more room{maxRooms - items.length !== 1 ? 's' : ''}
+            {maxRooms - items.length === 1 ? t('canAddMoreRoom') : t('canAddMoreRooms', { count: String(maxRooms - items.length) })}
           </p>
         )}
         <button
@@ -100,7 +100,7 @@ export function RoomCartPanel({
           disabled={items.length === 0}
           className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {items.length === 0 ? 'Add rooms to book' : `Book ${items.length} room${items.length !== 1 ? 's' : ''}`}
+          {items.length === 0 ? t('addRoomsToBook') : t('bookRooms', { count: String(items.length) })}
         </button>
       </div>
     </div>

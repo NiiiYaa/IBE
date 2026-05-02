@@ -260,6 +260,12 @@ export default function PropertyBrandPage() {
             <OverrideTextRow label="Favicon URL" hint="16×16 or 32×32 — direct link or base64 data URL"
               fieldKey="faviconUrl" placeholder="https://..."
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
+            <OverrideTextRow label="Check-in time" hint="Shown on the booking summary — e.g. 3:00 PM"
+              fieldKey="checkInTime" placeholder="e.g. 3:00 PM"
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
+            <OverrideTextRow label="Check-out time" hint="Shown on the booking summary — e.g. 12:00 PM"
+              fieldKey="checkOutTime" placeholder="e.g. 12:00 PM"
+              draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
           </Section>
 
           {/* Language */}

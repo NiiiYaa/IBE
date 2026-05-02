@@ -281,7 +281,10 @@ export async function autoTranslateMissing(
       const jsonEnd = text.lastIndexOf('}')
       if (jsonStart === -1 || jsonEnd === -1) throw new Error('AI returned no JSON')
 
-      const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as Record<string, string>
+      const raw = text.slice(jsonStart, jsonEnd + 1)
+      // AI sometimes produces invalid JSON escape sequences (e.g. \' or \h) — strip them
+      const sanitized = raw.replace(/\\([^"\\/bfnrtu])/g, (_, c: string) => c)
+      const parsed = JSON.parse(sanitized) as Record<string, string>
 
       for (const item of batch) {
         const fullKey = `${item.namespace}.${item.key}`
