@@ -7,7 +7,7 @@ import { TRANSLATION_NAMESPACES, AI_PROVIDERS, AI_PROVIDER_LABELS, AI_PROVIDER_M
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
-import { localeName, localeFlag } from '@/lib/locales'
+import { localeName, localeFlag, localeEnglishName } from '@/lib/locales'
 import { SaveBar, Section } from '../components'
 import { OverrideSelectRow, OverrideLocalesRow, OverrideToggleRow } from '../override-helpers'
 
@@ -157,7 +157,8 @@ function SystemLanguageEditor() {
                   code === 'en' ? 'cursor-default opacity-80' : '',
                 ].join(' ')}
               >
-                {localeFlag(code)} {localeName(code)}
+                {localeFlag(code)} {localeEnglishName(code)}
+                {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
               </button>
             )
           })}
@@ -178,7 +179,7 @@ function SystemLanguageEditor() {
             className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
           >
             {enabledLocales.map(code => (
-              <option key={code} value={code}>{localeFlag(code)}  {localeName(code)}</option>
+              <option key={code} value={code}>{localeFlag(code)}  {localeEnglishName(code)}</option>
             ))}
           </select>
         </div>
@@ -341,7 +342,8 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
                   code === 'en' ? 'cursor-default opacity-80' : '',
                 ].join(' ')}
               >
-                {localeFlag(code)} {localeName(code)}
+                {localeFlag(code)} {localeEnglishName(code)}
+                {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
               </button>
             )
           })}
@@ -362,7 +364,7 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
             className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
           >
             {enabledLocales.map(code => (
-              <option key={code} value={code}>{localeFlag(code)}  {localeName(code)}</option>
+              <option key={code} value={code}>{localeFlag(code)}  {localeEnglishName(code)}</option>
             ))}
           </select>
         </div>
@@ -570,12 +572,35 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
   const [selectedLocale, setSelectedLocale] = useState<string | null>(null)
   const [searchText, setSearchText] = useState('')
   const [nsFilter, setNsFilter] = useState('')
+  const [missingOnly, setMissingOnly] = useState(false)
   const [translating, setTranslating] = useState(false)
   const [translateCount, setTranslateCount] = useState(0)
   const [translateError, setTranslateError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const localeOptions = enabledLocales.filter(l => l !== 'en')
+
+  const { data: translationStatus } = useQuery({
+    queryKey: ['translation-status'],
+    queryFn: () => apiClient.getTranslationStatus(),
+    staleTime: 60_000,
+  })
+
+  const { data: translationTotal } = useQuery({
+    queryKey: ['translation-total'],
+    queryFn: () => apiClient.getTranslationTotal(),
+    staleTime: Infinity,
+  })
+
+  const allLanguagesMissing = useMemo(() => {
+    if (!translationStatus || !translationTotal) return null
+    const total = translationTotal.total
+    return localeOptions.reduce((sum, code) => {
+      const row = translationStatus.find(s => s.locale === code)
+      const translated = row ? row.namespaces.reduce((s, n) => s + n.translated, 0) : 0
+      return sum + (total - translated)
+    }, 0)
+  }, [translationStatus, translationTotal, localeOptions])
 
   // Fetch all namespaces in parallel for selected locale
   const { data: allRowsByNs, isLoading: rowsLoading, isError: rowsError, refetch: refetchRows } = useQuery({
@@ -600,6 +625,7 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
       .map(({ namespace, rows }) => {
         let filtered = rows
         if (nsFilter && namespace !== nsFilter) return { namespace, rows: [] }
+        if (missingOnly) filtered = filtered.filter(r => !r.value)
         if (searchText) {
           const q = searchText.toLowerCase()
           filtered = filtered.filter(r =>
@@ -611,7 +637,41 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
         return { namespace, rows: filtered }
       })
       .filter(g => g.rows.length > 0)
-  }, [allRowsByNs, nsFilter, searchText])
+  }, [allRowsByNs, nsFilter, searchText, missingOnly])
+
+  async function streamTranslate(locale: string, limit?: number) {
+    const res = await fetch('/api/v1/admin/design/translations/auto-translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ locale, ...(limit ? { limit } : {}) }),
+      signal: abortRef.current!.signal,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string }
+      throw new Error(err.error ?? `Server error ${res.status}`)
+    }
+    if (!res.body) return
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const event = JSON.parse(line.slice(6)) as AutoTranslateProgressEvent
+          if (event.type === 'progress') setTranslateCount(c => c + 1)
+          if (event.type === 'error') setTranslateError(event.message)
+          if (event.type === 'done') void qc.invalidateQueries({ queryKey: ['translation-status'] })
+        } catch { /* ignore parse errors */ }
+      }
+    }
+  }
 
   async function runTranslate(limit?: number) {
     if (!selectedLocale || translating) return
@@ -620,41 +680,27 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
     setTranslateError(null)
     abortRef.current = new AbortController()
     try {
-      const res = await fetch('/api/v1/admin/design/translations/auto-translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ locale: selectedLocale, ...(limit ? { limit } : {}) }),
-        signal: abortRef.current.signal,
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string }
-        setTranslateError(err.error ?? `Server error ${res.status}`)
-        return
+      await streamTranslate(selectedLocale, limit)
+      void refetchRows()
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setTranslateError((err as Error).message ?? 'Translation failed')
+    } finally {
+      setTranslating(false)
+    }
+  }
+
+  async function runTranslateAll() {
+    if (!window.confirm('Are you sure? This will AI-translate all missing strings for every language.')) return
+    if (translating) return
+    setTranslating(true)
+    setTranslateCount(0)
+    setTranslateError(null)
+    abortRef.current = new AbortController()
+    try {
+      for (const locale of localeOptions) {
+        await streamTranslate(locale)
       }
-      if (!res.body) return
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop() ?? ''
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          try {
-            const event = JSON.parse(line.slice(6)) as AutoTranslateProgressEvent
-            if (event.type === 'progress') setTranslateCount(c => c + 1)
-            if (event.type === 'error') setTranslateError(event.message)
-            if (event.type === 'done') {
-              void refetchRows()
-              void qc.invalidateQueries({ queryKey: ['translation-status'] })
-            }
-          } catch { /* ignore parse errors */ }
-        }
-      }
+      void refetchRows()
     } catch (err) {
       if ((err as Error).name !== 'AbortError') setTranslateError((err as Error).message ?? 'Translation failed')
     } finally {
@@ -678,16 +724,25 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
             Review and edit UI string translations per language.
           </p>
         </div>
-        <select
-          value={selectedLocale ?? ''}
-          onChange={e => { setSelectedLocale(e.target.value || null); setSearchText(''); setNsFilter('') }}
-          className={ctrlCls}
-        >
-          <option value="">Select language…</option>
-          {localeOptions.map(code => (
-            <option key={code} value={code}>{localeFlag(code)}  {localeName(code)}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            disabled={translating || allLanguagesMissing === 0}
+            onClick={runTranslateAll}
+            className={`${btnCls} text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]`}
+          >
+            {translating ? <>{spinner} {progressLabel}</> : `All Languages [${allLanguagesMissing ?? '…'}]`}
+          </button>
+          <select
+            value={selectedLocale ?? ''}
+            onChange={e => { setSelectedLocale(e.target.value || null); setSearchText(''); setNsFilter('') }}
+            className={ctrlCls}
+          >
+            <option value="">Select language…</option>
+            {localeOptions.map(code => (
+              <option key={code} value={code}>{localeFlag(code)}  {localeEnglishName(code)}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {selectedLocale && (
@@ -717,6 +772,15 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
                 onChange={e => setSearchText(e.target.value)}
                 className={`${ctrlCls} w-44`}
               />
+              <button
+                onClick={() => setMissingOnly(v => !v)}
+                className={[btnCls, missingOnly
+                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                  : 'text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                Missing
+              </button>
               <select value={nsFilter} onChange={e => setNsFilter(e.target.value)} className={ctrlCls}>
                 <option value="">All pages</option>
                 {TRANSLATION_NAMESPACES.map(ns => (
@@ -743,7 +807,7 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
             </p>
           ) : filteredGroups.length === 0 ? (
             <p className="py-10 text-center text-sm text-[var(--color-text-muted)]">
-              {searchText || nsFilter ? 'No strings match your filters.' : 'All strings are translated.'}
+              {missingOnly && !searchText && !nsFilter ? 'All strings are translated for this language.' : searchText || nsFilter || missingOnly ? 'No strings match your filters.' : 'All strings are translated.'}
             </p>
           ) : (
             <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
@@ -989,8 +1053,8 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   const sysPool: string[] = (sysDefs.enabledLocales as string[] | null | undefined) ?? ALL_LOCALES
   const orgPool = (orgDefaults.enabledLocales as string[] | null | undefined)
   const langPool: string[] = orgPool ? orgPool.filter(c => sysPool.includes(c)) : sysPool
-  const localeOptions = langPool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeName(code)}` }))
-  const localeItems = langPool.map(code => ({ code, label: `${localeFlag(code)} ${localeName(code)}` }))
+  const localeOptions = langPool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeEnglishName(code)}` }))
+  const localeItems = langPool.map(code => ({ code, label: `${localeFlag(code)} ${localeEnglishName(code)}` }))
   const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
   const rawActiveLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
   const activeLocales = rawActiveLocales.includes('en') ? rawActiveLocales : ['en', ...rawActiveLocales]
@@ -1122,7 +1186,10 @@ function TranslationStats({
             </tr>
           ) : stats.map(({ code, translated, missing, pct }) => (
             <tr key={code} className="border-b border-[var(--color-border)] last:border-0">
-              <td className="px-4 py-2.5 text-sm text-[var(--color-text)]">{localeFlag(code)} {localeName(code)}</td>
+              <td className="px-4 py-2.5 text-sm text-[var(--color-text)]">
+                {localeFlag(code)} {localeEnglishName(code)}
+                {code !== 'en' && <span className="ml-1 text-xs text-[var(--color-text-muted)]">· {localeName(code)}</span>}
+              </td>
               <td className="px-4 py-2.5 text-sm text-right tabular-nums text-[var(--color-text)]">{translated}</td>
               <td className="px-4 py-2.5 text-sm text-right tabular-nums">
                 {missing > 0
@@ -1175,7 +1242,10 @@ function LocaleOrderEditor({
       <div className="flex flex-col gap-1">
         {locales.map((code, idx) => (
           <div key={code} className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-            <span className="flex-1 text-sm text-[var(--color-text)]">{localeFlag(code)} {localeName(code)}</span>
+            <span className="flex-1 text-sm text-[var(--color-text)]">
+              {localeFlag(code)} {localeEnglishName(code)}
+              {code !== 'en' && <span className="ml-1 text-xs text-[var(--color-text-muted)]">· {localeName(code)}</span>}
+            </span>
             <div className="flex flex-col gap-0">
               <button
                 type="button"

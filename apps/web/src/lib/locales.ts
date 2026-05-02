@@ -1,3 +1,26 @@
+const LOCALE_ENGLISH_NAMES: Record<string, string> = {
+  en: 'English', de: 'German', fr: 'French', es: 'Spanish', it: 'Italian',
+  pt: 'Portuguese', nl: 'Dutch', ru: 'Russian', pl: 'Polish', sv: 'Swedish',
+  da: 'Danish', nb: 'Norwegian', fi: 'Finnish', cs: 'Czech', sk: 'Slovak',
+  hu: 'Hungarian', ro: 'Romanian', el: 'Greek', uk: 'Ukrainian', bg: 'Bulgarian',
+  hr: 'Croatian', sr: 'Serbian', sl: 'Slovenian', lt: 'Lithuanian', lv: 'Latvian',
+  et: 'Estonian', mk: 'Macedonian', sq: 'Albanian', bs: 'Bosnian', ca: 'Catalan',
+  gl: 'Galician', eu: 'Basque', is: 'Icelandic', mt: 'Maltese', cy: 'Welsh',
+  ga: 'Irish', af: 'Afrikaans',
+  ar: 'Arabic', he: 'Hebrew', tr: 'Turkish', fa: 'Persian', ur: 'Urdu',
+  az: 'Azerbaijani', ka: 'Georgian', hy: 'Armenian', kk: 'Kazakh', uz: 'Uzbek',
+  hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu', ml: 'Malayalam',
+  gu: 'Gujarati', pa: 'Punjabi', mr: 'Marathi', ne: 'Nepali', si: 'Sinhala',
+  zh: 'Chinese', ja: 'Japanese', ko: 'Korean', th: 'Thai', vi: 'Vietnamese',
+  id: 'Indonesian', ms: 'Malay', tl: 'Filipino', my: 'Burmese', km: 'Khmer',
+  lo: 'Lao', mn: 'Mongolian',
+  sw: 'Swahili', am: 'Amharic', yo: 'Yoruba', zu: 'Zulu',
+}
+
+export function localeEnglishName(code: string): string {
+  return LOCALE_ENGLISH_NAMES[code] ?? code.toUpperCase()
+}
+
 const LOCALE_NAMES: Record<string, string> = {
   // European
   en: 'English',
