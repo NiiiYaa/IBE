@@ -44,9 +44,9 @@ export function CalendarDropdown({
   const locale = useLocale()
 
   const weekdays = useMemo(() => {
-    // Jan 3, 2021 was a Sunday
+    // Jan 3, 2021 was a Sunday — use 'narrow' so every locale fits in a single cell
     return Array.from({ length: 7 }, (_, i) =>
-      new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2021, 0, 3 + i))
+      new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(2021, 0, 3 + i))
     )
   }, [locale])
 
@@ -419,7 +419,7 @@ function DropdownMonthGrid({
       <div className="grid grid-cols-7">
         {weekdays.map((d, i) => (
           <div key={i} className="flex h-8 items-center justify-center text-[10px] font-medium uppercase text-[var(--color-text-muted)]">
-            {d.slice(0, 2)}
+            {d}
           </div>
         ))}
 
