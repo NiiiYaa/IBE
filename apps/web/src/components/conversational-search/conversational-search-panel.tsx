@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useChat } from './use-chat'
 import { SearchResultCards, BookingHandoffCard } from './room-cards'
 import { MarkdownContent } from './markdown-content'
+import { useT } from '@/context/translations'
 import type { GuestChatMessage } from '@ibe/shared'
 import type { SearchResult, BookingHandoff } from './types'
 
@@ -13,13 +14,6 @@ interface Props {
   onClose?: () => void
   className?: string
 }
-
-const SUGGESTIONS = [
-  'I need a room for 2 adults next weekend',
-  'Show me your best rooms in June',
-  'What rooms do you have under €150/night?',
-  'I want a room with breakfast included',
-]
 
 function SparkleIcon() {
   return (
@@ -79,12 +73,20 @@ function MessageBubble({ msg, propertyId }: { msg: GuestChatMessage; propertyId?
 }
 
 export function ConversationalSearchPanel({ propertyId, orgId, onClose, className }: Props) {
+  const t = useT('search')
   const { messages, isLoading, error, send, reset } = useChat({
     ...(propertyId ? { propertyId } : {}),
     ...(orgId ? { orgId } : {}),
   })
   const [input, setInput] = useState('')
   const [hasChatStarted, setHasChatStarted] = useState(false)
+
+  const suggestions = [
+    t('aiSuggestion1'),
+    t('aiSuggestion2'),
+    t('aiSuggestion3'),
+    t('aiSuggestion4'),
+  ]
   const inputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const hasMessages = messages.length > 0 || isLoading
@@ -160,10 +162,10 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
           {!hasMessages && (
             <div className="mb-4">
               <p className="mb-3 text-center text-sm text-[var(--color-text-muted)]">
-                Tell me what you're looking for and I'll find the perfect room.
+                {t('aiWelcome')}
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {SUGGESTIONS.map(s => (
+                {suggestions.map(s => (
                   <button
                     key={s}
                     onClick={() => { setInput(''); setHasChatStarted(true); void send(s) }}
@@ -184,7 +186,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
                   onClick={reset}
                   className="whitespace-nowrap rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
                 >
-                  New chat
+                  {t('newChat')}
                 </button>
               )}
               {onClose && (
@@ -196,7 +198,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
                     <circle cx="5.5" cy="5.5" r="4" />
                     <line x1="8.5" y1="8.5" x2="12" y2="12" />
                   </svg>
-                  Standard
+                  {t('standard')}
                 </button>
               )}
             </div>
@@ -214,7 +216,7 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
                   dir={input ? detectDir(input) : 'ltr'}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask about rooms, dates, availability…"
+                  placeholder={t('aiPlaceholder')}
                   disabled={isLoading}
                   className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-50"
                 />
@@ -226,11 +228,11 @@ export function ConversationalSearchPanel({ propertyId, orgId, onClose, classNam
               disabled={isLoading || !input.trim()}
               className="shrink-0 whitespace-nowrap rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-2xl transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isLoading ? '…' : 'Ask'}
+              {isLoading ? '…' : t('aiAsk')}
             </button>
           </div>
           <p className="mt-1.5 text-center text-[10px] text-[var(--color-text-muted)]">
-            AI-powered · Results based on live availability
+            {t('aiPowered')}
           </p>
         </div>
       </div>

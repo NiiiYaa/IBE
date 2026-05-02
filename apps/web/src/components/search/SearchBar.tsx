@@ -284,7 +284,7 @@ export function SearchBar({
             {aiEnabled && (
               <>
                 <div className="flex items-center py-2 pl-2 pr-1">
-                  <AiModeButton active={aiMode} onClick={toggleAiMode} />
+                  <AiModeButton active={aiMode} onClick={toggleAiMode} label={t('aiModeButton')} exitLabel={t('standard')} />
                 </div>
                 <Divider />
               </>
@@ -348,7 +348,7 @@ export function SearchBar({
             <Divider />
 
             <Segment
-              label="Guests"
+              label={t('guests')}
               value={guestSummary}
               active={activePanel === 'guests'}
               onClick={() => setActivePanel(p => (p === 'guests' ? null : 'guests'))}
@@ -358,7 +358,7 @@ export function SearchBar({
             <Divider />
 
             <Segment
-              label="Nationality"
+              label={t('nationality')}
               value={nationalityLabel}
               active={activePanel === 'nationality'}
               onClick={() => setActivePanel(p => (p === 'nationality' ? null : 'nationality'))}
@@ -423,13 +423,13 @@ export function SearchBar({
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-[var(--color-text-muted)]">
             {checkIn && checkOut
-              ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
-              : 'Select dates'}
+              ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${nights} ${nights !== 1 ? t('nightPlural') : t('nightSingular')}` : ''}`
+              : t('selectDates')}
           </p>
           <p className="truncate text-sm font-semibold text-[var(--color-text)]">{guestSummary}</p>
         </div>
         <span className="shrink-0 rounded-full bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow">
-          Search
+          {t('search')}
         </span>
       </button>
 
@@ -438,7 +438,7 @@ export function SearchBar({
         <div className="fixed inset-0 z-50 flex flex-col bg-white sm:hidden">
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4 py-4">
-            <h2 className="text-base font-semibold text-[var(--color-text)]">Search</h2>
+            <h2 className="text-base font-semibold text-[var(--color-text)]">{t('search')}</h2>
             <button
               onClick={() => setMobileDrawerOpen(false)}
               className="rounded-full p-2 text-[var(--color-text-muted)] transition-colors hover:bg-gray-100"
@@ -528,10 +528,10 @@ export function SearchBar({
 
             {/* Dates */}
             <MobileSection
-              label="Dates"
+              label={t('dates')}
               value={checkIn && checkOut
-                ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` (${nights} night${nights !== 1 ? 's' : ''})` : ''}`
-                : 'Select dates'}
+                ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` (${nights} ${nights !== 1 ? t('nightPlural') : t('nightSingular')})` : ''}`
+                : t('selectDates')}
               open={mobilePanel === 'calendar'}
               onToggle={() => toggleMobilePanel('calendar')}
             >
@@ -549,7 +549,7 @@ export function SearchBar({
 
             {/* Guests */}
             <MobileSection
-              label="Guests"
+              label={t('guests')}
               value={guestSummary}
               open={mobilePanel === 'guests'}
               onToggle={() => toggleMobilePanel('guests')}
@@ -567,7 +567,7 @@ export function SearchBar({
 
             {/* Nationality */}
             <MobileSection
-              label="Nationality"
+              label={t('nationality')}
               value={nationalityLabel}
               open={mobilePanel === 'nationality'}
               onToggle={() => toggleMobilePanel('nationality')}
@@ -580,11 +580,11 @@ export function SearchBar({
 
             {/* Promo code */}
             <div className="border-b border-[var(--color-border)] px-4 py-4">
-              <p className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">Promo code</p>
+              <p className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">{t('havePromoCode')}</p>
               <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2.5">
                 <input
                   type="text"
-                  placeholder="Enter promo code"
+                  placeholder={t('enterPromoCode')}
                   value={promoCode}
                   onChange={e => setPromoCode(e.target.value.toUpperCase())}
                   className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
@@ -603,7 +603,7 @@ export function SearchBar({
               disabled={nights <= 0}
               className="w-full rounded-xl bg-[var(--color-primary)] py-3.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Check availability
+              {t('checkAvailability')}
             </button>
           </div>
         </div>
@@ -787,19 +787,19 @@ function SparkleIcon({ white }: { white?: boolean }) {
 
 const AI_GRADIENT = 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 40%, #ec4899 70%, #f97316 100%)'
 
-function AiModeButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+function AiModeButton({ active, onClick, label, exitLabel }: { active: boolean; onClick: () => void; label: string; exitLabel: string }) {
   if (active) {
     return (
       <button
         onClick={onClick}
         className="flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-light)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-primary)] transition-all duration-200 hover:bg-[var(--color-border)]"
-        title="Exit AI Mode"
+        title={exitLabel}
       >
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
           <circle cx="5.5" cy="5.5" r="4" />
           <line x1="8.5" y1="8.5" x2="12" y2="12" />
         </svg>
-        Standard
+        {exitLabel}
       </button>
     )
   }
@@ -811,12 +811,12 @@ function AiModeButton({ active, onClick }: { active: boolean; onClick: () => voi
       <button
         onClick={onClick}
         className="flex items-center gap-1 rounded-full bg-white px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-colors hover:bg-white/90"
-        title="Switch to AI Mode"
+        title={label}
       >
         <span className="ai-spark-icon inline-flex">
           <SparkleIcon white={false} />
         </span>
-        AI Mode
+        {label}
       </button>
     </div>
   )
