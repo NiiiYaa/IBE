@@ -176,9 +176,9 @@ export async function translateSingleString(
   const adapter = getProviderAdapter(aiConfig.provider)
   const langName = new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale
   const result = await adapter.call(
-    [{ role: 'user', content: `Translate this hotel booking UI string to ${langName}. Return ONLY the translated text, no quotes:\n${enValue}` }],
+    [{ role: 'user', content: `Translate this hotel booking UI string to ${langName}. Return ONLY the translated text, no quotes. Keep all {placeholder} tokens exactly as-is:\n${enValue}` }],
     [],
-    `You are a hotel booking UI translator. Translate accurately and concisely to ${langName}.`,
+    `You are a hotel booking UI translator. Translate accurately and concisely to ${langName}. Never translate or rename {placeholder} tokens — they are runtime variables.`,
     aiConfig.apiKey,
     aiConfig.model,
   )
@@ -264,7 +264,7 @@ export async function autoTranslateMissing(
     const inputObj: Record<string, string> = {}
     for (const item of batch) inputObj[`${item.namespace}.${item.key}`] = item.en
 
-    const systemPrompt = `You are a hotel booking engine UI translator. Translate the English UI strings to ${localeName}. Return ONLY a valid JSON object mapping each key to its translated string. No extra text, no markdown.`
+    const systemPrompt = `You are a hotel booking engine UI translator. Translate the English UI strings to ${localeName}. Return ONLY a valid JSON object mapping each key to its translated string. No extra text, no markdown. Keep all {placeholder} tokens exactly as-is — they are runtime variables.`
     const userMessage = `Translate to ${localeName}:\n${JSON.stringify(inputObj, null, 2)}`
 
     try {
