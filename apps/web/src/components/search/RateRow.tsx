@@ -6,6 +6,7 @@ import { MealBadge } from './MealBadge'
 import { CancellationSummary } from './CancellationSummary'
 import { TaxesSummary } from './TaxesSummary'
 import { RemarksSummary } from './RemarksSummary'
+import { useT } from '@/context/translations'
 
 interface RateRowProps {
   rate: RateOption
@@ -19,7 +20,9 @@ interface RateRowProps {
   disabled?: boolean
 }
 
-export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCurrency, convert, selectLabel = 'Select', disabled = false }: RateRowProps) {
+export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCurrency, convert, selectLabel = '', disabled = false }: RateRowProps) {
+  const t = useT('rooms')
+  const effectiveSelectLabel = selectLabel || t('select')
   const conv = convert ?? ((n: number) => n)
   const dispCur = displayCurrency ?? rate.prices.sell.currency
   const price = conv(rate.prices.sell.amount)
@@ -45,26 +48,26 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
               <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
-              Free cancellation
+              {t('freeCancellation')}
             </span>
           ) : (
             <span className="inline-flex items-center rounded-full bg-[var(--color-error-light)] px-2 py-0.5 text-xs font-medium text-error">
-              Non-refundable
+              {t('nonRefundable')}
             </span>
           )}
           {rate.isPromotion && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-              Special offer
+              {t('specialOffer')}
             </span>
           )}
           {rate.promoCode && (
             <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-              Promo -{rate.promoDiscount}%
+              {t('promoDiscount', { pct: String(rate.promoDiscount) })}
             </span>
           )}
           {rate.affiliateCode && rate.affiliateDisplayText && (
             <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-              Special for {rate.affiliateDisplayText}
+              {t('specialFor', { name: rate.affiliateDisplayText })}
               {(rate.affiliateDiscount ?? 0) > 0 && ` -${rate.affiliateDiscount}%`}
             </span>
           )}
@@ -100,7 +103,7 @@ export function RateRow({ rate, room: _room, nights, locale, onSelect, displayCu
           disabled={disabled}
           className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--color-primary-hover)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {selectLabel}
+          {effectiveSelectLabel}
         </button>
       </div>
     </div>

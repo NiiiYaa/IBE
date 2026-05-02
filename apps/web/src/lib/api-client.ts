@@ -859,6 +859,11 @@ export const apiClient = {
     return apiRequest<AdminBookingsResponse>(`/api/v1/admin/bookings${qs ? `?${qs}` : ''}`)
   },
 
+  /** Get public system meta (tab title, favicon, logo) — no auth required */
+  getSystemMeta(): Promise<{ displayName: string | null; tabTitle: string | null; faviconUrl: string | null; logoUrl: string | null }> {
+    return apiRequest('/api/v1/config/system-meta')
+  },
+
   /** Get system-level design defaults (super admin only) */
   getSystemDesignDefaults(): Promise<OrgDesignDefaultsConfig> {
     return apiRequest<OrgDesignDefaultsConfig>('/api/v1/admin/design/system')
@@ -870,6 +875,52 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  },
+
+  /** Get translation AI config (inherit vs custom provider) */
+  getTranslationAIConfig(): Promise<import('@ibe/shared').TranslationAIConfigResponse> {
+    return apiRequest('/api/v1/admin/design/translations/ai-config')
+  },
+
+  /** Update translation AI config */
+  updateTranslationAIConfig(data: import('@ibe/shared').TranslationAIConfigUpdate): Promise<import('@ibe/shared').TranslationAIConfigResponse> {
+    return apiRequest('/api/v1/admin/design/translations/ai-config', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  /** AI-translate a single string and save it */
+  translateOneString(locale: string, namespace: string, key: string): Promise<{ value: string }> {
+    return apiRequest('/api/v1/admin/design/translations/translate-one', {
+      method: 'POST',
+      body: JSON.stringify({ locale, namespace, key }),
+    })
+  },
+
+  /** Get translation status (per-locale, per-namespace counts) */
+  getTranslationStatus(): Promise<import('@ibe/shared').TranslationStatusResponse> {
+    return apiRequest('/api/v1/admin/design/translations/status')
+  },
+
+  /** Get total count of English source strings */
+  getTranslationTotal(): Promise<{ total: number }> {
+    return apiRequest('/api/v1/admin/design/translations/total')
+  },
+
+  /** List translation rows for a locale + namespace */
+  getTranslationRows(locale: string, namespace: string): Promise<import('@ibe/shared').TranslationRow[]> {
+    return apiRequest(`/api/v1/admin/design/translations/${encodeURIComponent(locale)}/${encodeURIComponent(namespace)}`)
+  },
+
+  /** Upsert a single translation */
+  upsertTranslation(locale: string, namespace: string, key: string, value: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/design/translations/${encodeURIComponent(locale)}/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    })
+  },
+
+  /** Delete all translations for a locale */
+  deleteTranslationsForLocale(locale: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/design/translations/${encodeURIComponent(locale)}`, { method: 'DELETE' })
   },
 
   /** Get org-level design defaults + system defaults for inheritance display */

@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import Image from 'next/image'
 import type { PropertyFacility } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
+import { useT } from '@/context/translations'
 
 interface PropertyDetailModalProps {
   id: number
@@ -33,6 +34,7 @@ function StarRating({ rating }: { rating: number }) {
 export function PropertyDetailModal({
   id, name, starRating, imageUrl, city, address, description, facilities, onClose,
 }: PropertyDetailModalProps) {
+  const t = useT('search')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
@@ -138,7 +140,7 @@ export function PropertyDetailModal({
             rel="noopener noreferrer"
             className="mt-2 block w-full rounded-[var(--radius-md)] bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
-            Check Availability
+            {t('checkAvailability')}
           </a>
         </div>
       </div>

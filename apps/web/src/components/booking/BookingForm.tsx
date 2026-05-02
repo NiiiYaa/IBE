@@ -19,6 +19,7 @@ import type { PaymentStepResult } from '@/components/payment/PaymentStep'
 import { PaymentStep } from '@/components/payment/PaymentStep'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
+import { useT } from '@/context/translations'
 import type { SelectedRoom } from './BookingSummary'
 import {
   SpecialRequestsSection,
@@ -41,11 +42,6 @@ interface BookingFormProps {
 
 type Step = 'guest' | 'payment' | 'confirm'
 
-const STEP_LABELS: Record<Step, string> = {
-  guest: 'Guest details',
-  payment: 'Payment',
-  confirm: 'Confirm',
-}
 const STEPS: Step[] = ['guest', 'payment', 'confirm']
 
 function resolvePaymentFlow(chargeParty: string, guaranteeRequired: boolean, onlinePaymentEnabled: boolean): PaymentFlow {
@@ -60,6 +56,8 @@ export function BookingForm({
   onlinePaymentEnabled = true,
   payAtHotelCardGuaranteeRequired = false,
 }: BookingFormProps) {
+  const t = useT('booking')
+  const tRooms = useT('rooms')
   const router = useRouter()
   const [step, setStep] = useState<Step>('guest')
   const [paymentResult, setPaymentResult] = useState<PaymentStepResult | null>(null)
@@ -173,6 +171,12 @@ export function BookingForm({
   const { admin } = useAdminAuth()
   const isSuper = admin?.role === 'super'
 
+  const stepLabels: Record<Step, string> = {
+    guest: t('stepGuest'),
+    payment: t('stepPayment'),
+    confirm: t('stepConfirm'),
+  }
+
   const apiError = bookingError instanceof ApiClientError ? bookingError : null
   const currentStepIndex = STEPS.indexOf(step)
 
@@ -245,7 +249,7 @@ export function BookingForm({
                 ) : i + 1}
               </div>
               <span className={`ml-2 text-xs font-medium ${active ? 'text-primary' : 'text-muted'}`}>
-                {STEP_LABELS[s]}
+                {stepLabels[s]}
               </span>
               {i < STEPS.length - 1 && (
                 <div className={`mx-3 flex-1 h-px ${done ? 'bg-success' : 'bg-[var(--color-border)]'}`} />
@@ -258,28 +262,28 @@ export function BookingForm({
       {/* ── Step 1: Guest details ────────────────────────────────────────── */}
       {step === 'guest' && (
         <form onSubmit={onGuestSubmit} className="space-y-5">
-          <h3 className="font-semibold text-[var(--color-text)]">Guest details</h3>
+          <h3 className="font-semibold text-[var(--color-text)]">{t('stepGuest')}</h3>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FormField label="Title" error={errors.leadGuest?.title?.message}>
+            <FormField label={t('title')} error={errors.leadGuest?.title?.message}>
               <select {...register('leadGuest.title')} className={inputCls}>
-                {Object.values(GuestTitle).map(t => <option key={t} value={t}>{t}</option>)}
+                {Object.values(GuestTitle).map(gt => <option key={gt} value={gt}>{gt}</option>)}
               </select>
             </FormField>
-            <FormField label="First name" error={errors.leadGuest?.firstName?.message} className="col-span-2">
+            <FormField label={t('firstName')} error={errors.leadGuest?.firstName?.message} className="col-span-2">
               <input {...register('leadGuest.firstName')} className={inputCls} placeholder="John" />
             </FormField>
           </div>
 
-          <FormField label="Last name" error={errors.leadGuest?.lastName?.message}>
+          <FormField label={t('lastName')} error={errors.leadGuest?.lastName?.message}>
             <input {...register('leadGuest.lastName')} className={inputCls} placeholder="Smith" />
           </FormField>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Email" error={errors.leadGuest?.email?.message}>
+            <FormField label={t('email')} error={errors.leadGuest?.email?.message}>
               <input type="email" {...register('leadGuest.email')} className={inputCls} placeholder="john@example.com" />
             </FormField>
-            <FormField label="Phone" error={errors.leadGuest?.phone?.message}>
+            <FormField label={t('phone')} error={errors.leadGuest?.phone?.message}>
               <input type="tel" {...register('leadGuest.phone')} className={inputCls} placeholder="+1 234 567 890" />
             </FormField>
           </div>
@@ -299,7 +303,7 @@ export function BookingForm({
             type="submit"
             className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-primary-hover)] transition-colors"
           >
-            Continue to payment →
+            {t('continueToPayment')}
           </button>
         </form>
       )}
@@ -307,7 +311,7 @@ export function BookingForm({
       {/* ── Step 2: Payment ──────────────────────────────────────────────── */}
       {step === 'payment' && (
         <div className="space-y-4">
-          <h3 className="font-semibold text-[var(--color-text)]">Payment</h3>
+          <h3 className="font-semibold text-[var(--color-text)]">{t('stepPayment')}</h3>
           <PaymentStep
             paymentFlow={paymentFlow}
             propertyId={propertyId}
@@ -320,7 +324,7 @@ export function BookingForm({
             onClick={() => setStep('guest')}
             className="text-sm text-muted hover:text-primary transition-colors"
           >
-            ← Back to guest details
+            {t('backToGuestDetails')}
           </button>
         </div>
       )}
@@ -328,32 +332,32 @@ export function BookingForm({
       {/* ── Step 3: Confirm ──────────────────────────────────────────────── */}
       {step === 'confirm' && (
         <div className="space-y-4">
-          <h3 className="font-semibold text-[var(--color-text)]">Confirm your booking</h3>
+          <h3 className="font-semibold text-[var(--color-text)]">{t('confirmYourBooking')}</h3>
 
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 text-sm space-y-2">
             {paymentFlow === PaymentFlow.OnlineCharge && (
-              <p className="text-[var(--color-text)]">Your card will be charged once your booking is confirmed.</p>
+              <p className="text-[var(--color-text)]">{t('cardWillBeCharged')}</p>
             )}
             {paymentFlow === PaymentFlow.PayAtHotelGuarantee && (
-              <p className="text-amber-700">Card saved as guarantee — you will pay at the hotel on arrival.</p>
+              <p className="text-amber-700">{t('cardSavedAsGuarantee')}</p>
             )}
             {paymentFlow === PaymentFlow.PayAtHotelNoCard && (
-              <p className="text-[var(--color-text)]">You will pay directly at the hotel on arrival. No card required.</p>
+              <p className="text-[var(--color-text)]">{t('payDirectlyAtHotel')}</p>
             )}
             {primaryRate.cancellationDeadlines[0] && primaryRate.isRefundable && (
               <p className="text-success text-xs">
-                ✓ Free cancellation until {formatDate(primaryRate.cancellationDeadlines[0].deadline.slice(0, 10), locale)}
+                {tRooms('freeUntil', { date: formatDate(primaryRate.cancellationDeadlines[0].deadline.slice(0, 10), locale) })}
               </p>
             )}
             {!primaryRate.isRefundable && (
-              <p className="text-error text-xs">✗ This rate is non-refundable</p>
+              <p className="text-error text-xs">{t('nonRefundableRate')}</p>
             )}
           </div>
 
           {/* Special requests summary */}
           {serializeSpecialRequests(specialRequests).length > 0 && (
             <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Special requests</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('specialRequestsHeader')}</p>
               <ul className="space-y-1">
                 {serializeSpecialRequests(specialRequests).map((r, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-[var(--color-text)]">
@@ -384,9 +388,9 @@ export function BookingForm({
             {isPending ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Confirming…
+                {t('confirming')}
               </span>
-            ) : 'Confirm booking'}
+            ) : t('confirmBooking')}
           </button>
 
           <button
@@ -394,7 +398,7 @@ export function BookingForm({
             onClick={() => setStep('payment')}
             className="w-full text-sm text-muted hover:text-primary transition-colors"
           >
-            ← Back
+            {t('back')}
           </button>
         </div>
       )}

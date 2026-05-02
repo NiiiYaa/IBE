@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { nightsBetween, todayIso, addDays } from '@ibe/shared'
 import {
   addMonths,
@@ -11,6 +11,7 @@ import {
   toIso,
   displayDate,
 } from '@/lib/calendar-utils'
+import { useT, useLocale } from '@/context/translations'
 
 interface CalendarDropdownProps {
   checkIn: string
@@ -26,14 +27,6 @@ interface CalendarDropdownProps {
   maxNights?: number
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-function monthShort(ym: string): string {
-  const m = parseInt(ym.slice(5, 7), 10)
-  return MONTH_SHORT[m - 1] ?? ''
-}
-
 export function CalendarDropdown({
   checkIn,
   checkOut,
@@ -41,12 +34,33 @@ export function CalendarDropdown({
   onDatesChange,
   onClose,
   variant = 'dropdown',
-  labelStart = 'Check-in',
-  labelEnd = 'Check-out',
-  labelDuration = 'Nights',
+  labelStart,
+  labelEnd,
+  labelDuration,
   minNights = 1,
   maxNights = 365,
 }: CalendarDropdownProps) {
+  const t = useT('search')
+  const locale = useLocale()
+
+  const weekdays = useMemo(() => {
+    // Jan 3, 2021 was a Sunday
+    return Array.from({ length: 7 }, (_, i) =>
+      new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2021, 0, 3 + i))
+    )
+  }, [locale])
+
+  const monthShortFn = useMemo(() => {
+    return (ym: string): string => {
+      const m = parseInt(ym.slice(5, 7), 10)
+      return new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2021, m - 1, 1))
+    }
+  }, [locale])
+
+  const effectiveLabelStart = labelStart ?? t('checkIn')
+  const effectiveLabelEnd = labelEnd ?? t('checkOut')
+  const effectiveLabelDuration = labelDuration ?? t('nightsLabel')
+
   const today = todayIso()
   // When a check-in is selected and we're picking checkout, valid window is [checkIn+minNights, checkIn+maxNights]
   const minCheckOut = checkIn ? addDays(checkIn, minNights) : null
@@ -152,7 +166,7 @@ export function CalendarDropdown({
               onClick={goToday}
               className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
-              Today
+              {t('today')}
             </button>
             <NavBtn onClick={() => setViewMonth(m => addMonths(m, 1))} aria-label="Next month">
               ›
@@ -163,9 +177,9 @@ export function CalendarDropdown({
         {/* Weekday headers */}
         <div className="mb-1 grid grid-cols-[20px_repeat(7,1fr)]">
           <div />
-          {WEEKDAYS.map(d => (
+          {weekdays.map((d, i) => (
             <div
-              key={d}
+              key={i}
               className="text-center text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]"
             >
               {d}
@@ -174,13 +188,13 @@ export function CalendarDropdown({
         </div>
 
         {/* Month grid */}
-        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShort} {...dayProps} />
+        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} />
 
         {/* Summary */}
         <div className="mt-3 grid grid-cols-3 gap-1 border-t border-[var(--color-border)] pt-3">
-          <SummaryItem label={labelStart} value={checkIn ? displayDate(checkIn) : '—'} />
-          <SummaryItem label={labelEnd} value={checkOut ? displayDate(checkOut) : '—'} />
-          <SummaryItem label={labelDuration} value={nights > 0 ? String(nights) : '—'} />
+          <SummaryItem label={effectiveLabelStart} value={checkIn ? displayDate(checkIn) : '—'} />
+          <SummaryItem label={effectiveLabelEnd} value={checkOut ? displayDate(checkOut) : '—'} />
+          <SummaryItem label={effectiveLabelDuration} value={nights > 0 ? String(nights) : '—'} />
         </div>
       </div>
     )
@@ -193,7 +207,7 @@ export function CalendarDropdown({
   return (
     <div className="absolute left-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
-        {selecting === 'checkin' ? 'Select check-in date' : 'Select check-out date'}
+        {selecting === 'checkin' ? t('selectCheckIn') : t('selectCheckOut')}
       </p>
       <div className="flex items-start gap-6">
         <NavBtn
@@ -203,8 +217,8 @@ export function CalendarDropdown({
         >
           ‹
         </NavBtn>
-        <DropdownMonthGrid ym={viewMonth} {...dayProps} />
-        <DropdownMonthGrid ym={rightMonth} {...dayProps} />
+        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} {...dayProps} />
+        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} {...dayProps} />
         <NavBtn onClick={() => setViewMonth(m => addMonths(m, 1))} aria-label="Next month">
           ›
         </NavBtn>
@@ -233,6 +247,7 @@ interface DayProps {
 interface InlineMonthGridProps extends DayProps {
   ym: string
   monthShortFn: (ym: string) => string
+  weekdays: string[]
 }
 
 function InlineMonthGrid({
@@ -248,6 +263,7 @@ function InlineMonthGrid({
   onDayHover,
   onMouseLeave,
   monthShortFn,
+  weekdays,
 }: InlineMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
   const startPad = firstWeekday(year, month)
@@ -365,6 +381,7 @@ function InlineMonthGrid({
 
 interface DropdownMonthGridProps extends DayProps {
   ym: string
+  weekdays: string[]
 }
 
 function DropdownMonthGrid({
@@ -379,6 +396,7 @@ function DropdownMonthGrid({
   onDayClick,
   onDayHover,
   onMouseLeave,
+  weekdays,
 }: DropdownMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
   const days = daysInMonth(year, month)
@@ -397,8 +415,8 @@ function DropdownMonthGrid({
       </p>
 
       <div className="grid grid-cols-7">
-        {WEEKDAYS.map(d => (
-          <div key={d} className="flex h-8 items-center justify-center text-[10px] font-medium uppercase text-[var(--color-text-muted)]">
+        {weekdays.map((d, i) => (
+          <div key={i} className="flex h-8 items-center justify-center text-[10px] font-medium uppercase text-[var(--color-text-muted)]">
             {d.slice(0, 2)}
           </div>
         ))}

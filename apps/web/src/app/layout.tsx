@@ -4,6 +4,7 @@ import './globals.css'
 import { Providers } from './providers'
 import { buildCssVars } from '@/lib/theme'
 
+const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur'])
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -35,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const fontUrl = config?.fontUrl ?? null
 
   return (
-    <html lang={config?.defaultLocale ?? 'en'} dir={config?.textDirection ?? 'ltr'}>
+    <html lang={config?.defaultLocale ?? 'en'} dir={RTL_LOCALES.has(config?.defaultLocale ?? '') ? 'rtl' : 'ltr'}>
       <head>
         {fontUrl && (
           <>

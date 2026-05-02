@@ -7,8 +7,12 @@ import { useHotelConfig } from '@/hooks/use-hotel-config'
 import { BookingForm } from '@/components/booking/BookingForm'
 import { BookingSummary, type SelectedRoom } from '@/components/booking/BookingSummary'
 import Link from 'next/link'
+import { useT, useLocale } from '@/context/translations'
 
 export function BookingContent() {
+  const t = useT('booking')
+  const tCommon = useT('common')
+  const locale = useLocale()
   const rawParams = useSearchParams()
   const searchId   = rawParams.get('searchId') ?? ''
   const affiliateId = rawParams.get('affiliateId') ?? undefined
@@ -38,9 +42,9 @@ export function BookingContent() {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10">
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center">
-          <p className="font-medium text-[var(--color-text)]">Invalid booking link</p>
+          <p className="font-medium text-[var(--color-text)]">{t('invalidBookingLink')}</p>
           <Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-            ← Start a new search
+            {tCommon('startNewSearch')}
           </Link>
         </div>
       </main>
@@ -77,9 +81,9 @@ export function BookingContent() {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10">
         <div className="rounded-xl border border-error/20 bg-[var(--color-error-light)] p-8 text-center">
-          <p className="font-medium text-error">Room no longer available</p>
+          <p className="font-medium text-error">{t('roomNoLongerAvailable')}</p>
           <Link href={`/search?${rawParams.toString()}`} className="mt-4 inline-block text-sm text-primary hover:underline">
-            ← Back to results
+            {tCommon('backToResults')}
           </Link>
         </div>
       </main>
@@ -95,10 +99,10 @@ export function BookingContent() {
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back to results
+        {tCommon('backToResults')}
       </Link>
 
-      <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Complete your booking</h1>
+      <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
 
       {searchData.results.flatMap(r => r.remarks).map((remark, i) => (
         <div key={i} className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-primary-light)] px-4 py-3 text-sm text-primary">
@@ -119,7 +123,7 @@ export function BookingContent() {
             searchId={searchId}
             {...(affiliateId ? { affiliateId } : {})}
             {...(campaignId ? { campaignId } : {})}
-            locale="en"
+            locale={locale}
             onlinePaymentEnabled={onlinePaymentEnabled}
           />
         </div>
@@ -128,7 +132,7 @@ export function BookingContent() {
             rooms={selectedRooms}
             checkIn={searchParams.checkIn}
             checkOut={searchParams.checkOut}
-            locale="en"
+            locale={locale}
           />
         </div>
       </div>

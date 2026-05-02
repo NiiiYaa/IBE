@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { RateOption } from '@ibe/shared'
 import { formatCancellationDeadline, formatCancellationPenalty, formatPenaltyAmount } from '@ibe/shared'
+import { useT } from '@/context/translations'
 
 interface Props {
   rate: RateOption
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function CancellationSummary({ rate, locale, currency }: Props) {
+  const t = useT('rooms')
   const [expanded, setExpanded] = useState(false)
 
   const freeLine = rate.cancellationDeadlines.find(d => d.type === 'free') ?? rate.cancellationDeadlines[0]
@@ -24,7 +26,7 @@ export function CancellationSummary({ rate, locale, currency }: Props) {
     }
   } else if (!rate.isRefundable && rate.cancellationDeadlines[0]) {
     const d = rate.cancellationDeadlines[0]
-    detailLines.push(`Cancellation fee: ${formatPenaltyAmount(d.penaltyType, d.penaltyAmount, locale, currency)}`)
+    detailLines.push(t('cancellationFeeDetail', { amount: formatPenaltyAmount(d.penaltyType, d.penaltyAmount, locale, currency) }))
   }
 
   return (
@@ -33,18 +35,18 @@ export function CancellationSummary({ rate, locale, currency }: Props) {
       <span className="inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap">
         {rate.isRefundable && freeLine ? (
           <>
-            <span className="text-success">✓ Free until {formatCancellationDeadline(freeLine.deadline, locale)}</span>
+            <span className="text-success">{t('freeUntil', { date: formatCancellationDeadline(freeLine.deadline, locale) })}</span>
             {penaltyLines.length > 0 && (
               <>
                 <span className="text-muted">|</span>
-                <span className="text-error">✘ Fees apply after {formatCancellationDeadline(freeLine.deadline, locale)}</span>
+                <span className="text-error">{t('feesApplyAfter', { date: formatCancellationDeadline(freeLine.deadline, locale) })}</span>
               </>
             )}
           </>
         ) : rate.isRefundable ? (
-          <span className="text-success">✓ Free cancellation</span>
+          <span className="text-success">✓ {t('freeCancellation')}</span>
         ) : (
-          <span className="text-error">✘ Non-refundable</span>
+          <span className="text-error">✘ {t('nonRefundable')}</span>
         )}
 
         {detailLines.length > 0 && (

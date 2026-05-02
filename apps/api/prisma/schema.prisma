@@ -865,6 +865,16 @@ model SystemAIConfig {
   updatedAt    DateTime @updatedAt
 }
 
+model TranslationAIConfig {
+  id               Int      @id @default(autoincrement())
+  useSystemDefault Boolean  @default(true)
+  provider         String?
+  model            String?
+  apiKey           String?  // AES-256-CBC encrypted via AI_CONFIG_ENCRYPTION_KEY
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 model OrgAIConfig {
   id             Int          @id @default(autoincrement())
   organizationId Int          @unique
@@ -960,6 +970,8 @@ model SystemMcpConfig {
 model SystemDesignConfig {
   id                Int     @id @default(autoincrement())
 
+  displayName       String?
+  tabTitle          String?
   colorPrimary      String?
   colorPrimaryHover String?
   colorPrimaryLight String?
@@ -1265,4 +1277,19 @@ model OAuthIdentity {
 
   @@index([organizationId])
   @@index([propertyId])
+}
+
+// ── Translations ──────────────────────────────────────────────────────────────
+model Translation {
+  id        Int      @id @default(autoincrement())
+  locale    String
+  namespace String
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([locale, namespace, key])
+  @@index([locale, namespace])
+  @@index([locale])
 }

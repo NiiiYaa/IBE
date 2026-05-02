@@ -4,18 +4,20 @@ import { useState } from 'react'
 import type { RoomOption, RateOption } from '@ibe/shared'
 import { formatCurrency, nightsBetween, TaxRelation, formatCancellationDeadline, formatCancellationPenalty, formatPenaltyAmount } from '@ibe/shared'
 import { MealBadge } from '@/components/search/MealBadge'
+import { useT } from '@/context/translations'
 
 export interface SelectedRoom { room: RoomOption; rate: RateOption }
 
 import type { TaxEntry } from '@ibe/shared'
 
 function TaxLine({ item, locale }: { item: TaxEntry; locale: string }) {
+  const t = useT('confirmation')
   const amountStr = (item.relation === TaxRelation.Add ? '+' : '') + formatCurrency(item.amount, item.currency, locale)
 
   if (item.relation === TaxRelation.Display) {
     return (
       <div className="flex justify-between text-xs">
-        <span className="text-amber-700">{item.description} <span className="font-medium">(mandatory — paid at hotel)</span></span>
+        <span className="text-amber-700">{item.description} <span className="font-medium">({t('mandatoryPaidAtHotel')})</span></span>
         <span className="text-amber-700">{amountStr}</span>
       </div>
     )
@@ -23,7 +25,7 @@ function TaxLine({ item, locale }: { item: TaxEntry; locale: string }) {
   if (item.relation === TaxRelation.Optional) {
     return (
       <div className="flex justify-between text-xs">
-        <span className="text-blue-700">{item.description} <span className="font-medium">(optional — paid at hotel)</span></span>
+        <span className="text-blue-700">{item.description} <span className="font-medium">({t('optionalPaidAtHotel')})</span></span>
         <span className="text-blue-700">{amountStr}</span>
       </div>
     )
@@ -44,6 +46,8 @@ interface BookingSummaryProps {
 }
 
 export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSummaryProps) {
+  const t = useT('booking')
+  const tRooms = useT('rooms')
   const nights = nightsBetween(checkIn, checkOut)
   const [showNightly, setShowNightly] = useState(false)
 
@@ -72,7 +76,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-card">
       <div className="bg-[var(--color-primary-light)] px-5 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your selection</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-primary">{t('yourSelection')}</p>
       </div>
 
       <div className="p-5 space-y-4">
@@ -80,7 +84,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
         <div className="flex items-center justify-between text-sm">
           <div>
             <p className="font-semibold text-[var(--color-text)]">{formatDateShort(checkIn)}</p>
-            <p className="text-xs text-muted">Check-in</p>
+            <p className="text-xs text-muted">{t('checkIn')}</p>
           </div>
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-1 text-muted">
@@ -91,7 +95,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
           </div>
           <div className="text-right">
             <p className="font-semibold text-[var(--color-text)]">{formatDateShort(checkOut)}</p>
-            <p className="text-xs text-muted">Check-out</p>
+            <p className="text-xs text-muted">{t('checkOut')}</p>
           </div>
         </div>
 
@@ -102,7 +106,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
           {rooms.map(({ room, rate }, i) => (
             <div key={i}>
               {rooms.length > 1 && (
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Room {i + 1}</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{t('roomLabel', { number: String(i + 1) })}</p>
               )}
               <p className="text-sm font-semibold text-[var(--color-text)]">{room.roomName}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -110,11 +114,11 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
                 {rate.isRefundable ? (
                   <span className="text-xs text-success font-medium">
                     {rate.cancellationDeadlines[0]
-                      ? `Free cancellation until ${formatCancellationDeadline(rate.cancellationDeadlines[0].deadline, locale)}`
-                      : 'Free cancellation'}
+                      ? tRooms('freeCancellationUntil', { date: formatCancellationDeadline(rate.cancellationDeadlines[0].deadline, locale) })
+                      : tRooms('freeCancellation')}
                   </span>
                 ) : (
-                  <span className="text-xs text-error font-medium">Non-refundable</span>
+                  <span className="text-xs text-error font-medium">{tRooms('nonRefundable')}</span>
                 )}
                 {rate.isRefundable && rate.cancellationDeadlines.filter(d => d.type === 'penalty').map((d, i) => (
                   <span key={i} className="text-xs text-amber-700">
@@ -123,7 +127,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
                 ))}
                 {!rate.isRefundable && rate.cancellationDeadlines[0] && (
                   <span className="text-xs text-error">
-                    Cancellation fee: {formatPenaltyAmount(rate.cancellationDeadlines[0].penaltyType, rate.cancellationDeadlines[0].penaltyAmount, locale, rate.prices.sell.currency)}
+                    {tRooms('cancellationFeeDetail', { amount: formatPenaltyAmount(rate.cancellationDeadlines[0].penaltyType, rate.cancellationDeadlines[0].penaltyAmount, locale, rate.prices.sell.currency) })}
                   </span>
                 )}
               </div>
@@ -151,7 +155,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
-              {showNightly ? 'Hide' : 'Show'} nightly breakdown
+              {showNightly ? t('hideNightlyBreakdown') : t('showNightlyBreakdown')}
             </button>
 
             {showNightly && (
@@ -183,14 +187,14 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
-              {showTaxes ? 'Hide' : 'Show'} taxes & fees
+              {showTaxes ? t('hideTaxesAndFees') : t('showTaxesAndFees')}
             </button>
 
             {showTaxes && (
               <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 space-y-3">
                 {allTaxes.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Taxes</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t('taxes')}</p>
                     {allTaxes.map((t, i) => (
                       <TaxLine key={i} item={t} locale={locale} />
                     ))}
@@ -198,7 +202,7 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
                 )}
                 {allFees.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Fees</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t('fees')}</p>
                     {allFees.map((f, i) => (
                       <TaxLine key={i} item={f} locale={locale} />
                     ))}
@@ -214,11 +218,11 @@ export function BookingSummary({ rooms, checkIn, checkOut, locale }: BookingSumm
         {/* Total */}
         <div className="space-y-1 text-sm">
           <div className="flex justify-between font-semibold">
-            <span>Total</span>
+            <span>{t('total')}</span>
             <span className="text-primary text-base">{formatCurrency(total, currency, locale)}</span>
           </div>
           {hasDisplay && (
-            <p className="text-xs text-muted">Excluding fees paid at hotel</p>
+            <p className="text-xs text-muted">{t('excludingFees')}</p>
           )}
         </div>
       </div>

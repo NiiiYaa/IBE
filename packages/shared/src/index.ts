@@ -5,6 +5,7 @@ export * from './enums.js'
 export * from './constants.js'
 
 // Types
+export * from './types/translations.js'
 export type * from './types/hyperguest.js'
 export type * from './types/api.js'
 export * from './types/ai-config.js'

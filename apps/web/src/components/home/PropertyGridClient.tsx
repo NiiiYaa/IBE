@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { PropertyFacility } from '@ibe/shared'
 import { PropertyCard } from './PropertyCard'
 import { PropertyRow } from './PropertyRow'
+import { useT } from '@/context/translations'
 
 export interface PropertyData {
   id: number
@@ -31,6 +32,8 @@ const LOAD_BATCH = 8
 const SEARCH_THRESHOLD = 10
 
 export function PropertyGridClient({ initial, remaining, layout }: Props) {
+  const t = useT('properties')
+  const tCommon = useT('common')
   const [loaded, setLoaded] = useState<PropertyData[]>([])
   const [loadedOffset, setLoadedOffset] = useState(0)
   const [search, setSearch] = useState('')
@@ -174,7 +177,7 @@ export function PropertyGridClient({ initial, remaining, layout }: Props) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${total} properties…`}
+              placeholder={t('searchProperties', { count: String(total) })}
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-9 pr-4 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)]"
             />
             {search && (
@@ -189,7 +192,7 @@ export function PropertyGridClient({ initial, remaining, layout }: Props) {
             )}
           </div>
           {searchLoading && (
-            <span className="text-xs text-[var(--color-text-muted)]">Loading…</span>
+            <span className="text-xs text-[var(--color-text-muted)]">{tCommon('loading')}</span>
           )}
           {search && !searchLoading && (
             <span className="text-xs text-[var(--color-text-muted)]">
@@ -202,7 +205,7 @@ export function PropertyGridClient({ initial, remaining, layout }: Props) {
       {filteredKnown.length > 0
         ? (layout === 'list' ? renderList(filteredKnown) : renderGrid(filteredKnown))
         : search
-          ? <p className="py-8 text-center text-sm text-[var(--color-text-muted)]">No properties match "{search}"</p>
+          ? <p className="py-8 text-center text-sm text-[var(--color-text-muted)]">{t('noPropertiesMatch', { query: search })}</p>
           : null
       }
 
@@ -214,7 +217,7 @@ export function PropertyGridClient({ initial, remaining, layout }: Props) {
             className="rounded-full border border-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50"
           >
             {loadingMore
-              ? 'Loading…'
+              ? tCommon('loading')
               : `Show ${Math.min(LOAD_BATCH, unloadedRemaining)} more ${unloadedRemaining === 1 ? 'property' : 'properties'}`}
           </button>
         </div>

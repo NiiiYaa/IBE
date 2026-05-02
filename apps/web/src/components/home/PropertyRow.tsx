@@ -5,6 +5,7 @@ import Image from 'next/image'
 import type { PropertyFacility } from '@ibe/shared'
 import { PropertyDetailModal } from './PropertyDetailModal'
 import { facilityIcon } from '@/lib/facility-icon'
+import { useT } from '@/context/translations'
 
 interface PropertyRowProps {
   id: number
@@ -31,6 +32,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 export function PropertyRow({ id, name, starRating, imageUrl, city, address, description, facilities }: PropertyRowProps) {
+  const t = useT('search')
   const [modalOpen, setModalOpen] = useState(false)
   const topFacilities = [
     ...facilities.filter(f => f.popular),
@@ -96,7 +98,7 @@ export function PropertyRow({ id, name, starRating, imageUrl, city, address, des
               onClick={() => setModalOpen(true)}
               className="shrink-0 whitespace-nowrap text-xs font-medium text-primary underline-offset-2 hover:underline"
             >
-              See more
+              {t('seeMore')}
             </button>
           </div>
         </div>
@@ -109,7 +111,7 @@ export function PropertyRow({ id, name, starRating, imageUrl, city, address, des
             rel="noopener noreferrer"
             className="block rounded-[var(--radius-md)] border border-[var(--color-primary)] px-4 py-2 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white whitespace-nowrap"
           >
-            Check Availability
+            {t('checkAvailability')}
           </a>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { formatCurrency } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
 import { RateRow } from './RateRow'
 import { RoomDetailModal } from './RoomDetailModal'
+import { useT } from '@/context/translations'
 
 interface RoomCardProps {
   room: RoomOption
@@ -28,6 +29,7 @@ function lowestRateCurrency(room: RoomOption): string {
 }
 
 export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled }: RoomCardProps) {
+  const t = useT('rooms')
   const conv = convert ?? ((n: number) => n)
   const dispCur = displayCurrency ?? lowestRateCurrency(room)
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -83,14 +85,14 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
 
               {hasPromotion && (
                 <div className="absolute left-0 top-3 z-10 rounded-r-full bg-amber-500 px-3 py-0.5 text-xs font-semibold text-white shadow">
-                  Special offer
+                  {t('specialOffer')}
                 </div>
               )}
 
               {imgIndex > 0 && (
                 <button
                   onClick={prevImage}
-                  aria-label="Previous image"
+                  aria-label={t('previousImage')}
                   className="absolute left-2 top-1/2 z-20 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
                 >
                   ‹
@@ -100,7 +102,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
               {imgIndex < images.length - 1 && (
                 <button
                   onClick={nextImage}
-                  aria-label="Next image"
+                  aria-label={t('nextImage')}
                   className="absolute right-2 top-1/2 z-20 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
                 >
                   ›
@@ -114,7 +116,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
               )}
 
               <div className="absolute inset-x-0 bottom-0 z-10 translate-y-full bg-black/60 py-1.5 text-center text-xs font-medium text-white transition-transform group-hover:translate-y-0">
-                See more
+                {t('seeMore')}
               </div>
             </div>
           )}
@@ -141,7 +143,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Up to {room.maxAdults} adults
+                    {t('upToAdults', { count: String(room.maxAdults) })}
                   </span>
                 )}
                 {room.bedding[0] && (
@@ -153,7 +155,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                   </span>
                 )}
                 <span className="font-medium text-[var(--color-success)]">
-                  {room.availableCount} room{room.availableCount !== 1 ? 's' : ''} left
+                  {room.availableCount === 1 ? t('roomLeft') : t('roomsLeft', { count: String(room.availableCount) })}
                 </span>
               </div>
 
@@ -186,7 +188,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                   onClick={() => setModalOpen(true)}
                   className="mt-2 text-xs font-medium text-primary underline-offset-2 hover:underline"
                 >
-                  See more
+                  {t('seeMore')}
                 </button>
               )}
             </div>
@@ -194,7 +196,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
             {/* Starting from price + Details & book */}
             <div className="shrink-0 flex flex-col items-end justify-between rounded-lg bg-[var(--color-background)] px-4 py-3 min-w-[168px] border border-[var(--color-border)]">
               <div className="text-right">
-                <p className="text-xs text-muted">Starting from</p>
+                <p className="text-xs text-muted">{t('startingFrom')}</p>
                 {lowestRate.originalSellAmount != null && (lowestRate.promoDiscount || lowestRate.affiliateDiscount) && (
                   <p className="text-sm text-muted line-through">
                     {formatCurrency(conv(lowestRate.originalSellAmount), dispCur, locale)}
@@ -205,12 +207,12 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 </p>
                 {lowestRate.promoCode && (
                   <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 mt-1">
-                    Promo -{lowestRate.promoDiscount}%
+                    {t('promoDiscount', { pct: String(lowestRate.promoDiscount) })}
                   </span>
                 )}
                 {lowestRate.affiliateCode && lowestRate.affiliateDisplayText && (
                   <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 mt-1">
-                    Special for {lowestRate.affiliateDisplayText}
+                    {t('specialFor', { name: lowestRate.affiliateDisplayText })}
                     {(lowestRate.affiliateDiscount ?? 0) > 0 && ` -${lowestRate.affiliateDiscount}%`}
                   </span>
                 )}
@@ -223,7 +225,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                   </p>
                 )}
                 {nights > 1 && (
-                  <p className="text-xs text-muted mt-0.5">for {nights} nights</p>
+                  <p className="text-xs text-muted mt-0.5">{t('forNights', { count: String(nights) })}</p>
                 )}
               </div>
 
@@ -232,7 +234,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 aria-expanded={expanded}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--color-primary-hover)] active:scale-95"
               >
-                Details &amp; book
+                {t('detailsAndBook')}
                 <svg
                   className={`h-4 w-4 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
                   fill="none"

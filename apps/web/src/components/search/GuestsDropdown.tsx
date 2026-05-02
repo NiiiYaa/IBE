@@ -1,5 +1,7 @@
 'use client'
 
+import { useT } from '@/context/translations'
+
 export interface GuestRoom {
   adults: number
   children: number
@@ -27,6 +29,8 @@ export function GuestsDropdown({
   maxRooms = 4,
   groupsHref,
 }: GuestsDropdownProps) {
+  const t = useT('search')
+
   function update(index: number, field: keyof GuestRoom, delta: number) {
     onChange(
       rooms.map((r, i) => {
@@ -57,7 +61,7 @@ export function GuestsDropdown({
   return (
     <div className="w-80 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5">
       <div className="border-b border-[var(--color-border)] px-5 py-3">
-        <p className="text-sm font-semibold text-[var(--color-text)]">Guests</p>
+        <p className="text-sm font-semibold text-[var(--color-text)]">{t('guests')}</p>
       </div>
 
       <div className="divide-y divide-[var(--color-border)]">
@@ -66,11 +70,11 @@ export function GuestsDropdown({
           return (
             <div key={i} className="px-5 py-4 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Room {i + 1}
+                {t('roomNumber', { number: String(i + 1) })}
               </p>
 
               <GuestRow
-                label="Adults"
+                label={t('adults')}
                 hint={`Age ${childMaxAge + 1}+`}
                 value={room.adults}
                 min={1}
@@ -79,7 +83,7 @@ export function GuestsDropdown({
                 onIncrement={() => update(i, 'adults', 1)}
               />
               <GuestRow
-                label="Children"
+                label={t('children')}
                 hint={`Age ${infantMaxAge + 1}–${childMaxAge}`}
                 value={room.children}
                 min={0}
@@ -88,7 +92,7 @@ export function GuestsDropdown({
                 onIncrement={() => update(i, 'children', 1)}
               />
               <GuestRow
-                label="Infants"
+                label={t('infants')}
                 hint={`Age 0–${infantMaxAge}`}
                 value={room.infants}
                 min={0}
@@ -103,7 +107,7 @@ export function GuestsDropdown({
                     onClick={() => removeRoom(i)}
                     className="text-xs text-muted transition-colors hover:text-error"
                   >
-                    − Remove room
+                    − {t('removeRoom')}
                   </button>
                 ) : <span />}
 
@@ -112,14 +116,14 @@ export function GuestsDropdown({
                     onClick={addRoom}
                     className="text-xs font-medium text-[var(--color-primary)] hover:underline"
                   >
-                    + Add room
+                    + {t('addRoom')}
                   </button>
                 )}
               </div>
 
               {isLast && rooms.length >= maxRooms && (
                 <p className="pt-2 text-xs text-[var(--color-text-muted)]">
-                  To book more than {maxRooms} rooms,{' '}
+                  {t('tooManyRooms', { max: String(maxRooms) })}{' '}
                   {groupsHref ? (
                     <a
                       href={groupsHref}
@@ -127,10 +131,10 @@ export function GuestsDropdown({
                       rel="noopener noreferrer"
                       className="font-medium text-[var(--color-primary)] hover:underline"
                     >
-                      go to the Group section
+                      {t('goToGroupSection')}
                     </a>
                   ) : (
-                    'contact the hotel'
+                    t('contactHotel')
                   )}
                 </p>
               )}

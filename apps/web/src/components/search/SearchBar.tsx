@@ -8,6 +8,7 @@ import { encodeSearchParams } from '@/lib/search-params'
 import { countryFlag, countryName } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { usePreferences } from '@/context/preferences'
+import { useT } from '@/context/translations'
 import { useAiMode } from '@/context/ai-mode'
 import { useSearchSelection } from '@/context/search-selection'
 import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
@@ -135,6 +136,7 @@ export function SearchBar({
   const [calendarInitialField, setCalendarInitialField] = useState<'checkin' | 'checkout'>('checkin')
 
   const detectedCountry = useCountryDetect()
+  const t = useT('search')
   const { currency } = usePreferences()
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(selectedPropertyId)
   const { data: groupConfig } = usePublicGroupConfig(selectedPropertyId)
@@ -370,7 +372,7 @@ export function SearchBar({
                 disabled={nights <= 0}
                 className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Check availability
+                {t('checkAvailability')}
               </button>
             </div>
 

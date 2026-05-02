@@ -212,6 +212,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     staleTime: 60_000,
   })
 
+  const { data: systemMeta } = useQuery({
+    queryKey: ['system-meta'],
+    queryFn: () => apiClient.getSystemMeta(),
+    staleTime: 60_000,
+    enabled: isAuthenticated,
+  })
+
   const effectiveOrgData = isSuper ? superOrgData : orgData
   const isBuyerOrg = effectiveOrgData?.orgType === 'buyer'
   const visibleSections = filterSections(SECTIONS, role, isBuyerOrg)
@@ -347,7 +354,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         <div style={{ width: '220px', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {/* Logo + collapse button */}
           <div className="flex items-center justify-between px-4 py-5">
-            <Image src="/hyperguest-logo.png" alt="HyperGuest" width={120} height={28} priority />
+            {systemMeta?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={systemMeta.logoUrl} alt={systemMeta.displayName ?? 'Admin'} className="h-7 max-w-[120px] object-contain" />
+            ) : (
+              <Image src="/hyperguest-logo.png" alt="HyperGuest" width={120} height={28} priority />
+            )}
             <button
               onClick={() => setCollapsed(true)}
               title="Collapse sidebar"

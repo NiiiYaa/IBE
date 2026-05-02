@@ -6,7 +6,8 @@ import type { OrgDesignDefaultsConfig } from '@ibe/shared'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
-import { ColorRow, Section, FormRow, SaveBar, Toggle, selectCls } from '../components'
+import { ColorRow, Section, FormRow, SaveBar, Toggle, TextInput, selectCls } from '../components'
+import { compressImage } from '@/lib/compress-image'
 
 const FONT_OPTIONS = [
   'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins',
@@ -111,6 +112,7 @@ function SystemBrandEditor() {
       void qc.invalidateQueries({ queryKey: ['global-design-defaults'] })
       void qc.invalidateQueries({ queryKey: ['property-design-admin'] })
       void qc.invalidateQueries({ queryKey: ['admin-config'] })
+      void qc.invalidateQueries({ queryKey: ['system-meta'] })
     },
     onError: (err: unknown) => setSaveError(err instanceof Error ? err.message : 'Save failed'),
   })
@@ -140,6 +142,76 @@ function SystemBrandEditor() {
           unless an organisation has configured its own values.
         </p>
       </div>
+
+      {/* Identity */}
+      <Section title="Identity" defaultOpen>
+        <div className="space-y-4">
+          <FormRow label="Platform name" hint="Shown as the admin page heading and fallback tab title">
+            <input
+              type="text"
+              placeholder="e.g. HyperGuest IBE"
+              value={draft.displayName ?? ''}
+              onChange={e => set('displayName', e.target.value || null)}
+              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+            />
+          </FormRow>
+          <FormRow label="Browser tab title" hint="Overrides platform name in the browser tab">
+            <input
+              type="text"
+              placeholder="e.g. IBE Admin"
+              value={draft.tabTitle ?? ''}
+              onChange={e => set('tabTitle', e.target.value || null)}
+              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+            />
+          </FormRow>
+          <FormRow label="Logo" hint="Platform logo — upload a file or paste a URL">
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Upload file
+                <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="sr-only"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    e.target.value = ''
+                    set('logoUrl', await compressImage(file, 800))
+                  }} />
+              </label>
+              <span className="text-xs text-[var(--color-text-muted)]">or</span>
+              <TextInput value={draft.logoUrl ?? ''} onChange={v => set('logoUrl', v || null)} placeholder="https://..." />
+            </div>
+            {draft.logoUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={draft.logoUrl} alt="Logo preview" className="h-10 max-w-[160px] rounded object-contain" />
+                <button type="button" onClick={() => set('logoUrl', null)} className="text-xs text-[var(--color-text-muted)] underline-offset-2 hover:underline">Remove</button>
+              </div>
+            )}
+          </FormRow>
+          <FormRow label="Favicon" hint="Shown in the browser tab — upload a file or paste a URL">
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Upload file
+                <input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" className="sr-only"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    e.target.value = ''
+                    set('faviconUrl', await compressImage(file, 256))
+                  }} />
+              </label>
+              <span className="text-xs text-[var(--color-text-muted)]">or</span>
+              <TextInput value={draft.faviconUrl ?? ''} onChange={v => set('faviconUrl', v || null)} placeholder="https://..." />
+            </div>
+            {draft.faviconUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={draft.faviconUrl} alt="Favicon preview" className="h-8 w-8 rounded object-contain border border-[var(--color-border)] bg-[var(--color-background)] p-0.5" />
+                <button type="button" onClick={() => set('faviconUrl', null)} className="text-xs text-[var(--color-text-muted)] underline-offset-2 hover:underline">Remove</button>
+              </div>
+            )}
+          </FormRow>
+        </div>
+      </Section>
 
       {/* Colors */}
       <Section title="Colours" defaultOpen>

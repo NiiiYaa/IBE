@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { COUNTRIES, countryFlag } from '@/lib/countries'
+import { useT } from '@/context/translations'
 
 interface NationalityDropdownProps {
   value: string
@@ -9,6 +10,7 @@ interface NationalityDropdownProps {
 }
 
 export function NationalityDropdown({ value, onChange }: NationalityDropdownProps) {
+  const t = useT('search')
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -34,7 +36,7 @@ export function NationalityDropdown({ value, onChange }: NationalityDropdownProp
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search countries…"
+            placeholder={t('searchCountries')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder-muted outline-none"
@@ -50,7 +52,7 @@ export function NationalityDropdown({ value, onChange }: NationalityDropdownProp
       {/* Country list */}
       <ul className="max-h-60 overflow-y-auto py-1">
         {filtered.length === 0 ? (
-          <li className="px-4 py-3 text-sm text-muted">No countries found</li>
+          <li className="px-4 py-3 text-sm text-muted">{t('noCountriesFound')}</li>
         ) : (
           filtered.map(country => (
             <li key={country.code}>

@@ -10,6 +10,7 @@ import { useCountryDetect } from '@/hooks/use-country-detect'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
 import { CalendarDropdown } from './CalendarDropdown'
+import { useT, useLocale } from '@/context/translations'
 
 interface GuestRoom {
   adults: number
@@ -44,12 +45,12 @@ function roomSummary(room: GuestRoom): string {
   return parts.join(' · ')
 }
 
-function compactDate(iso: string): string {
+function compactDate(iso: string, locale: string): string {
   if (!iso) return '—'
-  const parts = iso.split('-')
+  const parts = iso.split('-').map(Number)
   if (parts.length < 3) return '—'
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${parseInt(parts[2]!)} ${months[parseInt(parts[1]!) - 1]}`
+  const [year, month, day] = parts as [number, number, number]
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(year, month - 1, day))
 }
 
 export function SearchSidebar({
@@ -65,6 +66,8 @@ export function SearchSidebar({
   aiEnabled = false,
   onAiToggle,
 }: SearchSidebarProps) {
+  const t = useT('search')
+  const locale = useLocale()
   const router = useRouter()
   const pathname = usePathname()
   const pageSearchParams = useSearchParams()
@@ -207,11 +210,11 @@ export function SearchSidebar({
         {/* Date summary */}
         {checkIn && checkOut && (
           <div className="flex flex-col items-center gap-0.5 pb-3 text-center">
-            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkIn)}</span>
+            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkIn, locale)}</span>
             <svg className="h-3 w-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkOut)}</span>
+            <span className="text-xs font-bold text-[var(--color-text)]">{compactDate(checkOut, locale)}</span>
             {nights > 0 && (
               <span className="mt-0.5 text-[10px] font-semibold text-primary">{nights}n</span>
             )}
@@ -239,8 +242,8 @@ export function SearchSidebar({
       {/* Header with collapse toggle */}
       <div className="flex items-center justify-between bg-primary px-5 py-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-white/70">Book directly</p>
-          <p className="text-base font-semibold text-white">Check availability</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-white/70">{t('bookDirectly')}</p>
+          <p className="text-base font-semibold text-white">{t('checkAvailability')}</p>
         </div>
         {onToggle && (
           <button
@@ -262,7 +265,7 @@ export function SearchSidebar({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
-                Check-in
+                {t('checkIn')}
               </label>
               <button
                 onClick={() => openCalendar('checkin')}
@@ -273,12 +276,12 @@ export function SearchSidebar({
                     : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
                 ].join(' ')}
               >
-                {displayDate(checkIn) || 'Select date'}
+                {displayDate(checkIn) || t('selectDate')}
               </button>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
-                Check-out
+                {t('checkOut')}
               </label>
               <button
                 onClick={() => openCalendar('checkout')}
@@ -289,7 +292,7 @@ export function SearchSidebar({
                     : 'border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text)] hover:border-primary',
                 ].join(' ')}
               >
-                {displayDate(checkOut) || 'Select date'}
+                {displayDate(checkOut) || t('selectDate')}
               </button>
             </div>
           </div>
@@ -319,7 +322,7 @@ export function SearchSidebar({
         {/* Rooms & Guests */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
-            Rooms &amp; Guests
+            {t('roomsAndGuests')}
           </label>
 
           {rooms.map((room, i) => {
@@ -331,7 +334,7 @@ export function SearchSidebar({
                   className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-primary-light)]"
                 >
                   <div>
-                    <p className="text-xs font-semibold text-muted">Room {i + 1}</p>
+                    <p className="text-xs font-semibold text-muted">{t('roomNumber', { number: String(i + 1) })}</p>
                     <p className="text-sm font-medium text-[var(--color-text)]">{roomSummary(room)}</p>
                   </div>
                   <svg
@@ -345,21 +348,21 @@ export function SearchSidebar({
                 {isExpanded && (
                   <div className="border-t border-[var(--color-border)] px-3 py-3 space-y-2">
                     <GuestCounter
-                      label="Adults"
+                      label={t('adults')}
                       hint={`Age ${childMaxAge + 1}+`}
                       value={room.adults}
                       min={1} max={9}
                       onChange={v => updateRoom(i, 'adults', v)}
                     />
                     <GuestCounter
-                      label="Children"
+                      label={t('children')}
                       hint={`Age ${infantMaxAge + 1}–${childMaxAge}`}
                       value={room.children}
                       min={0} max={MAX_CHILDREN_PER_ROOM}
                       onChange={v => updateRoom(i, 'children', v)}
                     />
                     <GuestCounter
-                      label="Infants"
+                      label={t('infants')}
                       hint={`Age 0–${infantMaxAge}`}
                       value={room.infants}
                       min={0} max={MAX_CHILDREN_PER_ROOM}
@@ -370,7 +373,7 @@ export function SearchSidebar({
                         onClick={() => removeRoom(i)}
                         className="pt-1 text-xs text-error hover:underline"
                       >
-                        Remove room
+                        {t('removeRoom')}
                       </button>
                     )}
                   </div>
@@ -384,12 +387,12 @@ export function SearchSidebar({
               onClick={addRoom}
               className="w-full rounded-lg border border-dashed border-[var(--color-border)] py-2 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-[var(--color-primary-light)]"
             >
-              + Add another room
+              + {t('addAnotherRoom')}
             </button>
           )}
           {rooms.length >= maxRooms && (
             <p className="text-xs text-[var(--color-text-muted)]">
-              To book more than {maxRooms} rooms,{' '}
+              {t('tooManyRooms', { max: String(maxRooms) })}{' '}
               {groupsHref ? (
                 <a
                   href={groupsHref}
@@ -397,10 +400,10 @@ export function SearchSidebar({
                   rel="noopener noreferrer"
                   className="font-medium text-[var(--color-primary)] hover:underline"
                 >
-                  go to the Group section
+                  {t('goToGroupSection')}
                 </a>
               ) : (
-                'contact the hotel'
+                t('contactHotel')
               )}
             </p>
           )}
@@ -409,14 +412,14 @@ export function SearchSidebar({
         {/* Nationality */}
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
-            Nationality
+            {t('nationality')}
           </label>
           <select
             value={nationality}
             onChange={e => setNationality(e.target.value)}
             className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
           >
-            <option value="">Select country</option>
+            <option value="">{t('selectCountry')}</option>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.code}>
                 {countryFlag(c.code)} {c.name}
@@ -431,12 +434,12 @@ export function SearchSidebar({
             onClick={() => setShowPromo(v => !v)}
             className="text-xs text-primary hover:underline"
           >
-            {showPromo ? '− Hide promo code' : '+ Have a promo code?'}
+            {showPromo ? `− ${t('hidePromoCode')}` : `+ ${t('havePromoCode')}`}
           </button>
           {showPromo && (
             <input
               type="text"
-              placeholder="Enter promo code"
+              placeholder={t('enterPromoCode')}
               value={promoCode}
               onChange={e => setPromoCode(e.target.value.toUpperCase())}
               className="mt-2 w-full rounded-md border border-[var(--color-border)] px-3 py-2 text-sm uppercase tracking-wider"
@@ -450,7 +453,7 @@ export function SearchSidebar({
           disabled={nights <= 0}
           className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
         >
-          {nights > 0 ? `Search — ${nights} night${nights !== 1 ? 's' : ''}` : 'Check Availability'}
+          {nights > 0 ? `${t('search')} — ${nights} night${nights !== 1 ? 's' : ''}` : t('checkAvailability')}
         </button>
 
         {/* AI mode button */}
@@ -460,7 +463,7 @@ export function SearchSidebar({
             className="ai-mode-btn-wrap flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-[var(--color-primary-light)]"
           >
             <span className="ai-spark-icon inline-flex"><AiSparkleIcon className="h-4 w-4" /></span>
-            Ask AI instead
+            {t('askAI')}
           </button>
         )}
       </div>

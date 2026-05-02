@@ -97,6 +97,18 @@ export async function configRoutes(fastify: FastifyInstance) {
     return reply.send({ logoUrl: config.logoUrl, displayName: config.displayName })
   })
 
+  // GET /config/system-meta — public: tab title + favicon for the admin layout
+  fastify.get('/config/system-meta', async (request, reply) => {
+    const cfg = await getSystemDesignDefaults()
+    void reply.header('Cache-Control', 'public, max-age=60, s-maxage=300')
+    return reply.send({
+      displayName: cfg.displayName ?? null,
+      tabTitle: cfg.tabTitle ?? null,
+      faviconUrl: cfg.faviconUrl ?? null,
+      logoUrl: cfg.logoUrl ?? null,
+    })
+  })
+
   // GET /config/logo/:orgId — public: serve org logo as image/png (decodes data URIs for external consumers like Claude.ai)
   fastify.get('/config/logo/:orgId', async (request, reply) => {
     const { orgId: rawId } = request.params as { orgId: string }

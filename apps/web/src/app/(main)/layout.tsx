@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer'
 import { buildCssVars } from '@/lib/theme'
 import { B2BAuthGate } from '@/components/b2b/B2BAuthGate'
 import { AiModeProvider } from '@/context/ai-mode'
+import { TranslationsProvider } from '@/context/translations'
 import { VisitorTracker } from '@/components/VisitorTracker'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
@@ -233,6 +234,12 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const fontUrl = config?.fontUrl ?? null
   // For locale/currency, use hotelConfig in chain mode — it already merges org defaults
   const localeConfig = (isChain && hotelConfig) ? hotelConfig : config
+  const activeLocale = localeConfig?.defaultLocale ?? 'en'
+  const enabledLocales = localeConfig?.enabledLocales ?? []
+  const allLocales = Array.from(new Set([activeLocale, ...enabledLocales, 'en']))
+  const translationMaps = Object.fromEntries(
+    await Promise.all(allLocales.map(async loc => [loc, await fetchTranslations(loc)]))
+  )
 
   const coords = property?.location?.coordinates
   const hotelPageId = reqHeaders.get('x-tenant-hotel')
@@ -275,25 +282,44 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   // B2B mode — gate behind agent auth regardless of model settings
   if (isB2BMode) {
-    return <AiModeProvider><B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children, true)}</B2BAuthGate></AiModeProvider>
+    return (
+      <TranslationsProvider defaultLocale={activeLocale} maps={translationMaps}>
+        <AiModeProvider><B2BAuthGate sellerSlug={b2bSellerSlug}>{shell(children, true)}</B2BAuthGate></AiModeProvider>
+      </TranslationsProvider>
+    )
   }
 
   // B2C blocked — show unavailable page instead of the regular content
   if (!enabledModels.includes('b2c')) {
-    return <AiModeProvider>{shell(
-      <div className="flex flex-1 items-center justify-center py-24 px-4 text-center">
-        <div className="max-w-sm">
-          <p className="text-4xl mb-4">🔒</p>
-          <h1 className="text-xl font-semibold text-[var(--color-text)] mb-2">
-            Online booking unavailable
-          </h1>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {displayName ?? 'This hotel'} is not currently accepting online reservations. Please contact us directly to make a booking.
-          </p>
-        </div>
-      </div>
-    )}</AiModeProvider>
+    return (
+      <TranslationsProvider defaultLocale={activeLocale} maps={translationMaps}>
+        <AiModeProvider>{shell(
+          <div className="flex flex-1 items-center justify-center py-24 px-4 text-center">
+            <div className="max-w-sm">
+              <p className="text-4xl mb-4">🔒</p>
+              <h1 className="text-xl font-semibold text-[var(--color-text)] mb-2">
+                Online booking unavailable
+              </h1>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {displayName ?? 'This hotel'} is not currently accepting online reservations. Please contact us directly to make a booking.
+              </p>
+            </div>
+          </div>
+        )}</AiModeProvider>
+      </TranslationsProvider>
+    )
   }
 
-  return <AiModeProvider>{shell(children)}</AiModeProvider>
+  return (
+    <TranslationsProvider defaultLocale={activeLocale} maps={translationMaps}>
+      <AiModeProvider>{shell(children)}</AiModeProvider>
+    </TranslationsProvider>
+  )
+}
+
+async function fetchTranslations(locale: string): Promise<Record<string, string>> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/config/translations?locale=${encodeURIComponent(locale)}`, { next: { revalidate: 300 } })
+    return res.ok ? (res.json() as Promise<Record<string, string>>) : {}
+  } catch { return {} }
 }

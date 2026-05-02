@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { TaxEntry } from '@ibe/shared'
 import { TaxRelation, formatCurrency } from '@ibe/shared'
+import { useT } from '@/context/translations'
 
 interface Props {
   displayFees: TaxEntry[]
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function TaxesSummary({ displayFees, optionalFees, locale, convert, displayCurrency }: Props) {
+  const t = useT('rooms')
   const [expanded, setExpanded] = useState(false)
   const conv = convert ?? ((n: number) => n)
 
@@ -22,7 +24,7 @@ export function TaxesSummary({ displayFees, optionalFees, locale, convert, displ
   return (
     <div className="flex flex-col gap-0.5">
       <span className="inline-flex items-center gap-1 text-xs font-medium">
-        <span className="text-muted">Taxes &amp; Fees</span>
+        <span className="text-muted">{t('taxesAndFees')}</span>
         <button
           type="button"
           onClick={() => setExpanded(v => !v)}
@@ -36,12 +38,12 @@ export function TaxesSummary({ displayFees, optionalFees, locale, convert, displ
         <div className="mt-0.5 space-y-0.5 pl-1 border-l-2 border-[var(--color-border)]">
           {displayFees.map((f, i) => (
             <p key={i} className="text-xs text-amber-700">
-              {formatCurrency(conv(f.amount), displayCurrency ?? f.currency, locale)} {f.description} — paid at hotel
+              {formatCurrency(conv(f.amount), displayCurrency ?? f.currency, locale)} {f.description} — {t('paidAtHotel')}
             </p>
           ))}
           {optionalFees.map((f, i) => (
             <p key={i} className="text-xs text-blue-600">
-              {formatCurrency(conv(f.amount), displayCurrency ?? f.currency, locale)} {f.description} — optional, paid at hotel
+              {formatCurrency(conv(f.amount), displayCurrency ?? f.currency, locale)} {f.description} — {t('optionalPaidAtHotel')}
             </p>
           ))}
         </div>

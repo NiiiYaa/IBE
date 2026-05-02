@@ -103,6 +103,25 @@ export interface AITestResult {
   error?: string
 }
 
+// ── Translation AI config ─────────────────────────────────────────────────────
+
+export interface TranslationAIConfigResponse {
+  useSystemDefault: boolean
+  provider: AIProvider | null
+  model: string | null
+  apiKeySet: boolean
+  apiKeyMasked: string | null
+  /** Resolved system default AI, shown as preview when useSystemDefault is true */
+  systemDefault: { provider: AIProvider | null; model: string | null } | null
+}
+
+export interface TranslationAIConfigUpdate {
+  useSystemDefault?: boolean
+  provider?: AIProvider | null
+  model?: string | null
+  apiKey?: string | null
+}
+
 // ── Conversational search ─────────────────────────────────────────────────────
 
 export interface GuestChatMessage {

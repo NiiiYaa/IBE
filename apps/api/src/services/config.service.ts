@@ -43,6 +43,7 @@ const HARDCODED_DEFAULTS = {
 let _systemDesignCache: OrgDesignDefaultsConfig | null = null
 
 function rowToSystemDesign(row: {
+  displayName: string | null; tabTitle: string | null
   colorPrimary: string | null; colorPrimaryHover: string | null; colorPrimaryLight: string | null
   colorAccent: string | null; colorBackground: string | null; colorSurface: string | null
   colorText: string | null; colorTextMuted: string | null; colorBorder: string | null
@@ -59,6 +60,8 @@ function rowToSystemDesign(row: {
   aiLayoutDefault: boolean | null; searchAiLayoutDefault: boolean | null
 } | null): OrgDesignDefaultsConfig {
   return {
+    displayName: row?.displayName ?? null,
+    tabTitle: row?.tabTitle ?? null,
     colorPrimary: row?.colorPrimary ?? null,
     colorPrimaryHover: row?.colorPrimaryHover ?? null,
     colorPrimaryLight: row?.colorPrimaryLight ?? null,
@@ -74,9 +77,7 @@ function rowToSystemDesign(row: {
     borderRadius: row?.borderRadius ?? null,
     logoUrl: row?.logoUrl ?? null,
     faviconUrl: row?.faviconUrl ?? null,
-    displayName: null,
     tagline: row?.tagline ?? null,
-    tabTitle: null,
     defaultCurrency: row?.defaultCurrency ?? null,
     defaultLocale: row?.defaultLocale ?? null,
     textDirection: (row?.textDirection ?? null) as 'ltr' | 'rtl' | null,
@@ -454,6 +455,7 @@ export async function upsertSystemDesignDefaults(updates: Partial<OrgDesignDefau
   const data: SystemUpdate = {}
 
   const strFields = [
+    'displayName', 'tabTitle',
     'colorPrimary', 'colorPrimaryHover', 'colorPrimaryLight', 'colorAccent',
     'colorBackground', 'colorSurface', 'colorText', 'colorTextMuted', 'colorBorder',
     'colorSuccess', 'colorError', 'fontFamily', 'logoUrl', 'faviconUrl', 'tagline',

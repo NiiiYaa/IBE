@@ -6,6 +6,7 @@ import { PixelInjector } from '@/components/tracking/PixelInjector'
 import type { BookingCancellationFrame, TaxEntry, NightlyPrice, PropertyDetail } from '@ibe/shared'
 import { TaxRelation } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
+import { useT, useLocale } from '@/context/translations'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
@@ -34,20 +35,23 @@ interface StoredConfirmation {
   selectedRooms?: StoredSelectedRoom[]
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+function makeFmtDate(locale: string) {
+  return (iso: string): string =>
+    new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function fmtAmount(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+function makeFmtAmount(locale: string) {
+  return (amount: number, currency: string): string =>
+    new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount)
 }
 
 function ConfirmTaxLine({ item, fmtAmount }: { item: TaxEntry; fmtAmount: (n: number, c: string) => string }) {
+  const t = useT('confirmation')
   const amountStr = (item.relation === TaxRelation.Add ? '+' : '') + fmtAmount(item.amount, item.currency)
   if (item.relation === TaxRelation.Display) {
     return (
       <div className="flex justify-between text-xs">
-        <span className="text-amber-700">{item.description} <span className="font-medium">(mandatory — paid at hotel)</span></span>
+        <span className="text-amber-700">{item.description} <span className="font-medium">({t('mandatoryPaidAtHotel')})</span></span>
         <span className="text-amber-700">{amountStr}</span>
       </div>
     )
@@ -55,7 +59,7 @@ function ConfirmTaxLine({ item, fmtAmount }: { item: TaxEntry; fmtAmount: (n: nu
   if (item.relation === TaxRelation.Optional) {
     return (
       <div className="flex justify-between text-xs">
-        <span className="text-blue-700">{item.description} <span className="font-medium">(optional — paid at hotel)</span></span>
+        <span className="text-blue-700">{item.description} <span className="font-medium">({t('optionalPaidAtHotel')})</span></span>
         <span className="text-blue-700">{amountStr}</span>
       </div>
     )
@@ -72,14 +76,15 @@ function nights(checkIn: string, checkOut: string): number {
   return Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000)
 }
 
-function CancellationPolicy({ frames, currency }: { frames: BookingCancellationFrame[]; currency: string }) {
+function CancellationPolicy({ frames, currency, fmtDate, fmtAmount }: { frames: BookingCancellationFrame[]; currency: string; fmtDate: (iso: string) => string; fmtAmount: (n: number, c: string) => string }) {
+  const t = useT('confirmation')
   const penaltyFrames = frames.filter(f => f.penaltyAmount > 0)
 
   if (penaltyFrames.length === 0) {
     return (
       <div className="rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
-        <p className="text-sm font-medium text-success">✓ Free cancellation</p>
-        <p className="text-xs text-success/80 mt-0.5">You will not be charged if you cancel this booking.</p>
+        <p className="text-sm font-medium text-success">{t('freeCancellation')}</p>
+        <p className="text-xs text-success/80 mt-0.5">{t('noCancellationCharges')}</p>
       </div>
     )
   }
@@ -95,13 +100,13 @@ function CancellationPolicy({ frames, currency }: { frames: BookingCancellationF
           <svg className="mt-0.5 h-4 w-4 shrink-0 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
-          <p className="text-sm font-medium text-error">Non-refundable — fees apply</p>
+          <p className="text-sm font-medium text-error">{t('nonRefundable')}</p>
         </div>
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 space-y-1.5">
           {penaltyFrames.map((f, i) => (
             <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
               <span className="text-[var(--color-text-muted)]">
-                {i === 0 ? 'Any cancellation' : `After ${fmtDate(f.from)}`}
+                {i === 0 ? t('anyCancellation') : t('afterDate', { date: fmtDate(f.from) })}
               </span>
               <span className="font-medium text-error shrink-0">
                 {fmtAmount(f.penaltyAmount, f.currency || currency)}
@@ -117,20 +122,20 @@ function CancellationPolicy({ frames, currency }: { frames: BookingCancellationF
     <div className="space-y-2">
       {/* Free window */}
       <div className="rounded-lg bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 px-4 py-3">
-        <p className="text-sm font-medium text-success">✓ Free cancellation until {fmtDate(firstPenalty.from)}</p>
-        <p className="text-xs text-success/80 mt-0.5">Cancel before this date at no charge.</p>
+        <p className="text-sm font-medium text-success">{t('freeCancellationUntil', { date: fmtDate(firstPenalty.from) })}</p>
+        <p className="text-xs text-success/80 mt-0.5">{t('cancelBeforeDateNoCharge')}</p>
       </div>
 
       {/* All penalty tiers */}
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1.5">
-        <p className="text-xs font-semibold text-amber-800 mb-2">✘ Cancellation fees after {fmtDate(firstPenalty.from)}</p>
+        <p className="text-xs font-semibold text-amber-800 mb-2">✘ {t('cancellationFeeAfter', { date: fmtDate(firstPenalty.from) })}</p>
         {penaltyFrames.map((f, i) => (
           <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
             <span className="text-amber-700">
               {penaltyFrames.length === 1
-                ? 'Any cancellation'
+                ? t('anyCancellation')
                 : i === penaltyFrames.length - 1
-                  ? `After ${fmtDate(f.from)}`
+                  ? t('afterDate', { date: fmtDate(f.from) })
                   : `${fmtDate(f.from)}${penaltyFrames[i + 1] ? ` – ${fmtDate(penaltyFrames[i + 1]!.from)}` : ''}`
               }
             </span>
@@ -151,6 +156,10 @@ interface PageProps {
 type SendChannel = 'email' | 'whatsapp'
 
 export default function ConfirmationPage({ params }: PageProps) {
+  const t = useT('confirmation')
+  const locale = useLocale()
+  const fmtDate = makeFmtDate(locale)
+  const fmtAmount = makeFmtAmount(locale)
   const [confirmation, setConfirmation] = useState<StoredConfirmation | null>(null)
   const [property, setProperty] = useState<PropertyDetail | null>(null)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -238,15 +247,15 @@ export default function ConfirmationPage({ params }: PageProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-2xl font-semibold">Booking confirmed!</h1>
-            <p className="mt-1 text-white/80 text-sm">Your reservation is confirmed</p>
+            <h1 className="text-2xl font-semibold">{t('bookingConfirmed')}</h1>
+            <p className="mt-1 text-white/80 text-sm">{t('yourReservationIsConfirmed')}</p>
           </div>
 
           <div className="px-8 py-6 space-y-5">
             {/* Booking reference */}
             <div className="flex items-center justify-between rounded-lg bg-[var(--color-background)] px-5 py-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Booking reference</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('bookingReference')}</p>
                 <p className="mt-0.5 text-xl font-bold tracking-wider text-[var(--color-text)]">#{params.id}</p>
                 {confirmation?.hyperGuestBookingId && (
                   <p className="mt-0.5 text-xs text-muted">HyperGuest ID: {confirmation.hyperGuestBookingId}</p>
@@ -262,7 +271,7 @@ export default function ConfirmationPage({ params }: PageProps) {
             {/* Hotel info */}
             {property && (
               <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Hotel</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('hotel')}</p>
                 <div className="flex items-center gap-2">
                   <p className="text-base font-semibold text-[var(--color-text)]">{property.name}</p>
                   {property.starRating > 0 && (
@@ -290,7 +299,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                   )}
                   <div className="flex items-center gap-1.5 text-xs">
                     <svg className="h-3.5 w-3.5 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <a href={`/?hotelId=${property.propertyId}`} className="text-primary hover:underline">Hotel page</a>
+                    <a href={`/?hotelId=${property.propertyId}`} className="text-primary hover:underline">{t('hotelPage')}</a>
                   </div>
                 </div>
               </div>
@@ -299,7 +308,7 @@ export default function ConfirmationPage({ params }: PageProps) {
             {/* Guest & stay details */}
             {confirmation?.leadGuest && (
               <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Guest details</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('guestDetails')}</p>
                 <p className="text-sm text-[var(--color-text)] font-medium">
                   {confirmation.leadGuest.firstName} {confirmation.leadGuest.lastName}
                 </p>
@@ -309,20 +318,20 @@ export default function ConfirmationPage({ params }: PageProps) {
 
             {confirmation?.checkIn && confirmation?.checkOut && (
               <div className="rounded-lg border border-[var(--color-border)] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">Stay details</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">{t('stayDetails')}</p>
                 <div className="flex items-center justify-between text-sm">
                   <div>
                     <p className="font-semibold text-[var(--color-text)]">{fmtDate(confirmation.checkIn)}</p>
-                    <p className="text-xs text-muted">Check-in</p>
+                    <p className="text-xs text-muted">{t('checkIn')}</p>
                   </div>
                   {n && (
                     <div className="text-center">
-                      <p className="text-xs text-muted">{n} night{n !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-muted">{t('nights', { count: String(n) })}</p>
                     </div>
                   )}
                   <div className="text-right">
                     <p className="font-semibold text-[var(--color-text)]">{fmtDate(confirmation.checkOut)}</p>
-                    <p className="text-xs text-muted">Check-out</p>
+                    <p className="text-xs text-muted">{t('checkOut')}</p>
                   </div>
                 </div>
 
@@ -330,7 +339,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                   <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-1">
                     {confirmation.rooms.map((r, i) => (
                       <p key={i} className="text-xs text-muted">
-                        Room {i + 1}: <span className="text-[var(--color-text)]">{r.roomCode}</span>
+                        {t('roomLabel', { number: String(i + 1) })}: <span className="text-[var(--color-text)]">{r.roomCode}</span>
                         {r.board && <span className="ml-2">· {r.board}</span>}
                       </p>
                     ))}
@@ -340,7 +349,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                 {/* Nightly breakdown */}
                 {confirmation.selectedRooms?.some(r => r.nightlyBreakdown.length > 0) && (
                   <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted">Nightly breakdown</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('nightlyBreakdown')}</p>
                     {confirmation.selectedRooms.map((sr, ri) => (
                       <div key={ri} className="space-y-1">
                         {confirmation.selectedRooms!.length > 1 && (
@@ -348,7 +357,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                         )}
                         {sr.nightlyBreakdown.map((n, ni) => (
                           <div key={ni} className="flex justify-between text-xs">
-                            <span className="text-muted">{new Date(n.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
+                            <span className="text-muted">{new Date(n.date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</span>
                             <span className="text-[var(--color-text)]">{fmtAmount(n.sell, n.currency)}</span>
                           </div>
                         ))}
@@ -371,13 +380,13 @@ export default function ConfirmationPage({ params }: PageProps) {
                           )}
                           {taxes.length > 0 && (
                             <div className="space-y-1">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Taxes</p>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('taxes')}</p>
                               {taxes.map((t, i) => <ConfirmTaxLine key={i} item={t} fmtAmount={fmtAmount} />)}
                             </div>
                           )}
                           {fees.length > 0 && (
                             <div className="space-y-1">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Fees</p>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('fees')}</p>
                               {fees.map((f, i) => <ConfirmTaxLine key={i} item={f} fmtAmount={fmtAmount} />)}
                             </div>
                           )}
@@ -388,7 +397,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                 )}
 
                 <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex justify-between">
-                  <span className="text-sm text-muted">Total</span>
+                  <span className="text-sm text-muted">{t('total')}</span>
                   <span className="text-sm font-semibold text-[var(--color-text)]">
                     {fmtAmount(confirmation.totalAmount, confirmation.currency)}
                   </span>
@@ -399,15 +408,17 @@ export default function ConfirmationPage({ params }: PageProps) {
             {/* Cancellation policy — per room */}
             {confirmation?.rooms && confirmation.rooms.some(r => r.cancellationFrames) && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Cancellation policy</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{t('cancellationPolicy')}</p>
                 {confirmation.rooms.map((r, i) => (
                   <div key={i} className="space-y-1.5">
                     {confirmation.rooms!.length > 1 && (
-                      <p className="text-xs font-medium text-[var(--color-text)]">Room {i + 1}: {r.roomCode} · {r.board}</p>
+                      <p className="text-xs font-medium text-[var(--color-text)]">{t('roomLabel', { number: String(i + 1) })}: {r.roomCode} · {r.board}</p>
                     )}
                     <CancellationPolicy
                       frames={r.cancellationFrames ?? []}
                       currency={confirmation.currency}
+                      fmtDate={fmtDate}
+                      fmtAmount={fmtAmount}
                     />
                   </div>
                 ))}
@@ -415,7 +426,7 @@ export default function ConfirmationPage({ params }: PageProps) {
             )}
 
             <p className="text-sm text-center text-muted">
-              Please keep your booking reference for your records.
+              {t('keepBookingReference')}
             </p>
           </div>
 
@@ -429,7 +440,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Download
+                {t('download')}
               </button>
 
               {emailEnabled && (
@@ -440,7 +451,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  Email
+                  {t('emailAction')}
                 </button>
               )}
 
@@ -453,7 +464,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                     <path d="M12 0C5.374 0 0 5.374 0 12c0 2.117.554 4.103 1.523 5.828L.057 23.486a.5.5 0 00.609.61l5.757-1.51A11.943 11.943 0 0012 24c6.626 0 12-5.374 12-12S18.626 0 12 0zm0 21.818a9.805 9.805 0 01-5.031-1.383l-.36-.214-3.733.979.996-3.637-.235-.374A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
                   </svg>
-                  WhatsApp
+                  {t('whatsapp')}
                 </button>
               )}
 
@@ -468,7 +479,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                 })()}
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
               >
-                Make another booking
+                {t('makeAnotherBooking')}
               </Link>
             </div>
 
@@ -476,11 +487,11 @@ export default function ConfirmationPage({ params }: PageProps) {
             {sendChannel && (
               <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
                 <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
-                  Send confirmation via {sendChannel === 'email' ? 'Email' : 'WhatsApp'}
+                  {sendChannel === 'email' ? t('sendConfirmationViaEmail') : t('sendConfirmationViaWhatsapp')}
                 </p>
                 {sendState === 'sent' ? (
                   <p className="text-sm text-success font-medium">
-                    ✓ Confirmation sent to {sendTo}
+                    {t('confirmationSent', { address: sendTo })}
                   </p>
                 ) : (
                   <div className="flex gap-2">
@@ -488,7 +499,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                       type={sendChannel === 'email' ? 'email' : 'tel'}
                       value={sendTo}
                       onChange={e => setSendTo(e.target.value)}
-                      placeholder={sendChannel === 'email' ? 'Email address' : 'Phone number (e.g. +1234567890)'}
+                      placeholder={sendChannel === 'email' ? t('emailAddress') : t('phoneNumber')}
                       className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
                     <button
@@ -496,7 +507,7 @@ export default function ConfirmationPage({ params }: PageProps) {
                       disabled={sendState === 'sending' || !sendTo.trim()}
                       className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                     >
-                      {sendState === 'sending' ? 'Sending…' : 'Send'}
+                      {sendState === 'sending' ? t('sending') : t('send')}
                     </button>
                     <button
                       onClick={() => setSendChannel(null)}

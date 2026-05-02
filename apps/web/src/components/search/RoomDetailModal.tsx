@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import type { RoomOption, RoomDetail } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
+import { useT } from '@/context/translations'
 
 interface RoomDetailModalProps {
   room: RoomOption
@@ -13,6 +14,7 @@ interface RoomDetailModalProps {
 }
 
 export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: RoomDetailModalProps) {
+  const t = useT('rooms')
   const images = roomDetail?.images ?? []
   const [imgIndex, setImgIndex] = useState(0)
 
@@ -65,7 +67,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
             {imgIndex > 0 && (
               <button
                 onClick={() => setImgIndex(i => i - 1)}
-                aria-label="Previous image"
+                aria-label={t('previousImage')}
                 className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-xl text-white hover:bg-black/70"
               >
                 ‹
@@ -74,7 +76,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
             {imgIndex < images.length - 1 && (
               <button
                 onClick={() => setImgIndex(i => i + 1)}
-                aria-label="Next image"
+                aria-label={t('nextImage')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-xl text-white hover:bg-black/70"
               >
                 ›
@@ -100,7 +102,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
                     i === imgIndex ? 'ring-2 ring-[var(--color-primary)]' : 'opacity-60 hover:opacity-100',
                   ].join(' ')}
                 >
-                  <Image src={img.url} alt={img.description || `Photo ${i + 1}`} fill unoptimized sizes="64px" className="object-cover" />
+                  <Image src={img.url} alt={img.description || t('photoNumber', { number: String(i + 1) })} fill unoptimized sizes="64px" className="object-cover" />
                 </button>
               ))}
             </div>
@@ -126,7 +128,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
                 <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Up to {room.maxAdults} adults
+                {t('upToAdults', { count: String(room.maxAdults) })}
               </span>
             )}
             {room.bedding[0] && (
@@ -138,14 +140,14 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
               </span>
             )}
             <span className="font-medium text-success">
-              {room.availableCount} room{room.availableCount !== 1 ? 's' : ''} left
+              {room.availableCount === 1 ? t('roomLeft') : t('roomsLeft', { count: String(room.availableCount) })}
             </span>
           </div>
 
           {/* Facilities */}
           {roomDetail?.facilities && roomDetail.facilities.length > 0 && (
             <div className="mt-4">
-              <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">Facilities</h3>
+              <h3 className="mb-2 text-sm font-semibold text-[var(--color-text)]">{t('facilities')}</h3>
               <div className="flex flex-wrap gap-1.5">
                 {roomDetail.facilities.map(f => (
                   <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-0.5 text-xs text-muted">
@@ -159,7 +161,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
           {/* Description */}
           {description && (
             <div className="mt-4">
-              <h3 className="mb-1.5 text-sm font-semibold text-[var(--color-text)]">Description</h3>
+              <h3 className="mb-1.5 text-sm font-semibold text-[var(--color-text)]">{t('description')}</h3>
               <p className="text-sm leading-relaxed text-muted">{description}</p>
             </div>
           )}

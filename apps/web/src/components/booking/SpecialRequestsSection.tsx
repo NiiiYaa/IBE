@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useT } from '@/context/translations'
 
 export interface SpecialRequestsState {
   highFloor: boolean
@@ -78,6 +79,7 @@ interface Props {
 }
 
 export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledged, onAcknowledgedChange, acknowledgeError, forceOpen }: Props) {
+  const t = useT('booking')
   const [open, setOpen] = useState(false)
   const isOpen = open || !!forceOpen
   const set = <K extends keyof SpecialRequestsState>(k: K, v: SpecialRequestsState[K]) =>
@@ -101,7 +103,7 @@ export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledge
           <svg className="h-4 w-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          <span className="text-sm font-semibold text-[var(--color-text)]">Special Requests</span>
+          <span className="text-sm font-semibold text-[var(--color-text)]">{t('specialRequestsHeader')}</span>
           {selectedCount > 0 && (
             <span className="rounded-full bg-[var(--color-primary)] px-2 py-0.5 text-[10px] font-semibold text-white">
               {selectedCount}
@@ -121,30 +123,30 @@ export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledge
 
           {/* Room preferences */}
           <div>
-            <span className={groupLabel}>Room preferences</span>
+            <span className={groupLabel}>{t('srRoomPreferences')}</span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Checkbox id="sr-high-floor"   label="High floor"   checked={value.highFloor}   onChange={v => set('highFloor', v)} />
-              <Checkbox id="sr-low-floor"    label="Low floor"    checked={value.lowFloor}    onChange={v => set('lowFloor', v)} />
-              <Checkbox id="sr-quiet-room"   label="Quiet room"   checked={value.quietRoom}   onChange={v => set('quietRoom', v)} />
-              <Checkbox id="sr-quiet-ws"     label="Quiet workspace" checked={value.quietWorkspace} onChange={v => set('quietWorkspace', v)} />
-              <Checkbox id="sr-near-elev"    label="Near elevator"    checked={value.nearElevator}   onChange={v => set('nearElevator', v)} />
-              <Checkbox id="sr-away-elev"    label="Away from elevator" checked={value.awayFromElevator} onChange={v => set('awayFromElevator', v)} />
+              <Checkbox id="sr-high-floor"   label={t('srHighFloor')}        checked={value.highFloor}        onChange={v => set('highFloor', v)} />
+              <Checkbox id="sr-low-floor"    label={t('srLowFloor')}         checked={value.lowFloor}         onChange={v => set('lowFloor', v)} />
+              <Checkbox id="sr-quiet-room"   label={t('srQuietRoom')}        checked={value.quietRoom}        onChange={v => set('quietRoom', v)} />
+              <Checkbox id="sr-quiet-ws"     label={t('srQuietWorkspace')}   checked={value.quietWorkspace}   onChange={v => set('quietWorkspace', v)} />
+              <Checkbox id="sr-near-elev"    label={t('srNearElevator')}     checked={value.nearElevator}     onChange={v => set('nearElevator', v)} />
+              <Checkbox id="sr-away-elev"    label={t('srAwayFromElevator')} checked={value.awayFromElevator} onChange={v => set('awayFromElevator', v)} />
               {multiRoom && (
-                <Checkbox id="sr-connecting" label="Connecting / adjoining rooms" checked={value.connectingRooms} onChange={v => set('connectingRooms', v)} />
+                <Checkbox id="sr-connecting" label={t('srConnectingRooms')} checked={value.connectingRooms} onChange={v => set('connectingRooms', v)} />
               )}
             </div>
           </div>
 
           {/* Timing */}
           <div>
-            <span className={groupLabel}>Check-in / Check-out timing</span>
+            <span className={groupLabel}>{t('srTiming')}</span>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex items-center gap-3">
                 <input type="checkbox" id="sr-early-ci" checked={!!value.earlyCheckIn}
                   onChange={e => set('earlyCheckIn', e.target.checked ? '09:00' : '')}
                   className="h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
                 />
-                <label htmlFor="sr-early-ci" className="text-sm text-[var(--color-text)] cursor-pointer">Early check-in</label>
+                <label htmlFor="sr-early-ci" className="text-sm text-[var(--color-text)] cursor-pointer">{t('srEarlyCheckIn')}</label>
                 {value.earlyCheckIn && (
                   <select value={value.earlyCheckIn} onChange={e => set('earlyCheckIn', e.target.value)} className={selectCls}>
                     {EARLY_CHECKIN_HOURS.map(h => <option key={h} value={h}>{h}</option>)}
@@ -156,7 +158,7 @@ export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledge
                   onChange={e => set('lateCheckOut', e.target.checked ? '14:00' : '')}
                   className="h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
                 />
-                <label htmlFor="sr-late-co" className="text-sm text-[var(--color-text)] cursor-pointer">Late check-out</label>
+                <label htmlFor="sr-late-co" className="text-sm text-[var(--color-text)] cursor-pointer">{t('srLateCheckOut')}</label>
                 {value.lateCheckOut && (
                   <select value={value.lateCheckOut} onChange={e => set('lateCheckOut', e.target.value)} className={selectCls}>
                     {LATE_CHECKOUT_HOURS.map(h => <option key={h} value={h}>{h}</option>)}
@@ -168,37 +170,37 @@ export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledge
 
           {/* Room type */}
           <div>
-            <span className={groupLabel}>Room type</span>
-            <Checkbox id="sr-non-smoking" label="Non-smoking room" checked={value.nonSmoking} onChange={v => set('nonSmoking', v)} />
+            <span className={groupLabel}>{t('srRoomType')}</span>
+            <Checkbox id="sr-non-smoking" label={t('srNonSmoking')} checked={value.nonSmoking} onChange={v => set('nonSmoking', v)} />
           </div>
 
           {/* Special occasions */}
           <div>
-            <span className={groupLabel}>Special occasions</span>
+            <span className={groupLabel}>{t('srSpecialOccasions')}</span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Checkbox id="sr-honeymoon"  label="Honeymoon setup"              checked={value.honeymoon}          onChange={v => set('honeymoon', v)} />
-              <Checkbox id="sr-birthday"   label="Birthday / anniversary surprise" checked={value.birthdayAnniversary} onChange={v => set('birthdayAnniversary', v)} />
+              <Checkbox id="sr-honeymoon" label={t('srHoneymoon')} checked={value.honeymoon}          onChange={v => set('honeymoon', v)} />
+              <Checkbox id="sr-birthday"  label={t('srBirthday')}  checked={value.birthdayAnniversary} onChange={v => set('birthdayAnniversary', v)} />
             </div>
           </div>
 
           {/* Breakfast */}
           <div>
-            <span className={groupLabel}>Breakfast preferences</span>
+            <span className={groupLabel}>{t('srBreakfastPreferences')}</span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Checkbox id="sr-early-bkfst"    label="Early breakfast"    checked={value.earlyBreakfast}    onChange={v => set('earlyBreakfast', v)} />
-              <Checkbox id="sr-takeaway-bkfst" label="Takeaway breakfast" checked={value.takeawayBreakfast} onChange={v => set('takeawayBreakfast', v)} />
+              <Checkbox id="sr-early-bkfst"    label={t('srEarlyBreakfast')}    checked={value.earlyBreakfast}    onChange={v => set('earlyBreakfast', v)} />
+              <Checkbox id="sr-takeaway-bkfst" label={t('srTakeawayBreakfast')} checked={value.takeawayBreakfast} onChange={v => set('takeawayBreakfast', v)} />
             </div>
           </div>
 
           {/* Other */}
           <div>
-            <label htmlFor="sr-other" className={groupLabel}>Other requests</label>
+            <label htmlFor="sr-other" className={groupLabel}>{t('srOtherRequests')}</label>
             <textarea
               id="sr-other"
               rows={3}
               value={value.other}
               onChange={e => set('other', e.target.value)}
-              placeholder="Any other requests for the hotel…"
+              placeholder={t('srOtherPlaceholder')}
               className={textareaCls}
               maxLength={500}
             />
@@ -215,11 +217,11 @@ export function SpecialRequestsSection({ value, onChange, multiRoom, acknowledge
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer"
                 />
                 <span className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-                  I understand and accept that special requests are subject to availability, are not guaranteed, and may incur additional charges payable directly to the hotel.
+                  {t('srAcknowledgment')}
                 </span>
               </label>
               {acknowledgeError && !acknowledged && (
-                <p className="text-xs text-[var(--color-error)] pl-7">Please confirm you have read and accept this before continuing.</p>
+                <p className="text-xs text-[var(--color-error)] pl-7">{t('srAcknowledgmentRequired')}</p>
               )}
             </div>
           )}

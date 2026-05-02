@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import type { CrossSellProduct, PublicCrossellResponse } from '@ibe/shared'
+import { useT, useLocale } from '@/context/translations'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
-function fmtCurrency(amount: number, currency: string) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount)
+function fmtCurrency(amount: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount)
 }
 
 function calcItemTotal(product: CrossSellProduct, nights: number): number {
@@ -28,9 +29,12 @@ function EventCard({ event }: { event: { name: string; date: string | null; time
   }
   const colorCls = categoryColors[(event.category ?? '').toLowerCase()] ?? 'bg-[var(--color-background)] text-[var(--color-text-muted)]'
 
-  const dateStr = event.date ? new Date(event.date + (event.time ? `T${event.time}` : '')).toLocaleDateString('en-US', {
+  const eventLocale = useLocale()
+  const dateStr = event.date ? new Date(event.date + (event.time ? `T${event.time}` : '')).toLocaleDateString(eventLocale, {
     weekday: 'short', month: 'short', day: 'numeric',
   }) : null
+
+  const tCS = useT('crossSell')
 
   return (
     <a
@@ -55,7 +59,7 @@ function EventCard({ event }: { event: { name: string; date: string | null; time
         {dateStr && <p className="text-xs font-medium text-[var(--color-primary)]">{dateStr}</p>}
         {event.venue && <p className="text-xs text-[var(--color-text-muted)] truncate">{event.venue}</p>}
         {event.ticketUrl && (
-          <span className="mt-auto pt-1.5 text-xs font-semibold text-[var(--color-primary)]">Get tickets →</span>
+          <span className="mt-auto pt-1.5 text-xs font-semibold text-[var(--color-primary)]">{tCS('getTickets')}</span>
         )}
       </div>
     </a>
@@ -67,6 +71,8 @@ interface PageProps {
 }
 
 export default function CrossSellPage({ params }: PageProps) {
+  const t = useT('crossSell')
+  const locale = useLocale()
   const router = useRouter()
   const [nights, setNights] = useState(1)
   const [propertyId, setPropertyId] = useState(PROPERTY_ID)
@@ -130,29 +136,29 @@ export default function CrossSellPage({ params }: PageProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
           </svg>
         </div>
-        <h1 className="text-2xl font-semibold text-[var(--color-text)]">Enhance Your Stay</h1>
+        <h1 className="text-2xl font-semibold text-[var(--color-text)]">{t('enhanceYourStay')}</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Add extras to your booking #{params.bookingId}
+          {t('addExtras', { id: params.bookingId })}
         </p>
       </div>
 
-      {isLoading && <p className="text-center text-sm text-[var(--color-text-muted)]">Loading offers…</p>}
+      {isLoading && <p className="text-center text-sm text-[var(--color-text-muted)]">{t('loadingOffers')}</p>}
 
       {!isLoading && !hasContent && (
-        <p className="text-center text-sm text-[var(--color-text-muted)]">No extras available at this time.</p>
+        <p className="text-center text-sm text-[var(--color-text-muted)]">{t('noExtrasAvailable')}</p>
       )}
 
       {/* Internal products */}
       {activeProducts.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Add to your stay</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('addToYourStay')}</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activeProducts.map(product => {
               const isSelected = selected.has(product.id)
               const itemTotal = calcItemTotal(product, nights)
               const priceLabel = product.pricingModel === 'per_night'
-                ? `${fmtCurrency(product.price, product.currency)} × ${nights} night${nights !== 1 ? 's' : ''} = ${fmtCurrency(itemTotal, product.currency)}`
-                : fmtCurrency(itemTotal, product.currency)
+                ? t('perNight', { amount: fmtCurrency(product.price, product.currency, locale), nights: String(nights), total: fmtCurrency(itemTotal, product.currency, locale) })
+                : fmtCurrency(itemTotal, product.currency, locale)
 
               return (
                 <button
@@ -189,7 +195,7 @@ export default function CrossSellPage({ params }: PageProps) {
                     )}
                     <p className="text-xs font-medium text-[var(--color-primary)]">{priceLabel}</p>
                     {product.tax > 0 && (
-                      <p className="text-[10px] text-[var(--color-text-muted)]">Includes {product.tax}% tax</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">{t('includesTax', { pct: String(product.tax) })}</p>
                     )}
                   </div>
                 </button>
@@ -201,10 +207,10 @@ export default function CrossSellPage({ params }: PageProps) {
           {selected.size > 0 && (
             <div className="mt-4 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-light)] px-5 py-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-[var(--color-text-muted)]">Selected extras total</p>
-                <p className="text-lg font-semibold text-[var(--color-text)]">{fmtCurrency(total, currency)}</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{t('selectedExtrasTotal')}</p>
+                <p className="text-lg font-semibold text-[var(--color-text)]">{fmtCurrency(total, currency, locale)}</p>
                 {data?.paymentMode === 'informational' && (
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Payable at the hotel on arrival</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{t('payableAtHotel')}</p>
                 )}
               </div>
               <button
@@ -212,7 +218,7 @@ export default function CrossSellPage({ params }: PageProps) {
                 onClick={() => router.push(`/booking/confirmation/${params.bookingId}`)}
                 className="rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
               >
-                Add to my stay →
+                {t('addToMyStay')}
               </button>
             </div>
           )}
@@ -222,7 +228,7 @@ export default function CrossSellPage({ params }: PageProps) {
       {/* External events */}
       {externalEvents.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Events near the hotel</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('eventsNearHotel')}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {externalEvents.slice(0, 6).map((event, i) => (
               <EventCard key={i} event={event} />
@@ -237,7 +243,7 @@ export default function CrossSellPage({ params }: PageProps) {
           href={`/booking/confirmation/${params.bookingId}`}
           className="text-sm text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]"
         >
-          No thanks, skip to confirmation →
+          {t('skipConfirmation')}
         </Link>
       </div>
     </main>

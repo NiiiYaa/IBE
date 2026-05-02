@@ -350,7 +350,6 @@ export function HeaderSelectors({
     <>
       {/* Desktop selectors */}
       <div className="hidden sm:flex items-center gap-1">
-        {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
         {showGroupsButton && (
           <a
             href={groupsHref}
@@ -361,6 +360,7 @@ export function HeaderSelectors({
         )}
         {mapData && <MapButton mapData={mapData} />}
         <CurrencySelector enabledCurrencies={enabledCurrencies} />
+        {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
         {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
       </div>
 
@@ -399,7 +399,6 @@ export function HeaderSelectors({
               </div>
             )}
             <div className="flex flex-col px-2 py-2">
-              {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
               {showGroupsButton && (
                 <a
                   href={groupsHref}
@@ -411,6 +410,7 @@ export function HeaderSelectors({
               )}
               {mapData && <MapButton mapData={mapData} />}
               <CurrencySelector enabledCurrencies={enabledCurrencies} />
+              {showLocale && <LanguageSelector enabledLocales={enabledLocales} />}
               {isB2BMode ? <B2BAgentButton /> : <GuestAccountButton />}
             </div>
           </div>
