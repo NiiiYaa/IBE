@@ -655,7 +655,8 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buf = ''
-    while (true) {
+    let finished = false
+    while (!finished) {
       const { value, done } = await reader.read()
       if (done) break
       buf += decoder.decode(value, { stream: true })
@@ -667,10 +668,14 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
           const event = JSON.parse(line.slice(6)) as AutoTranslateProgressEvent
           if (event.type === 'progress') setTranslateCount(c => c + 1)
           if (event.type === 'error') setTranslateError(event.message)
-          if (event.type === 'done') void qc.invalidateQueries({ queryKey: ['translation-status'] })
+          if (event.type === 'done') {
+            void qc.invalidateQueries({ queryKey: ['translation-status'] })
+            finished = true
+          }
         } catch { /* ignore parse errors */ }
       }
     }
+    reader.cancel().catch(() => {/* ignore */})
   }
 
   async function runTranslate(limit?: number) {
@@ -698,7 +703,13 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
     abortRef.current = new AbortController()
     try {
       for (const locale of localeOptions) {
-        await streamTranslate(locale)
+        try {
+          await streamTranslate(locale)
+        } catch (err) {
+          if ((err as Error).name === 'AbortError') throw err
+          // log per-language failures but continue with remaining languages
+          console.warn(`Translation failed for ${locale}:`, err)
+        }
       }
       void refetchRows()
     } catch (err) {
