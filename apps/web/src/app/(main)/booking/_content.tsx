@@ -104,14 +104,19 @@ export function BookingContent() {
 
       <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
 
-      {searchData.results.flatMap(r => r.remarks).map((remark, i) => (
-        <div key={i} className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-primary-light)] px-4 py-3 text-sm text-primary">
-          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-          {remark}
-        </div>
-      ))}
+      {searchData.results.flatMap(r => r.remarks).map((remark, i) => {
+        const ci = /check[\s-]?in\s+from\s+(.+)/i.exec(remark)
+        const co = /check[\s-]?out\s+until\s+(.+)/i.exec(remark)
+        const label = ci ? t('checkInFrom', { time: ci[1]!.trim() }) : co ? t('checkOutUntil', { time: co[1]!.trim() }) : remark
+        return (
+          <div key={i} className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-primary-light)] px-4 py-3 text-sm text-primary">
+            <svg className="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            {label}
+          </div>
+        )
+      })}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-card">

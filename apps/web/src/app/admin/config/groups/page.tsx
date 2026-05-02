@@ -299,6 +299,7 @@ function ChainGroupsConfig({ orgId }: { orgId?: number }) {
     })
   }
 
+  if (orgId === undefined) return <p className="text-sm text-[var(--color-text-muted)]">Select a property to configure groups.</p>
   if (isError) return <p className="text-sm text-[var(--color-error)]">Failed to load.</p>
   if (isLoading || !form) return <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
 

@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api-client'
 import { countryFlag, countryName } from '@/lib/countries'
 import { todayIso, addDays, nightsBetween } from '@ibe/shared'
 import { displayDate } from '@/lib/calendar-utils'
-import { useLocale } from '@/context/translations'
+import { useLocale, useT } from '@/context/translations'
 import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { NationalityDropdown } from '@/components/search/NationalityDropdown'
 import { useCountryDetect } from '@/hooks/use-country-detect'
@@ -84,7 +84,8 @@ function Divider() {
 // ── Step indicator ────────────────────────────────────────────────────────────
 
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
-  const steps = ['Search', 'Select Rooms', 'Complete']
+  const tGroups = useT('groups')
+  const steps = [tGroups('step1'), tGroups('step2'), tGroups('step3')]
   return (
     <div className="flex items-center gap-0">
       {steps.map((label, i) => {
@@ -118,7 +119,6 @@ type ActivePanel = 'calendar' | 'nationality' | null
 type MealType = 'breakfast' | 'lunch' | 'dinner'
 type MealSelection = { selected: boolean; adults: number; children: number; infants: number }
 
-const MEAL_LABELS: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
 
 export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: number; returnTo?: string; orgId?: number }) {
   const today = todayIso()
@@ -142,6 +142,9 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
   const containerRef = useRef<HTMLDivElement>(null)
   const detectedCountry = useCountryDetect()
   const locale = useLocale()
+  const t = useT('search')
+  const tGroups = useT('groups')
+  const MEAL_LABELS: Record<MealType, string> = { breakfast: tGroups('breakfast'), lunch: tGroups('lunch'), dinner: tGroups('dinner') }
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -330,7 +333,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
   if (!groupCfg?.enabled) {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10 text-center">
-        <p className="text-lg text-[var(--color-text-muted)]">Group bookings are not available for this property.</p>
+        <p className="text-lg text-[var(--color-text-muted)]">{tGroups('groupBookingsNotAvailable')}</p>
       </main>
     )
   }
@@ -345,13 +348,13 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-[var(--color-text)]">Inquiry submitted</h2>
+          <h2 className="text-lg font-semibold text-[var(--color-text)]">{tGroups('inquirySubmitted')}</h2>
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-            Thank you, {contactName}. Our groups team will review your request and get back to you within 24 hours.
+            {tGroups('thankYouMessage', { name: contactName })}
           </p>
           <button onClick={() => { setSubmitted(false); setStep(1); setSelections({}) }}
             className="mt-6 rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-background)]">
-            Submit another inquiry
+            {tGroups('submitAnotherInquiry')}
           </button>
         </div>
       </main>
@@ -360,7 +363,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
 
   const nationalityLabel = nationality
     ? `${countryFlag(nationality)} ${countryName(nationality)}`
-    : 'Select country'
+    : tGroups('selectCountry')
 
   const enabledMeals = (['breakfast', 'lunch', 'dinner'] as MealType[]).filter(t => groupCfg.mealsConfig[t].enabled)
 
@@ -368,7 +371,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
     <main className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-[var(--color-text)]">Group Booking</h1>
+          <h1 className="text-2xl font-semibold text-[var(--color-text)]">{tGroups('groupBooking')}</h1>
           {returnTo && (
             <a
               href={returnTo}
@@ -377,12 +380,12 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back to FIT
+              {tGroups('backToFit')}
             </a>
           )}
         </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Special rates for groups of 10 or more rooms.
+          {tGroups('specialRates')}
         </p>
       </div>
 
@@ -397,26 +400,26 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           <div ref={containerRef} className="relative mx-auto w-full">
             <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
               <Segment
-                label="Check-in"
-                value={displayDate(checkIn, locale) || 'Select date'}
+                label={t('checkIn')}
+                value={displayDate(checkIn, locale) || t('selectDates')}
                 active={activePanel === 'calendar' && calendarInitialField === 'checkin'}
                 onClick={() => openCalendar('checkin')}
               />
               <Divider />
               <Segment
-                label="Check-out"
-                value={displayDate(checkOut, locale) || 'Select date'}
+                label={t('checkOut')}
+                value={displayDate(checkOut, locale) || t('selectDates')}
                 active={activePanel === 'calendar' && calendarInitialField === 'checkout'}
                 onClick={() => openCalendar('checkout')}
               />
               <Divider />
               <div className="flex shrink-0 flex-col items-center justify-center px-6 py-4">
-                <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">Nights</span>
+                <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">{t('nightsLabel')}</span>
                 <span className="text-sm font-semibold text-[var(--color-text)]">{nights > 0 ? nights : '—'}</span>
               </div>
               <Divider />
               <Segment
-                label="Nationality"
+                label={t('nationality')}
                 value={nationalityLabel}
                 active={activePanel === 'nationality'}
                 onClick={() => setActivePanel(p => p === 'nationality' ? null : 'nationality')}
@@ -428,7 +431,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                   disabled={searching || nights <= 0}
                   className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white shadow transition-colors hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {searching ? 'Searching…' : 'Check availability'}
+                  {searching ? tGroups('searching') : tGroups('checkAvailability')}
                 </button>
               </div>
             </div>
@@ -438,8 +441,8 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               <div className="min-w-0 space-y-0.5">
                 <p className="truncate text-xs font-medium text-[var(--color-text-muted)]">
                   {checkIn && checkOut
-                    ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${nights} night${nights !== 1 ? 's' : ''}` : ''}`
-                    : 'Select dates'}
+                    ? `${displayDate(checkIn, locale)} – ${displayDate(checkOut, locale)}${nights > 0 ? ` · ${tGroups('nightCount', { count: String(nights) })}` : ''}`
+                    : tGroups('selectDates')}
                 </p>
                 <p className="truncate text-sm font-semibold text-[var(--color-text)]">{nationalityLabel}</p>
               </div>
@@ -448,14 +451,14 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                 disabled={searching || nights <= 0}
                 className="shrink-0 rounded-full bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow disabled:opacity-50"
               >
-                {searching ? '…' : 'Search'}
+                {searching ? '…' : tGroups('search')}
               </button>
             </div>
 
             {/* Mobile inline editors */}
             <div className="sm:hidden mt-3 space-y-2">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-                <p className={labelCls}>Dates</p>
+                <p className={labelCls}>{tGroups('dates')}</p>
                 <CalendarDropdown
                   checkIn={checkIn}
                   checkOut={checkOut}
@@ -467,7 +470,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                 />
               </div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-                <p className={labelCls}>Nationality</p>
+                <p className={labelCls}>{tGroups('nationality')}</p>
                 <NationalityDropdown value={nationality} onChange={setNationality} />
               </div>
             </div>
@@ -497,7 +500,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           </div>
 
           {searchError && (
-            <p className="text-sm text-[var(--color-error)]">Search failed. Please try again.</p>
+            <p className="text-sm text-[var(--color-error)]">{tGroups('searchError')}</p>
           )}
         </div>
       )}
@@ -508,39 +511,39 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">
-                {displayDate(checkIn, locale)} → {displayDate(checkOut, locale)} · {nights} night{nights !== 1 ? 's' : ''}
+                {displayDate(checkIn, locale)} → {displayDate(checkOut, locale)} · {tGroups('nightCount', { count: String(nights) })}
                 <span className="hidden sm:inline"> · {countryName(nationality)}</span>
               </p>
             </div>
             <button onClick={() => { setStep(1); setSelections({}) }}
               className="text-sm text-[var(--color-text-muted)] underline-offset-2 hover:underline">
-              Edit search
+              {tGroups('editSearch')}
             </button>
           </div>
 
           {rooms.length === 0 ? (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center">
-              <p className="text-sm text-[var(--color-text-muted)]">No rooms available for selected dates.</p>
+              <p className="text-sm text-[var(--color-text-muted)]">{tGroups('noRoomsAvailable')}</p>
             </div>
           ) : (
             <>
               {/* Rooms sub-section */}
               <div>
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Rooms</h3>
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('rooms')}</h3>
 
                 {/* Desktop table */}
                 <div className="hidden sm:block overflow-hidden rounded-xl border border-[var(--color-border)]">
                   <table className="w-full text-sm">
                     <thead className="bg-[var(--color-background)]">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Room type</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Adults</th>
-                        {showChildren && <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Children</th>}
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Max</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Available</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Group rate / room</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Qty</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('roomType')}</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('adults')}</th>
+                        {showChildren && <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('children')}</th>}
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('max')}</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('available')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('groupRatePerRoom')}</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('quantity')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('total')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)]">
@@ -592,10 +595,10 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                           <p className="shrink-0 text-sm font-bold text-[var(--color-primary)]">{fmtAmount(gp, currency)}<span className="text-xs font-normal text-[var(--color-text-muted)]"> / {nights}n</span></p>
                         </div>
                         <div className="mb-4 flex flex-wrap gap-2 text-xs text-[var(--color-text-muted)]">
-                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👤 Adults: {room.maxAdults}</span>
-                          {showChildren && room.maxChildren > 0 && <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👶 Children: {room.maxChildren}</span>}
-                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">Max: {room.maxOccupancy}</span>
-                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">Available: {room.availableCount}</span>
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👤 {tGroups('adults')}: {room.maxAdults}</span>
+                          {showChildren && room.maxChildren > 0 && <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">👶 {tGroups('children')}: {room.maxChildren}</span>}
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">{tGroups('max')}: {room.maxOccupancy}</span>
+                          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5">{tGroups('available')}: {room.availableCount}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -624,20 +627,20 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               {/* Meals sub-section */}
               {enabledMeals.length > 0 && (
                 <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Meals</h3>
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('meals')}</h3>
 
                   {/* Desktop table */}
                   <div className="hidden sm:block overflow-hidden rounded-xl border border-[var(--color-border)]">
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--color-background)]">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Meal</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Add</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Adults</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Children</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Infants</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Rate / person</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Total</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('meal')}</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('add')}</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('adults')}</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('children')}</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('infants')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('ratePerPerson')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('total')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--color-border)]">
@@ -670,9 +673,9 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                               </td>
                               <td className="px-4 py-3 text-right text-[var(--color-text-muted)]">
                                 <div className="space-y-0.5 text-xs">
-                                  <div>Adult: {fmtAmount(cfg.priceAdult, currency)}</div>
-                                  {cfg.priceChild > 0 && <div>Child: {fmtAmount(cfg.priceChild, currency)}</div>}
-                                  {cfg.priceInfant > 0 && <div>Infant: {fmtAmount(cfg.priceInfant, currency)}</div>}
+                                  <div>{tGroups('adult')}: {fmtAmount(cfg.priceAdult, currency)}</div>
+                                  {cfg.priceChild > 0 && <div>{tGroups('child')}: {fmtAmount(cfg.priceChild, currency)}</div>}
+                                  {cfg.priceInfant > 0 && <div>{tGroups('infant')}: {fmtAmount(cfg.priceInfant, currency)}</div>}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-[var(--color-text)]">
@@ -707,12 +710,12 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                           {sel.selected && (
                             <div className="mt-3 space-y-2 border-t border-[var(--color-border)] pt-3">
                               {[
-                                { key: 'adults' as const, label: 'Adults', price: cfg.priceAdult },
-                                ...(cfg.priceChild > 0 ? [{ key: 'children' as const, label: 'Children', price: cfg.priceChild }] : []),
-                                ...(cfg.priceInfant > 0 ? [{ key: 'infants' as const, label: 'Infants', price: cfg.priceInfant }] : []),
+                                { key: 'adults' as const, label: tGroups('adults'), price: cfg.priceAdult },
+                                ...(cfg.priceChild > 0 ? [{ key: 'children' as const, label: tGroups('children'), price: cfg.priceChild }] : []),
+                                ...(cfg.priceInfant > 0 ? [{ key: 'infants' as const, label: tGroups('infants'), price: cfg.priceInfant }] : []),
                               ].map(({ key, label, price }) => (
                                 <div key={key} className="flex items-center justify-between">
-                                  <span className="text-xs text-[var(--color-text-muted)]">{label} — {fmtAmount(price, currency)}/person</span>
+                                  <span className="text-xs text-[var(--color-text-muted)]">{label} — {fmtAmount(price, currency)}{tGroups('perPerson')}</span>
                                   <input type="number" min={0} value={sel[key]}
                                     onChange={e => setMealSelections(prev => ({ ...prev, [type]: { ...prev[type], [key]: Math.max(0, parseInt(e.target.value) || 0) } }))}
                                     className="w-16 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-center text-sm focus:border-[var(--color-primary)] focus:outline-none" />
@@ -730,7 +733,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               {/* Meeting Room sub-section */}
               {groupCfg.meetingRoomConfig.enabled && (
                 <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Meeting Room</h3>
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('meetingRoom')}</h3>
                   <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
                     <div className="flex items-center justify-between px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -741,9 +744,9 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                           className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
                         />
                         <div>
-                          <p className="text-sm font-medium text-[var(--color-text)]">Conference room</p>
+                          <p className="text-sm font-medium text-[var(--color-text)]">{tGroups('conferenceRoom')}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">
-                            {fmtAmount(groupCfg.meetingRoomConfig.pricePerDay, currency)} per day × {nights} night{nights !== 1 ? 's' : ''}
+                            {tGroups('meetingRoomRate', { amount: fmtAmount(groupCfg.meetingRoomConfig.pricePerDay, currency), count: String(nights) })}
                           </p>
                         </div>
                       </div>
@@ -759,11 +762,11 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               {groupCfg.freeRoomsConfig.enabled && groupCfg.freeRoomsConfig.count > 0 && (
                 <div>
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                    Free Rooms: {groupCfg.freeRoomsConfig.count} for Guide, Driver etc.
+                    {tGroups('freeRooms', { count: String(groupCfg.freeRoomsConfig.count) })}
                   </h3>
                   <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
                     <p className="text-sm text-[var(--color-text)]">
-                      Your group includes <strong>{groupCfg.freeRoomsConfig.count}</strong> complimentary room{groupCfg.freeRoomsConfig.count !== 1 ? 's' : ''} for guide, driver, or staff — at no extra charge.
+                      {tGroups('freeRoomsDesc', { count: String(groupCfg.freeRoomsConfig.count) })}
                     </p>
                   </div>
                 </div>
@@ -771,7 +774,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
 
               {/* Grand Total */}
               <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
-                <span className="text-sm font-semibold text-[var(--color-text)]">Grand Total</span>
+                <span className="text-sm font-semibold text-[var(--color-text)]">{tGroups('grandTotal')}</span>
                 <span className="text-base font-bold text-[var(--color-primary)]">{fmtAmount(grandTotal, currency)}</span>
               </div>
 
@@ -781,7 +784,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                   disabled={!hasSelections}
                   className="rounded-xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40 transition-colors"
                 >
-                  Continue
+                  {tGroups('continue')}
                 </button>
               </div>
             </>
@@ -794,17 +797,17 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-[var(--color-text)]">
-              {groupCfg.bookingMode === 'offline' ? 'Send inquiry' : 'Your details'}
+              {groupCfg.bookingMode === 'offline' ? tGroups('sendInquiry') : tGroups('yourDetails')}
             </h2>
             <button onClick={() => setStep(2)}
               className="text-sm text-[var(--color-text-muted)] underline-offset-2 hover:underline">
-              Back to room selection
+              {tGroups('backToRoomSelection')}
             </button>
           </div>
 
           {/* Booking summary */}
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Your selection</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('yourSelection')}</p>
             {rooms.filter(r => (selections[r.roomId] ?? 0) > 0).map(r => (
               <div key={r.roomId} className="flex items-center justify-between text-sm">
                 <span className="text-[var(--color-text)]">{r.roomName} × {selections[r.roomId]}</span>
@@ -821,12 +824,12 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
               ))}
             {meetingRoomSelected && groupCfg.meetingRoomConfig.enabled && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--color-text)]">Meeting room</span>
+                <span className="text-[var(--color-text)]">{tGroups('meetingRoom')}</span>
                 <span className="text-[var(--color-text-muted)]">{fmtAmount(meetingRoomCost, currency)}</span>
               </div>
             )}
             <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-2 text-sm font-semibold">
-              <span className="text-[var(--color-text)]">Total for {nights} night{nights !== 1 ? 's' : ''}</span>
+              <span className="text-[var(--color-text)]">{tGroups('totalForNights', { count: String(nights) })}</span>
               <span className="text-[var(--color-primary)]">{fmtAmount(grandTotal, currency)}</span>
             </div>
           </div>
@@ -835,25 +838,25 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Full name *</label>
+                <label className={labelCls}>{tGroups('fullName')} *</label>
                 <input className={inputCls} value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Jane Smith" />
               </div>
               <div>
-                <label className={labelCls}>Email address *</label>
+                <label className={labelCls}>{tGroups('emailAddress')} *</label>
                 <input type="email" className={inputCls} value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="jane@company.com" />
               </div>
               <div>
-                <label className={labelCls}>Phone</label>
+                <label className={labelCls}>{tGroups('phone')}</label>
                 <input type="tel" className={inputCls} value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="+1 555 000 0000" />
               </div>
             </div>
 
             {groupCfg.bookingMode === 'offline' && (
               <div>
-                <label className={labelCls}>Message (optional)</label>
+                <label className={labelCls}>{tGroups('message')}</label>
                 <textarea className={inputCls + ' resize-none'} rows={3}
                   value={message} onChange={e => setMessage(e.target.value)}
-                  placeholder="Any special requirements or questions…" />
+                  placeholder={tGroups('messagePlaceholder')} />
               </div>
             )}
           </div>
@@ -861,14 +864,13 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           {/* Cancellation policy */}
           {groupCfg.cancellationRanges.length > 0 && (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Cancellation policy</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('cancellationPolicy')}</p>
               {groupCfg.cancellationRanges.map((r, i) => {
                 const amount = fmtAmount(Math.round(grandTotal * r.pct) / 100, currency)
                 if (r.triggerType === 'on_confirmation') {
                   return (
                     <p key={i} className="text-sm text-[var(--color-text)]">
-                      Upon confirmation: <strong>{r.pct}%</strong>{' '}
-                      <span className="text-[var(--color-text-muted)]">({amount})</span>{' '}deposit non-refundable
+                      {tGroups('uponConfirmationDeposit', { pct: String(r.pct), amount })}
                     </p>
                   )
                 }
@@ -876,10 +878,8 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                 const isPast = deadline < todayIso()
                 return (
                   <p key={i} className={['text-sm', isPast ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]'].join(' ')}>
-                    From <strong>{fmtDate(deadline)}</strong> ({r.daysBeforeCheckin} days before check-in):{' '}
-                    <strong>{r.pct}%</strong>{' '}
-                    <span className="text-[var(--color-text-muted)]">({amount})</span>{' '}non-refundable
-                    {isPast && ' — deadline passed'}
+                    {tGroups('fromDeadlineNonRefundable', { deadline: fmtDate(deadline), days: String(r.daysBeforeCheckin ?? 0), pct: String(r.pct), amount })}
+                    {isPast && ' ' + tGroups('deadlinePassed')}
                   </p>
                 )
               })}
@@ -891,14 +891,13 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
             ? groupCfg.cancellationRanges.length > 0
             : groupCfg.paymentRanges.length > 0) && (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Payment schedule</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('paymentSchedule')}</p>
               {(groupCfg.paymentInParWithCancellation ? groupCfg.cancellationRanges : groupCfg.paymentRanges).map((r, i) => {
                 const amount = fmtAmount(Math.round(grandTotal * r.pct) / 100, currency)
                 if (r.triggerType === 'on_confirmation') {
                   return (
                     <p key={i} className="text-sm text-[var(--color-text)]">
-                      Upon confirmation: <strong>{r.pct}%</strong>{' '}
-                      <span className="text-[var(--color-text-muted)]">({amount})</span>{' '}due
+                      {tGroups('uponConfirmationDue', { pct: String(r.pct), amount })}
                     </p>
                   )
                 }
@@ -906,10 +905,8 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                 const isPast = !groupCfg.paymentInParWithCancellation && deadline < todayIso()
                 return (
                   <p key={i} className={['text-sm', isPast ? 'text-[var(--color-error)]' : 'text-[var(--color-text)]'].join(' ')}>
-                    By <strong>{fmtDate(deadline)}</strong> ({r.daysBeforeCheckin} days before check-in):{' '}
-                    <strong>{r.pct}%</strong>{' '}
-                    <span className="text-[var(--color-text-muted)]">({amount})</span>{' '}due
-                    {isPast && ' — overdue'}
+                    {tGroups('byDeadlineDue', { deadline: fmtDate(deadline), days: String(r.daysBeforeCheckin ?? 0), pct: String(r.pct), amount })}
+                    {isPast && ' — ' + tGroups('overdue')}
                   </p>
                 )
               })}
@@ -919,7 +916,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
           {/* Group policies */}
           {groupCfg.groupPolicies && (
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Group policies</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{tGroups('groupPolicies')}</p>
               <p className="whitespace-pre-wrap text-sm text-[var(--color-text)]">{groupCfg.groupPolicies}</p>
             </div>
           )}
@@ -933,13 +930,13 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                 disabled={!contactName || !contactEmail || inquiryMut.isPending}
                 className="rounded-xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40 transition-colors"
               >
-                {inquiryMut.isPending ? 'Sending…' : 'Submit inquiry'}
+                {inquiryMut.isPending ? tGroups('submitting') : tGroups('submitInquiry')}
               </button>
             </div>
           ) : (
             <div className="space-y-3">
               <p className="text-xs text-[var(--color-text-muted)]">
-                You will be redirected to complete your booking. Group pricing will be reflected in the hotel&apos;s invoice.
+                {tGroups('redirectToComplete')}
               </p>
               <div className="flex justify-end">
                 <button
@@ -947,7 +944,7 @@ export function GroupsContent({ propertyId, returnTo, orgId }: { propertyId: num
                   disabled={!contactName || !contactEmail}
                   className="rounded-xl bg-[var(--color-primary)] px-8 py-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40 transition-colors"
                 >
-                  Proceed to book
+                  {tGroups('proceedToBook')}
                 </button>
               </div>
             </div>

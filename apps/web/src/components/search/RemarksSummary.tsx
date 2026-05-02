@@ -19,9 +19,9 @@ export function RemarksSummary({ remarks }: Props) {
 
   const lines = remarks.map(r => {
     const ci = CHECK_IN_RE.exec(r)
-    if (ci) return tBooking('checkInFrom', { time: ci[1].trim() })
+    if (ci) return tBooking('checkInFrom', { time: ci[1]!.trim() })
     const co = CHECK_OUT_RE.exec(r)
-    if (co) return tBooking('checkOutUntil', { time: co[1].trim() })
+    if (co) return tBooking('checkOutUntil', { time: co[1]!.trim() })
     return r
   })
 
