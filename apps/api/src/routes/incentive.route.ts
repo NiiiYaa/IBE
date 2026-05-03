@@ -10,17 +10,19 @@ import {
   createIncentivePackage,
   updateIncentivePackage,
   deleteIncentivePackage,
-  getIncentivePropertyConfig,
-  upsertIncentivePropertyConfig,
-  deleteIncentivePropertyConfig,
-  listAssignablePackages,
-  setChainPackageOverride,
-  setPropertyPackageOverride,
+  getIncentiveSlots,
+  setIncentiveSlot,
   getIncentiveChainConfig,
   setIncentiveChainEnabled,
-  resolveIncentiveForProperty,
-  resolveChainIncentive,
+  resolveIncentiveSlotsForProperty,
+  resolveIncentiveSlotsForChain,
 } from '../services/incentive.service.js'
+import {
+  listIncentiveItemTranslations,
+  autoTranslateIncentiveItems,
+  upsertTranslation,
+  translateDynamicString,
+} from '../services/translation.service.js'
 
 // Resolve orgId for the request:
 // - Super admin with ?orgId=X → chain level for org X
@@ -120,8 +122,7 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Only super admins can create system-level packages' })
     }
     const body = request.body as {
-      name: string; isActive?: boolean; showOnChainPage?: boolean; showOnHotelPage?: boolean
-      roomPageMode?: string | null; visibleToChains?: boolean; visibleToHotels?: boolean; itemIds?: number[]
+      name: string; isActive?: boolean; fontSize?: string; visibleToChains?: boolean; visibleToHotels?: boolean; itemIds?: number[]
       propertyId?: number
     }
     if (!body.name?.trim()) return reply.status(400).send({ error: 'name required' })
@@ -137,8 +138,7 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
     const q = request.query as Record<string, string>
     const propertyId = q.propertyId ? Number(q.propertyId) : undefined
     const body = request.body as {
-      name?: string; isActive?: boolean; showOnChainPage?: boolean; showOnHotelPage?: boolean
-      roomPageMode?: string | null; visibleToChains?: boolean; visibleToHotels?: boolean; itemIds?: number[]
+      name?: string; isActive?: boolean; fontSize?: string; visibleToChains?: boolean; visibleToHotels?: boolean; itemIds?: number[]
     }
     if (body.visibleToChains === true && orgId !== null) {
       return reply.status(403).send({ error: 'Only super admins can set visibleToChains' })
@@ -163,32 +163,26 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // Packages available for hotel assignment (own + visible system packages + property-own packages)
-  fastify.get('/admin/incentives/packages/assignable', async (request, reply) => {
+  // Slot assignments
+  fastify.get('/admin/incentives/slots', async (request, reply) => {
     const orgId = getAdminOrgId(request)
     const q = request.query as Record<string, string>
     const propertyId = q.propertyId ? Number(q.propertyId) : undefined
-    return reply.send(await listAssignablePackages(orgId, propertyId))
+    return reply.send(await getIncentiveSlots(orgId, propertyId))
   })
 
-  // Property config
-  fastify.get('/admin/incentives/property/:propertyId', async (request, reply) => {
-    const propertyId = Number((request.params as { propertyId: string }).propertyId)
-    if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
-    return reply.send(await getIncentivePropertyConfig(propertyId))
-  })
+  fastify.put('/admin/incentives/slots/:slot', async (request, reply) => {
+    const slot = (request.params as { slot: string }).slot
+    const valid = ['chain_page', 'hotel_page', 'room_banner', 'room_results']
+    if (!valid.includes(slot)) return reply.status(400).send({ error: 'Invalid slot' })
 
-  fastify.put('/admin/incentives/property/:propertyId', async (request, reply) => {
-    const propertyId = Number((request.params as { propertyId: string }).propertyId)
-    if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
-    const body = request.body as {
-      packageId: number
-      enabled?: boolean
-      showOnHotelPage?: boolean
-      roomPageMode?: string | null
-    }
-    if (!body.packageId) return reply.status(400).send({ error: 'packageId required' })
-    return reply.send(await upsertIncentivePropertyConfig(propertyId, body))
+    const orgId = getAdminOrgIdFromBody(request)
+    const body = request.body as { packageId?: number | null; propertyId?: number }
+    const propertyId = body.propertyId
+
+    // packageId: number = assign, null = disable, undefined/missing = revert to inherit
+    await setIncentiveSlot(slot, orgId, propertyId, body.packageId)
+    return reply.send({ ok: true })
   })
 
   // Chain-level item override (disable a system item for this chain)
@@ -202,17 +196,6 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
-  // Chain-level package override (disable a system package for this chain)
-  fastify.put('/admin/incentives/packages/:id/chain-override', async (request, reply) => {
-    const orgId = getAdminOrgIdFromBody(request)
-    if (orgId === null) return reply.status(400).send({ error: 'orgId required' })
-    const packageId = Number((request.params as { id: string }).id)
-    const { disabled } = request.body as { disabled: boolean }
-    if (disabled === undefined) return reply.status(400).send({ error: 'disabled required' })
-    await setChainPackageOverride(orgId, packageId, disabled)
-    return reply.send({ ok: true })
-  })
-
   // Property-level item override (hotel enables/disables a chain item)
   fastify.put('/admin/incentives/items/:id/property-override', async (request, reply) => {
     const { propertyId, disabled } = request.body as { propertyId: number; disabled: boolean }
@@ -220,16 +203,6 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
     if (disabled === undefined) return reply.status(400).send({ error: 'disabled required' })
     const itemId = Number((request.params as { id: string }).id)
     await setPropertyItemOverride(propertyId, itemId, disabled)
-    return reply.send({ ok: true })
-  })
-
-  // Property-level package override (hotel enables/disables a chain package)
-  fastify.put('/admin/incentives/packages/:id/property-override', async (request, reply) => {
-    const { propertyId, disabled } = request.body as { propertyId: number; disabled: boolean }
-    if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
-    if (disabled === undefined) return reply.status(400).send({ error: 'disabled required' })
-    const packageId = Number((request.params as { id: string }).id)
-    await setPropertyPackageOverride(propertyId, packageId, disabled)
     return reply.send({ ok: true })
   })
 
@@ -248,14 +221,56 @@ export async function incentiveAdminRoutes(fastify: FastifyInstance) {
     return reply.send(await setIncentiveChainEnabled(orgId, incentivesEnabled))
   })
 
-  fastify.delete('/admin/incentives/property/:propertyId', async (request, reply) => {
-    const propertyId = Number((request.params as { propertyId: string }).propertyId)
-    if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
+  // Incentive item translations
+  fastify.get('/admin/incentives/translations/:locale', async (request, reply) => {
+    const { locale } = request.params as { locale: string }
+    const orgId = getAdminOrgId(request)
+    const q = request.query as Record<string, string>
+    const propertyId = q.propertyId ? Number(q.propertyId) : undefined
+    return reply.send(await listIncentiveItemTranslations(locale, orgId, propertyId))
+  })
+
+  fastify.put('/admin/incentives/translations/:locale/:itemId', async (request, reply) => {
+    const { locale, itemId } = request.params as { locale: string; itemId: string }
+    const { value } = request.body as { value: string }
+    if (typeof value !== 'string') return reply.status(400).send({ error: 'value required' })
+    await upsertTranslation(locale, 'incentive_items', itemId, value)
+    return reply.send({ ok: true })
+  })
+
+  fastify.post('/admin/incentives/translations/:locale/:itemId/ai-translate', async (request, reply) => {
+    const { locale, itemId } = request.params as { locale: string; itemId: string }
+    const { text } = request.body as { text: string }
+    if (!text?.trim()) return reply.status(400).send({ error: 'text required' })
     try {
-      await deleteIncentivePropertyConfig(propertyId)
-      return reply.status(204).send()
-    } catch {
-      return reply.status(404).send({ error: 'Not found' })
+      const value = await translateDynamicString(locale, text.trim(), 'incentive_items', itemId)
+      return reply.send({ value })
+    } catch (err) {
+      return reply.status(500).send({ error: err instanceof Error ? err.message : 'Translation failed' })
+    }
+  })
+
+  fastify.post('/admin/incentives/translations/:locale/auto-translate', async (request, reply) => {
+    const { locale } = request.params as { locale: string }
+    const orgId = getAdminOrgId(request)
+    const q = request.query as Record<string, string>
+    const propertyId = q.propertyId ? Number(q.propertyId) : undefined
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.setHeader('X-Accel-Buffering', 'no')
+    reply.raw.flushHeaders()
+
+    try {
+      await autoTranslateIncentiveItems(
+        locale, orgId, propertyId,
+        (event) => { reply.raw.write(`data: ${JSON.stringify(event)}\n\n`) },
+      )
+    } catch (err) {
+      reply.raw.write(`data: ${JSON.stringify({ type: 'error', message: err instanceof Error ? err.message : 'Translation failed' })}\n\n`)
+    } finally {
+      reply.raw.end()
     }
   })
 }
@@ -267,7 +282,7 @@ export async function incentivePublicRoutes(fastify: FastifyInstance) {
     const propertyId = Number((request.params as { propertyId: string }).propertyId)
     if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
     reply.header('Cache-Control', 'public, max-age=30')
-    return reply.send(await resolveIncentiveForProperty(propertyId))
+    return reply.send(await resolveIncentiveSlotsForProperty(propertyId))
   })
 
   fastify.get('/incentives/chain', async (request, reply) => {
@@ -275,6 +290,6 @@ export async function incentivePublicRoutes(fastify: FastifyInstance) {
     const orgId = query.orgId ? Number(query.orgId) : null
     if (!orgId) return reply.status(400).send({ error: 'orgId required' })
     reply.header('Cache-Control', 'public, max-age=30')
-    return reply.send(await resolveChainIncentive(orgId))
+    return reply.send(await resolveIncentiveSlotsForChain(orgId))
   })
 }

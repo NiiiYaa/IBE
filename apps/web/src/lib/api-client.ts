@@ -1525,14 +1525,6 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/incentives/packages${qs}`)
   },
 
-  listAssignablePackages(orgId?: number | null, propertyId?: number): Promise<import('@ibe/shared').IncentivePackage[]> {
-    const params = new URLSearchParams()
-    if (orgId != null) params.set('orgId', String(orgId))
-    if (propertyId != null) params.set('propertyId', String(propertyId))
-    const qs = params.toString() ? `?${params}` : ''
-    return apiRequest(`/api/v1/admin/incentives/packages/assignable${qs}`)
-  },
-
   createIncentivePackage(data: import('@ibe/shared').CreateIncentivePackageRequest): Promise<import('@ibe/shared').IncentivePackage> {
     return apiRequest('/api/v1/admin/incentives/packages', { method: 'POST', body: JSON.stringify(data) })
   },
@@ -1553,23 +1545,23 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/incentives/packages/${id}${qs}`, { method: 'DELETE' })
   },
 
-  getIncentivePropertyConfig(propertyId: number): Promise<import('@ibe/shared').IncentivePropertyConfig | null> {
-    return apiRequest(`/api/v1/admin/incentives/property/${propertyId}`)
+  getIncentiveSlots(orgId?: number | null, propertyId?: number): Promise<import('@ibe/shared').IncentiveSlotConfig[]> {
+    const qs = new URLSearchParams()
+    if (orgId != null) qs.set('orgId', String(orgId))
+    if (propertyId != null) qs.set('propertyId', String(propertyId))
+    const q = qs.toString()
+    return apiRequest(`/api/v1/admin/incentives/slots${q ? '?' + q : ''}`)
   },
 
-  upsertIncentivePropertyConfig(propertyId: number, data: import('@ibe/shared').UpsertIncentivePropertyConfigRequest): Promise<import('@ibe/shared').IncentivePropertyConfig> {
-    return apiRequest(`/api/v1/admin/incentives/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  setIncentiveSlot(slot: import('@ibe/shared').IncentiveSlotName, data: { packageId?: number | null; orgId?: number | null; propertyId?: number }): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/incentives/slots/${slot}`, { method: 'PUT', body: JSON.stringify(data) })
   },
 
-  deleteIncentivePropertyConfig(propertyId: number): Promise<void> {
-    return apiRequest(`/api/v1/admin/incentives/property/${propertyId}`, { method: 'DELETE' })
-  },
-
-  getIncentiveForProperty(propertyId: number): Promise<import('@ibe/shared').IncentiveDisplay | null> {
+  getIncentiveForProperty(propertyId: number): Promise<import('@ibe/shared').IncentiveSlots> {
     return apiRequest(`/api/v1/incentives/property/${propertyId}`)
   },
 
-  getChainIncentive(orgId: number): Promise<import('@ibe/shared').IncentiveDisplay | null> {
+  getChainIncentive(orgId: number): Promise<import('@ibe/shared').IncentiveSlots> {
     return apiRequest(`/api/v1/incentives/chain?orgId=${orgId}`)
   },
 
@@ -1581,24 +1573,8 @@ export const apiClient = {
     })
   },
 
-  setChainPackageOverride(packageId: number, orgId: number, disabled: boolean): Promise<{ ok: boolean }> {
-    return apiRequest(`/api/v1/admin/incentives/packages/${packageId}/chain-override`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orgId, disabled }),
-    })
-  },
-
   setPropertyItemOverride(itemId: number, propertyId: number, disabled: boolean): Promise<{ ok: boolean }> {
     return apiRequest(`/api/v1/admin/incentives/items/${itemId}/property-override`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ propertyId, disabled }),
-    })
-  },
-
-  setPropertyPackageOverride(packageId: number, propertyId: number, disabled: boolean): Promise<{ ok: boolean }> {
-    return apiRequest(`/api/v1/admin/incentives/packages/${packageId}/property-override`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ propertyId, disabled }),
@@ -1614,6 +1590,29 @@ export const apiClient = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId, incentivesEnabled }),
+    })
+  },
+
+  // Incentive item translations
+  listIncentiveItemTranslations(locale: string, orgId?: number | null, propertyId?: number): Promise<{ id: number; text: string; value: string | null }[]> {
+    const params = new URLSearchParams()
+    if (orgId != null) params.set('orgId', String(orgId))
+    if (propertyId != null) params.set('propertyId', String(propertyId))
+    const qs = params.toString() ? `?${params}` : ''
+    return apiRequest(`/api/v1/admin/incentives/translations/${locale}${qs}`)
+  },
+
+  upsertIncentiveItemTranslation(locale: string, itemId: number, value: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/incentives/translations/${locale}/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    })
+  },
+
+  aiTranslateIncentiveItem(locale: string, itemId: number, text: string): Promise<{ value: string }> {
+    return apiRequest(`/api/v1/admin/incentives/translations/${locale}/${itemId}/ai-translate`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
     })
   },
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import type { RoomOption, RateOption, RoomDetail, IncentiveDisplay } from '@ibe/shared'
+import type { RoomOption, RateOption, RoomDetail, IncentivePackageDisplay } from '@ibe/shared'
 import { formatCurrency } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
 import { RateRow } from './RateRow'
@@ -23,7 +23,7 @@ interface RoomCardProps {
   primaryImageId?: number
   selectLabel?: string
   selectDisabled?: ((rate: RateOption) => boolean) | undefined
-  incentive?: IncentiveDisplay | null
+  incentive?: IncentivePackageDisplay | null
 }
 
 function lowestRateCurrency(room: RoomOption): string {
@@ -194,7 +194,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 </button>
               )}
 
-              {incentive && (incentive.roomPageMode === 'embedded' || incentive.roomPageMode === 'both') && (
+              {incentive && (
                 <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3">
                   <IncentiveWidget incentive={incentive} variant="inline" />
                 </div>

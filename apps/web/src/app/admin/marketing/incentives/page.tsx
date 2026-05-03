@@ -2,19 +2,18 @@
 
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { IncentiveChainConfig, IncentiveItem, IncentivePackage, IncentivePropertyConfig, OrgRecord } from '@ibe/shared'
+import type { IncentiveChainConfig, IncentiveItem, IncentivePackage, IncentiveSlotConfig, IncentiveSlotName, OrgRecord } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 
 // ── Shared UI ──────────────────────────────────────────────────────────────────
 
-type Tab = 'items' | 'packages' | 'assignments'
+type Tab = 'items' | 'packages'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'items', label: 'Items Library' },
   { key: 'packages', label: 'Packages' },
-  { key: 'assignments', label: 'Assignments' },
 ]
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -160,6 +159,119 @@ function ChainEnableToggle({ orgId }: { orgId: number }) {
         onChange={v => mutation.mutate(v)}
         disabled={mutation.isPending}
       />
+    </div>
+  )
+}
+
+// ── Slots Section ─────────────────────────────────────────────────────────────
+
+const SLOT_LABELS: Record<IncentiveSlotName, string> = {
+  chain_page: 'Chain page',
+  hotel_page: 'Hotel page',
+  room_banner: 'Room banner',
+  room_results: 'Room results',
+}
+
+function SlotsSection({ orgId, propertyId, isSystem, isChainLevel, isHotelLevel, packages }: {
+  orgId: number | null
+  propertyId: number | null
+  isSystem: boolean
+  isChainLevel: boolean
+  isHotelLevel: boolean
+  packages: IncentivePackage[]
+}) {
+  const qc = useQueryClient()
+  const slotsKey = ['incentive-slots', orgId ?? 'system', propertyId ?? 'none']
+
+  const { data: slots = [], isLoading } = useQuery<IncentiveSlotConfig[]>({
+    queryKey: slotsKey,
+    queryFn: () => apiClient.getIncentiveSlots(orgId, propertyId ?? undefined),
+  })
+
+  const mutation = useMutation({
+    mutationFn: ({ slot, packageId }: { slot: IncentiveSlotName; packageId: number | null | undefined }) => {
+      const data: { packageId?: number | null; orgId?: number | null; propertyId?: number } = {}
+      if (packageId !== undefined) data.packageId = packageId
+      if (orgId != null) data.orgId = orgId
+      if (propertyId != null) data.propertyId = propertyId
+      return apiClient.setIncentiveSlot(slot, data)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: slotsKey }),
+  })
+
+  // Slots relevant to current level
+  const visibleSlots: IncentiveSlotName[] = isHotelLevel
+    ? ['hotel_page', 'room_banner', 'room_results']
+    : ['chain_page', 'hotel_page', 'room_banner', 'room_results']
+
+  const activePackages = packages.filter(p => p.isActive)
+
+  const levelLabel = isSystem ? 'system' : isChainLevel ? 'chain' : 'hotel'
+  const inheritFromLabel = isHotelLevel ? 'chain' : 'system'
+
+  if (isLoading) return <p className="text-sm text-[var(--color-text-muted)]">Loading slots…</p>
+
+  return (
+    <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="border-b border-[var(--color-border)] px-4 py-2.5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Slot assignments</h3>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          Assign a package to each display slot. Leave as &quot;inherit&quot; to use the parent-level assignment.
+        </p>
+      </div>
+      <ul className="divide-y divide-[var(--color-border)]">
+        {visibleSlots.map(slotName => {
+          const slotData = slots.find(s => s.slot === slotName)
+          const ownPkgId = slotData?.packageId  // undefined=inherit, null=disabled, number=own
+          const resolvedFrom = slotData?.resolvedFrom ?? null
+          const resolvedPkg = slotData?.resolvedPackage ?? null
+
+          // Dropdown value: '' = inherit, 'null' = disabled, number string = assigned
+          const dropdownValue = ownPkgId === undefined ? '' : ownPkgId === null ? 'null' : String(ownPkgId)
+
+          function handleChange(val: string) {
+            let packageId: number | null | undefined
+            if (val === '') packageId = undefined  // revert to inherit
+            else if (val === 'null') packageId = null  // explicitly disable
+            else packageId = Number(val)
+            mutation.mutate({ slot: slotName, packageId })
+          }
+
+          const inheritHint = resolvedFrom && resolvedFrom !== 'own'
+            ? ` (inherits from ${resolvedFrom}${resolvedPkg ? ': ' + resolvedPkg.name : ''})`
+            : null
+
+          return (
+            <li key={slotName} className="flex items-center gap-3 px-4 py-3">
+              <div className="w-32 shrink-0">
+                <span className="text-sm font-medium text-[var(--color-text)]">{SLOT_LABELS[slotName]}</span>
+                {inheritHint && (
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-tight">{inheritHint}</p>
+                )}
+                {!resolvedPkg && ownPkgId === undefined && (
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">No assignment at {levelLabel} level</p>
+                )}
+              </div>
+              <select
+                value={dropdownValue}
+                onChange={e => handleChange(e.target.value)}
+                disabled={mutation.isPending}
+                className="flex-1 max-w-sm rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-50"
+              >
+                {!isSystem && (
+                  <option value="">— inherit from {inheritFromLabel} —</option>
+                )}
+                <option value="null">— disabled —</option>
+                {activePackages.map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.name}{p.isSystem ? ' [System]' : ''}
+                  </option>
+                ))}
+              </select>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
@@ -410,7 +522,7 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
   const [editingPropertyId, setEditingPropertyId] = useState<number | null>(null)
   const [form, setForm] = useState({
     name: '', isActive: true,
-    showOnChainPage: false, showOnHotelPage: false, roomPageMode: null as string | null,
+    fontSize: 'md' as import('@ibe/shared').IncentiveFontSize,
     visibleToChains: false, visibleToHotels: false, itemIds: [] as number[],
   })
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
@@ -446,7 +558,7 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qKey })
       setShowForm(false); setEditingId(null); setEditingPropertyId(null)
-      setForm({ name: '', isActive: true, showOnChainPage: false, showOnHotelPage: false, roomPageMode: null, visibleToChains: false, visibleToHotels: false, itemIds: [] })
+      setForm({ name: '', isActive: true, fontSize: 'md', visibleToChains: false, visibleToHotels: false, itemIds: [] })
       setError(null)
     },
     onError: (e: Error) => setError(e.message),
@@ -458,18 +570,6 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
     onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
   })
 
-  const overrideMutation = useMutation({
-    mutationFn: ({ packageId, disabled }: { packageId: number; disabled: boolean }) =>
-      apiClient.setChainPackageOverride(packageId, orgId!, disabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
-  })
-
-  const propertyOverrideMutation = useMutation({
-    mutationFn: ({ packageId, disabled }: { packageId: number; disabled: boolean }) =>
-      apiClient.setPropertyPackageOverride(packageId, propertyId!, disabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
-  })
-
   const deleteMutation = useMutation({
     mutationFn: ({ id, pkgPropertyId }: { id: number; pkgPropertyId?: number }) => apiClient.deleteIncentivePackage(id, orgId, pkgPropertyId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); setDeleteConfirm(null) },
@@ -477,7 +577,7 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
 
   function startCreate() {
     setEditingId(null); setEditingPropertyId(null)
-    setForm({ name: '', isActive: true, showOnChainPage: false, showOnHotelPage: false, roomPageMode: null, visibleToChains: isSystem, visibleToHotels: isSystem || isChainLevel, itemIds: [] })
+    setForm({ name: '', isActive: true, fontSize: 'md', visibleToChains: isSystem, visibleToHotels: isSystem || isChainLevel, itemIds: [] })
     setShowForm(true); setError(null)
   }
 
@@ -486,8 +586,7 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
     setEditingPropertyId(pkg.propertyId ?? null)
     setForm({
       name: pkg.name, isActive: pkg.isActive,
-      showOnChainPage: pkg.showOnChainPage, showOnHotelPage: pkg.showOnHotelPage,
-      roomPageMode: pkg.roomPageMode,
+      fontSize: (pkg.fontSize ?? 'md') as import('@ibe/shared').IncentiveFontSize,
       visibleToChains: pkg.visibleToChains, visibleToHotels: pkg.visibleToHotels,
       itemIds: pkg.items.map((pi: import('@ibe/shared').IncentivePackageItem) => pi.itemId),
     })
@@ -506,13 +605,10 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
   function renderPackage(pkg: IncentivePackage) {
     const isHotelOwn = isHotelLevel && pkg.propertyId != null && pkg.propertyId === propertyId
     const canEdit = isHotelOwn || (!isHotelLevel && (isSystem ? pkg.isSystem : !pkg.isSystem))
-    const isChainDisabled = pkg.chainDisabled ?? false
-    const isPropertyDisabled = !isHotelOwn && (pkg.propertyDisabled ?? false)
-    const isDimmed = isChainDisabled || isPropertyDisabled
     const pkgPropertyId: number | undefined = isHotelOwn && pkg.propertyId != null ? pkg.propertyId : undefined
     const pkgPropertyIdArg = pkgPropertyId !== undefined ? { pkgPropertyId } : {}
     return (
-      <li key={pkg.id} className={['flex items-start gap-3 px-4 py-3', isDimmed ? 'opacity-50' : ''].join(' ')}>
+      <li key={pkg.id} className="flex items-start gap-3 px-4 py-3">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-medium text-[var(--color-text)]">{pkg.name}</span>
@@ -523,15 +619,6 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
             {!pkg.isActive && (
               <span className="rounded px-1.5 py-px text-[10px] font-semibold uppercase bg-[var(--color-background)] text-[var(--color-text-muted)] border border-[var(--color-border)]">Inactive</span>
             )}
-            {isChainDisabled && (
-              <span className="rounded px-1.5 py-px text-[10px] font-semibold uppercase bg-amber-50 text-amber-700 border border-amber-200">Disabled for chain</span>
-            )}
-            {isPropertyDisabled && (
-              <span className="rounded px-1.5 py-px text-[10px] font-semibold uppercase bg-amber-50 text-amber-700 border border-amber-200">Disabled for hotel</span>
-            )}
-            {pkg.showOnChainPage && <VisibilityBadge label="Chain page" />}
-            {pkg.showOnHotelPage && <VisibilityBadge label="Hotel page" />}
-            {pkg.roomPageMode && <VisibilityBadge label={pkg.roomPageMode === 'both' ? 'Room page (banner+display)' : pkg.roomPageMode === 'banner' ? 'Room page (banner)' : 'Room page (display)'} />}
             {pkg.isSystem && pkg.visibleToChains && <VisibilityBadge label="Visible to chains" />}
             {!isHotelOwn && pkg.visibleToHotels && <VisibilityBadge label="Visible to hotels" />}
           </div>
@@ -564,33 +651,11 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
               Active
             </label>
           )}
-          {/* Hotel-level enable/disable toggle for inherited packages only (not hotel-own packages) */}
-          {isHotelLevel && !isHotelOwn && (
-            <label className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-              <ToggleSwitch
-                checked={!isPropertyDisabled}
-                onChange={v => propertyOverrideMutation.mutate({ packageId: pkg.id, disabled: !v })}
-                disabled={propertyOverrideMutation.isPending}
-              />
-              Enabled
-            </label>
-          )}
           {/* Hotels visibility toggle — chain admin on own packages */}
           {isChainLevel && !pkg.isSystem && (
             <label className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
               <ToggleSwitch checked={pkg.visibleToHotels} onChange={v => toggleMutation.mutate({ id: pkg.id, visibleToHotels: v })} />
               Hotels
-            </label>
-          )}
-          {/* Chain-level disable toggle for system packages — only in chain context */}
-          {isChainLevel && pkg.isSystem && (
-            <label className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-              <ToggleSwitch
-                checked={!isChainDisabled}
-                onChange={v => overrideMutation.mutate({ packageId: pkg.id, disabled: !v })}
-                disabled={overrideMutation.isPending}
-              />
-              Enabled
             </label>
           )}
           {/* Super admin visibility toggles — only at system level */}
@@ -626,6 +691,16 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
 
   return (
     <div className="space-y-4">
+      {/* Slot assignments section — shown at the top of the Packages tab */}
+      <SlotsSection
+        orgId={orgId}
+        propertyId={propertyId}
+        isSystem={isSystem}
+        isChainLevel={isChainLevel}
+        isHotelLevel={isHotelLevel}
+        packages={packages}
+      />
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-[var(--color-text-muted)]">Create named packages composed of items.</p>
         <button onClick={startCreate} className="rounded bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity">
@@ -654,32 +729,24 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
             </label>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-[var(--color-text-muted)]">Display on</p>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              {!isHotelLevel && (
-                <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
-                  <ToggleSwitch checked={form.showOnChainPage} onChange={v => setForm(f => ({ ...f, showOnChainPage: v }))} />
-                  Chain page
-                </label>
-              )}
-              <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
-                <ToggleSwitch checked={form.showOnHotelPage} onChange={v => setForm(f => ({ ...f, showOnHotelPage: v }))} />
-                Hotel page
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[var(--color-text)]">Room page</span>
-                <select
-                  value={form.roomPageMode ?? ''}
-                  onChange={e => setForm(f => ({ ...f, roomPageMode: e.target.value || null }))}
-                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs focus:border-[var(--color-primary)] focus:outline-none"
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-muted)]">Font size</label>
+            <div className="flex gap-2">
+              {(['sm', 'md', 'lg', 'xl'] as const).map(size => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, fontSize: size }))}
+                  className={[
+                    'rounded border px-3 py-1 text-sm font-medium transition-colors',
+                    form.fontSize === size
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-text)]',
+                  ].join(' ')}
                 >
-                  <option value="">Off</option>
-                  <option value="banner">Top banner</option>
-                  <option value="embedded">Room display</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
+                  {size === 'sm' ? 'Small' : size === 'md' ? 'Medium' : size === 'lg' ? 'Large' : 'X-Large'}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -753,147 +820,6 @@ function PackagesTab({ orgId, propertyId, isSystem, isSuper, isChainLevel, isHot
   )
 }
 
-// ── Assignments Tab ───────────────────────────────────────────────────────────
-
-function AssignmentsTab({ propertyId, orgId }: { propertyId: number | null; orgId: number | null }) {
-  const qc = useQueryClient()
-  const [error, setError] = useState<string | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState(false)
-
-  const { data: packages = [] } = useQuery<IncentivePackage[]>({
-    queryKey: ['incentive-packages-assignable', orgId ?? 'system', propertyId ?? 'none'],
-    queryFn: () => apiClient.listAssignablePackages(orgId, propertyId ?? undefined),
-  })
-
-  const { data: config, isLoading } = useQuery<IncentivePropertyConfig | null>({
-    queryKey: ['incentive-property-config', propertyId],
-    queryFn: () => (propertyId ? apiClient.getIncentivePropertyConfig(propertyId) : Promise.resolve(null)),
-    enabled: propertyId !== null,
-  })
-
-  const saveMutation = useMutation({
-    mutationFn: (data: Parameters<typeof apiClient.upsertIncentivePropertyConfig>[1]) =>
-      apiClient.upsertIncentivePropertyConfig(propertyId!, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incentive-property-config', propertyId] }); setError(null) },
-    onError: (e: Error) => setError(e.message),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: () => apiClient.deleteIncentivePropertyConfig(propertyId!),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incentive-property-config', propertyId] }); setDeleteConfirm(false) },
-  })
-
-  if (propertyId === null) {
-    return <p className="text-sm text-[var(--color-text-muted)]">Select a property to manage its incentive assignment.</p>
-  }
-
-  function handlePackageChange(packageId: number) {
-    saveMutation.mutate({
-      packageId,
-      showOnHotelPage: config?.showOnHotelPage ?? false,
-      roomPageMode: config?.roomPageMode ?? null,
-    })
-  }
-
-  function handleToggle(field: 'enabled' | 'showOnHotelPage', value: boolean) {
-    if (!config) return
-    saveMutation.mutate({
-      packageId: config.packageId,
-      enabled: field === 'enabled' ? value : config.enabled,
-      showOnHotelPage: field === 'showOnHotelPage' ? value : config.showOnHotelPage,
-      roomPageMode: config.roomPageMode,
-    })
-  }
-
-  function handleRoomPageMode(mode: string) {
-    if (!config) return
-    saveMutation.mutate({
-      packageId: config.packageId,
-      enabled: config.enabled,
-      showOnHotelPage: config.showOnHotelPage,
-      roomPageMode: mode || null,
-    })
-  }
-
-  return (
-    <div className="space-y-5">
-      <p className="text-sm text-[var(--color-text-muted)]">Assign a package and choose where to display it.</p>
-
-      {isLoading ? (
-        <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
-      ) : (
-        <>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-muted)]">Active package</label>
-            {packages.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-muted)]">No active packages available.</p>
-            ) : (
-              <select
-                value={config?.packageId ?? ''}
-                onChange={e => handlePackageChange(Number(e.target.value))}
-                className="w-full max-w-sm rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none"
-              >
-                <option value="">— none —</option>
-                {packages.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}{p.isSystem ? ' [System]' : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {config && (
-            <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3 mb-1">
-                <span className="text-sm font-semibold text-[var(--color-text)]">Incentives enabled</span>
-                <ToggleSwitch checked={config.enabled} onChange={v => handleToggle('enabled', v)} disabled={saveMutation.isPending} />
-              </div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Display on</p>
-              <label className={['flex items-center gap-3', !config.enabled ? 'opacity-40' : ''].join(' ')}>
-                <ToggleSwitch checked={config.showOnHotelPage} onChange={v => handleToggle('showOnHotelPage', v)} disabled={!config.enabled || saveMutation.isPending} />
-                <span className="text-sm text-[var(--color-text)]">Hotel page</span>
-              </label>
-              <div className={['flex items-center gap-3', !config.enabled ? 'opacity-40' : ''].join(' ')}>
-                <span className="text-sm text-[var(--color-text)]">Room page</span>
-                <select
-                  value={config.roomPageMode ?? ''}
-                  onChange={e => handleRoomPageMode(e.target.value)}
-                  disabled={!config.enabled || saveMutation.isPending}
-                  className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-40"
-                >
-                  <option value="">Off</option>
-                  <option value="banner">Top banner</option>
-                  <option value="embedded">Room display</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {config && (
-            <div>
-              {deleteConfirm ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--color-text-muted)]">Remove assignment?</span>
-                  <button onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="text-sm font-medium text-[var(--color-error)] hover:underline">Confirm</button>
-                  <button onClick={() => setDeleteConfirm(false)} className="text-sm text-[var(--color-text-muted)] hover:underline">Cancel</button>
-                </div>
-              ) : (
-                <button onClick={() => setDeleteConfirm(true)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors">
-                  Remove assignment
-                </button>
-              )}
-            </div>
-          )}
-
-          {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
-        </>
-      )}
-    </div>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function IncentivesPage() {
@@ -928,7 +854,6 @@ export default function IncentivesPage() {
       <div className="pt-2">
         {tab === 'items' && <ItemsTab orgId={effectiveOrgId} propertyId={propertyId ?? null} isSystem={isSystem} isSuper={isSuper} isChainLevel={effectiveOrgId !== null && (propertyId ?? null) === null} isHotelLevel={(propertyId ?? null) !== null} />}
         {tab === 'packages' && <PackagesTab orgId={effectiveOrgId} propertyId={propertyId ?? null} isSystem={isSystem} isSuper={isSuper} isChainLevel={effectiveOrgId !== null && (propertyId ?? null) === null} isHotelLevel={(propertyId ?? null) !== null} />}
-        {tab === 'assignments' && <AssignmentsTab propertyId={propertyId ?? null} orgId={effectiveOrgId} />}
       </div>
     </div>
   )

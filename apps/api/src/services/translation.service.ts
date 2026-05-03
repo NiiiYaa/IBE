@@ -4,6 +4,7 @@ import { resolveAIConfig, encryptApiKey, decryptApiKey } from './ai-config.servi
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import type { TranslationNamespace, TranslationRow, TranslationLocaleStatus, TranslationStatusResponse, AutoTranslateProgressEvent, TranslationAIConfigResponse, TranslationAIConfigUpdate, AIProvider } from '@ibe/shared'
 import { TRANSLATION_NAMESPACES } from '@ibe/shared'
+import { listIncentiveItems } from './incentive.service.js'
 
 const _require = createRequire(import.meta.url)
 
@@ -302,6 +303,95 @@ export async function autoTranslateMissing(
 
     if (i + BATCH_SIZE < toProcess.length) {
       await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS))
+    }
+  }
+
+  onProgress({ type: 'done', count })
+}
+
+// ── Dynamic (DB-content) translation helpers ──────────────────────────────────
+
+export async function translateDynamicString(
+  locale: string,
+  enText: string,
+  namespace: string,
+  key: string,
+): Promise<string> {
+  const translationAiRow = await prisma.translationAIConfig.findFirst()
+  let aiConfig: { provider: AIProvider; model: string; apiKey: string } | null = null
+
+  if (translationAiRow && !translationAiRow.useSystemDefault && translationAiRow.provider && translationAiRow.apiKey) {
+    const isFake = translationAiRow.provider === 'fake'
+    aiConfig = { provider: translationAiRow.provider as AIProvider, model: translationAiRow.model ?? '', apiKey: isFake ? '' : decryptApiKey(translationAiRow.apiKey) }
+  } else {
+    const systemRow = await prisma.systemAIConfig.findFirst()
+    const isFake = systemRow?.provider === 'fake'
+    if (systemRow && (isFake || systemRow.apiKey)) {
+      aiConfig = { provider: systemRow.provider as AIProvider, model: systemRow.model, apiKey: isFake ? '' : decryptApiKey(systemRow.apiKey) }
+    }
+  }
+  if (!aiConfig) throw new Error('No AI config found at system level.')
+
+  const adapter = getProviderAdapter(aiConfig.provider)
+  const langName = new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale
+  const result = await adapter.call(
+    [{ role: 'user', content: `Translate this hotel booking UI string to ${langName}. Return ONLY the translated text, no quotes. Keep all {placeholder} tokens exactly as-is:\n${enText}` }],
+    [],
+    `You are a hotel booking UI translator. Translate accurately and concisely to ${langName}. Never translate or rename {placeholder} tokens — they are runtime variables.`,
+    aiConfig.apiKey,
+    aiConfig.model,
+  )
+  const translated = result.text?.trim() ?? ''
+  if (!translated) throw new Error('AI returned empty translation')
+  await upsertTranslation(locale, namespace, key, translated)
+  return translated
+}
+
+export async function listIncentiveItemTranslations(
+  locale: string,
+  orgId: number | null,
+  propertyId?: number,
+): Promise<{ id: number; text: string; value: string | null }[]> {
+  const items = await listIncentiveItems(orgId, propertyId !== undefined, propertyId)
+  const activeItems = items.filter(item => item.isActive)
+
+  const existingTranslations = await prisma.translation.findMany({
+    where: { locale, namespace: 'incentive_items' },
+    select: { key: true, value: true },
+  })
+  const translationMap = new Map(existingTranslations.map(t => [t.key, t.value]))
+
+  return activeItems.map(item => ({
+    id: item.id,
+    text: item.text,
+    value: translationMap.get(String(item.id)) ?? null,
+  }))
+}
+
+export async function autoTranslateIncentiveItems(
+  locale: string,
+  orgId: number | null,
+  propertyId: number | undefined,
+  onProgress: (event: AutoTranslateProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const rows = await listIncentiveItemTranslations(locale, orgId, propertyId)
+  const missing = rows.filter(r => r.value === null)
+
+  if (missing.length === 0) {
+    onProgress({ type: 'done', count: 0 })
+    return
+  }
+
+  let count = 0
+  for (const item of missing) {
+    if (signal?.aborted) break
+    try {
+      const translated = await translateDynamicString(locale, item.text, 'incentive_items', String(item.id))
+      onProgress({ type: 'progress', namespace: 'incentive_items', key: String(item.id), value: translated })
+      count++
+    } catch (err) {
+      onProgress({ type: 'error', message: err instanceof Error ? err.message : 'Translation failed' })
     }
   }
 

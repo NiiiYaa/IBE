@@ -185,9 +185,9 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         />
       )}
 
-      {(incentive?.roomPageMode === 'banner' || incentive?.roomPageMode === 'both') && (
+      {incentive?.roomBanner && (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          <IncentiveWidget incentive={incentive} />
+          <IncentiveWidget incentive={incentive.roomBanner} />
         </div>
       )}
 
@@ -303,7 +303,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
             {...(isMultiMode
               ? { selectLabel: t('addToBooking'), selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
               : {})}
-            {...(incentive ? { incentive } : {})}
+            {...(incentive?.roomResults ? { incentive: incentive.roomResults } : {})}
           />
         ))
       )}

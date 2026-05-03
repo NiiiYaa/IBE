@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import type { HotelDesignConfig, PropertyDetail, PropertyListResponse, IncentiveDisplay } from '@ibe/shared'
+import type { HotelDesignConfig, PropertyDetail, PropertyListResponse, IncentiveSlots } from '@ibe/shared'
 import { buildCssVars } from '@/lib/theme'
 import { HomePageClient } from '@/components/home/HomePageClient'
 
@@ -65,17 +65,17 @@ async function fetchChainImages(orgId: number): Promise<string[]> {
   } catch { return [] }
 }
 
-async function fetchIncentiveForProperty(propertyId: number): Promise<IncentiveDisplay | null> {
+async function fetchIncentiveForProperty(propertyId: number): Promise<IncentiveSlots | null> {
   try {
     const res = await fetch(`${API_URL}/api/v1/incentives/property/${propertyId}`, { next: { revalidate: 30 } })
-    return res.ok ? (res.json() as Promise<IncentiveDisplay | null>) : null
+    return res.ok ? (res.json() as Promise<IncentiveSlots | null>) : null
   } catch { return null }
 }
 
-async function fetchChainIncentive(orgId: number): Promise<IncentiveDisplay | null> {
+async function fetchChainIncentive(orgId: number): Promise<IncentiveSlots | null> {
   try {
     const res = await fetch(`${API_URL}/api/v1/incentives/chain?orgId=${orgId}`, { next: { revalidate: 30 } })
-    return res.ok ? (res.json() as Promise<IncentiveDisplay | null>) : null
+    return res.ok ? (res.json() as Promise<IncentiveSlots | null>) : null
   } catch { return null }
 }
 

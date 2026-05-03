@@ -12,7 +12,7 @@ import { PropertyGridClient, type PropertyData } from '@/components/home/Propert
 import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 import { ChatWidget } from '@/components/chat/ChatWidget'
-import type { IncentiveDisplay } from '@ibe/shared'
+import type { IncentiveSlots } from '@ibe/shared'
 import type { PropertyOption } from '@/components/search/SearchBar'
 
 const SearchBar = dynamic(
@@ -58,7 +58,7 @@ export interface HomePageClientProps {
   remainingEntries: { propertyId: number; name: string }[]
   searchBarProps: HomeSearchBarProps
   chatWidgetProps: HomeChatWidgetProps
-  incentive?: IncentiveDisplay | null
+  incentive?: IncentiveSlots | null
 }
 
 export function HomePageClient({
@@ -97,11 +97,17 @@ export function HomePageClient({
     ? <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
     : null
 
-  const IncentiveBlock = incentive && !aiLayout ? (
-    <div className="mx-auto max-w-5xl px-4 pb-4">
-      <div className="mx-auto max-w-sm">
-        <IncentiveWidget incentive={incentive} />
-      </div>
+  const incentiveSlot = onsitePage === 'chain' ? incentive?.chainPage : incentive?.hotelPage
+  // Rendered on light backgrounds (quilt, rectangle, mobile fullpage)
+  const IncentiveBlockLight = incentiveSlot && !aiLayout ? (
+    <div className="mt-4 w-full">
+      <IncentiveWidget incentive={incentiveSlot} variant="light" />
+    </div>
+  ) : null
+  // Rendered on dark overlay (fullpage desktop hero only)
+  const IncentiveBlockDark = incentiveSlot && !aiLayout ? (
+    <div className="mt-4 w-full">
+      <IncentiveWidget incentive={incentiveSlot} variant="dark" />
     </div>
   ) : null
 
@@ -154,8 +160,8 @@ export function HomePageClient({
             </div>
           )}
           <SearchBar {...searchBarProps} />
+          {IncentiveBlockLight}
         </div>
-        {IncentiveBlock}
         {!aiLayout && PropertyGrid}
         {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
         {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}
@@ -188,8 +194,8 @@ export function HomePageClient({
             </div>
           )}
           <SearchBar {...searchBarProps} />
+          {IncentiveBlockLight}
         </div>
-        {IncentiveBlock}
         {!aiLayout && PropertyGrid}
         {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
         {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}
@@ -215,6 +221,7 @@ export function HomePageClient({
             </div>
           )}
           <SearchBar {...searchBarProps} />
+          {IncentiveBlockLight}
         </div>
       </div>
 
@@ -243,10 +250,10 @@ export function HomePageClient({
           <div className={`w-full ${!aiLayout ? 'mt-4' : ''}`}>
             <SearchBar {...searchBarProps} />
           </div>
+          {IncentiveBlockDark}
         </div>
       </div>
 
-      {IncentiveBlock}
       {!aiLayout && PropertyGrid}
       {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
       {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}

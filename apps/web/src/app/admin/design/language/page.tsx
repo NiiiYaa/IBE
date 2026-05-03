@@ -27,6 +27,8 @@ const ALL_LOCALES = [
   'sw', 'am', 'yo', 'zu',
 ]
 
+type DynamicTranslationRow = { id: number; text: string; value: string | null }
+
 const NS_LABELS: Record<string, string> = {
   common: 'Common',
   search: 'Search',
@@ -223,6 +225,7 @@ function SystemLanguageEditor() {
 
       <TranslationAISection />
       <TranslationManager enabledLocales={enabledLocales} />
+      <DynamicStringsManager enabledLocales={enabledLocales} orgId={null} />
     </div>
   )
 }
@@ -405,6 +408,7 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
       {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate(draft)} />
+      <DynamicStringsManager enabledLocales={enabledLocales} orgId={orgId ?? null} />
     </div>
   )
 }
@@ -1162,17 +1166,46 @@ function TranslationStats({
   translationStatus: Array<{ locale: string; namespaces: Array<{ translated: number }> }> | undefined
   translationTotal: { total: number } | undefined
 }) {
+  const { orgId, propertyId } = useAdminProperty()
   const nonEn = useMemo(() => enabledLocales.filter(c => c !== 'en'), [enabledLocales])
-  const total = translationTotal?.total ?? 0
+
+  // Dynamic (incentive item) counts per locale
+  const { data: dynamicCounts } = useQuery({
+    queryKey: ['dynamic-coverage', orgId ?? 'system', propertyId ?? 'none', nonEn.join(',')],
+    queryFn: async () => {
+      const results = await Promise.all(
+        nonEn.map(locale =>
+          apiClient.listIncentiveItemTranslations(locale, orgId ?? null, propertyId ?? undefined)
+            .then(rows => ({ locale, translated: rows.filter(r => r.value).length, total: rows.length }))
+            .catch(() => ({ locale, translated: 0, total: 0 }))
+        )
+      )
+      return results
+    },
+    staleTime: 60_000,
+    enabled: nonEn.length > 0,
+  })
+
+  const dynamicTotal = dynamicCounts ? Math.max(0, ...dynamicCounts.map(d => d.total)) : 0
+  const dynamicMap = useMemo(
+    () => Object.fromEntries((dynamicCounts ?? []).map(d => [d.locale, d.translated])),
+    [dynamicCounts]
+  )
+
+  const staticTotal = translationTotal?.total ?? 0
+  const total = staticTotal + dynamicTotal
+
   const stats = useMemo(
     () => nonEn.map(code => {
       const row = translationStatus?.find(s => s.locale === code)
-      const translated = row ? row.namespaces.reduce((s, n) => s + n.translated, 0) : 0
+      const staticTranslated = row ? row.namespaces.reduce((s, n) => s + n.translated, 0) : 0
+      const dynamicTranslated = dynamicMap[code] ?? 0
+      const translated = staticTranslated + dynamicTranslated
       const missing = total - translated
       const pct = total > 0 ? Math.round((translated / total) * 100) : 0
       return { code, translated, missing, pct }
     }).sort((a, b) => a.pct - b.pct),
-    [nonEn, translationStatus, total]
+    [nonEn, translationStatus, dynamicMap, total]
   )
 
   if (nonEn.length === 0) return null
@@ -1275,6 +1308,428 @@ function LocaleOrderEditor({
         ))}
       </div>
     </div>
+  )
+}
+
+// ── Dynamic Strings ───────────────────────────────────────────────────────────
+
+const DYNAMIC_TYPES = [
+  { key: 'incentive_items' as const, label: 'Incentives' },
+  // Future types: { key: 'package_names', label: 'Package Names' }, etc.
+] as const
+
+type DynamicTypeKey = typeof DYNAMIC_TYPES[number]['key']
+
+function DynamicStringsManager({
+  enabledLocales,
+  orgId,
+}: {
+  enabledLocales: string[]
+  orgId: number | null
+}) {
+  const qc = useQueryClient()
+  const [selectedType, setSelectedType] = useState<DynamicTypeKey>('incentive_items')
+  const [selectedLocale, setSelectedLocale] = useState<string | null>(null)
+  const [sourcePropertyId, setSourcePropertyId] = useState<number | undefined>(undefined)
+  const [missingOnly, setMissingOnly] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [translating, setTranslating] = useState(false)
+  const [translateCount, setTranslateCount] = useState(0)
+  const [translateError, setTranslateError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const localeOptions = enabledLocales.filter(l => l !== 'en')
+
+  // Fetch properties for source picker (only relevant when scoped to an org)
+  const { data: propList } = useQuery({
+    queryKey: ['properties-for-dynamic', orgId],
+    queryFn: () => apiClient.listProperties(),
+    staleTime: 300_000,
+    enabled: orgId !== null,
+  })
+  const properties = propList?.properties ?? []
+
+  // Source options: chain-level items, then each hotel
+  const sourceOptions = useMemo(() => {
+    const opts: { label: string; propertyId?: number }[] = [
+      { label: orgId === null ? 'System items' : 'Chain items' },
+      ...properties.map(p => ({ label: p.name ?? `Hotel ${p.propertyId}`, propertyId: p.propertyId })),
+    ]
+    return opts
+  }, [orgId, properties])
+
+  const sourceKey = sourcePropertyId ?? 'chain'
+
+  const rowsKey = useMemo(
+    () => ['incentive-item-translations', selectedType, selectedLocale, orgId ?? 'system', sourceKey],
+    [selectedType, selectedLocale, orgId, sourceKey],
+  )
+
+  const { data: rows = [], isLoading: rowsLoading, refetch } = useQuery<DynamicTranslationRow[]>({
+    queryKey: rowsKey,
+    queryFn: () => apiClient.listIncentiveItemTranslations(selectedLocale!, orgId, sourcePropertyId),
+    enabled: !!selectedLocale,
+    staleTime: 30_000,
+  })
+
+  // Total missing across all locales for the current source
+  const allMissingKey = useMemo(
+    () => ['incentive-dynamic-all-missing', selectedType, orgId ?? 'system', sourceKey],
+    [selectedType, orgId, sourceKey],
+  )
+  const { data: allLanguagesMissing } = useQuery({
+    queryKey: allMissingKey,
+    queryFn: async () => {
+      const counts = await Promise.all(
+        localeOptions.map(locale =>
+          apiClient.listIncentiveItemTranslations(locale, orgId, sourcePropertyId)
+            .then(r => r.filter(x => !x.value).length)
+            .catch(() => 0)
+        )
+      )
+      return counts.reduce((sum, n) => sum + n, 0)
+    },
+    staleTime: 60_000,
+    enabled: localeOptions.length > 0,
+  })
+
+  const filteredRows = useMemo(() => {
+    let r = rows
+    if (missingOnly) r = r.filter(x => !x.value)
+    if (searchText) {
+      const q = searchText.toLowerCase()
+      r = r.filter(x => x.text.toLowerCase().includes(q) || (x.value ?? '').toLowerCase().includes(q))
+    }
+    return r
+  }, [rows, missingOnly, searchText])
+
+  const missingCount = useMemo(() => rows.filter(r => !r.value).length, [rows])
+
+  function invalidateAllMissing() {
+    void qc.invalidateQueries({ queryKey: allMissingKey })
+  }
+
+  async function streamAutoTranslate(locale: string) {
+    const params = new URLSearchParams()
+    if (orgId != null) params.set('orgId', String(orgId))
+    if (sourcePropertyId != null) params.set('propertyId', String(sourcePropertyId))
+    const qs = params.toString() ? `?${params}` : ''
+
+    const res = await fetch(`/api/v1/admin/incentives/translations/${locale}/auto-translate${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({}),
+      signal: abortRef.current!.signal,
+    })
+    if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`)
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const event = JSON.parse(line.slice(6)) as AutoTranslateProgressEvent
+          if (event.type === 'progress') setTranslateCount(c => c + 1)
+          if (event.type === 'error') setTranslateError(event.message)
+          if (event.type === 'done') void qc.invalidateQueries({ queryKey: ['incentive-item-translations'] })
+        } catch { /* ignore */ }
+      }
+    }
+    reader.cancel().catch(() => {})
+  }
+
+  async function runTranslate() {
+    if (!selectedLocale || translating || missingCount === 0) return
+    setTranslating(true); setTranslateCount(0); setTranslateError(null)
+    abortRef.current = new AbortController()
+    try {
+      await streamAutoTranslate(selectedLocale)
+      void refetch()
+      invalidateAllMissing()
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setTranslateError((err as Error).message)
+    } finally { setTranslating(false) }
+  }
+
+  async function runTranslateAll() {
+    if (!window.confirm('AI-translate all missing incentive item strings for every enabled language?')) return
+    if (translating) return
+    setTranslating(true); setTranslateCount(0); setTranslateError(null)
+    abortRef.current = new AbortController()
+    try {
+      for (const locale of localeOptions) {
+        try { await streamAutoTranslate(locale) }
+        catch (err) {
+          if ((err as Error).name === 'AbortError') throw err
+          console.warn(`Dynamic translation failed for ${locale}:`, err)
+        }
+      }
+      void refetch()
+      invalidateAllMissing()
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setTranslateError((err as Error).message)
+    } finally { setTranslating(false) }
+  }
+
+  if (localeOptions.length === 0) return null
+
+  const ctrlCls = 'rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
+  const btnCls = 'flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40'
+  const progressLabel = translateCount > 0 ? `${translateCount} translated…` : 'Translating…'
+  const spinner = <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+  const allMissingLabel = allLanguagesMissing == null ? '…' : String(allLanguagesMissing)
+
+  return (
+    <div className="border-t border-[var(--color-border)] pt-6">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">Dynamic Strings</h2>
+          <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+            Translate incentive item text — custom strings defined in Marketing → Incentives.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            disabled={translating || allLanguagesMissing === 0}
+            onClick={runTranslateAll}
+            className={`${btnCls} text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]`}
+          >
+            {translating ? <>{spinner} {progressLabel}</> : `All Languages [${allMissingLabel}]`}
+          </button>
+          {/* Type / origin selector */}
+          <select
+            value={selectedType}
+            onChange={e => {
+              setSelectedType(e.target.value as DynamicTypeKey)
+              setSourcePropertyId(undefined)
+              setSelectedLocale(null)
+              setSearchText('')
+            }}
+            className={ctrlCls}
+          >
+            {DYNAMIC_TYPES.map(t => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
+          {/* Source picker — visible when there are hotels to choose from */}
+          {sourceOptions.length > 1 && (
+            <select
+              value={sourcePropertyId ?? ''}
+              onChange={e => {
+                setSourcePropertyId(e.target.value ? Number(e.target.value) : undefined)
+                setSearchText('')
+              }}
+              className={ctrlCls}
+            >
+              {sourceOptions.map((opt, i) => (
+                <option key={i} value={opt.propertyId ?? ''}>{opt.label}</option>
+              ))}
+            </select>
+          )}
+          <select
+            value={selectedLocale ?? ''}
+            onChange={e => { setSelectedLocale(e.target.value || null); setSearchText('') }}
+            className={ctrlCls}
+          >
+            <option value="">Select language…</option>
+            {localeOptions.map(code => (
+              <option key={code} value={code}>{localeFlag(code)}  {localeEnglishName(code)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {selectedLocale && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              disabled={translating || missingCount === 0}
+              onClick={runTranslate}
+              className={`${btnCls} text-[var(--color-primary)] border-[var(--color-primary)] hover:bg-[var(--color-primary-light)]`}
+            >
+              {translating ? <>{spinner} {progressLabel}</> : `AI Translate Missing (${missingCount})`}
+            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <input
+                type="search"
+                placeholder="Search items…"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                className={`${ctrlCls} w-44`}
+              />
+              <button
+                onClick={() => setMissingOnly(v => !v)}
+                className={[btnCls, missingOnly
+                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                  : 'text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                Missing
+              </button>
+            </div>
+          </div>
+
+          {translateError && (
+            <p className="mb-3 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 px-4 py-2.5 text-sm text-[var(--color-error)]">
+              {translateError}
+            </p>
+          )}
+
+          {rowsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <p className="py-10 text-center text-sm text-[var(--color-text-muted)]">
+              {missingOnly ? 'All items are translated.' : 'No incentive items defined yet.'}
+            </p>
+          ) : (
+            <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+              <div className="overflow-auto max-h-[460px]">
+                <table className="w-full text-sm table-fixed">
+                  <thead className="sticky top-0 z-10 bg-[var(--color-surface)] border-b border-[var(--color-border)]">
+                    <tr>
+                      <th className="w-[45%] px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Item (English)</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">
+                        {localeFlag(selectedLocale)} {localeName(selectedLocale)}
+                      </th>
+                      <th className="w-10 px-2 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map(row => (
+                      <DynamicItemRow
+                        key={row.id}
+                        row={row}
+                        locale={selectedLocale}
+                        onSaved={() => { void refetch(); invalidateAllMissing() }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DynamicItemRow({
+  row, locale, onSaved,
+}: {
+  row: DynamicTranslationRow
+  locale: string
+  onSaved: () => void
+}) {
+  const [value, setValue] = useState(row.value ?? '')
+  const [saving, setSaving] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+  const [rowError, setRowError] = useState<string | null>(null)
+  const savedRef = useRef(row.value ?? '')
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { setValue(row.value ?? ''); savedRef.current = row.value ?? '' }, [row.value])
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
+
+  async function save(val = value) {
+    const trimmed = val.trim()
+    if (trimmed === savedRef.current) return
+    setSaving(true); setRowError(null)
+    try {
+      await apiClient.upsertIncentiveItemTranslation(locale, row.id, trimmed)
+      savedRef.current = trimmed
+      setJustSaved(true)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setJustSaved(false), 1800)
+      onSaved()
+    } catch {
+      setRowError('Save failed')
+    } finally { setSaving(false) }
+  }
+
+  async function aiTranslate() {
+    setAiRunning(true); setRowError(null)
+    try {
+      const { value: translated } = await apiClient.aiTranslateIncentiveItem(locale, row.id, row.text)
+      setValue(translated)
+      savedRef.current = translated
+      setJustSaved(true)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setJustSaved(false), 1800)
+      onSaved()
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : 'AI failed')
+    } finally { setAiRunning(false) }
+  }
+
+  const isDirty = value.trim() !== savedRef.current
+  const isEmpty = !savedRef.current
+  const busy = saving || aiRunning
+
+  return (
+    <tr className={['border-b border-[var(--color-border)] last:border-0', isEmpty ? 'bg-amber-50/40' : ''].join(' ')}>
+      <td className="px-4 py-2 text-xs text-[var(--color-text-muted)] align-middle">{row.text}</td>
+      <td className="px-4 py-2 align-middle">
+        <div>
+          <input
+            type="text"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            onBlur={() => save()}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            placeholder={row.text}
+            disabled={busy}
+            className={[
+              'w-full rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 disabled:opacity-60',
+              isDirty
+                ? 'border-[var(--color-primary)] focus:ring-[var(--color-primary-light)]'
+                : isEmpty
+                  ? 'border-amber-300 bg-amber-50 focus:ring-amber-200'
+                  : 'border-[var(--color-border)] focus:ring-[var(--color-primary-light)]',
+            ].join(' ')}
+          />
+          {rowError && <p className="mt-0.5 text-[10px] text-[var(--color-error)]">{rowError}</p>}
+        </div>
+      </td>
+      <td className="px-2 py-2 align-middle">
+        <div className="flex items-center justify-end gap-1">
+          {isDirty && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => save()}
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-[var(--color-primary)] text-white hover:opacity-90 disabled:opacity-40 transition-colors"
+            >
+              {saving ? '…' : 'Save'}
+            </button>
+          )}
+          {justSaved && !isDirty && (
+            <span className="text-[10px] font-semibold text-[var(--color-success)]">✓</span>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={aiTranslate}
+            title="AI translate this item"
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40 transition-colors"
+          >
+            {aiRunning
+              ? <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />
+              : 'AI'}
+          </button>
+        </div>
+      </td>
+    </tr>
   )
 }
 

@@ -55,7 +55,7 @@ model Organization {
   oauthClients                OAuthClient[]
   incentiveItems              IncentiveItem[]
   incentivePackages           IncentivePackage[]
-  incentiveChainOverrides     IncentiveChainPackageOverride[]
+  incentiveChainSlots         IncentiveChainSlot[]
   incentiveChainItemOverrides IncentiveChainItemOverride[]
 }
 
@@ -1331,33 +1331,51 @@ model IncentivePackage {
   propertyId      Int?          // non-null = property-scoped (hotel's own package)
   name            String
   isActive        Boolean       @default(true)
-  showOnChainPage Boolean       @default(false)
-  showOnHotelPage Boolean       @default(false)
-  roomPageMode    String?                         // null=off "banner"|"embedded"|"both"
+  fontSize        String        @default("md")  // 'sm' | 'md' | 'lg' | 'xl'
   visibleToChains Boolean       @default(false) // system packages: visible to chain admins
   visibleToHotels Boolean       @default(false) // system packages: directly assignable at hotel level
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  items              IncentivePackageItem[]
-  propertyConfigs    IncentivePropertyConfig[]
-  chainOverrides     IncentiveChainPackageOverride[]
-  propertyOverrides  IncentivePropertyPackageOverride[]
+  items         IncentivePackageItem[]
+  systemSlots   IncentiveSystemSlot[]   @relation("SystemSlotPkg")
+  chainSlots    IncentiveChainSlot[]    @relation("ChainSlotPkg")
+  propertySlots IncentivePropertySlot[] @relation("PropertySlotPkg")
 
   @@index([organizationId])
   @@index([propertyId])
 }
 
-model IncentiveChainPackageOverride {
-  id             Int              @id @default(autoincrement())
-  organizationId Int
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  packageId      Int
-  package        IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  disabled       Boolean          @default(false)
+model IncentiveSystemSlot {
+  slot      String            @id  // 'chain_page' | 'hotel_page' | 'room_banner' | 'room_results'
+  packageId Int?
+  package   IncentivePackage? @relation("SystemSlotPkg", fields: [packageId], references: [id], onDelete: SetNull)
+  updatedAt DateTime          @updatedAt
+}
 
-  @@unique([organizationId, packageId])
+model IncentiveChainSlot {
+  id             Int               @id @default(autoincrement())
+  organizationId Int
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slot           String
+  packageId      Int?
+  package        IncentivePackage? @relation("ChainSlotPkg", fields: [packageId], references: [id], onDelete: SetNull)
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, slot])
   @@index([organizationId])
+}
+
+model IncentivePropertySlot {
+  id         Int               @id @default(autoincrement())
+  propertyId Int
+  slot       String
+  packageId  Int?
+  package    IncentivePackage? @relation("PropertySlotPkg", fields: [packageId], references: [id], onDelete: SetNull)
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([propertyId, slot])
+  @@index([propertyId])
 }
 
 model IncentivePackageItem {
@@ -1382,28 +1400,6 @@ model IncentivePropertyItemOverride {
   @@index([propertyId])
 }
 
-model IncentivePropertyPackageOverride {
-  id         Int              @id @default(autoincrement())
-  propertyId Int
-  packageId  Int
-  package    IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  disabled   Boolean          @default(false)
-
-  @@unique([propertyId, packageId])
-  @@index([propertyId])
-}
-
-model IncentivePropertyConfig {
-  id                   Int              @id @default(autoincrement())
-  propertyId           Int              @unique
-  packageId            Int
-  package              IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  enabled         Boolean          @default(true)
-  showOnHotelPage Boolean          @default(false)
-  roomPageMode    String?                         // null=off "banner"|"embedded"|"both"
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-}
 
 // ── Translations ──────────────────────────────────────────────────────────────
 model Translation {

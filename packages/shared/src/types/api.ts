@@ -1429,33 +1429,19 @@ export interface IncentivePackageItem {
   item: IncentiveItem
 }
 
+export type IncentiveFontSize = 'sm' | 'md' | 'lg' | 'xl'
+
 export interface IncentivePackage {
   id: number
   organizationId: number | null  // null = system level
   propertyId?: number | null     // non-null = property-scoped hotel package
   name: string
   isActive: boolean
-  showOnChainPage: boolean
-  showOnHotelPage: boolean
-  roomPageMode: string | null    // null=off "banner"|"embedded"|"both"
+  fontSize: IncentiveFontSize
   visibleToChains: boolean
   visibleToHotels: boolean
   isSystem: boolean              // computed: organizationId === null
-  chainDisabled?: boolean        // set when fetched in chain context: chain has suppressed this system package
-  propertyDisabled?: boolean     // set when fetched in hotel context: hotel has suppressed this chain package
   items: IncentivePackageItem[]
-  createdAt: string
-  updatedAt: string
-}
-
-export interface IncentivePropertyConfig {
-  id: number
-  propertyId: number
-  packageId: number
-  package: IncentivePackage
-  enabled: boolean
-  showOnHotelPage: boolean
-  roomPageMode: string | null    // null=off "banner"|"embedded"|"both"
   createdAt: string
   updatedAt: string
 }
@@ -1464,14 +1450,33 @@ export interface IncentiveChainConfig {
   incentivesEnabled: boolean
 }
 
-export type RoomPageMode = 'banner' | 'embedded' | 'both'
+export type IncentiveSlotName = 'chain_page' | 'hotel_page' | 'room_banner' | 'room_results'
 
-export interface IncentiveDisplay {
+export interface IncentivePackageDisplay {
   name: string
   items: string[]
-  showOnChainPage: boolean
-  showOnHotelPage: boolean
-  roomPageMode: RoomPageMode | null
+  fontSize: IncentiveFontSize
+}
+
+// Public API response — 4 slots resolved for a property or chain
+export interface IncentiveSlots {
+  chainPage: IncentivePackageDisplay | null
+  hotelPage: IncentivePackageDisplay | null
+  roomBanner: IncentivePackageDisplay | null
+  roomResults: IncentivePackageDisplay | null
+}
+
+// Admin slot config (what the admin sees for a scope)
+export interface IncentiveSlotConfig {
+  slot: IncentiveSlotName
+  packageId: number | null | undefined  // undefined=inherit, null=explicitly disabled, number=assigned
+  resolvedPackageId: number | null       // after inheritance resolution
+  resolvedFrom: 'own' | 'chain' | 'system' | null
+  resolvedPackage: IncentivePackageDisplay | null
+}
+
+export interface SetIncentiveSlotRequest {
+  packageId: number | null  // null = explicitly disable; to revert to inherit, omit / undefined
 }
 
 export interface CreateIncentiveItemRequest {
@@ -1492,9 +1497,7 @@ export interface UpdateIncentiveItemRequest {
 export interface CreateIncentivePackageRequest {
   name: string
   isActive?: boolean
-  showOnChainPage?: boolean
-  showOnHotelPage?: boolean
-  roomPageMode?: string | null
+  fontSize?: IncentiveFontSize
   visibleToChains?: boolean
   visibleToHotels?: boolean
   itemIds?: number[]
@@ -1504,17 +1507,8 @@ export interface CreateIncentivePackageRequest {
 export interface UpdateIncentivePackageRequest {
   name?: string
   isActive?: boolean
-  showOnChainPage?: boolean
-  showOnHotelPage?: boolean
-  roomPageMode?: string | null
+  fontSize?: IncentiveFontSize
   visibleToChains?: boolean
   visibleToHotels?: boolean
   itemIds?: number[]
-}
-
-export interface UpsertIncentivePropertyConfigRequest {
-  packageId: number
-  enabled?: boolean
-  showOnHotelPage?: boolean
-  roomPageMode?: string | null
 }

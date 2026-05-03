@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import type { IncentiveSlotName } from '@ibe/shared'
 
 const PACKAGE_INCLUDE = {
   items: {
@@ -6,6 +7,8 @@ const PACKAGE_INCLUDE = {
     include: { item: true },
   },
 }
+
+const SLOTS: IncentiveSlotName[] = ['chain_page', 'hotel_page', 'room_banner', 'room_results']
 
 function toItemResponse(item: {
   id: number
@@ -34,9 +37,7 @@ function toPackageResponse(pkg: {
   propertyId?: number | null
   name: string
   isActive: boolean
-  showOnChainPage: boolean
-  showOnHotelPage: boolean
-  roomPageMode: string | null
+  fontSize: string
   visibleToChains: boolean
   visibleToHotels: boolean
   createdAt: Date
@@ -144,42 +145,24 @@ export async function deleteIncentiveItem(id: number, orgId: number | null, prop
 // ── Packages ──────────────────────────────────────────────────────────────────
 
 export async function listIncentivePackages(orgId: number | null, hotelView = false, propertyId?: number) {
-  // Fetch property overrides first so overridden packages are always included even if visibility changed
-  const propertyOverrides = propertyId !== undefined
-    ? await prisma.incentivePropertyPackageOverride.findMany({ where: { propertyId } })
-    : []
-  const overriddenPackageIds = propertyOverrides.map(o => o.packageId)
+  const rows = await prisma.incentivePackage.findMany({
+    where: hotelView
+      ? { OR: [
+          ...(orgId !== null ? [{ organizationId: orgId, visibleToHotels: true }] : []),
+          { organizationId: null, visibleToHotels: true },
+          ...(propertyId !== undefined ? [{ propertyId }] : []),
+        ] }
+      : orgId === null
+        ? { organizationId: null }
+        : { OR: [
+            { organizationId: orgId },
+            { organizationId: null, visibleToChains: true },
+          ] },
+    orderBy: [{ organizationId: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
+    include: PACKAGE_INCLUDE,
+  })
 
-  const [rows, chainOverrides] = await Promise.all([
-    prisma.incentivePackage.findMany({
-      where: hotelView
-        ? { OR: [
-            ...(orgId !== null ? [{ organizationId: orgId, visibleToHotels: true }] : []),
-            { organizationId: null, visibleToHotels: true },
-            ...(overriddenPackageIds.length > 0 ? [{ id: { in: overriddenPackageIds } }] : []),
-            ...(propertyId !== undefined ? [{ propertyId }] : []),
-          ] }
-        : orgId === null
-          ? { organizationId: null }
-          : { OR: [
-              { organizationId: orgId },
-              { organizationId: null, visibleToChains: true },
-            ] },
-      orderBy: [{ organizationId: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
-      include: PACKAGE_INCLUDE,
-    }),
-    orgId !== null && !hotelView
-      ? prisma.incentiveChainPackageOverride.findMany({ where: { organizationId: orgId } })
-      : Promise.resolve([]),
-  ])
-
-  const chainDisabledIds = new Set(chainOverrides.filter(o => o.disabled).map(o => o.packageId))
-  const propertyDisabledIds = new Set(propertyOverrides.filter(o => o.disabled).map(o => o.packageId))
-  return rows.map(pkg => ({
-    ...toPackageResponse(pkg),
-    ...(orgId !== null && !hotelView ? { chainDisabled: chainDisabledIds.has(pkg.id) } : {}),
-    ...(propertyId !== undefined ? { propertyDisabled: propertyDisabledIds.has(pkg.id) } : {}),
-  }))
+  return rows.map(pkg => toPackageResponse(pkg))
 }
 
 export async function createIncentivePackage(
@@ -187,9 +170,7 @@ export async function createIncentivePackage(
   data: {
     name: string
     isActive?: boolean
-    showOnChainPage?: boolean
-    showOnHotelPage?: boolean
-    roomPageMode?: string | null
+    fontSize?: string
     visibleToChains?: boolean
     visibleToHotels?: boolean
     itemIds?: number[]
@@ -202,9 +183,7 @@ export async function createIncentivePackage(
       propertyId: data.propertyId ?? null,
       name: data.name,
       isActive: data.isActive ?? true,
-      showOnChainPage: data.showOnChainPage ?? false,
-      showOnHotelPage: data.showOnHotelPage ?? false,
-      roomPageMode: data.roomPageMode ?? null,
+      fontSize: data.fontSize ?? 'md',
       visibleToChains: data.visibleToChains ?? false,
       visibleToHotels: data.visibleToHotels ?? false,
     },
@@ -223,9 +202,7 @@ export async function updateIncentivePackage(
   data: {
     name?: string
     isActive?: boolean
-    showOnChainPage?: boolean
-    showOnHotelPage?: boolean
-    roomPageMode?: string | null
+    fontSize?: string
     visibleToChains?: boolean
     visibleToHotels?: boolean
     itemIds?: number[]
@@ -239,9 +216,7 @@ export async function updateIncentivePackage(
     data: {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
-      ...(data.showOnChainPage !== undefined && { showOnChainPage: data.showOnChainPage }),
-      ...(data.showOnHotelPage !== undefined && { showOnHotelPage: data.showOnHotelPage }),
-      ...('roomPageMode' in data && { roomPageMode: data.roomPageMode ?? null }),
+      ...(data.fontSize !== undefined && { fontSize: data.fontSize }),
       ...(data.visibleToChains !== undefined && { visibleToChains: data.visibleToChains }),
       ...(data.visibleToHotels !== undefined && { visibleToHotels: data.visibleToHotels }),
     },
@@ -267,117 +242,191 @@ async function setPackageItems(packageId: number, itemIds: number[]) {
   })
 }
 
-// ── Property config ───────────────────────────────────────────────────────────
+// ── Slot management ───────────────────────────────────────────────────────────
 
-export async function getIncentivePropertyConfig(propertyId: number) {
-  const row = await prisma.incentivePropertyConfig.findUnique({
-    where: { propertyId },
+// Internal: resolve a single slot following inheritance chain
+async function resolveSlot(slot: string, orgId: number | null, propertyId?: number) {
+  // 1. Property own
+  if (propertyId !== undefined) {
+    const propSlot = await prisma.incentivePropertySlot.findUnique({
+      where: { propertyId_slot: { propertyId, slot } },
+      include: { package: { include: PACKAGE_INCLUDE } },
+    })
+    if (propSlot !== null) {
+      // Row exists (could be packageId=null for explicit disable)
+      if (!propSlot.packageId || !propSlot.package?.isActive) return { packageId: null, from: 'own' as const, pkg: null }
+      return { packageId: propSlot.packageId, from: 'own' as const, pkg: propSlot.package }
+    }
+  }
+
+  // 2. Chain
+  if (orgId !== null) {
+    const chainSlot = await prisma.incentiveChainSlot.findUnique({
+      where: { organizationId_slot: { organizationId: orgId, slot } },
+      include: { package: { include: PACKAGE_INCLUDE } },
+    })
+    if (chainSlot !== null) {
+      if (!chainSlot.packageId || !chainSlot.package?.isActive) return { packageId: null, from: 'chain' as const, pkg: null }
+      return { packageId: chainSlot.packageId, from: 'chain' as const, pkg: chainSlot.package }
+    }
+  }
+
+  // 3. System (respect visibleToChains / visibleToHotels)
+  const sysSlot = await prisma.incentiveSystemSlot.findUnique({
+    where: { slot },
     include: { package: { include: PACKAGE_INCLUDE } },
   })
-  if (!row) return null
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    package: toPackageResponse(row.package),
-  }
+  if (!sysSlot || !sysSlot.packageId || !sysSlot.package?.isActive) return null
+
+  // Check visibility
+  const pkg = sysSlot.package
+  if (propertyId !== undefined && !pkg.visibleToHotels) return null
+  if (propertyId === undefined && orgId !== null && !pkg.visibleToChains) return null
+
+  return { packageId: sysSlot.packageId, from: 'system' as const, pkg }
 }
 
-export async function upsertIncentivePropertyConfig(
-  propertyId: number,
-  data: {
-    packageId: number
-    enabled?: boolean
-    showOnHotelPage?: boolean
-    roomPageMode?: string | null
-  },
+// Get slot assignments for admin UI — returns own assignments + resolved value with inheritance
+export async function getIncentiveSlots(orgId: number | null, propertyId?: number) {
+  // Fetch own assignments at this scope
+  const own = propertyId !== undefined
+    ? await prisma.incentivePropertySlot.findMany({
+        where: { propertyId },
+        include: { package: { include: PACKAGE_INCLUDE } },
+      })
+    : orgId !== null
+      ? await prisma.incentiveChainSlot.findMany({
+          where: { organizationId: orgId },
+          include: { package: { include: PACKAGE_INCLUDE } },
+        })
+      : await prisma.incentiveSystemSlot.findMany({
+          include: { package: { include: PACKAGE_INCLUDE } },
+        })
+
+  const ownBySlot = new Map(own.map(s => [s.slot, s]))
+
+  // For each slot, resolve inherited value
+  return Promise.all(SLOTS.map(async (slot) => {
+    const ownEntry = ownBySlot.get(slot)
+    const hasOwn = ownEntry !== undefined
+
+    // ownEntry.packageId could be null (explicitly disabled) or a number (assigned)
+    // If no own entry: inherit (undefined)
+    const ownPkgId = hasOwn ? ownEntry.packageId : undefined
+
+    // Resolve: find what the actual package is after inheritance
+    const resolved = await resolveSlot(slot, orgId, propertyId)
+
+    return {
+      slot,
+      packageId: ownPkgId,  // undefined=inherit, null=disabled, number=own assignment
+      resolvedPackageId: resolved?.packageId ?? null,
+      resolvedFrom: resolved?.from ?? null,
+      resolvedPackage: resolved?.pkg
+        ? { name: resolved.pkg.name, items: resolved.pkg.items.map((pi: any) => pi.item.text), fontSize: resolved.pkg.fontSize ?? 'md' }
+        : null,
+    }
+  }))
+}
+
+export async function setIncentiveSlot(
+  slot: string,
+  orgId: number | null,
+  propertyId: number | undefined,
+  packageId: number | null | undefined  // undefined = delete (revert to inherit)
 ) {
-  const row = await prisma.incentivePropertyConfig.upsert({
-    where: { propertyId },
-    create: {
-      propertyId,
-      packageId: data.packageId,
-      enabled: data.enabled ?? true,
-      showOnHotelPage: data.showOnHotelPage ?? false,
-      roomPageMode: data.roomPageMode ?? null,
-    },
-    update: {
-      packageId: data.packageId,
-      ...(data.enabled !== undefined && { enabled: data.enabled }),
-      ...(data.showOnHotelPage !== undefined && { showOnHotelPage: data.showOnHotelPage }),
-      ...('roomPageMode' in data && { roomPageMode: data.roomPageMode ?? null }),
-    },
-    include: { package: { include: PACKAGE_INCLUDE } },
-  })
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    package: toPackageResponse(row.package),
+  if (propertyId !== undefined) {
+    if (packageId === undefined) {
+      await prisma.incentivePropertySlot.deleteMany({ where: { propertyId, slot } })
+    } else {
+      await prisma.incentivePropertySlot.upsert({
+        where: { propertyId_slot: { propertyId, slot } },
+        create: { propertyId, slot, packageId },
+        update: { packageId },
+      })
+    }
+    return
   }
-}
-
-export async function deleteIncentivePropertyConfig(propertyId: number) {
-  await prisma.incentivePropertyConfig.delete({ where: { propertyId } })
-}
-
-// ── Packages available for assignment (chain sees own + system visible to hotels) ──
-
-export async function listAssignablePackages(orgId: number | null, propertyId?: number) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = orgId === null
-    ? { organizationId: null }
-    : { OR: [
-        { organizationId: orgId, isActive: true, visibleToHotels: true },
-        { organizationId: null, isActive: true, OR: [{ visibleToChains: true }, { visibleToHotels: true }] },
-        ...(propertyId !== undefined ? [{ propertyId, isActive: true }] : []),
-      ] }
-
-  const rows = await prisma.incentivePackage.findMany({
-    where,
-    orderBy: [{ organizationId: { sort: 'asc', nulls: 'first' } }, { name: 'asc' }],
-    include: PACKAGE_INCLUDE,
-  })
-  return rows.map(toPackageResponse)
+  if (orgId !== null) {
+    if (packageId === undefined) {
+      await prisma.incentiveChainSlot.deleteMany({ where: { organizationId: orgId, slot } })
+    } else {
+      await prisma.incentiveChainSlot.upsert({
+        where: { organizationId_slot: { organizationId: orgId, slot } },
+        create: { organizationId: orgId, slot, packageId },
+        update: { packageId },
+      })
+    }
+    return
+  }
+  // System level
+  if (packageId === undefined) {
+    await prisma.incentiveSystemSlot.deleteMany({ where: { slot } })
+  } else {
+    await prisma.incentiveSystemSlot.upsert({
+      where: { slot },
+      create: { slot, packageId },
+      update: { packageId },
+    })
+  }
 }
 
 // ── Public resolvers ──────────────────────────────────────────────────────────
 
-export async function resolveIncentiveForProperty(propertyId: number) {
-  const config = await prisma.incentivePropertyConfig.findUnique({
-    where: { propertyId },
-    include: { package: { include: PACKAGE_INCLUDE } },
-  })
-  if (!config || !config.enabled || !config.package.isActive) return null
+export async function resolveIncentiveSlotsForProperty(propertyId: number) {
+  // Need the property's orgId for chain inheritance
+  const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { organizationId: true } })
+  const orgId = property?.organizationId ?? null
+
+  const [hotelPage, roomBanner, roomResults] = await Promise.all([
+    resolveSlot('hotel_page', orgId, propertyId),
+    resolveSlot('room_banner', orgId, propertyId),
+    resolveSlot('room_results', orgId, propertyId),
+  ])
+
+  function toDisplay(r: Awaited<ReturnType<typeof resolveSlot>>) {
+    if (!r?.pkg) return null
+    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
+  }
+
   return {
-    name: config.package.name,
-    items: config.package.items.map(pi => pi.item.text),
-    showOnChainPage: false,
-    showOnHotelPage: config.showOnHotelPage,
-    roomPageMode: config.roomPageMode ?? null,
+    chainPage: null,
+    hotelPage: toDisplay(hotelPage),
+    roomBanner: toDisplay(roomBanner),
+    roomResults: toDisplay(roomResults),
   }
 }
 
-export async function setChainPackageOverride(orgId: number, packageId: number, disabled: boolean) {
-  await prisma.incentiveChainPackageOverride.upsert({
-    where: { organizationId_packageId: { organizationId: orgId, packageId } },
-    create: { organizationId: orgId, packageId, disabled },
-    update: { disabled },
-  })
+export async function resolveIncentiveSlotsForChain(orgId: number) {
+  const settings = await prisma.orgSettings.findUnique({ where: { organizationId: orgId } })
+  if (settings && !settings.incentivesEnabled) {
+    return { chainPage: null, hotelPage: null, roomBanner: null, roomResults: null }
+  }
+
+  const [chainPage, hotelPage, roomBanner, roomResults] = await Promise.all([
+    resolveSlot('chain_page', orgId, undefined),
+    resolveSlot('hotel_page', orgId, undefined),
+    resolveSlot('room_banner', orgId, undefined),
+    resolveSlot('room_results', orgId, undefined),
+  ])
+
+  function toDisplay(r: Awaited<ReturnType<typeof resolveSlot>>) {
+    if (!r?.pkg) return null
+    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
+  }
+
+  return {
+    chainPage: toDisplay(chainPage),
+    hotelPage: toDisplay(hotelPage),
+    roomBanner: toDisplay(roomBanner),
+    roomResults: toDisplay(roomResults),
+  }
 }
 
 export async function setPropertyItemOverride(propertyId: number, itemId: number, disabled: boolean) {
   await prisma.incentivePropertyItemOverride.upsert({
     where: { propertyId_itemId: { propertyId, itemId } },
     create: { propertyId, itemId, disabled },
-    update: { disabled },
-  })
-}
-
-export async function setPropertyPackageOverride(propertyId: number, packageId: number, disabled: boolean) {
-  await prisma.incentivePropertyPackageOverride.upsert({
-    where: { propertyId_packageId: { propertyId, packageId } },
-    create: { propertyId, packageId, disabled },
     update: { disabled },
   })
 }
@@ -394,47 +443,4 @@ export async function setIncentiveChainEnabled(orgId: number, enabled: boolean) 
     update: { incentivesEnabled: enabled },
   })
   return { incentivesEnabled: enabled }
-}
-
-export async function resolveChainIncentive(orgId: number) {
-  const settings = await prisma.orgSettings.findUnique({ where: { organizationId: orgId } })
-  if (settings && !settings.incentivesEnabled) return null
-
-  const pkg = await prisma.incentivePackage.findFirst({
-    where: { organizationId: orgId, isActive: true, showOnChainPage: true },
-    orderBy: { createdAt: 'asc' },
-    include: PACKAGE_INCLUDE,
-  })
-  if (pkg) {
-    return {
-      name: pkg.name,
-      items: pkg.items.map(pi => pi.item.text),
-      showOnChainPage: true,
-      showOnHotelPage: pkg.showOnHotelPage,
-      roomPageMode: pkg.roomPageMode ?? null,
-    }
-  }
-  // Fall back to system package visible to chains with showOnChainPage (respecting chain overrides)
-  const disabledOverrides = await prisma.incentiveChainPackageOverride.findMany({
-    where: { organizationId: orgId, disabled: true },
-    select: { packageId: true },
-  })
-  const disabledIds = disabledOverrides.map(o => o.packageId)
-
-  const sysPkg = await prisma.incentivePackage.findFirst({
-    where: {
-      organizationId: null, isActive: true, showOnChainPage: true, visibleToChains: true,
-      ...(disabledIds.length > 0 && { id: { notIn: disabledIds } }),
-    },
-    orderBy: { createdAt: 'asc' },
-    include: PACKAGE_INCLUDE,
-  })
-  if (!sysPkg) return null
-  return {
-    name: sysPkg.name,
-    items: sysPkg.items.map(pi => pi.item.text),
-    showOnChainPage: true,
-    showOnHotelPage: sysPkg.showOnHotelPage,
-    roomPageMode: sysPkg.roomPageMode ?? null,
-  }
 }

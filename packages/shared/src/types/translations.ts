@@ -1,6 +1,6 @@
 export const TRANSLATION_NAMESPACES = [
   'common', 'search', 'properties', 'rooms', 'booking',
-  'confirmation', 'account', 'groups', 'crossSell',
+  'confirmation', 'account', 'groups', 'crossSell', 'weather', 'events',
 ] as const
 
 export type TranslationNamespace = typeof TRANSLATION_NAMESPACES[number]
