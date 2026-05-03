@@ -56,6 +56,7 @@ import { groupsAdminRoutes, groupsPublicRoutes } from './routes/groups.route.js'
 import { translationsPublicRoutes, translationsAdminRoutes } from './routes/translations.route.js'
 import { dashboardRoutes } from './routes/dashboard.route.js'
 import { visitRoutes } from './routes/visit.route.js'
+import { incentiveAdminRoutes, incentivePublicRoutes } from './routes/incentive.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -97,7 +98,7 @@ export async function buildApp() {
   })
 
   await app.register(rateLimit, {
-    max: 500,
+    max: env.NODE_ENV !== 'production' ? 10000 : 500,
     timeWindow: '1 minute',
     allowList: env.NODE_ENV !== 'production' ? ['127.0.0.1', '::1', '::ffff:127.0.0.1'] : [],
     errorResponseBuilder: () => ({
@@ -167,6 +168,7 @@ export async function buildApp() {
   await app.register(groupsPublicRoutes, { prefix: '/api/v1' })
   await app.register(translationsPublicRoutes, { prefix: '/api/v1' })
   await app.register(visitRoutes, { prefix: '/api/v1' })
+  await app.register(incentivePublicRoutes, { prefix: '/api/v1' })
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
@@ -211,6 +213,7 @@ export async function buildApp() {
     await adminApp.register(groupsAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(translationsAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(dashboardRoutes, { prefix: '/api/v1' })
+    await adminApp.register(incentiveAdminRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

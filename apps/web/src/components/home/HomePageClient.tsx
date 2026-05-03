@@ -5,12 +5,14 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useAiMode } from '@/context/ai-mode'
 import { useT } from '@/context/translations'
+import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { QuiltHero } from '@/components/home/QuiltHero'
 import { PropertyGridClient, type PropertyData } from '@/components/home/PropertyGridClient'
 import { OnsiteConversionHomepage } from '@/components/onsite/OnsiteConversionHomepage'
 import { PixelInjector } from '@/components/tracking/PixelInjector'
 import { ChatWidget } from '@/components/chat/ChatWidget'
+import type { IncentiveDisplay } from '@ibe/shared'
 import type { PropertyOption } from '@/components/search/SearchBar'
 
 const SearchBar = dynamic(
@@ -56,6 +58,7 @@ export interface HomePageClientProps {
   remainingEntries: { propertyId: number; name: string }[]
   searchBarProps: HomeSearchBarProps
   chatWidgetProps: HomeChatWidgetProps
+  incentive?: IncentiveDisplay | null
 }
 
 export function HomePageClient({
@@ -77,6 +80,7 @@ export function HomePageClient({
   remainingEntries,
   searchBarProps,
   chatWidgetProps,
+  incentive,
 }: HomePageClientProps) {
   const { aiLayout, setAiLayout } = useAiMode()
   const tProps = useT('properties')
@@ -92,6 +96,14 @@ export function HomePageClient({
   const PageStyle = cssVars
     ? <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
     : null
+
+  const IncentiveBlock = incentive && !aiLayout ? (
+    <div className="mx-auto max-w-5xl px-4 pb-4">
+      <div className="mx-auto max-w-sm">
+        <IncentiveWidget incentive={incentive} />
+      </div>
+    </div>
+  ) : null
 
   const PropertyGrid = multiProperties && multiProperties.length > 1 ? (
     <div className="bg-[var(--color-background)] px-4 py-10">
@@ -143,6 +155,7 @@ export function HomePageClient({
           )}
           <SearchBar {...searchBarProps} />
         </div>
+        {IncentiveBlock}
         {!aiLayout && PropertyGrid}
         {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
         {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}
@@ -176,6 +189,7 @@ export function HomePageClient({
           )}
           <SearchBar {...searchBarProps} />
         </div>
+        {IncentiveBlock}
         {!aiLayout && PropertyGrid}
         {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
         {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}
@@ -232,6 +246,7 @@ export function HomePageClient({
         </div>
       </div>
 
+      {IncentiveBlock}
       {!aiLayout && PropertyGrid}
       {!aiLayout && <OnsiteConversionHomepage propertyId={propertyId} page={onsitePage} />}
       {!aiLayout && <PixelInjector propertyId={propertyId} page="home" />}

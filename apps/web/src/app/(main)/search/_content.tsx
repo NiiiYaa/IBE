@@ -11,6 +11,8 @@ import { usePreferences } from '@/context/preferences'
 import { useAiMode } from '@/context/ai-mode'
 import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
+import { useIncentive } from '@/hooks/use-incentive'
+import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { RoomCard } from '@/components/search/RoomCard'
 import { RoomCardGrid } from '@/components/search/RoomCardGrid'
 import { WeatherStrip } from '@/components/weather/WeatherStrip'
@@ -56,6 +58,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
   const { data: propertyData } = useProperty(searchParams?.hotelId ?? null)
   const { data: hotelConfig } = useHotelConfig(searchParams?.hotelId ?? null)
   const { bookingMode, maxRooms, multiRoomLimitBy } = useOffersConstraints(searchParams?.hotelId ?? null)
+  const { data: incentive } = useIncentive(searchParams?.hotelId ?? null)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms
@@ -182,6 +185,12 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         />
       )}
 
+      {(incentive?.roomPageMode === 'banner' || incentive?.roomPageMode === 'both') && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <IncentiveWidget incentive={incentive} />
+        </div>
+      )}
+
       {searchParams.hotelId > 0 && (
         <WeatherStrip
           propertyId={searchParams.hotelId}
@@ -294,6 +303,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
             {...(isMultiMode
               ? { selectLabel: t('addToBooking'), selectDisabled: (_rate: RateOption) => !canAddToCart(room) }
               : {})}
+            {...(incentive ? { incentive } : {})}
           />
         ))
       )}

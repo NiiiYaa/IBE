@@ -44,7 +44,7 @@ export async function getOrgSettings(organizationId: number): Promise<OrgSetting
     webDomain: row?.webDomain ?? null,
     tlsCert: row?.tlsCert ?? null,
     tlsKey: row?.tlsKey ?? null,
-    enabledModels: parseModels(row?.enabledModels),
+    enabledModels: row ? parseModels(row.enabledModels) : DEFAULT_ENABLED_MODELS,
   }
 }
 

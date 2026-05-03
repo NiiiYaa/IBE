@@ -377,11 +377,11 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
   if (isLoading) return <Spinner />
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
-  const currencyOptions = (activeCurrencies.length > 0 ? activeCurrencies : ORDERED_CURRENCIES).map(code => ({ value: code, label: currencyLabel(code) }))
 
   // Full list, no restriction from chain — active ones float to top
   const enabledCurrenciesOverride = draft.enabledCurrencies as string[] | null | undefined
   const activeCurrencies: string[] = enabledCurrenciesOverride ?? (orgDefaults.enabledCurrencies ?? []) as string[]
+  const currencyOptions = (activeCurrencies.length > 0 ? activeCurrencies : ORDERED_CURRENCIES).map(code => ({ value: code, label: currencyLabel(code) }))
   const currencyItems = [
     ...ORDERED_CURRENCIES.filter(c => activeCurrencies.includes(c)),
     ...ORDERED_CURRENCIES.filter(c => !activeCurrencies.includes(c)),

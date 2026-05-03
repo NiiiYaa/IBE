@@ -1402,3 +1402,119 @@ export interface PropertyMarketingSettingsResponse {
 
 export type UpdateMarketingSettingsRequest = Partial<MarketingSettings>
 export type UpdatePropertyMarketingSettingsRequest = Partial<Record<MarketingFeature, SellModel[] | null>>
+
+// ── Incentives ────────────────────────────────────────────────────────────────
+
+export interface IncentiveItem {
+  id: number
+  organizationId: number | null  // null = system level
+  propertyId?: number | null     // non-null = property-scoped hotel item
+  text: string
+  isActive: boolean
+  sortOrder: number
+  visibleToChains: boolean
+  visibleToHotels: boolean
+  isSystem: boolean              // computed: organizationId === null
+  chainDisabled?: boolean        // set in chain context: chain has suppressed this system item
+  propertyDisabled?: boolean     // set in hotel context: hotel has suppressed this chain item
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IncentivePackageItem {
+  id: number
+  packageId: number
+  itemId: number
+  sortOrder: number
+  item: IncentiveItem
+}
+
+export interface IncentivePackage {
+  id: number
+  organizationId: number | null  // null = system level
+  propertyId?: number | null     // non-null = property-scoped hotel package
+  name: string
+  isActive: boolean
+  showOnChainPage: boolean
+  showOnHotelPage: boolean
+  roomPageMode: string | null    // null=off "banner"|"embedded"|"both"
+  visibleToChains: boolean
+  visibleToHotels: boolean
+  isSystem: boolean              // computed: organizationId === null
+  chainDisabled?: boolean        // set when fetched in chain context: chain has suppressed this system package
+  propertyDisabled?: boolean     // set when fetched in hotel context: hotel has suppressed this chain package
+  items: IncentivePackageItem[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IncentivePropertyConfig {
+  id: number
+  propertyId: number
+  packageId: number
+  package: IncentivePackage
+  enabled: boolean
+  showOnHotelPage: boolean
+  roomPageMode: string | null    // null=off "banner"|"embedded"|"both"
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IncentiveChainConfig {
+  incentivesEnabled: boolean
+}
+
+export type RoomPageMode = 'banner' | 'embedded' | 'both'
+
+export interface IncentiveDisplay {
+  name: string
+  items: string[]
+  showOnChainPage: boolean
+  showOnHotelPage: boolean
+  roomPageMode: RoomPageMode | null
+}
+
+export interface CreateIncentiveItemRequest {
+  text: string
+  sortOrder?: number
+  visibleToChains?: boolean
+  propertyId?: number
+}
+
+export interface UpdateIncentiveItemRequest {
+  text?: string
+  isActive?: boolean
+  sortOrder?: number
+  visibleToChains?: boolean
+  visibleToHotels?: boolean
+}
+
+export interface CreateIncentivePackageRequest {
+  name: string
+  isActive?: boolean
+  showOnChainPage?: boolean
+  showOnHotelPage?: boolean
+  roomPageMode?: string | null
+  visibleToChains?: boolean
+  visibleToHotels?: boolean
+  itemIds?: number[]
+  propertyId?: number
+}
+
+export interface UpdateIncentivePackageRequest {
+  name?: string
+  isActive?: boolean
+  showOnChainPage?: boolean
+  showOnHotelPage?: boolean
+  roomPageMode?: string | null
+  visibleToChains?: boolean
+  visibleToHotels?: boolean
+  itemIds?: number[]
+}
+
+export interface UpsertIncentivePropertyConfigRequest {
+  packageId: number
+  enabled?: boolean
+  showOnHotelPage?: boolean
+  roomPageMode?: string | null
+}

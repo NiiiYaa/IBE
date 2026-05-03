@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
+import type { RoomOption, RateOption, RoomDetail, IncentiveDisplay } from '@ibe/shared'
 import { formatCurrency } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
 import { RateRow } from './RateRow'
 import { RoomDetailModal } from './RoomDetailModal'
+import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { useT } from '@/context/translations'
 
 interface RoomCardProps {
@@ -22,13 +23,14 @@ interface RoomCardProps {
   primaryImageId?: number
   selectLabel?: string
   selectDisabled?: ((rate: RateOption) => boolean) | undefined
+  incentive?: IncentiveDisplay | null
 }
 
 function lowestRateCurrency(room: RoomOption): string {
   return room.rates[0]?.prices.sell.currency ?? 'USD'
 }
 
-export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled }: RoomCardProps) {
+export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled, incentive }: RoomCardProps) {
   const t = useT('rooms')
   const conv = convert ?? ((n: number) => n)
   const dispCur = displayCurrency ?? lowestRateCurrency(room)
@@ -190,6 +192,12 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 >
                   {t('seeMore')}
                 </button>
+              )}
+
+              {incentive && (incentive.roomPageMode === 'embedded' || incentive.roomPageMode === 'both') && (
+                <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3">
+                  <IncentiveWidget incentive={incentive} variant="inline" />
+                </div>
               )}
             </div>
 

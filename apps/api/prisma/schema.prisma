@@ -53,6 +53,10 @@ model Organization {
   groupConfig                 GroupConfig?
   propertyGroupConfigs        PropertyGroupConfig[]
   oauthClients                OAuthClient[]
+  incentiveItems              IncentiveItem[]
+  incentivePackages           IncentivePackage[]
+  incentiveChainOverrides     IncentiveChainPackageOverride[]
+  incentiveChainItemOverrides IncentiveChainItemOverride[]
 }
 
 // roles: super | admin | observer | user
@@ -522,6 +526,7 @@ model OrgSettings {
   tlsCert                 String?
   tlsKey                  String?
   enabledModels           String       @default("[\"b2c\",\"b2b\"]")
+  incentivesEnabled       Boolean      @default(true)
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 }
@@ -1282,6 +1287,122 @@ model OAuthIdentity {
 
   @@index([organizationId])
   @@index([propertyId])
+}
+
+// ── Incentives ────────────────────────────────────────────────────────────────
+
+model IncentiveItem {
+  id              Int           @id @default(autoincrement())
+  organizationId  Int?          // null = system level
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  propertyId      Int?          // non-null = property-scoped (hotel's own item)
+  text            String
+  isActive        Boolean       @default(true)
+  sortOrder       Int           @default(0)
+  visibleToChains Boolean       @default(false) // system items: chain admins can use in packages
+  visibleToHotels Boolean       @default(false) // system/chain items: hotel admins can see
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  packageItems          IncentivePackageItem[]
+  chainItemOverrides    IncentiveChainItemOverride[]
+  propertyItemOverrides IncentivePropertyItemOverride[]
+
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model IncentiveChainItemOverride {
+  id             Int           @id @default(autoincrement())
+  organizationId Int
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  itemId         Int
+  item           IncentiveItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  disabled       Boolean       @default(false)
+
+  @@unique([organizationId, itemId])
+  @@index([organizationId])
+}
+
+model IncentivePackage {
+  id              Int           @id @default(autoincrement())
+  organizationId  Int?          // null = system level
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  propertyId      Int?          // non-null = property-scoped (hotel's own package)
+  name            String
+  isActive        Boolean       @default(true)
+  showOnChainPage Boolean       @default(false)
+  showOnHotelPage Boolean       @default(false)
+  roomPageMode    String?                         // null=off "banner"|"embedded"|"both"
+  visibleToChains Boolean       @default(false) // system packages: visible to chain admins
+  visibleToHotels Boolean       @default(false) // system packages: directly assignable at hotel level
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items              IncentivePackageItem[]
+  propertyConfigs    IncentivePropertyConfig[]
+  chainOverrides     IncentiveChainPackageOverride[]
+  propertyOverrides  IncentivePropertyPackageOverride[]
+
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model IncentiveChainPackageOverride {
+  id             Int              @id @default(autoincrement())
+  organizationId Int
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  packageId      Int
+  package        IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  disabled       Boolean          @default(false)
+
+  @@unique([organizationId, packageId])
+  @@index([organizationId])
+}
+
+model IncentivePackageItem {
+  id        Int              @id @default(autoincrement())
+  packageId Int
+  package   IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  itemId    Int
+  item      IncentiveItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sortOrder Int              @default(0)
+
+  @@unique([packageId, itemId])
+}
+
+model IncentivePropertyItemOverride {
+  id         Int           @id @default(autoincrement())
+  propertyId Int
+  itemId     Int
+  item       IncentiveItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  disabled   Boolean       @default(false)
+
+  @@unique([propertyId, itemId])
+  @@index([propertyId])
+}
+
+model IncentivePropertyPackageOverride {
+  id         Int              @id @default(autoincrement())
+  propertyId Int
+  packageId  Int
+  package    IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  disabled   Boolean          @default(false)
+
+  @@unique([propertyId, packageId])
+  @@index([propertyId])
+}
+
+model IncentivePropertyConfig {
+  id                   Int              @id @default(autoincrement())
+  propertyId           Int              @unique
+  packageId            Int
+  package              IncentivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  enabled         Boolean          @default(true)
+  showOnHotelPage Boolean          @default(false)
+  roomPageMode    String?                         // null=off "banner"|"embedded"|"both"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 // ── Translations ──────────────────────────────────────────────────────────────

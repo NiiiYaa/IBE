@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import type { HotelDesignConfig, PropertyDetail, PropertyListResponse } from '@ibe/shared'
+import type { HotelDesignConfig, PropertyDetail, PropertyListResponse, IncentiveDisplay } from '@ibe/shared'
 import { buildCssVars } from '@/lib/theme'
 import { HomePageClient } from '@/components/home/HomePageClient'
 
@@ -63,6 +63,20 @@ async function fetchChainImages(orgId: number): Promise<string[]> {
     const data = await res.json() as { images: string[] }
     return data.images ?? []
   } catch { return [] }
+}
+
+async function fetchIncentiveForProperty(propertyId: number): Promise<IncentiveDisplay | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/incentives/property/${propertyId}`, { next: { revalidate: 30 } })
+    return res.ok ? (res.json() as Promise<IncentiveDisplay | null>) : null
+  } catch { return null }
+}
+
+async function fetchChainIncentive(orgId: number): Promise<IncentiveDisplay | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/incentives/chain?orgId=${orgId}`, { next: { revalidate: 30 } })
+    return res.ok ? (res.json() as Promise<IncentiveDisplay | null>) : null
+  } catch { return null }
 }
 
 async function fetchAIEnabled(propertyId: number): Promise<boolean> {
@@ -234,7 +248,12 @@ export default async function HomePage({
     chainName = orgConfig?.displayName ?? null
   }
 
-  const aiEnabled = propertyId ? await fetchAIEnabled(propertyId) : false
+  const [aiEnabled, incentive] = await Promise.all([
+    propertyId ? fetchAIEnabled(propertyId) : Promise.resolve(false),
+    tenant.type === 'org'
+      ? fetchChainIncentive(tenant.orgId)
+      : propertyId ? fetchIncentiveForProperty(propertyId) : Promise.resolve(null),
+  ])
 
   // For org tenants: fetch only the first INITIAL_BATCH property details server-side.
   // Remaining properties are loaded client-side on demand via PropertyGridClient.
@@ -385,6 +404,7 @@ export default async function HomePage({
       remainingEntries={remainingEntries}
       searchBarProps={searchBarProps}
       chatWidgetProps={chatWidgetProps}
+      incentive={incentive}
     />
   )
 }

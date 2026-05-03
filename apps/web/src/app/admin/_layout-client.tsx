@@ -43,6 +43,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/conversion/onsite', label: 'Onsite Conversion' },
       { href: '/admin/affiliates', label: 'Affiliates' },
       { href: '/admin/campaigns', label: 'Campaigns' },
+      { href: '/admin/marketing/incentives', label: 'Incentives' },
     ],
   },
   {
