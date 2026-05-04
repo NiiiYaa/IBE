@@ -748,6 +748,13 @@ export interface UpdateNavItemRequest {
 
 export type PropertyMode = 'single' | 'multi'
 
+export interface PropertyOrgInfo {
+  orgId: number
+  orgName: string
+  hyperGuestOrgId: string | null
+  isPrimary: boolean
+}
+
 export interface PropertyRecord {
   id: number
   propertyId: number
@@ -757,6 +764,7 @@ export interface PropertyRecord {
   createdAt: string
   name?: string | null
   isDemo?: boolean
+  isPrimary?: boolean
   orgId?: number
   orgName?: string
   hyperGuestOrgId?: string | null
@@ -765,6 +773,7 @@ export interface PropertyRecord {
   hyperGuestStaticDomain?: string | null
   hyperGuestSearchDomain?: string | null
   hyperGuestBookingDomain?: string | null
+  allOrgs?: PropertyOrgInfo[]
 }
 
 export interface PropertyUserAssignment {

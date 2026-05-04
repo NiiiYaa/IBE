@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getOrgSettings, updateOrgSettings, setPropertyMode, setShowCitySelector, setShowDemoProperty, setRateProvider } from '../services/org.service.js'
 import type { PropertyMode, SellModel } from '../services/org.service.js'
-import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers } from '../services/property-registry.service.js'
+import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers, getPropertyOrgs, addOrgToProperty, removeOrgFromProperty, transferPrimaryOwnership } from '../services/property-registry.service.js'
 import { runImport } from '../services/import.service.js'
 import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
@@ -328,6 +328,51 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (!Array.isArray(userIds)) return reply.status(400).send({ error: 'userIds must be an array' })
     await setPropertyUsers(id, request.admin.organizationId, userIds)
     return reply.send({ ok: true })
+  })
+
+  // ── Multi-org property management (super admin only) ─────────────────────
+
+  fastify.get('/admin/super/properties/:id/orgs', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    return reply.send(await getPropertyOrgs(id))
+  })
+
+  fastify.post('/admin/super/properties/:id/orgs', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const { orgId } = request.body as { orgId?: number }
+    if (!orgId) return reply.status(400).send({ error: 'orgId is required' })
+    try {
+      await addOrgToProperty(id, orgId)
+      return reply.status(201).send({ ok: true })
+    } catch (err) {
+      return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed' })
+    }
+  })
+
+  fastify.delete('/admin/super/properties/:id/orgs/:orgId', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    try {
+      await removeOrgFromProperty(id, orgId)
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed' })
+    }
+  })
+
+  fastify.put('/admin/super/properties/:id/orgs/:orgId/transfer-primary', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    try {
+      await transferPrimaryOwnership(id, orgId)
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed' })
+    }
   })
 
   // ── B2B Connections (org-scoped) ──────────────────────────────────────────

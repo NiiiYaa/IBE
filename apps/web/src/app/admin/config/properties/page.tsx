@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
-import type { PropertyMode, PropertyRecord, PropertyUserAssignment, ImportSummary, OrgSettingsResponse } from '@ibe/shared'
+import type { PropertyMode, PropertyRecord, PropertyOrgInfo, PropertyUserAssignment, ImportSummary, OrgSettingsResponse, OrgRecord } from '@ibe/shared'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
 
@@ -331,13 +331,128 @@ function AssignUsersPanel({ record, onClose }: { record: PropertyRecord; onClose
   )
 }
 
+function OrgPanel({ record, allOrgs, onRefresh }: { record: PropertyRecord; allOrgs: PropertyOrgInfo[]; onRefresh: () => void }) {
+  const qc = useQueryClient()
+  const [addOrgId, setAddOrgId] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const { data: orgs = [] } = useQuery<OrgRecord[]>({
+    queryKey: ['super-orgs'],
+    queryFn: () => apiClient.listOrgs(),
+    staleTime: 60_000,
+  })
+
+  const existingOrgIds = new Set(allOrgs.map(o => o.orgId))
+  const availableOrgs = orgs.filter(o => !existingOrgIds.has(o.id))
+
+  async function handleAdd() {
+    if (!addOrgId) return
+    setAdding(true); setAddError(null)
+    try {
+      await apiClient.addOrgToProperty(record.id, Number(addOrgId))
+      setAddOrgId('')
+      onRefresh()
+      void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.message : 'Failed to add org')
+    } finally { setAdding(false) }
+  }
+
+  async function handleRemove(orgId: number) {
+    try {
+      await apiClient.removeOrgFromProperty(record.id, orgId)
+      onRefresh()
+      void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.message : 'Failed to remove org')
+    }
+  }
+
+  async function handleTransfer(orgId: number) {
+    try {
+      await apiClient.transferPrimaryOwnership(record.id, orgId)
+      onRefresh()
+      void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.message : 'Failed to transfer ownership')
+    }
+  }
+
+  return (
+    <div className="border-t border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Organizations</p>
+
+      {allOrgs.length === 0 ? (
+        <p className="text-xs text-[var(--color-text-muted)]">No org associations on record.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {allOrgs.map(o => (
+            <div key={o.orgId} className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium text-[var(--color-text)]">{o.orgName}</span>
+                {o.hyperGuestOrgId && <span className="ml-2 font-mono text-xs text-[var(--color-text-muted)]">{o.hyperGuestOrgId}</span>}
+              </div>
+              {o.isPrimary ? (
+                <span className="rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                  Primary
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleTransfer(o.orgId)}
+                    className="rounded px-2 py-0.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]"
+                  >
+                    Make primary
+                  </button>
+                  <button
+                    onClick={() => handleRemove(o.orgId)}
+                    className="rounded px-2 py-0.5 text-xs text-[var(--color-error)]/70 hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {availableOrgs.length > 0 && (
+        <div className="flex items-center gap-2">
+          <select
+            value={addOrgId}
+            onChange={e => setAddOrgId(e.target.value)}
+            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="">Add organization…</option>
+            {availableOrgs.map(o => (
+              <option key={o.id} value={o.id}>{o.name}{o.hyperGuestOrgId ? ` · ${o.hyperGuestOrgId}` : ''}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleAdd}
+            disabled={!addOrgId || adding}
+            className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {adding ? '…' : 'Add'}
+          </button>
+        </div>
+      )}
+
+      {addError && <p className="text-xs text-[var(--color-error)]">{addError}</p>}
+    </div>
+  )
+}
+
 function PropertyRow({
-  record, onSetDefault, showDefault, onRefresh,
+  record, onSetDefault, showDefault, onRefresh, isSuper,
 }: {
   record: PropertyRecord
   onSetDefault?: () => void
   showDefault?: boolean
   onRefresh: () => void
+  isSuper?: boolean
 }) {
   const qc = useQueryClient()
   const needsHGFetch = !record.name
@@ -347,6 +462,7 @@ function PropertyRow({
   const [showAssign, setShowAssign] = useState(false)
   const [showCreds, setShowCreds] = useState(false)
   const [showSubdomain, setShowSubdomain] = useState(false)
+  const [showOrgs, setShowOrgs] = useState(false)
   const isDemo = record.isDemo ?? false
 
   const activeMutation = useMutation({
@@ -482,6 +598,19 @@ function PropertyRow({
               Assign users
             </button>
 
+            {isSuper && (
+              <button
+                onClick={() => setShowOrgs(v => !v)}
+                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                  showOrgs
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                Organizations{record.allOrgs && record.allOrgs.length > 1 ? ` (${record.allOrgs.length})` : ''}
+              </button>
+            )}
+
             {showDefault && !record.isDefault && onSetDefault && (
               <button onClick={onSetDefault}
                 className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
@@ -528,6 +657,10 @@ function PropertyRow({
           onClose={() => setShowCreds(false)}
           onSaved={onRefresh}
         />
+      )}
+
+      {showOrgs && isSuper && !isDemo && (
+        <OrgPanel record={record} allOrgs={record.allOrgs ?? []} onRefresh={onRefresh} />
       )}
     </div>
   )
@@ -825,6 +958,7 @@ export default function PropertiesPage() {
               showDefault={!isSuper && mode === 'multi'}
               onSetDefault={() => defaultMutation.mutate(r.id)}
               onRefresh={() => void qc.invalidateQueries({ queryKey: [isSuper ? 'admin-super-properties' : 'admin-properties'] })}
+              isSuper={isSuper}
             />
           ))}
         </div>

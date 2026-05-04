@@ -402,6 +402,25 @@ export const apiClient = {
     return apiRequest<{ properties: PropertyRecord[] }>('/api/v1/admin/super/properties')
   },
 
+  getPropertyOrgs(propertyDbId: number): Promise<import('@ibe/shared').PropertyOrgInfo[]> {
+    return apiRequest(`/api/v1/admin/super/properties/${propertyDbId}/orgs`)
+  },
+
+  addOrgToProperty(propertyDbId: number, orgId: number): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/super/properties/${propertyDbId}/orgs`, {
+      method: 'POST',
+      body: JSON.stringify({ orgId }),
+    })
+  },
+
+  removeOrgFromProperty(propertyDbId: number, orgId: number): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/super/properties/${propertyDbId}/orgs/${orgId}`, { method: 'DELETE' })
+  },
+
+  transferPrimaryOwnership(propertyDbId: number, orgId: number): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/super/properties/${propertyDbId}/orgs/${orgId}/transfer-primary`, { method: 'PUT' })
+  },
+
   setPropertyMode(mode: PropertyMode): Promise<{ ok: boolean; mode: PropertyMode }> {
     return apiRequest<{ ok: boolean; mode: PropertyMode }>('/api/v1/admin/properties/mode', {
       method: 'PUT',

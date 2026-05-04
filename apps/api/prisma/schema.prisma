@@ -57,6 +57,7 @@ model Organization {
   incentivePackages           IncentivePackage[]
   incentiveChainSlots         IncentiveChainSlot[]
   incentiveChainItemOverrides IncentiveChainItemOverride[]
+  propertyOrganizations       PropertyOrganization[]
 }
 
 // roles: super | admin | observer | user
@@ -449,7 +450,22 @@ model Property {
   adminUserProperties     AdminUserProperty[]
   propertyCrossSellConfig PropertyCrossSellConfig?
   propertyGroupConfig     PropertyGroupConfig?
+  propertyOrganizations   PropertyOrganization[]
 
+  @@index([organizationId])
+}
+
+model PropertyOrganization {
+  id             Int          @id @default(autoincrement())
+  propertyId     Int
+  organizationId Int
+  isPrimary      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  property       Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, organizationId])
   @@index([organizationId])
 }
 
