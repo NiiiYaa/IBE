@@ -287,7 +287,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
               if (cfg.logoUrl.startsWith('data:')) {
                 // Base64 data URL — convert to inline CID attachment for email client compatibility
                 const match = cfg.logoUrl.match(/^data:([^;]+);base64,(.+)$/)
-                if (match) {
+                if (match && match[1] && match[2]) {
                   logoInlineImage = { cid: 'hotel-logo', content: Buffer.from(match[2], 'base64'), contentType: match[1] }
                   logoUrl = 'cid:hotel-logo'
                 }

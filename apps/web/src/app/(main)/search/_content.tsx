@@ -25,6 +25,7 @@ import { useT, useLocale } from '@/context/translations'
 import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
+import { useSetAffiliateCookie } from '@/hooks/use-affiliate-cookie'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -46,6 +47,8 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
 
   const { aiLayout, setAiLayout } = useAiMode()
 
+  useSetAffiliateCookie(rawParams.get('affiliateId') ?? undefined)
+
   useEffect(() => {
     setAiLayout(searchAiLayoutDefault)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +61,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
   const { data: propertyData } = useProperty(searchParams?.hotelId ?? null)
   const { data: hotelConfig } = useHotelConfig(searchParams?.hotelId ?? null)
   const { bookingMode, maxRooms, multiRoomLimitBy } = useOffersConstraints(searchParams?.hotelId ?? null)
-  const { data: incentive } = useIncentive(searchParams?.hotelId ?? null)
+  const { data: incentive } = useIncentive(searchParams?.hotelId ?? null, locale)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms

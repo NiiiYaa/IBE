@@ -56,4 +56,6 @@ export function VisitorTracker({ propertyId, channel }: { propertyId: number | n
       body: JSON.stringify({ sessionId, propertyId, channel, page, device }),
     }).catch(() => { /* non-critical */ })
   }, [pathname, propertyId, channel])
+
+  return null
 }

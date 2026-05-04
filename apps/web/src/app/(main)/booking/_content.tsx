@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { decodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useHotelConfig } from '@/hooks/use-hotel-config'
+import { readAffiliateCookie } from '@/hooks/use-affiliate-cookie'
 import { BookingForm } from '@/components/booking/BookingForm'
 import { BookingSummary, type SelectedRoom } from '@/components/booking/BookingSummary'
 import Link from 'next/link'
@@ -15,7 +16,7 @@ export function BookingContent() {
   const locale = useLocale()
   const rawParams = useSearchParams()
   const searchId   = rawParams.get('searchId') ?? ''
-  const affiliateId = rawParams.get('affiliateId') ?? undefined
+  const affiliateId = rawParams.get('affiliateId') ?? readAffiliateCookie() ?? undefined
   const campaignId = rawParams.get('campaignId') ?? undefined
 
   const searchParams = decodeSearchParams(rawParams)

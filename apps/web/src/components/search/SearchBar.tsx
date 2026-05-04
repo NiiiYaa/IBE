@@ -561,7 +561,7 @@ export function SearchBar({
                 childMaxAge={childMaxAge}
                 minRooms={minRooms}
                 maxRooms={maxRooms}
-                groupsHref={groupsHref}
+                {...(groupsHref != null ? { groupsHref } : {})}
               />
             </MobileSection>
 
@@ -713,7 +713,7 @@ export function SearchBar({
             childMaxAge={childMaxAge}
             minRooms={minRooms}
             maxRooms={maxRooms}
-            groupsHref={groupsHref}
+            {...(groupsHref != null ? { groupsHref } : {})}
           />
         </div>
       )}

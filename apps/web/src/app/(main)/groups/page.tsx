@@ -37,5 +37,5 @@ export default async function GroupsPage({
 }) {
   const propertyId = searchParams.hotelId ? Number(searchParams.hotelId) || DEFAULT_PROPERTY_ID : DEFAULT_PROPERTY_ID
   const orgId = await fetchOrgId(propertyId)
-  return <GroupsContent propertyId={propertyId} returnTo={searchParams.returnTo} {...(orgId != null ? { orgId } : {})} />
+  return <GroupsContent propertyId={propertyId} {...(searchParams.returnTo != null ? { returnTo: searchParams.returnTo } : {})} {...(orgId != null ? { orgId } : {})} />
 }

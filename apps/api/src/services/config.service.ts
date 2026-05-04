@@ -123,13 +123,11 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     loadSystemDesign(),
   ])
 
-  const orgDefaults = property
-    ? await prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } })
-    : null
-
-  const commSettings = property
-    ? await getCommSettings(property.organizationId).catch(() => null)
-    : await getSystemCommSettings().catch(() => null)
+  const [orgDefaults, orgSettings, commSettings] = await Promise.all([
+    property ? prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } }) : null,
+    property ? prisma.orgSettings.findUnique({ where: { organizationId: property.organizationId } }) : null,
+    property ? getCommSettings(property.organizationId).catch(() => null) : getSystemCommSettings().catch(() => null),
+  ])
 
   // d = resolved system defaults (DB row merged with hardcoded fallback)
   const d = {
@@ -220,6 +218,12 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     searchAiLayoutDefault: config?.searchAiLayoutDefault ?? o?.searchAiLayoutDefault ?? false,
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
+    affiliateMarketplace: config?.affiliateMarketplace ?? orgSettings?.affiliateMarketplace ?? false,
+    affiliateDefaultCommissionRate: config?.affiliateDefaultCommissionRate != null
+      ? Number(config.affiliateDefaultCommissionRate)
+      : orgSettings?.affiliateDefaultCommissionRate != null
+        ? Number(orgSettings.affiliateDefaultCommissionRate)
+        : null,
     chainHeroImageUrl: orgDefaults?.chainHeroImageUrl ?? null,
     emailEnabled: commSettings?.emailEnabled ?? false,
     whatsappEnabled: commSettings?.whatsappEnabled ?? false,
@@ -310,6 +314,8 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     searchAiLayoutDefault: o?.searchAiLayoutDefault ?? false,
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
+    affiliateMarketplace: false,
+    affiliateDefaultCommissionRate: null,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
     emailEnabled: false,
     whatsappEnabled: false,
@@ -373,6 +379,8 @@ export async function upsertHotelDesignConfig(
     ...(updates.searchAiLayoutDefault != null && { searchAiLayoutDefault: updates.searchAiLayoutDefault }),
     ...(updates.tripadvisorHotelKey !== undefined && { tripadvisorHotelKey: updates.tripadvisorHotelKey }),
     ...(updates.priceComparisonEnabled !== undefined && { priceComparisonEnabled: updates.priceComparisonEnabled }),
+    ...(updates.affiliateMarketplace !== undefined && { affiliateMarketplace: updates.affiliateMarketplace }),
+    ...(updates.affiliateDefaultCommissionRate !== undefined && { affiliateDefaultCommissionRate: updates.affiliateDefaultCommissionRate }),
     ...(updates.checkInTime !== undefined && { checkInTime: updates.checkInTime }),
     ...(updates.checkOutTime !== undefined && { checkOutTime: updates.checkOutTime }),
   }
