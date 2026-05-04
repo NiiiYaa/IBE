@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useProperty } from '@/hooks/use-property'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
+import { useAdminProperty } from '@/app/admin/property-context'
 import type { PropertyMode, PropertyRecord, PropertyOrgInfo, PropertyUserAssignment, ImportSummary, OrgSettingsResponse, OrgRecord } from '@ibe/shared'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
@@ -106,14 +107,23 @@ function SearchTestButton({ propertyId }: { propertyId: number }) {
   async function run() {
     setStatus('searching')
     try {
-      const today = new Date()
-      const tomorrow = new Date(today)
+      const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
-      const checkin = today.toISOString().slice(0, 10)
-      const checkout = tomorrow.toISOString().slice(0, 10)
-      const qs = new URLSearchParams({ hotelId: String(propertyId), checkIn: checkin, checkOut: checkout, 'rooms[0][adults]': '2' })
-      const res = await apiClient.search(qs)
-      const total = res.results.reduce((s, r) => s + r.rooms.length, 0)
+      const d = (offset: number) => { const dt = new Date(tomorrow); dt.setDate(tomorrow.getDate() + offset); return dt.toISOString().slice(0, 10) }
+      const searches = [
+        { checkIn: d(10), checkOut: d(12) },
+        { checkIn: d(35), checkOut: d(40) },
+      ]
+      const results = await Promise.allSettled(
+        searches.map(({ checkIn, checkOut }) => {
+          const qs = new URLSearchParams({ hotelId: String(propertyId), checkIn, checkOut, 'rooms[0][adults]': '2' })
+          return apiClient.search(qs)
+        })
+      )
+      let total = 0
+      for (const r of results) {
+        if (r.status === 'fulfilled') total += r.value.results.reduce((s, h) => s + h.rooms.length, 0)
+      }
       setCount(total)
       setStatus(total > 0 ? 'found' : 'empty')
       setTimeout(() => setStatus('idle'), 5000)
@@ -834,6 +844,7 @@ export default function PropertiesPage() {
   const [filterText, setFilterText] = useState('')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const { admin, isAuthenticated } = useAdminAuth()
+  const { orgId: contextOrgId } = useAdminProperty()
   const isSuper = admin?.role === 'super'
 
   // Wait until admin role is confirmed before firing queries to avoid wrong endpoint
@@ -870,6 +881,38 @@ export default function PropertiesPage() {
   })
 
   const [addNotice, setAddNotice] = useState<string | null>(null)
+  const [superAddId, setSuperAddId] = useState('')
+  const [superAddOrgId, setSuperAddOrgId] = useState('')
+  const [superAddError, setSuperAddError] = useState<string | null>(null)
+  const [superAddPending, setSuperAddPending] = useState(false)
+
+  const { data: allOrgs = [] } = useQuery<OrgRecord[]>({
+    queryKey: ['super-orgs'],
+    queryFn: () => apiClient.listOrgs(),
+    enabled: isAuthenticated && isSuper,
+    staleTime: 60_000,
+  })
+
+  // Effective org for super add: header context takes priority, dropdown is fallback
+  const superAddEffectiveOrgId = contextOrgId ?? (superAddOrgId ? parseInt(superAddOrgId, 10) : null)
+  const superAddEffectiveOrgName = allOrgs.find(o => o.id === superAddEffectiveOrgId)?.name ?? null
+
+  async function handleSuperAdd() {
+    const id = parseInt(superAddId, 10)
+    if (isNaN(id) || id <= 0) { setSuperAddError('Enter a valid HyperGuest property ID'); return }
+    if (!superAddEffectiveOrgId) { setSuperAddError('Select an organization in the sidebar'); return }
+    setSuperAddError(null)
+    setSuperAddPending(true)
+    try {
+      await apiClient.addProperty(id, superAddEffectiveOrgId)
+      setSuperAddId('')
+      void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
+    } catch (err) {
+      setSuperAddError(err instanceof Error ? err.message : 'Failed to add property')
+    } finally {
+      setSuperAddPending(false)
+    }
+  }
 
   const addMutation = useMutation({
     mutationFn: (propertyId: number) => apiClient.addProperty(propertyId),
@@ -964,6 +1007,51 @@ export default function PropertiesPage() {
             </div>
           )}
         </>
+      )}
+
+      {isSuper && (
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Add Property</p>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <div className="flex gap-2">
+              <input
+                type="number"
+                placeholder="HyperGuest property ID"
+                value={superAddId}
+                onChange={e => { setSuperAddId(e.target.value); setSuperAddError(null) }}
+                onKeyDown={e => e.key === 'Enter' && handleSuperAdd()}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+              />
+              {contextOrgId ? (
+                <span className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-muted)]">
+                  {superAddEffectiveOrgName ?? `Org ${contextOrgId}`}
+                </span>
+              ) : (
+                <select
+                  value={superAddOrgId}
+                  onChange={e => { setSuperAddOrgId(e.target.value); setSuperAddError(null) }}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  <option value="">Select organization…</option>
+                  {allOrgs.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={handleSuperAdd}
+                disabled={superAddPending}
+                className="shrink-0 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              >
+                {superAddPending ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+            {!contextOrgId && (
+              <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">Or select an org from the sidebar to use its context automatically.</p>
+            )}
+            {superAddError && <p className="mt-2 text-xs text-[var(--color-error)]">{superAddError}</p>}
+          </div>
+        </div>
       )}
 
       {/* Filters */}

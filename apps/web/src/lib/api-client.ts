@@ -472,10 +472,10 @@ export const apiClient = {
     })
   },
 
-  addProperty(propertyId: number): Promise<PropertyRecord> {
+  addProperty(propertyId: number, organizationId?: number): Promise<PropertyRecord> {
     return apiRequest<PropertyRecord>('/api/v1/admin/properties', {
       method: 'POST',
-      body: JSON.stringify({ propertyId }),
+      body: JSON.stringify({ propertyId, ...(organizationId !== undefined && { organizationId }) }),
     })
   },
 
