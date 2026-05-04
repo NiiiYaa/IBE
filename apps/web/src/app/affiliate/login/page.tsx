@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 
-export default function AffiliateLoginPage() {
+function AffiliateLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -91,5 +91,13 @@ export default function AffiliateLoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function AffiliateLoginPage() {
+  return (
+    <Suspense>
+      <AffiliateLoginForm />
+    </Suspense>
   )
 }

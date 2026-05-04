@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
@@ -380,7 +380,7 @@ function EditProfileTab() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AffiliateAccountPage() {
+function AffiliateAccountContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeTab = searchParams.get('tab') === 'profile' ? 'profile' : 'password'
@@ -414,5 +414,13 @@ export default function AffiliateAccountPage() {
         {activeTab === 'password' ? <ChangePasswordTab /> : <EditProfileTab />}
       </div>
     </div>
+  )
+}
+
+export default function AffiliateAccountPage() {
+  return (
+    <Suspense>
+      <AffiliateAccountContent />
+    </Suspense>
   )
 }
