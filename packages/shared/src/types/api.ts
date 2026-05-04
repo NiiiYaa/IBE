@@ -124,6 +124,7 @@ export interface PropertyImage {
 export interface PropertyFacility {
   id: number
   name: string
+  nameSlug: string
   category: string
   classification: string
   popular: boolean

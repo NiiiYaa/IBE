@@ -33,6 +33,7 @@ function StarRating({ rating }: { rating: number }) {
 
 export function PropertyCard({ id, name, starRating, imageUrl, city, address, description, facilities }: PropertyCardProps) {
   const t = useT('search')
+  const tFacility = useT('hotel_facilities')
   const [modalOpen, setModalOpen] = useState(false)
   const topFacilities = [
     ...facilities.filter(f => f.popular),
@@ -83,7 +84,7 @@ export function PropertyCard({ id, name, starRating, imageUrl, city, address, de
             <div className="mt-2 flex flex-wrap gap-1">
               {topFacilities.map(f => (
                 <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
-                  {facilityIcon(f.name)}{f.name}
+                  {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
                 </span>
               ))}
             </div>

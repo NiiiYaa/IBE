@@ -1,6 +1,9 @@
+'use client'
+
 import type { PropertyDetail } from '@ibe/shared'
 import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { facilityIcon } from '@/lib/facility-icon'
+import { useT } from '@/context/translations'
 
 interface PropertyHeaderProps {
   property: PropertyDetail
@@ -38,6 +41,7 @@ export function PropertyHeader({
   carouselInterval = 5,
   carouselImages = [],
 }: PropertyHeaderProps) {
+  const tFacility = useT('hotel_facilities')
   const hero = heroImageUrl === undefined ? property.images[0]?.url : heroImageUrl
   const name = displayName ?? property.name
   const isCarousel = imageMode === 'carousel'
@@ -95,7 +99,7 @@ export function PropertyHeader({
             key={f.id}
             className="flex items-center gap-1 rounded-full bg-[var(--color-primary-light)] px-2.5 py-1 text-xs font-medium text-primary"
           >
-            {facilityIcon(f.name)}{f.name}
+            {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
           </span>
         ))}
       </div>

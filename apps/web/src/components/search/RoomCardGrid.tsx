@@ -5,6 +5,7 @@ import Image from 'next/image'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { formatCurrency } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
+import { useT } from '@/context/translations'
 import { RateSelectModal } from './RateSelectModal'
 import { RoomDetailModal } from './RoomDetailModal'
 
@@ -31,6 +32,7 @@ export function RoomCardGrid({
   room, nights, locale, roomDetail, remarks = [],
   onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled,
 }: RoomCardGridProps) {
+  const tFacility = useT('room_facilities')
   const conv = convert ?? ((n: number) => n)
   const dispCur = displayCurrency ?? lowestRateCurrency(room)
   const [rateModalOpen, setRateModalOpen] = useState(false)
@@ -161,7 +163,7 @@ export function RoomCardGrid({
             <div className="mt-2 flex flex-wrap gap-1">
               {topFacilities.map(f => (
                 <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
-                  {facilityIcon(f.name)}{f.name}
+                  {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
                 </span>
               ))}
             </div>

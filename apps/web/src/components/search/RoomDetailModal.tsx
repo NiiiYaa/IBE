@@ -15,6 +15,7 @@ interface RoomDetailModalProps {
 
 export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: RoomDetailModalProps) {
   const t = useT('rooms')
+  const tFacility = useT('room_facilities')
   const images = roomDetail?.images ?? []
   const [imgIndex, setImgIndex] = useState(0)
 
@@ -151,7 +152,7 @@ export function RoomDetailModal({ room, roomDetail, remarks = [], onClose }: Roo
               <div className="flex flex-wrap gap-1.5">
                 {roomDetail.facilities.map(f => (
                   <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-0.5 text-xs text-muted">
-                    {facilityIcon(f.name)}{f.name}
+                    {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
                   </span>
                 ))}
               </div>

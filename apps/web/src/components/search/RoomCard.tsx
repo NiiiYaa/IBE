@@ -32,6 +32,7 @@ function lowestRateCurrency(room: RoomOption): string {
 
 export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled, incentive }: RoomCardProps) {
   const t = useT('rooms')
+  const tFacility = useT('room_facilities')
   const conv = convert ?? ((n: number) => n)
   const dispCur = displayCurrency ?? lowestRateCurrency(room)
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -178,7 +179,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                   <div className="mt-2 flex flex-wrap gap-1">
                     {top.map(f => (
                       <span key={f.id} className="rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted">
-                        {facilityIcon(f.name)}{f.name}
+                        {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
                       </span>
                     ))}
                   </div>

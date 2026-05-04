@@ -31,6 +31,7 @@ function transformPropertyStatic(raw: HGPropertyStatic): PropertyDetail {
     facilities: raw.facilities.map((f) => ({
       id: f.id,
       name: f.name,
+      nameSlug: f.nameSlug,
       category: f.category,
       classification: f.classification,
       popular: f.popular === 1,
@@ -46,6 +47,7 @@ function transformPropertyStatic(raw: HGPropertyStatic): PropertyDetail {
       facilities: room.facilities.map((f) => ({
         id: f.id,
         name: f.name,
+        nameSlug: f.nameSlug,
         category: f.category,
         classification: f.classification,
         popular: f.popular === 1,

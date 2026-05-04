@@ -33,6 +33,7 @@ function StarRating({ rating }: { rating: number }) {
 
 export function PropertyRow({ id, name, starRating, imageUrl, city, address, description, facilities }: PropertyRowProps) {
   const t = useT('search')
+  const tFacility = useT('hotel_facilities')
   const [modalOpen, setModalOpen] = useState(false)
   const topFacilities = [
     ...facilities.filter(f => f.popular),
@@ -91,7 +92,7 @@ export function PropertyRow({ id, name, starRating, imageUrl, city, address, des
                 key={f.id}
                 className="shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-0.5 text-xs text-muted"
               >
-                {facilityIcon(f.name)}{f.name}
+                {facilityIcon(f.name)}{tFacility(f.nameSlug) || f.name}
               </span>
             ))}
             <button
