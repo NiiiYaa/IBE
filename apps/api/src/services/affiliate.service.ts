@@ -1,6 +1,12 @@
 import type { Affiliate } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 import { getOverridesForProperty } from './property-override.service.js'
+import { hashPassword } from './auth.service.js'
+
+function generateTemporaryPassword(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
 
 function toAffiliate(row: {
   id: number; code: string; name: string; email: string | null
@@ -91,6 +97,45 @@ export async function deleteAffiliate(organizationId: number, id: number): Promi
 export async function getAffiliateOrg(id: number): Promise<number | null> {
   const row = await prisma.affiliate.findUnique({ where: { id }, select: { organizationId: true } })
   return row?.organizationId ?? null
+}
+
+export async function resetAffiliatePortalPassword(
+  id: number,
+  organizationId: number | null,
+): Promise<{ name: string; email: string; temporaryPassword: string }> {
+  const affiliate = await prisma.affiliate.findUnique({
+    where: { id },
+    include: { adminUser: { select: { id: true } } },
+  })
+  if (!affiliate || (organizationId !== null && affiliate.organizationId !== organizationId))
+    throw new Error('Affiliate not found')
+  if (!affiliate.email?.trim())
+    throw new Error('Affiliate has no email address')
+
+  const temporaryPassword = generateTemporaryPassword()
+  const passwordHash = await hashPassword(temporaryPassword)
+
+  if (affiliate.adminUser) {
+    await prisma.adminUser.update({
+      where: { id: affiliate.adminUser.id },
+      data: { passwordHash, mustChangePassword: true, isActive: true },
+    })
+  } else {
+    await prisma.adminUser.create({
+      data: {
+        organizationId: affiliate.organizationId,
+        email: affiliate.email,
+        name: affiliate.name,
+        role: 'affiliate',
+        passwordHash,
+        isActive: true,
+        mustChangePassword: true,
+        affiliateId: affiliate.id,
+      },
+    })
+  }
+
+  return { name: affiliate.name, email: affiliate.email, temporaryPassword }
 }
 
 export async function getActiveAffiliate(

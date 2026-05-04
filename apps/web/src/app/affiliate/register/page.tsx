@@ -5,22 +5,10 @@ import Link from 'next/link'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 
-const COUNTRIES = [
-  'Afghanistan','Albania','Algeria','Argentina','Australia','Austria','Bangladesh','Belgium',
-  'Brazil','Canada','Chile','China','Colombia','Croatia','Czech Republic','Denmark','Egypt',
-  'Finland','France','Germany','Greece','Hungary','India','Indonesia','Iran','Iraq','Ireland',
-  'Israel','Italy','Japan','Jordan','Kenya','Lebanon','Malaysia','Mexico','Morocco','Netherlands',
-  'New Zealand','Nigeria','Norway','Pakistan','Philippines','Poland','Portugal','Romania',
-  'Russia','Saudi Arabia','Singapore','South Africa','South Korea','Spain','Sweden','Switzerland',
-  'Thailand','Turkey','UAE','Ukraine','United Kingdom','United States','Vietnam',
-]
-
 export default function AffiliateRegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [country, setCountry] = useState('')
-  const [accountType, setAccountType] = useState<'individual' | 'company'>('individual')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -36,8 +24,6 @@ export default function AffiliateRegisterPage() {
         email: email.trim(),
         password,
         name: name.trim(),
-        ...(country ? { country } : {}),
-        accountType,
       })
       setSuccess(true)
     } catch (err) {
@@ -84,33 +70,6 @@ export default function AffiliateRegisterPage() {
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
             <PasswordInput value={password} onChange={e => setPassword(e.target.value)} required className={inputCls} autoComplete="new-password" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Country</label>
-            <select value={country} onChange={e => setCountry(e.target.value)} className={inputCls}>
-              <option value="">Select country…</option>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Account type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['individual', 'company'] as const).map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setAccountType(type)}
-                  className={[
-                    'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
-                    accountType === type
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-text)]',
-                  ].join(' ')}
-                >
-                  {type === 'individual' ? 'Individual' : 'Company'}
-                </button>
-              ))}
-            </div>
           </div>
           {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
           <button

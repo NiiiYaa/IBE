@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile, type AdminPayload } from '../services/auth.service.js'
+import { forgotAdminPassword } from '../services/user.service.js'
 import { env } from '../config/env.js'
 import { cookieDomain } from '../utils/cookie.js'
 
@@ -74,6 +75,12 @@ export async function authRoutes(fastify: FastifyInstance) {
   })
 
   // ── Logout ─────────────────────────────────────────────────────────────────
+
+  fastify.post('/auth/forgot-password', async (request, reply) => {
+    const { email } = request.body as { email?: string }
+    if (email?.trim()) await forgotAdminPassword(email.trim()).catch(() => {})
+    return reply.send({ ok: true })
+  })
 
   fastify.post('/auth/logout', async (_request, reply) => {
     reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })

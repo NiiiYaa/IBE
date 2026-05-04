@@ -3,8 +3,11 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Affiliate, CreateAffiliateRequest, UpdateAffiliateRequest } from '@ibe/shared'
-import { apiClient } from '@/lib/api-client'
+import type { AffiliatePortalUser } from '@/lib/api-client'
+import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useAdminProperty } from '../property-context'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
+import { CredentialsModal, type CredentialsInfo } from '../_components/CredentialsModal'
 
 function effectiveActive(a: Affiliate): boolean {
   return a.propertyEnabled ?? a.isActive
@@ -66,7 +69,320 @@ const DEFAULT_FORM: FormState = {
 
 export default function AffiliatesPage() {
   const { propertyId, orgId } = useAdminProperty()
-  return <AffiliatesEditor propertyId={propertyId} contextOrgId={orgId} />
+  const { admin } = useAdminAuth()
+  const isSuper = admin?.role === 'super'
+  return (
+    <>
+      {isSuper && <PortalRegistrationsSection />}
+      <AffiliatesEditor propertyId={propertyId} contextOrgId={orgId} />
+    </>
+  )
+}
+
+type StatusFilter = 'all' | 'pending' | 'active' | 'inactive' | 'deleted'
+type TypeFilter = 'all' | 'individual' | 'company'
+
+function userStatus(u: AffiliatePortalUser): 'deleted' | 'active' | 'pending' | 'inactive' {
+  if (u.deletedAt) return 'deleted'
+  if (u.isActive && u.emailVerified) return 'active'
+  if (!u.emailVerified) return 'pending'
+  return 'inactive'
+}
+
+function PortalRegistrationsSection() {
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [credentialsInfo, setCredentialsInfo] = useState<CredentialsInfo | null>(null)
+
+  const showDeleted = statusFilter === 'deleted'
+
+  const { data: users = [], isLoading } = useQuery<AffiliatePortalUser[]>({
+    queryKey: ['affiliate-portal-users', showDeleted],
+    queryFn: () => apiClient.listAffiliatePortalUsers(showDeleted),
+    refetchOnWindowFocus: false,
+  })
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['affiliate-portal-users'] })
+
+  const { mutate: approve } = useMutation({
+    mutationFn: (id: number) => apiClient.approveAffiliatePortalUser(id),
+    onSuccess: invalidate,
+  })
+
+  const { mutate: toggleActive } = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      apiClient.updateAffiliatePortalUser(id, { isActive }),
+    onMutate: ({ id, isActive }) => {
+      const prev = qc.getQueryData<AffiliatePortalUser[]>(['affiliate-portal-users', showDeleted])
+      qc.setQueryData<AffiliatePortalUser[]>(['affiliate-portal-users', showDeleted],
+        old => old?.map(u => u.id === id ? { ...u, isActive } : u) ?? [])
+      return { prev }
+    },
+    onError: (_, __, ctx) => { if (ctx?.prev) qc.setQueryData(['affiliate-portal-users', showDeleted], ctx.prev) },
+  })
+
+  const { mutate: saveEdit, isPending: isSavingEdit } = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      apiClient.updateAffiliatePortalUser(id, { name }),
+    onSuccess: () => { invalidate(); setEditingId(null) },
+    onError: err => setActionError(err instanceof Error ? err.message : 'Save failed'),
+  })
+
+  const { mutate: doDelete, isPending: isDeleting } = useMutation({
+    mutationFn: (id: number) => apiClient.deleteAffiliatePortalUser(id),
+    onSuccess: () => { invalidate(); setDeleteConfirm(null) },
+    onError: err => setActionError(err instanceof Error ? err.message : 'Delete failed'),
+  })
+
+  const { mutate: revive } = useMutation({
+    mutationFn: (id: number) => apiClient.reviveAffiliatePortalUser(id),
+    onSuccess: invalidate,
+  })
+
+  const counts = useMemo(() => {
+    const all = users.filter(u => !u.deletedAt)
+    return {
+      all: all.length,
+      pending: all.filter(u => userStatus(u) === 'pending').length,
+      active: all.filter(u => userStatus(u) === 'active').length,
+      inactive: all.filter(u => userStatus(u) === 'inactive').length,
+    }
+  }, [users])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return users.filter(u => {
+      const st = userStatus(u)
+      if (statusFilter === 'deleted') { if (st !== 'deleted') return false }
+      else if (statusFilter !== 'all' && st !== statusFilter) return false
+      if (typeFilter !== 'all' && (u.accountType ?? 'individual') !== typeFilter) return false
+      if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !(u.companyName ?? '').toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [users, search, statusFilter, typeFilter])
+
+  const chipCls = (active: boolean) => [
+    'rounded-full px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
+    active
+      ? 'bg-[var(--color-primary)] text-white'
+      : 'bg-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
+  ].join(' ')
+
+  async function handleResetPortalPwd(u: AffiliatePortalUser) {
+    try {
+      const result = await apiClient.resetAffiliatePortalUserPassword(u.id)
+      setCredentialsInfo({
+        label: `Password reset — ${result.name}`,
+        name: result.name,
+        email: result.email,
+        temporaryPassword: result.temporaryPassword,
+        loginUrl: `${window.location.origin}/affiliate/login`,
+      })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reset password')
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl px-6 pt-8">
+      {credentialsInfo && <CredentialsModal info={credentialsInfo} onClose={() => setCredentialsInfo(null)} />}
+      <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">Affiliate Portal Registrations</h2>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">All self-service affiliate sign-ups across all organisations</p>
+          </div>
+          <div className="flex gap-2 text-xs">
+            {counts.pending > 0 && (
+              <span className="rounded-full bg-[var(--color-error)]/10 px-2.5 py-0.5 font-semibold text-[var(--color-error)]">
+                {counts.pending} pending
+              </span>
+            )}
+            <span className="rounded-full bg-[var(--color-border)] px-2.5 py-0.5 font-semibold text-[var(--color-text-muted)]">
+              {counts.active} active
+            </span>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--color-border)] px-6 py-3">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name, email, company…"
+            className="h-8 w-52 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-xs text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => setStatusFilter('all')} className={chipCls(statusFilter === 'all')}>All ({counts.all})</button>
+            <button onClick={() => setStatusFilter('pending')} className={chipCls(statusFilter === 'pending')}>Pending ({counts.pending})</button>
+            <button onClick={() => setStatusFilter('active')} className={chipCls(statusFilter === 'active')}>Active ({counts.active})</button>
+            <button onClick={() => setStatusFilter('inactive')} className={chipCls(statusFilter === 'inactive')}>Inactive ({counts.inactive})</button>
+            <button onClick={() => setStatusFilter('deleted')} className={chipCls(statusFilter === 'deleted')}>Deleted</button>
+          </div>
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as TypeFilter)}
+            className="h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-xs text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="all">All types</option>
+            <option value="individual">Individual</option>
+            <option value="company">Company</option>
+          </select>
+          {(search || statusFilter !== 'all' || typeFilter !== 'all') && (
+            <button onClick={() => { setSearch(''); setStatusFilter('all'); setTypeFilter('all') }} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+              Clear
+            </button>
+          )}
+        </div>
+
+        {actionError && (
+          <div className="mx-6 mt-3 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 px-4 py-2 text-xs text-[var(--color-error)]">
+            {actionError}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex h-24 items-center justify-center">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+          </div>
+        ) : users.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[var(--color-text-muted)]">No registrations yet.</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[var(--color-text-muted)]">No results match your filters.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
+                  <Th>Name</Th>
+                  <Th>Email</Th>
+                  <Th>Type</Th>
+                  <Th>Status</Th>
+                  <Th>Linked hotel</Th>
+                  <Th>Registered</Th>
+                  <Th></Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {filtered.map(u => {
+                  const st = userStatus(u)
+                  const isDeleted = st === 'deleted'
+                  const isEditing = editingId === u.id
+                  return (
+                    <tr key={u.id} className={isEditing ? 'bg-[var(--color-primary-light)]' : isDeleted ? 'opacity-60 hover:bg-[var(--color-background)]' : 'hover:bg-[var(--color-background)]'}>
+                      <td className="px-4 py-3 font-medium text-[var(--color-text)]">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            autoFocus
+                            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-sm focus:border-[var(--color-primary)] focus:outline-none"
+                          />
+                        ) : (
+                          <>
+                            {u.name}
+                            {u.companyName && <p className="text-xs text-[var(--color-text-muted)]">{u.companyName}</p>}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--color-text-muted)]">{u.email}</td>
+                      <td className="px-4 py-3 text-[var(--color-text-muted)] capitalize">{u.accountType ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={[
+                          'rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                          st === 'active' ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                            : st === 'pending' ? 'bg-amber-100 text-amber-700'
+                            : st === 'deleted' ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]'
+                            : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+                        ].join(' ')}>
+                          {st === 'active' ? 'Active' : st === 'pending' ? 'Email pending' : st === 'deleted' ? 'Deleted' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--color-text-muted)]">
+                        {u.linkedAffiliateCode
+                          ? <span className="font-mono text-xs">{u.linkedAffiliateCode}</span>
+                          : <span className="text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                          {isDeleted ? (
+                            <button onClick={() => revive(u.id)} className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-success)]/80 hover:bg-[var(--color-success)]/10 hover:text-[var(--color-success)]">
+                              Revive
+                            </button>
+                          ) : isEditing ? (
+                            <>
+                              <button onClick={() => saveEdit({ id: u.id, name: editName.trim() })} disabled={isSavingEdit || !editName.trim()} className="rounded-md bg-[var(--color-primary)] px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                                {isSavingEdit ? '…' : 'Save'}
+                              </button>
+                              <button onClick={() => { setEditingId(null); setActionError(null) }} className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {st !== 'active' && (
+                                <button onClick={() => approve(u.id)} className="rounded-md bg-[var(--color-primary)] px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90">
+                                  Approve
+                                </button>
+                              )}
+                              <button
+                                onClick={() => toggleActive({ id: u.id, isActive: !u.isActive })}
+                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+                              >
+                                {u.isActive ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button
+                                onClick={() => { setEditingId(u.id); setEditName(u.name); setActionError(null) }}
+                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleResetPortalPwd(u)}
+                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+                              >
+                                Reset pwd
+                              </button>
+                              {deleteConfirm === u.id ? (
+                                <>
+                                  <button onClick={() => doDelete(u.id)} disabled={isDeleting} className="rounded-md bg-[var(--color-error)] px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                                    {isDeleting ? '…' : 'Confirm'}
+                                  </button>
+                                  <button onClick={() => setDeleteConfirm(null)} className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button onClick={() => setDeleteConfirm(u.id)} className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-error)]/70 transition-colors hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)]">
+                                  Delete
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | null | undefined; contextOrgId: number | null }) {
@@ -79,6 +395,7 @@ function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | n
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [credentialsInfo, setCredentialsInfo] = useState<CredentialsInfo | null>(null)
 
   const queryKey = useMemo(() => ['affiliates', scopedPropertyId ?? 'global'], [scopedPropertyId])
 
@@ -180,6 +497,21 @@ function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | n
     setTimeout(() => setCopiedId(null), 1500)
   }
 
+  async function handleResetPassword(a: Affiliate) {
+    try {
+      const result = await apiClient.resetAffiliatePassword(a.id)
+      setCredentialsInfo({
+        label: `Password reset — ${result.name}`,
+        name: result.name,
+        email: result.email,
+        temporaryPassword: result.temporaryPassword,
+        loginUrl: `${window.location.origin}/affiliate/login`,
+      })
+    } catch (err) {
+      setSaveError(err instanceof ApiClientError ? err.message : 'Failed to reset password')
+    }
+  }
+
   const isEditing = editingId !== null
 
   // ── Marketplace config — chain level ─────────────────────────────────────────
@@ -245,6 +577,7 @@ function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | n
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      {credentialsInfo && <CredentialsModal info={credentialsInfo} onClose={() => setCredentialsInfo(null)} />}
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--color-text)]">Affiliates</h1>
         {scopedPropertyId == null
@@ -661,6 +994,14 @@ function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | n
                             >
                               Edit
                             </button>
+                            {a.email && (
+                              <button
+                                onClick={() => handleResetPassword(a)}
+                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]"
+                              >
+                                Reset pwd
+                              </button>
+                            )}
                             {deleteConfirm === a.id ? (
                               <>
                                 <button

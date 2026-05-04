@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { listAffiliates, createAffiliate, updateAffiliate, deleteAffiliate, getAffiliateOrg } from '../services/affiliate.service.js'
+import { listAffiliates, createAffiliate, updateAffiliate, deleteAffiliate, getAffiliateOrg, resetAffiliatePortalPassword } from '../services/affiliate.service.js'
 import { getOrgIdForProperty } from '../services/property-registry.service.js'
 import { prisma } from '../db/client.js'
 
@@ -74,6 +74,118 @@ export async function affiliateRoutes(fastify: FastifyInstance) {
     }
     await deleteAffiliate(orgId, id)
     return reply.send({ ok: true })
+  })
+
+  fastify.post('/admin/affiliates/:id/reset-password', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    let orgId = request.admin.organizationId
+    if (!orgId) {
+      orgId = await getAffiliateOrg(id)
+      if (!orgId) return reply.status(404).send({ error: 'Not found' })
+    }
+    try {
+      const result = await resetAffiliatePortalPassword(id, orgId)
+      return reply.send(result)
+    } catch (err) {
+      return reply.status(400).send({ error: err instanceof Error ? err.message : 'Failed to reset password' })
+    }
+  })
+
+  // GET /admin/super/affiliate-users — all portal registrations (super only)
+  fastify.get('/admin/super/affiliate-users', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const includeDeleted = (request.query as Record<string, string>).includeDeleted === 'true'
+    const users = await prisma.adminUser.findMany({
+      where: { role: 'affiliate', ...(includeDeleted ? {} : { deletedAt: null }) },
+      select: {
+        id: true, name: true, email: true, isActive: true, emailVerified: true,
+        createdAt: true, deletedAt: true, organizationId: true,
+        affiliateProfile: { select: { country: true, accountType: true, companyName: true } },
+        affiliate: { select: { id: true, code: true, organizationId: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.send(users.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      isActive: u.isActive,
+      emailVerified: u.emailVerified,
+      deletedAt: u.deletedAt?.toISOString() ?? null,
+      createdAt: u.createdAt.toISOString(),
+      organizationId: u.organizationId,
+      country: u.affiliateProfile?.country ?? null,
+      accountType: u.affiliateProfile?.accountType ?? null,
+      companyName: u.affiliateProfile?.companyName ?? null,
+      linkedAffiliateId: u.affiliate?.id ?? null,
+      linkedAffiliateCode: u.affiliate?.code ?? null,
+      linkedOrgId: u.affiliate?.organizationId ?? null,
+    })))
+  })
+
+  // POST /admin/super/affiliate-users/:id/approve — force-activate (super only)
+  fastify.post('/admin/super/affiliate-users/:id/approve', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const user = await prisma.adminUser.findUnique({ where: { id } })
+    if (!user || user.role !== 'affiliate') return reply.status(404).send({ error: 'Not found' })
+    await prisma.adminUser.update({
+      where: { id },
+      data: { isActive: true, emailVerified: true, emailVerifyToken: null },
+    })
+    return reply.send({ ok: true })
+  })
+
+  // PUT /admin/super/affiliate-users/:id — update name / isActive (super only)
+  fastify.put('/admin/super/affiliate-users/:id', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const body = request.body as { name?: string; isActive?: boolean }
+    const user = await prisma.adminUser.findUnique({ where: { id } })
+    if (!user || user.role !== 'affiliate') return reply.status(404).send({ error: 'Not found' })
+    await prisma.adminUser.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name.trim() }),
+        ...(body.isActive !== undefined && { isActive: body.isActive }),
+      },
+    })
+    return reply.send({ ok: true })
+  })
+
+  // DELETE /admin/super/affiliate-users/:id — soft delete (super only)
+  fastify.delete('/admin/super/affiliate-users/:id', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const user = await prisma.adminUser.findUnique({ where: { id } })
+    if (!user || user.role !== 'affiliate') return reply.status(404).send({ error: 'Not found' })
+    await prisma.adminUser.update({ where: { id }, data: { isActive: false, deletedAt: new Date() } })
+    return reply.send({ ok: true })
+  })
+
+  // POST /admin/super/affiliate-users/:id/revive — restore soft-deleted (super only)
+  fastify.post('/admin/super/affiliate-users/:id/revive', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const user = await prisma.adminUser.findUnique({ where: { id } })
+    if (!user || user.role !== 'affiliate') return reply.status(404).send({ error: 'Not found' })
+    await prisma.adminUser.update({ where: { id }, data: { isActive: true, deletedAt: null } })
+    return reply.send({ ok: true })
+  })
+
+  // POST /admin/super/affiliate-users/:id/reset-password — reset portal password by AdminUser id (super only)
+  fastify.post('/admin/super/affiliate-users/:id/reset-password', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const user = await prisma.adminUser.findUnique({ where: { id } })
+    if (!user || user.role !== 'affiliate') return reply.status(404).send({ error: 'Not found' })
+    if (!user.email) return reply.status(400).send({ error: 'User has no email' })
+    const { hashPassword } = await import('../services/auth.service.js')
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    const temporaryPassword = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    const passwordHash = await hashPassword(temporaryPassword)
+    await prisma.adminUser.update({ where: { id }, data: { passwordHash, mustChangePassword: true } })
+    return reply.send({ name: user.name, email: user.email, temporaryPassword })
   })
 
   // GET /admin/affiliates/marketplace-config — chain-level marketplace defaults

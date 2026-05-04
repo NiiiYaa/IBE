@@ -184,6 +184,23 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   throw new ApiClientError('NETWORK_ERROR', 'Request failed', 0)
 }
 
+export interface AffiliatePortalUser {
+  id: number
+  name: string
+  email: string
+  isActive: boolean
+  emailVerified: boolean
+  createdAt: string
+  deletedAt: string | null
+  organizationId: number | null
+  country: string | null
+  accountType: string | null
+  companyName: string | null
+  linkedAffiliateId: number | null
+  linkedAffiliateCode: string | null
+  linkedOrgId: number | null
+}
+
 export interface AdminMe {
   id: number
   email: string
@@ -221,6 +238,10 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  },
+
+  adminForgotPassword(email: string): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>('/api/v1/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
   },
 
   adminLogout(): Promise<{ ok: boolean }> {
@@ -567,6 +588,35 @@ export const apiClient = {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  },
+
+  resetAffiliatePassword(id: number): Promise<{ name: string; email: string; temporaryPassword: string }> {
+    return apiRequest<{ name: string; email: string; temporaryPassword: string }>(`/api/v1/admin/affiliates/${id}/reset-password`, { method: 'POST' })
+  },
+
+  listAffiliatePortalUsers(includeDeleted = false): Promise<AffiliatePortalUser[]> {
+    const qs = includeDeleted ? '?includeDeleted=true' : ''
+    return apiRequest<AffiliatePortalUser[]>(`/api/v1/admin/super/affiliate-users${qs}`)
+  },
+
+  approveAffiliatePortalUser(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/affiliate-users/${id}/approve`, { method: 'POST' })
+  },
+
+  updateAffiliatePortalUser(id: number, data: { name?: string; isActive?: boolean }): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/affiliate-users/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  deleteAffiliatePortalUser(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/affiliate-users/${id}`, { method: 'DELETE' })
+  },
+
+  reviveAffiliatePortalUser(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/affiliate-users/${id}/revive`, { method: 'POST' })
+  },
+
+  resetAffiliatePortalUserPassword(id: number): Promise<{ name: string; email: string; temporaryPassword: string }> {
+    return apiRequest<{ name: string; email: string; temporaryPassword: string }>(`/api/v1/admin/super/affiliate-users/${id}/reset-password`, { method: 'POST' })
   },
 
   setPropertyOverride(data: SetPropertyOverrideRequest): Promise<{ ok: boolean }> {
@@ -1047,6 +1097,10 @@ export const apiClient = {
 
   guestLogin(email: string, password: string, propertyId: number): Promise<GuestProfile> {
     return apiRequest<GuestProfile>('/api/v1/guest/auth/login', { method: 'POST', body: JSON.stringify({ email, password, propertyId }) })
+  },
+
+  guestForgotPassword(email: string, propertyId: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>('/api/v1/guest/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email, propertyId }) })
   },
 
   guestLogout(): Promise<{ ok: boolean }> {

@@ -308,6 +308,33 @@ export async function sendAdminCredentials(
   }
 }
 
+export async function forgotAdminPassword(email: string): Promise<void> {
+  const user = await prisma.adminUser.findFirst({
+    where: { email: email.toLowerCase().trim(), isActive: true, deletedAt: null },
+  })
+  if (!user || !user.email) return // silent — don't leak whether email exists
+
+  const temporaryPassword = generateTemporaryPassword()
+  const passwordHash = await hashPassword(temporaryPassword)
+  await prisma.adminUser.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: true } })
+
+  const loginUrl = `${process.env['WEB_BASE_URL'] ?? ''}/admin/login`
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:12px">
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111">Password reset</h2>
+      <p style="margin:0 0 24px;font-size:14px;color:#6b7280">Hi ${user.name}, here is your temporary password.</p>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:24px">
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <tr><td style="padding:6px 0;color:#6b7280">Login URL</td><td style="padding:6px 0;text-align:right"><a href="${loginUrl}" style="color:#2563eb">${loginUrl}</a></td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Email</td><td style="padding:6px 0;text-align:right;color:#111">${user.email}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Temporary password</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-weight:700;color:#111">${temporaryPassword}</td></tr>
+        </table>
+      </div>
+      <p style="margin:0;font-size:12px;color:#9ca3af">You will be asked to change your password on first login.</p>
+    </div>`
+  await sendEmail(user.organizationId ?? 0, { to: user.email, subject: 'Your temporary password', html })
+}
+
 function generateTemporaryPassword(): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   const lower = 'abcdefghjkmnpqrstuvwxyz'

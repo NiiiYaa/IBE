@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../db/client.js'
 import { cancelBooking as hgCancelBooking } from '../adapters/hyperguest/booking.js'
+import { sendEmail } from './email.service.js'
+import { env } from '../config/env.js'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -90,6 +92,33 @@ export async function updateGuestProfile(id: number, data: {
 export async function updateGuestPassword(id: number, newPassword: string) {
   const passwordHash = await bcrypt.hash(newPassword, 10)
   return prisma.guest.update({ where: { id }, data: { passwordHash } })
+}
+
+export async function forgotGuestPassword(email: string, organizationId: number): Promise<void> {
+  const guest = await prisma.guest.findUnique({
+    where: { organizationId_email: { organizationId, email: email.toLowerCase().trim() } },
+  })
+  if (!guest || !guest.passwordHash) return // silent
+
+  const temporaryPassword = Array.from({ length: 12 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 55)]).join('')
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10)
+  await prisma.guest.update({ where: { id: guest.id }, data: { passwordHash } })
+
+  const loginUrl = `${env.WEB_BASE_URL}/account/login`
+  const name = [guest.firstName, guest.lastName].filter(Boolean).join(' ') || guest.email
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:12px">
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111">Password reset</h2>
+      <p style="margin:0 0 24px;font-size:14px;color:#6b7280">Hi ${name}, here is your temporary password.</p>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:24px">
+        <table style="width:100%;font-size:14px;border-collapse:collapse">
+          <tr><td style="padding:6px 0;color:#6b7280">Login URL</td><td style="padding:6px 0;text-align:right"><a href="${loginUrl}" style="color:#2563eb">${loginUrl}</a></td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Email</td><td style="padding:6px 0;text-align:right;color:#111">${guest.email}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Temporary password</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-weight:700;color:#111">${temporaryPassword}</td></tr>
+        </table>
+      </div>
+    </div>`
+  await sendEmail(organizationId, { to: guest.email, subject: 'Your temporary password', html })
 }
 
 export async function deleteGuestAccount(id: number) {

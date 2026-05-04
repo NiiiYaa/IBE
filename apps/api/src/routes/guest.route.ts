@@ -5,7 +5,7 @@ import {
   registerGuest, loginGuest, getGuestById, updateGuestProfile,
   updateGuestPassword, deleteGuestAccount, findOrCreateGoogleGuest,
   getGuestBookings, getGuestBookingById, cancelGuestBooking,
-  resolveOrgIdFromProperty,
+  resolveOrgIdFromProperty, forgotGuestPassword,
   GuestExistsError, InvalidCredentialsError, GuestBlockedError, OrgNotFoundError,
 } from '../services/guest.service.js'
 import { env } from '../config/env.js'
@@ -98,6 +98,15 @@ export async function guestRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Your account has been suspended. Please contact support.' })
       throw err
     }
+  })
+
+  fastify.post('/guest/auth/forgot-password', async (request, reply) => {
+    const { email, propertyId } = request.body as { email?: string; propertyId?: number }
+    if (email?.trim() && propertyId) {
+      const orgId = await resolveOrgIdFromProperty(propertyId).catch(() => null)
+      if (orgId) await forgotGuestPassword(email.trim(), orgId).catch(() => {})
+    }
+    return reply.send({ ok: true })
   })
 
   fastify.post('/guest/auth/logout', async (request, reply) => {
