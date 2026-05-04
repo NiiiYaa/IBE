@@ -45,6 +45,11 @@ async function start() {
   // Background warmup: pre-populate HyperGuest static cache so the first request is never cold
   void warmupStaticCache()
 
+  // Start data provider cron (non-fatal)
+  void import('./services/data-provider-cron.service.js').then(m => m.startDataProviderCron()).catch(err =>
+    logger.warn({ err }, '[DataProvider] Cron setup failed (non-fatal)'),
+  )
+
   // Restore WhatsApp sessions from DB (non-fatal)
   void import('./services/whatsapp-manager.service.js').then(m => m.initAllSessions()).catch(err =>
     logger.warn({ err }, '[Server] WhatsApp session restore failed (non-fatal)'),
