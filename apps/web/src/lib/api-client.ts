@@ -50,6 +50,7 @@ import type {
   CreateAdminUserRequest,
   CreateAdminUserResponse,
   UpdateAdminUserRequest,
+  SendAdminCredentialsRequest,
   OrgRecord,
   CreateOrgRequest,
   SetPropertyOverrideRequest,
@@ -98,6 +99,11 @@ import type {
   UpdatePropertyEmailSettingsRequest,
   PropertyWhatsAppSettingsResponse,
   UpdatePropertyWhatsAppSettingsRequest,
+  AffiliateMarketplaceEntry,
+  AffiliatePortalBooking,
+  AffiliatePortalStats,
+  AffiliateRegisterRequest,
+  AffiliateProfile,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -647,8 +653,9 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/super/manual', { method: 'POST', body: fd })
   },
 
-  listAdminUsers(): Promise<AdminUserRecord[]> {
-    return apiRequest<AdminUserRecord[]>('/api/v1/admin/users')
+  listAdminUsers(onlyDeleted = false): Promise<AdminUserRecord[]> {
+    const qs = onlyDeleted ? '?includeDeleted=true' : ''
+    return apiRequest<AdminUserRecord[]>(`/api/v1/admin/users${qs}`)
   },
 
   createAdminUser(data: CreateAdminUserRequest): Promise<CreateAdminUserResponse> {
@@ -667,6 +674,14 @@ export const apiClient = {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/users/${id}`, { method: 'DELETE' })
   },
 
+  reviveAdminUser(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/users/${id}/revive`, { method: 'POST' })
+  },
+
+  sendAdminCredentials(data: SendAdminCredentialsRequest): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>('/api/v1/admin/users/send-credentials', { method: 'POST', body: JSON.stringify(data) })
+  },
+
   getDashboardStats(orgId?: number, days = 14, propertyId?: number): Promise<import('@ibe/shared').DashboardStats> {
     const qs = new URLSearchParams({ days: String(days) })
     if (orgId) qs.set('orgId', String(orgId))
@@ -674,8 +689,9 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/dashboard/stats?${qs}`)
   },
 
-  listOrgs(): Promise<OrgRecord[]> {
-    return apiRequest<OrgRecord[]>('/api/v1/admin/super/orgs')
+  listOrgs(onlyDeleted = false): Promise<OrgRecord[]> {
+    const qs = onlyDeleted ? '?includeDeleted=true' : ''
+    return apiRequest<OrgRecord[]>(`/api/v1/admin/super/orgs${qs}`)
   },
 
   createOrg(data: CreateOrgRequest): Promise<OrgRecord> {
@@ -701,6 +717,10 @@ export const apiClient = {
 
   deleteOrg(orgId: number): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/orgs/${orgId}`, { method: 'DELETE' })
+  },
+
+  reviveOrg(orgId: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/super/orgs/${orgId}/revive`, { method: 'POST' })
   },
 
   setOrgHyperGuestId(orgId: number, hyperGuestOrgId: string | null): Promise<{ ok: boolean }> {
@@ -1614,6 +1634,47 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ text }),
     })
+  },
+
+  // ── Affiliate Portal ───────────────────────────────────────────────────────
+
+  affiliateRegister(data: AffiliateRegisterRequest): Promise<{ ok: boolean; message: string }> {
+    return apiRequest('/api/v1/affiliate/register', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  affiliateMe(): Promise<{ id: number; email: string; name: string; stats: AffiliatePortalStats }> {
+    return apiRequest('/api/v1/affiliate/me', { cache: 'no-store' })
+  },
+
+  affiliateMarketplace(): Promise<AffiliateMarketplaceEntry[]> {
+    return apiRequest('/api/v1/affiliate/marketplace', { cache: 'no-store' })
+  },
+
+  affiliateJoin(propertyId: number): Promise<{ ok: boolean; affiliateId: number; code: string }> {
+    return apiRequest(`/api/v1/affiliate/marketplace/${propertyId}`, { method: 'POST' })
+  },
+
+  affiliateBookings(): Promise<AffiliatePortalBooking[]> {
+    return apiRequest('/api/v1/affiliate/bookings', { cache: 'no-store' })
+  },
+
+  affiliateProfile(): Promise<AffiliateProfile> {
+    return apiRequest('/api/v1/affiliate/profile', { cache: 'no-store' })
+  },
+
+  affiliateUpdateProfile(data: Partial<AffiliateProfile>): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/affiliate/profile', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  affiliateAcceptTerms(): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/affiliate/terms', { method: 'POST' })
+  },
+
+  affiliateLinks(): Promise<{
+    id: number; code: string; propertyId: number | null; propertyName: string | null
+    commissionRate: number | null; discountRate: number | null; status: string; url: string; createdAt: string
+  }[]> {
+    return apiRequest('/api/v1/affiliate/links', { cache: 'no-store' })
   },
 }
 

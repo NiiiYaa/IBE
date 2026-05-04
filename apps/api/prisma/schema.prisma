@@ -71,10 +71,19 @@ model AdminUser {
   role                String        @default("admin")
   isActive            Boolean       @default(true)
   mustChangePassword  Boolean       @default(false)
+  emailVerified       Boolean       @default(true)
+  emailVerifyToken    String?       @unique
+  affiliateId         Int?          @unique
+  affiliate           Affiliate?    @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+  country             String?
+  accountType         String?
+  phone               String?
+  deletedAt           DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
   adminUserProperties AdminUserProperty[]
+  affiliateProfile    AffiliateProfile?
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -188,11 +197,13 @@ model Affiliate {
   displayText    String?
   notes          String?
   isActive       Boolean      @default(true)
+  status         String       @default("active")
   deletedAt      DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   affiliateBookings AffiliateBooking[]
+  adminUser         AdminUser?
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -369,10 +380,12 @@ model HotelConfig {
   aiLayoutDefault                 Boolean  @default(false)
   searchAiLayoutDefault           Boolean  @default(false)
   tripadvisorHotelKey             String?
-  priceComparisonEnabled          Boolean  @default(true)
-  checkInTime                     String?
-  checkOutTime                    String?
-  isActive                        Boolean  @default(true)
+  priceComparisonEnabled               Boolean  @default(true)
+  affiliateMarketplace                 Boolean?
+  affiliateDefaultCommissionRate       Decimal?
+  checkInTime                          String?
+  checkOutTime                         String?
+  isActive                             Boolean  @default(true)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 }
@@ -525,10 +538,12 @@ model OrgSettings {
   webDomain               String?
   tlsCert                 String?
   tlsKey                  String?
-  enabledModels           String       @default("[\"b2c\",\"b2b\"]")
-  incentivesEnabled       Boolean      @default(true)
-  createdAt               DateTime     @default(now())
-  updatedAt               DateTime     @updatedAt
+  enabledModels                    String   @default("[\"b2c\",\"b2b\"]")
+  incentivesEnabled                Boolean  @default(true)
+  affiliateMarketplace             Boolean  @default(false)
+  affiliateDefaultCommissionRate   Decimal?
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
 }
 
 // ── Communication Settings ────────────────────────────────────────────────────
@@ -1414,4 +1429,43 @@ model Translation {
   @@unique([locale, namespace, key])
   @@index([locale, namespace])
   @@index([locale])
+}
+
+model AffiliateProfile {
+  id                 Int       @id @default(autoincrement())
+  adminUserId        Int       @unique
+  adminUser          AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  country            String?
+  accountType        String?
+
+  companyName        String?
+  websiteUrl         String?
+  primaryLanguage    String?
+
+  audienceLocations  Json      @default("[]")
+  audienceTypes      Json      @default("[]")
+  monthlyTraffic     String?
+
+  promotionMethods   Json      @default("[]")
+  runsBrandedKw      Boolean?
+
+  socialInstagram    String?
+  socialTiktok       String?
+  socialYoutube      String?
+  newsletterSize     String?
+
+  hasAffiliateExp    Boolean?
+  expIndustries      Json      @default("[]")
+  expMonthlyBookings String?
+
+  paymentMethod      String?
+  paymentCurrency    String?
+  taxId              String?
+
+  termsAgreedAt      DateTime?
+  termsVersion       String?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

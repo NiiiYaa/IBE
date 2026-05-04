@@ -1,15 +1,16 @@
 import type { FastifyInstance } from 'fastify'
-import { listUsers, listAllUsers, createUser, updateUser, deleteUser, resetUserPassword, setOrgHyperGuestId, setUserPropertyIds, listOrgs, createOrg, updateOrg, setOrgActive, softDeleteOrg } from '../services/user.service.js'
+import { listUsers, listAllUsers, createUser, updateUser, deleteUser, reviveUser, resetUserPassword, setOrgHyperGuestId, setUserPropertyIds, listOrgs, createOrg, updateOrg, setOrgActive, softDeleteOrg, reviveOrg, sendAdminCredentials } from '../services/user.service.js'
 import { listProperties } from '../services/property-registry.service.js'
 import { updateOrgSettings } from '../services/org.service.js'
 
-const ALLOWED_ROLES = ['admin', 'observer', 'user']
+const ALLOWED_ROLES = ['admin', 'observer', 'user', 'affiliate']
 
 export async function userRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/users', async (request, reply) => {
+    const onlyDeleted = (request.query as Record<string, string>).includeDeleted === 'true'
     const users = request.admin.role === 'super'
-      ? await listAllUsers()
-      : await listUsers(request.admin.organizationId!)
+      ? await listAllUsers(onlyDeleted)
+      : await listUsers(request.admin.organizationId!, onlyDeleted)
     return reply.send(users)
   })
 
@@ -17,7 +18,8 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/super/orgs', async (request, reply) => {
     if (request.admin.role !== 'super')
       return reply.status(403).send({ error: 'Forbidden' })
-    return reply.send(await listOrgs())
+    const onlyDeleted = (request.query as Record<string, string>).includeDeleted === 'true'
+    return reply.send(await listOrgs(onlyDeleted))
   })
 
   // Super-only: create an org
@@ -70,6 +72,14 @@ export async function userRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
+  // Super-only: revive a soft-deleted org
+  fastify.post('/admin/super/orgs/:orgId/revive', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const orgId = parseInt((request.params as { orgId: string }).orgId, 10)
+    await reviveOrg(orgId)
+    return reply.send({ ok: true })
+  })
+
   // Super-only: update any org's HG Org ID (kept for backwards compat)
   fastify.put('/admin/super/orgs/:orgId/hg-org-id', async (request, reply) => {
     if (request.admin.role !== 'super')
@@ -85,32 +95,49 @@ export async function userRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/admin/users', async (request, reply) => {
-    const body = request.body as { email?: string; name?: string; role?: string; orgId?: number }
+    const body = request.body as { email?: string; name?: string; role?: string; orgId?: number; phone?: string }
     if (!body.email?.trim()) return reply.status(400).send({ error: 'email is required' })
     if (!body.name?.trim()) return reply.status(400).send({ error: 'name is required' })
     if (!body.role || !ALLOWED_ROLES.includes(body.role))
       return reply.status(400).send({ error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` })
 
     const isSuper = request.admin.role === 'super'
-    const orgId = isSuper ? body.orgId : request.admin.organizationId
-    if (!orgId) return reply.status(400).send({ error: 'orgId is required' })
+    const isAffiliate = body.role === 'affiliate'
+    const orgId = isSuper ? (isAffiliate ? null : body.orgId) : request.admin.organizationId
+    if (!orgId && !isAffiliate) return reply.status(400).send({ error: 'orgId is required' })
 
     try {
-      const result = await createUser(orgId, { email: body.email, name: body.name, role: body.role })
+      const result = await createUser(orgId ?? null, { email: body.email, name: body.name, role: body.role, ...(body.phone ? { phone: body.phone } : {}) })
       return reply.status(201).send(result)
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed to create user' })
     }
   })
 
+  fastify.post('/admin/users/send-credentials', async (request, reply) => {
+    const body = request.body as {
+      channel?: 'email' | 'whatsapp'
+      to?: string
+      credentials?: { name: string; email: string; temporaryPassword: string; loginUrl: string }
+    }
+    if (!body.channel || !body.to?.trim() || !body.credentials)
+      return reply.status(400).send({ error: 'channel, to and credentials are required' })
+    const orgId = request.admin.role === 'super' ? null : request.admin.organizationId
+    const result = await sendAdminCredentials(orgId, body.channel, body.to.trim(), body.credentials)
+    if (!result.ok) return reply.status(502).send({ error: result.error ?? 'Send failed' })
+    return reply.send({ ok: true })
+  })
+
   fastify.put('/admin/users/:id', async (request, reply) => {
     const id = parseInt((request.params as { id: string }).id, 10)
-    if (id === request.admin.adminId)
-      return reply.status(400).send({ error: 'You cannot edit your own account here' })
+    const isSelf = id === request.admin.adminId
 
-    const body = request.body as { name?: string; role?: string; isActive?: boolean }
+    const body = request.body as { name?: string; role?: string; isActive?: boolean; phone?: string | null }
     if (body.role !== undefined && !ALLOWED_ROLES.includes(body.role))
       return reply.status(400).send({ error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` })
+    // Prevent self-demotion or self-deactivation
+    if (isSelf && (body.role !== undefined || body.isActive === false))
+      return reply.status(400).send({ error: 'You cannot change your own role or deactivate your own account' })
 
     try {
       const user = await updateUser(request.admin.organizationId!, id, body)
@@ -140,6 +167,16 @@ export async function userRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true })
     } catch (err) {
       return reply.status(404).send({ error: err instanceof Error ? err.message : 'Failed to delete user' })
+    }
+  })
+
+  fastify.post('/admin/users/:id/revive', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    try {
+      await reviveUser(request.admin.organizationId!, id)
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(404).send({ error: err instanceof Error ? err.message : 'Failed to revive user' })
     }
   })
 

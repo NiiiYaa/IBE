@@ -1,0 +1,1 @@
+ALTER TABLE "AdminUser" ADD COLUMN "deletedAt" TIMESTAMP(3);

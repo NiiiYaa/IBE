@@ -154,6 +154,7 @@ export default function OrganizationsPage() {
   const [orgType, setOrgType] = useState<OrgType>('seller')
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
+  const [adminPhone, setAdminPhone] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [createdCreds, setCreatedCreds] = useState<CreatedCredentials | null>(null)
@@ -164,17 +165,20 @@ export default function OrganizationsPage() {
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
+  const showDeleted = filterStatus === 'deleted'
   const { data: orgs = [], isLoading } = useQuery<OrgRecord[]>({
-    queryKey: ['super-orgs'],
-    queryFn: () => apiClient.listOrgs(),
+    queryKey: ['super-orgs', showDeleted],
+    queryFn: () => apiClient.listOrgs(showDeleted),
     refetchOnWindowFocus: false,
   })
 
   const filteredOrgs = orgs.filter(o => {
-    if (filterSearch && !o.name.toLowerCase().includes(filterSearch.toLowerCase())) return false
+    if (filterSearch && !o.name.toLowerCase().includes(filterSearch.toLowerCase()) && !(o.hyperGuestOrgId ?? '').includes(filterSearch)) return false
     if (filterType && o.orgType !== filterType) return false
-    if (filterStatus === 'active' && !o.isActive) return false
-    if (filterStatus === 'disabled' && o.isActive) return false
+    if (!showDeleted) {
+      if (filterStatus === 'active' && !o.isActive) return false
+      if (filterStatus === 'disabled' && o.isActive) return false
+    }
     return true
   })
 
@@ -183,10 +187,10 @@ export default function OrganizationsPage() {
     setSaveError(null); setIsSaving(true)
     try {
       const org = await apiClient.createOrg({ name: name.trim(), hyperGuestOrgId: hgOrgId.trim() || null, hyperGuestBearerToken: token.trim() || null, orgType })
-      const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id })
+      const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id, ...(adminPhone.trim() ? { phone: adminPhone.trim() } : {}) })
       await qc.invalidateQueries({ queryKey: ['super-orgs'] })
       setCreatedCreds({ orgName: org.name, hyperGuestOrgId: org.hyperGuestOrgId ?? hgOrgId.trim(), email: user.email, temporaryPassword: user.temporaryPassword })
-      setName(''); setHgOrgId(''); setToken(''); setOrgType('seller'); setAdminName(''); setAdminEmail('')
+      setName(''); setHgOrgId(''); setToken(''); setOrgType('seller'); setAdminName(''); setAdminEmail(''); setAdminPhone('')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create account')
     } finally { setIsSaving(false) }
@@ -201,6 +205,11 @@ export default function OrganizationsPage() {
     await apiClient.deleteOrg(org.id)
     await qc.invalidateQueries({ queryKey: ['super-orgs'] })
     setConfirmDelete(null)
+  }
+
+  async function handleRevive(org: OrgRecord) {
+    await apiClient.reviveOrg(org.id)
+    await qc.invalidateQueries({ queryKey: ['super-orgs'] })
   }
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
@@ -256,7 +265,7 @@ export default function OrganizationsPage() {
         </div>
         <div className="mb-1 border-t border-[var(--color-border)] pt-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">First admin user</p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className={labelCls}>Name</label>
               <input type="text" value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Jane Smith" className={inputCls} />
@@ -264,6 +273,10 @@ export default function OrganizationsPage() {
             <div>
               <label className={labelCls}>Email</label>
               <input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="jane@grandpalace.com" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone <span className="normal-case font-normal">(optional)</span></label>
+              <input type="tel" value={adminPhone} onChange={e => setAdminPhone(e.target.value)} placeholder="+1 555 000 0000" className={inputCls} />
             </div>
           </div>
         </div>
@@ -303,6 +316,7 @@ export default function OrganizationsPage() {
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>
+          <option value="deleted">Deleted</option>
         </select>
         {(filterSearch || filterType || filterStatus) && (
           <button
@@ -357,11 +371,17 @@ export default function OrganizationsPage() {
                   <td className="px-4 py-3 text-[var(--color-text-muted)]">{new Date(org.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setEditingOrg(org)} className="text-xs font-medium text-[var(--color-primary)] hover:underline">Edit</button>
-                      <button onClick={() => toggleActive(org)} className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:underline">
-                        {org.isActive ? 'Disable' : 'Enable'}
-                      </button>
-                      <button onClick={() => setConfirmDelete(org)} className="text-xs font-medium text-red-500 hover:underline">Delete</button>
+                      {showDeleted ? (
+                        <button onClick={() => handleRevive(org)} className="text-xs font-semibold text-[var(--color-success)] hover:underline">Revive</button>
+                      ) : (
+                        <>
+                          <button onClick={() => setEditingOrg(org)} className="text-xs font-medium text-[var(--color-primary)] hover:underline">Edit</button>
+                          <button onClick={() => toggleActive(org)} className="text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:underline">
+                            {org.isActive ? 'Disable' : 'Enable'}
+                          </button>
+                          <button onClick={() => setConfirmDelete(org)} className="text-xs font-medium text-red-500 hover:underline">Delete</button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

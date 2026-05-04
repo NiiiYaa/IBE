@@ -302,6 +302,8 @@ export interface HotelDesignConfig {
   searchAiLayoutDefault: boolean
   tripadvisorHotelKey: string | null
   priceComparisonEnabled: boolean
+  affiliateMarketplace: boolean
+  affiliateDefaultCommissionRate: number | null
   chainHeroImageUrl: string | null
   emailEnabled: boolean
   whatsappEnabled: boolean
@@ -359,6 +361,8 @@ export interface UpdateDesignConfigRequest {
   searchAiLayoutDefault?: boolean | null
   tripadvisorHotelKey?: string | null
   priceComparisonEnabled?: boolean
+  affiliateMarketplace?: boolean | null
+  affiliateDefaultCommissionRate?: number | null
   checkInTime?: string | null
   checkOutTime?: string | null
 }
@@ -987,6 +991,8 @@ export interface PriceComparisonResponse {
 
 // ── Affiliates ────────────────────────────────────────────────────────────────
 
+export type AffiliateStatus = 'active' | 'pending' | 'suspended'
+
 export interface Affiliate {
   id: number
   code: string
@@ -997,10 +1003,88 @@ export interface Affiliate {
   displayText: string | null       // label for "Special for [text]" tag
   notes: string | null
   isActive: boolean
+  status: AffiliateStatus
   createdAt: string
   propertyId: number | null
   isGlobal: boolean
   propertyEnabled: boolean | null  // null = no property-level override; inherit isActive
+}
+
+export interface AffiliateMarketplaceEntry {
+  propertyId: number
+  propertyName: string
+  displayName: string | null
+  logoUrl: string | null
+  commissionRate: number           // effective default rate for this hotel
+  joined: boolean                  // whether the current affiliate has already joined
+  affiliateCode: string | null     // their code if joined
+}
+
+export interface AffiliatePortalBooking {
+  id: number
+  bookingRef: string
+  propertyId: number
+  propertyName: string
+  guestName: string
+  status: string
+  checkIn: string
+  checkOut: string
+  totalAmount: number
+  currency: string
+  commissionRate: number
+  commissionAmount: number
+  createdAt: string
+}
+
+export interface AffiliatePortalStats {
+  totalBookings: number
+  totalRevenue: number
+  totalCommission: number
+  pendingCommission: number
+  joinedHotels: number
+}
+
+export interface AffiliateRegisterRequest {
+  email: string
+  password: string
+  name: string
+  country?: string
+  accountType?: string
+}
+
+export interface AffiliateProfile {
+  name: string
+  country: string | null
+  accountType: string | null
+  companyName: string | null
+  websiteUrl: string | null
+  primaryLanguage: string | null
+  audienceLocations: string[]
+  audienceTypes: string[]
+  monthlyTraffic: string | null
+  promotionMethods: string[]
+  runsBrandedKw: boolean | null
+  socialInstagram: string | null
+  socialTiktok: string | null
+  socialYoutube: string | null
+  newsletterSize: string | null
+  hasAffiliateExp: boolean | null
+  expIndustries: string[]
+  expMonthlyBookings: string | null
+  paymentMethod: string | null
+  paymentCurrency: string | null
+  taxId: string | null
+  termsAgreedAt: string | null
+  termsVersion: string | null
+}
+
+export interface AffiliateJoinRequest {
+  propertyId: number
+}
+
+export interface AffiliateMarketplaceConfig {
+  affiliateMarketplace: boolean
+  affiliateDefaultCommissionRate: number | null
 }
 
 export interface SetPropertyOverrideRequest {
@@ -1152,8 +1236,10 @@ export interface AdminUserRecord {
   id: number
   email: string
   name: string
+  phone?: string | null
   role: string
   isActive: boolean
+  deletedAt?: string | null
   createdAt: string
   orgId?: number
   orgName?: string
@@ -1165,6 +1251,7 @@ export interface CreateAdminUserRequest {
   email: string
   name: string
   role: string
+  phone?: string
   orgId?: number | undefined  // required when creating as super admin
 }
 
@@ -1176,6 +1263,13 @@ export interface UpdateAdminUserRequest {
   name?: string
   role?: string
   isActive?: boolean
+  phone?: string | null
+}
+
+export interface SendAdminCredentialsRequest {
+  channel: 'email' | 'whatsapp'
+  to: string
+  credentials: { name: string; email: string; temporaryPassword: string; loginUrl: string }
 }
 
 // ── Offers Settings ───────────────────────────────────────────────────────────

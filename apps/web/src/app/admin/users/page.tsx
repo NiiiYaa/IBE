@@ -1,24 +1,286 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AdminUserRecord, CreateAdminUserRequest, OrgRecord } from '@ibe/shared'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 
+// ── Credentials modal (shown after user creation or password reset) ────────────
+
+interface CredentialsInfo {
+  label: string
+  name: string
+  email: string
+  phone?: string | null
+  temporaryPassword: string
+  loginUrl: string
+}
+
+function CredentialsModal({ info, onClose }: { info: CredentialsInfo; onClose: () => void }) {
+  const [sendTab, setSendTab] = useState<'email' | 'whatsapp' | null>(null)
+  const [sendTo, setSendTo] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  function openSendTab(tab: 'email' | 'whatsapp') {
+    setSendTab(tab)
+    setSendTo(tab === 'email' ? (info.email ?? '') : (info.phone ?? ''))
+    setSendResult(null)
+  }
+
+  function copyAll() {
+    copyToClipboard(`Login: ${info.loginUrl}\nEmail: ${info.email}\nTemporary password: ${info.temporaryPassword}`)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleSend() {
+    if (!sendTo.trim() || !sendTab) return
+    setSending(true); setSendResult(null)
+    try {
+      await apiClient.sendAdminCredentials({
+        channel: sendTab,
+        to: sendTo.trim(),
+        credentials: { name: info.name, email: info.email, temporaryPassword: info.temporaryPassword, loginUrl: info.loginUrl },
+      })
+      setSendResult({ ok: true, msg: `Sent via ${sendTab === 'email' ? 'Email' : 'WhatsApp'}` })
+    } catch (err) {
+      setSendResult({ ok: false, msg: err instanceof ApiClientError ? err.message : 'Send failed' })
+    } finally { setSending(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+        {/* Header */}
+        <div className="mb-4 flex items-center gap-2">
+          <svg className="h-5 w-5 text-[var(--color-success)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">{info.label}</h2>
+        </div>
+        <p className="mb-4 text-sm text-[var(--color-text-muted)]">Share these credentials with the user. The password is temporary.</p>
+
+        {/* Credentials box */}
+        <div className="mb-5 space-y-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] p-4 font-mono text-sm">
+          <div className="flex justify-between gap-4">
+            <span className="text-[var(--color-text-muted)]">Login URL</span>
+            <span className="text-[var(--color-text)]">{info.loginUrl.replace(/^https?:\/\//, '')}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-[var(--color-text-muted)]">Email</span>
+            <span className="text-[var(--color-text)]">{info.email}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-[var(--color-text-muted)]">Password</span>
+            <span className="font-bold text-[var(--color-text)]">{info.temporaryPassword}</span>
+          </div>
+        </div>
+
+        {/* Send tab (inline) */}
+        {sendTab && (
+          <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Send via {sendTab === 'email' ? 'Email' : 'WhatsApp'}
+              </span>
+              <button onClick={() => { setSendTab(null); setSendResult(null) }} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">✕</button>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type={sendTab === 'email' ? 'email' : 'tel'}
+                value={sendTo}
+                onChange={e => setSendTo(e.target.value)}
+                placeholder={sendTab === 'email' ? 'email@example.com' : '+1 555 000 0000'}
+                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !sendTo.trim()}
+                className="rounded-lg bg-[var(--color-primary)] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {sending ? '…' : 'Send'}
+              </button>
+            </div>
+            {sendResult && (
+              <p className={`mt-2 text-xs ${sendResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>
+                {sendResult.msg}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => openSendTab('email')}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+              sendTab === 'email'
+                ? 'bg-[var(--color-primary)] text-white'
+                : 'border border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-background)]'
+            }`}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Email
+          </button>
+          <button
+            onClick={() => openSendTab('whatsapp')}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+              sendTab === 'whatsapp'
+                ? 'bg-[var(--color-primary)] text-white'
+                : 'border border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-background)]'
+            }`}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            WhatsApp
+          </button>
+          <button
+            onClick={copyAll}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-background)]"
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ROLES = ['admin', 'observer', 'user'] as const
+const SUPER_ROLES = ['admin', 'observer', 'user', 'affiliate'] as const
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   observer: 'Observer',
   user: 'User',
   super: 'Super',
+  affiliate: 'Affiliate',
 }
 
 const ROLE_HINT: Record<string, string> = {
   admin: 'Full read & write access',
   observer: 'Read-only, no sensitive settings',
   user: 'Limited to assigned properties',
+  affiliate: 'Affiliate portal access only',
+}
+
+// ── Searchable org dropdown ───────────────────────────────────────────────────
+
+interface OrgOption { id?: number; name: string; hgId?: string | null }
+
+function SearchableOrgSelect({
+  value, onChange, orgs, placeholder, searchable = false,
+}: {
+  value: string
+  onChange: (v: string) => void
+  orgs: OrgOption[]
+  placeholder: string
+  searchable?: boolean
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
+  const selectedOrg = orgs.find(o => String(o.id ?? o.name) === value)
+  const filtered = query
+    ? orgs.filter(o =>
+        o.name.toLowerCase().includes(query.toLowerCase()) ||
+        (o.hgId ?? '').toLowerCase().includes(query.toLowerCase())
+      )
+    : orgs
+
+  const baseInputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
+
+  if (!searchable) {
+    return (
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+      >
+        <option value="">{placeholder}</option>
+        {orgs.map(o => (
+          <option key={o.id ?? o.name} value={o.id ?? o.name}>{o.name}{o.hgId ? ` · ${o.hgId}` : ''}</option>
+        ))}
+      </select>
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQuery('') }}
+        className={`${baseInputCls} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={selectedOrg ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'}>
+          {selectedOrg ? selectedOrg.name : placeholder}
+        </span>
+        <svg className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-full min-w-[220px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          <div className="p-2">
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by name or HG ID…"
+              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); setQuery('') }}
+              className="w-full px-3 py-2 text-left text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-background)]"
+            >
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No matches</p>
+            ) : (
+              filtered.map(o => (
+                <button
+                  key={o.id ?? o.name}
+                  type="button"
+                  onClick={() => { onChange(String(o.id ?? o.name)); setOpen(false); setQuery('') }}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-background)] ${String(o.id ?? o.name) === value ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}
+                >
+                  {o.name}
+                  {o.hgId && <span className="ml-2 font-mono text-xs text-[var(--color-text-muted)]">{o.hgId}</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function copyToClipboard(text: string) {
@@ -52,13 +314,13 @@ export default function UsersPage() {
   })
 
   // invite form
-  const [form, setForm] = useState<CreateAdminUserRequest>({ email: '', name: '', role: 'admin' })
+  const [form, setForm] = useState<CreateAdminUserRequest>({ email: '', name: '', role: 'admin', phone: '' })
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   // inline edit user
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<{ name: string; role: string; isActive: boolean } | null>(null)
+  const [editForm, setEditForm] = useState<{ name: string; role: string; isActive: boolean; phone: string } | null>(null)
   const [editPropertyIds, setEditPropertyIds] = useState<number[]>([])
 
   // inline edit HG Org ID (super only)
@@ -78,13 +340,13 @@ export default function UsersPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterOrg, setFilterOrg] = useState('')
 
-  // password reveal
-  const [shownPassword, setShownPassword] = useState<{ label: string; password: string } | null>(null)
-  const [copiedPwd, setCopiedPwd] = useState(false)
+  // credentials modal
+  const [credentialsInfo, setCredentialsInfo] = useState<CredentialsInfo | null>(null)
 
+  const showDeleted = filterStatus === 'deleted'
   const { data: users = [], isLoading } = useQuery<AdminUserRecord[]>({
-    queryKey: ['admin-users'],
-    queryFn: () => apiClient.listAdminUsers(),
+    queryKey: ['admin-users', showDeleted],
+    queryFn: () => apiClient.listAdminUsers(showDeleted),
     refetchOnWindowFocus: false,
   })
 
@@ -106,13 +368,14 @@ export default function UsersPage() {
 
   async function handleCreate() {
     if (!form.email.trim() || !form.name.trim()) return
-    if (isSuper && !form.orgId) return
+    if (isSuper && !form.orgId && form.role !== 'affiliate') return
     setSaveError(null); setIsSaving(true)
     try {
       const result = await apiClient.createAdminUser(form)
       await qc.invalidateQueries({ queryKey: ['admin-users'] })
-      setShownPassword({ label: `${result.name} created`, password: result.temporaryPassword })
-      setForm({ email: '', name: '', role: 'admin', ...(isSuper && form.orgId ? { orgId: form.orgId } : {}) })
+      const loginUrl = `${window.location.origin}/admin/login`
+      setCredentialsInfo({ label: `${result.name} — account created`, name: result.name, email: result.email, ...(result.phone != null ? { phone: result.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl })
+      setForm({ email: '', name: '', role: 'admin', phone: '', ...(isSuper && form.orgId ? { orgId: form.orgId } : {}) })
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create user')
     } finally { setIsSaving(false) }
@@ -122,7 +385,7 @@ export default function UsersPage() {
     if (!editForm) return
     setSaveError(null); setIsSaving(true)
     try {
-      await apiClient.updateAdminUser(id, editForm)
+      await apiClient.updateAdminUser(id, { ...editForm, phone: editForm.phone || null })
       if (editForm.role === 'user') {
         await apiClient.setUserProperties(id, editPropertyIds)
       } else {
@@ -138,7 +401,8 @@ export default function UsersPage() {
   async function handleResetPassword(u: AdminUserRecord) {
     try {
       const result = await apiClient.resetAdminUserPassword(u.id)
-      setShownPassword({ label: `Password reset for ${u.name}`, password: result.temporaryPassword })
+      const loginUrl = `${window.location.origin}/admin/login`
+      setCredentialsInfo({ label: `Password reset — ${u.name}`, name: u.name, email: u.email, ...(u.phone != null ? { phone: u.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl })
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to reset password')
     }
@@ -152,6 +416,15 @@ export default function UsersPage() {
     } catch (err) {
       setDeleteError(err instanceof ApiClientError ? err.message : 'Delete failed')
     } finally { setDeleting(null) }
+  }
+
+  async function handleReviveUser(id: number) {
+    try {
+      await apiClient.reviveAdminUser(id)
+      await qc.invalidateQueries({ queryKey: ['admin-users'] })
+    } catch (err) {
+      setDeleteError(err instanceof ApiClientError ? err.message : 'Revive failed')
+    }
   }
 
   function startEditOrg(orgId: number, current: string | null | undefined) {
@@ -171,19 +444,16 @@ export default function UsersPage() {
     } finally { setIsSavingOrg(false) }
   }
 
-  function handleCopyPwd(pwd: string) {
-    copyToClipboard(pwd); setCopiedPwd(true)
-    setTimeout(() => setCopiedPwd(false), 2000)
-  }
-
   const filteredUsers = users.filter(u => {
     if (filterSearch) {
       const q = filterSearch.toLowerCase()
       if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false
     }
     if (filterRole && u.role !== filterRole) return false
-    if (filterStatus === 'active' && !u.isActive) return false
-    if (filterStatus === 'inactive' && u.isActive) return false
+    if (!showDeleted) {
+      if (filterStatus === 'active' && !u.isActive) return false
+      if (filterStatus === 'inactive' && u.isActive) return false
+    }
     if (filterOrg && u.orgName !== filterOrg) return false
     return true
   })
@@ -192,34 +462,14 @@ export default function UsersPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Users</h1>
+      {credentialsInfo && <CredentialsModal info={credentialsInfo} onClose={() => setCredentialsInfo(null)} />}
 
-      {/* Password reveal banner */}
-      {shownPassword && (
-        <div className="mb-6 rounded-xl border border-[var(--color-success)]/30 bg-[var(--color-success)]/5 p-5">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-[var(--color-success)]">{shownPassword.label}</p>
-            <button onClick={() => setShownPassword(null)} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Dismiss</button>
-          </div>
-          <p className="mb-3 text-xs text-[var(--color-text-muted)]">Share this temporary password with the user. Shown once only.</p>
-          <div className="flex items-center gap-3">
-            <code className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-2 font-mono text-sm font-semibold tracking-widest text-[var(--color-text)]">
-              {shownPassword.password}
-            </code>
-            <button
-              onClick={() => handleCopyPwd(shownPassword.password)}
-              className="rounded-lg bg-[var(--color-success)] px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
-            >
-              {copiedPwd ? '✓ Copied' : 'Copy'}
-            </button>
-          </div>
-        </div>
-      )}
+      <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">Users</h1>
 
       {/* Invite form */}
       <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 className="mb-4 text-sm font-semibold text-[var(--color-text)]">Invite user</h2>
-        <div className={`grid gap-4 ${isSuper ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSuper ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
           {isSuper && (
             <div>
               <label className={labelCls}>Organization</label>
@@ -231,14 +481,13 @@ export default function UsersPage() {
                   </a>
                 </p>
               ) : (
-                <select
-                  value={form.orgId ?? ''}
-                  onChange={e => setForm(f => e.target.value ? { ...f, orgId: Number(e.target.value) } : { email: f.email, name: f.name, role: f.role })}
-                  className={inputCls}
-                >
-                  <option value="">Select org…</option>
-                  {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
+                <SearchableOrgSelect
+                  value={form.orgId ? String(form.orgId) : ''}
+                  onChange={v => setForm(f => v ? { ...f, orgId: Number(v) } : { email: f.email, name: f.name, role: f.role, ...(f.phone ? { phone: f.phone } : {}) })}
+                  orgs={orgs.map(o => ({ id: o.id, name: o.name, hgId: o.hyperGuestOrgId }))}
+                  placeholder="Select org…"
+                  searchable
+                />
               )}
             </div>
           )}
@@ -253,9 +502,14 @@ export default function UsersPage() {
               placeholder="jane@example.com" className={inputCls} />
           </div>
           <div>
+            <label className={labelCls}>Phone <span className="normal-case font-normal text-[var(--color-text-muted)]">(optional)</span></label>
+            <input type="tel" value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              placeholder="+1 555 000 0000" className={inputCls} />
+          </div>
+          <div>
             <label className={labelCls}>Role</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
-              {ROLES.map(r => (
+              {(isSuper ? SUPER_ROLES : ROLES).map(r => (
                 <option key={r} value={r}>{ROLE_LABELS[r]} — {ROLE_HINT[r]}</option>
               ))}
             </select>
@@ -264,7 +518,7 @@ export default function UsersPage() {
         {saveError && !editingId && <p className="mt-3 text-sm text-[var(--color-error)]">{saveError}</p>}
         <button
           onClick={handleCreate}
-          disabled={isSaving || !form.name.trim() || !form.email.trim() || (isSuper && !form.orgId)}
+          disabled={isSaving || !form.name.trim() || !form.email.trim() || (isSuper && !form.orgId && form.role !== 'affiliate')}
           className="mt-4 rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSaving && !editingId ? 'Creating…' : 'Create user'}
@@ -292,7 +546,7 @@ export default function UsersPage() {
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
         >
           <option value="">All roles</option>
-          {(isSuper ? ['super', 'admin', 'observer', 'user'] : ['admin', 'observer', 'user']).map(r => (
+          {(isSuper ? ['super', 'admin', 'observer', 'user', 'affiliate'] : ['admin', 'observer', 'user']).map(r => (
             <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
           ))}
         </select>
@@ -304,18 +558,16 @@ export default function UsersPage() {
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="deleted">Deleted</option>
         </select>
         {isSuper && (
-          <select
+          <SearchableOrgSelect
             value={filterOrg}
-            onChange={e => setFilterOrg(e.target.value)}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
-          >
-            <option value="">All orgs</option>
-            {[...new Set(users.map(u => u.orgName).filter(Boolean))].sort().map(org => (
-              <option key={org} value={org}>{org}</option>
-            ))}
-          </select>
+            onChange={setFilterOrg}
+            orgs={[...new Set(users.map(u => u.orgName).filter(Boolean) as string[])].sort().map(n => ({ name: n, hgId: users.find(u => u.orgName === n)?.orgHyperGuestOrgId ?? null }))}
+            placeholder="All orgs"
+            searchable
+          />
         )}
         {(filterSearch || filterRole || filterStatus || filterOrg) && (
           <button
@@ -347,7 +599,7 @@ export default function UsersPage() {
                 {isSuper && <Th>HG Org ID</Th>}
                 <Th>Role</Th>
                 <Th>Status</Th>
-                <Th></Th>
+                <th className="sticky right-0 bg-[var(--color-background)] px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -374,7 +626,7 @@ export default function UsersPage() {
                     </td>
 
                     {/* Email */}
-                    <td className="px-4 py-3 text-[var(--color-text-muted)]">{u.email}</td>
+                    <td className="px-4 py-3 max-w-[220px]"><span className="block truncate text-[var(--color-text-muted)]" title={u.email}>{u.email}</span></td>
 
                     {/* Org name (super only) */}
                     {isSuper && (
@@ -427,11 +679,11 @@ export default function UsersPage() {
 
                     {/* Role */}
                     <td className="px-4 py-3">
-                      {isEditing && editForm ? (
+                      {isEditing && editForm && !isMe ? (
                         <select value={editForm.role}
                           onChange={e => setEditForm(f => f ? { ...f, role: e.target.value } : f)}
                           className={`${inputCls} py-1`}>
-                          {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                          {(isSuper ? SUPER_ROLES : ROLES).map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                         </select>
                       ) : (
                         <RoleBadge role={u.role} />
@@ -440,7 +692,7 @@ export default function UsersPage() {
 
                     {/* Status */}
                     <td className="px-4 py-3">
-                      {isEditing && editForm ? (
+                      {isEditing && editForm && !isMe ? (
                         <div className="flex gap-1">
                           {[true, false].map(v => (
                             <button key={String(v)}
@@ -456,7 +708,7 @@ export default function UsersPage() {
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-3">
+                    <td className={`sticky right-0 px-4 py-3 border-l border-[var(--color-border)] ${isEditing ? 'bg-[var(--color-primary-light)]' : 'bg-[var(--color-surface)]'}`}>
                       <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         {isEditing ? (
                           <>
@@ -470,6 +722,11 @@ export default function UsersPage() {
                               Cancel
                             </button>
                           </>
+                        ) : showDeleted ? (
+                          <button onClick={() => handleReviveUser(u.id)}
+                            className="rounded-md bg-[var(--color-success)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--color-success)] transition-colors hover:bg-[var(--color-success)]/20">
+                            Revive
+                          </button>
                         ) : (
                           <>
                             {!isMe && (
@@ -478,12 +735,10 @@ export default function UsersPage() {
                                 Reset pwd
                               </button>
                             )}
-                            {!isMe && (
-                              <button onClick={() => { setEditingId(u.id); setEditForm({ name: u.name, role: u.role, isActive: u.isActive }); setEditPropertyIds(u.propertyIds ?? []); setSaveError(null) }}
-                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]">
-                                Edit
-                              </button>
-                            )}
+                            <button onClick={() => { setEditingId(u.id); setEditForm({ name: u.name, role: u.role, isActive: u.isActive, phone: u.phone ?? '' }); setEditPropertyIds(u.propertyIds ?? []); setSaveError(null) }}
+                              className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]">
+                              Edit
+                            </button>
                             {!isMe && (
                               deleteConfirm === u.id ? (
                                 <>
@@ -508,6 +763,22 @@ export default function UsersPage() {
                       </div>
                     </td>
                   </tr>
+                  {isEditing && editForm && (
+                    <tr key={`${u.id}-phone`} className="bg-[var(--color-primary-light)]">
+                      <td colSpan={totalCols} className="border-t border-[var(--color-border)] px-6 py-3">
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] shrink-0">Phone</label>
+                          <input
+                            type="tel"
+                            value={editForm.phone}
+                            onChange={e => setEditForm(f => f ? { ...f, phone: e.target.value } : f)}
+                            placeholder="+1 555 000 0000 (optional)"
+                            className="max-w-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {isEditing && editForm?.role === 'user' && (
                     <tr key={`${u.id}-properties`} className="bg-[var(--color-primary-light)]">
                       <td colSpan={totalCols} className="border-t border-[var(--color-border)] px-6 py-4">

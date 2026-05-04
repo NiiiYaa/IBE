@@ -1,12 +1,18 @@
 import { prisma } from '../db/client.js'
 import { hashPassword } from './auth.service.js'
+import { sendEmail } from './email.service.js'
+import { getCommSettings } from './communication.service.js'
+import { sendWhatsAppMessage } from './whatsapp.service.js'
+import { sendMessage as sendWebjsMessage, clientKey } from './whatsapp-manager.service.js'
 
 export interface UserRecord {
   id: number
   email: string
   name: string
+  phone?: string | null
   role: string
   isActive: boolean
+  deletedAt?: Date | null
   createdAt: Date
   orgId?: number
   orgName?: string
@@ -14,25 +20,26 @@ export interface UserRecord {
   propertyIds?: number[]
 }
 
-export async function listUsers(organizationId: number): Promise<UserRecord[]> {
+export async function listUsers(organizationId: number, onlyDeleted = false): Promise<UserRecord[]> {
   const users = await prisma.adminUser.findMany({
-    where: { organizationId },
+    where: { organizationId, deletedAt: onlyDeleted ? { not: null } : null },
     select: {
-      id: true, email: true, name: true, role: true, isActive: true, createdAt: true,
+      id: true, email: true, name: true, phone: true, role: true, isActive: true, deletedAt: true, createdAt: true,
       adminUserProperties: { select: { propertyId: true } },
     },
     orderBy: { createdAt: 'asc' },
   })
   return users.map(u => ({
-    id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive, createdAt: u.createdAt,
+    id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, isActive: u.isActive, deletedAt: u.deletedAt, createdAt: u.createdAt,
     propertyIds: u.adminUserProperties.map(p => p.propertyId),
   }))
 }
 
-export async function listAllUsers(): Promise<UserRecord[]> {
+export async function listAllUsers(onlyDeleted = false): Promise<UserRecord[]> {
   const users = await prisma.adminUser.findMany({
+    where: { deletedAt: onlyDeleted ? { not: null } : null },
     select: {
-      id: true, email: true, name: true, role: true, isActive: true, createdAt: true,
+      id: true, email: true, name: true, phone: true, role: true, isActive: true, deletedAt: true, createdAt: true,
       organizationId: true,
       organization: { select: { id: true, name: true, hyperGuestOrgId: true } },
       adminUserProperties: { select: { propertyId: true } },
@@ -40,7 +47,7 @@ export async function listAllUsers(): Promise<UserRecord[]> {
     orderBy: [{ organizationId: 'asc' }, { createdAt: 'asc' }],
   })
   return users.map(u => ({
-    id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive, createdAt: u.createdAt,
+    id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, isActive: u.isActive, deletedAt: u.deletedAt, createdAt: u.createdAt,
     ...(u.organization ? { orgId: u.organization.id, orgName: u.organization.name } : {}),
     orgHyperGuestOrgId: u.organization?.hyperGuestOrgId ?? null,
     propertyIds: u.adminUserProperties.map(p => p.propertyId),
@@ -76,13 +83,17 @@ function mapOrg(o: { id: number; name: string; slug: string; hyperGuestOrgId: st
   }
 }
 
-export async function listOrgs(): Promise<OrgServiceRecord[]> {
+export async function listOrgs(onlyDeleted = false): Promise<OrgServiceRecord[]> {
   const orgs = await prisma.organization.findMany({
-    where: { deletedAt: null },
+    where: onlyDeleted ? { deletedAt: { not: null } } : { deletedAt: null },
     select: ORG_SELECT,
     orderBy: { createdAt: 'asc' },
   })
   return orgs.map(mapOrg)
+}
+
+export async function reviveOrg(id: number): Promise<void> {
+  await prisma.organization.update({ where: { id }, data: { isActive: true, deletedAt: null } })
 }
 
 export async function updateOrg(
@@ -150,8 +161,8 @@ export async function setOrgHyperGuestId(orgId: number, hyperGuestOrgId: string 
 }
 
 export async function createUser(
-  organizationId: number,
-  data: { email: string; name: string; role: string },
+  organizationId: number | null,
+  data: { email: string; name: string; role: string; phone?: string },
 ): Promise<UserRecord & { temporaryPassword: string }> {
   const email = data.email.toLowerCase().trim()
   const existing = await prisma.adminUser.findFirst({ where: { email, organizationId } })
@@ -161,8 +172,9 @@ export async function createUser(
   const passwordHash = await hashPassword(temporaryPassword)
 
   const user = await prisma.adminUser.create({
-    data: { organizationId, email, name: data.name.trim(), role: data.role, passwordHash, isActive: true, mustChangePassword: true },
-    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
+    data: { ...(organizationId !== null ? { organizationId } : {}), email, name: data.name.trim(), role: data.role, passwordHash, isActive: true, mustChangePassword: true,
+      ...(data.phone?.trim() ? { phone: data.phone.trim() } : {}) },
+    select: { id: true, email: true, name: true, phone: true, role: true, isActive: true, createdAt: true },
   })
 
   return { ...user, temporaryPassword }
@@ -171,7 +183,7 @@ export async function createUser(
 export async function updateUser(
   organizationId: number | null,
   id: number,
-  data: { name?: string; role?: string; isActive?: boolean },
+  data: { name?: string; role?: string; isActive?: boolean; phone?: string | null },
 ): Promise<UserRecord> {
   const user = await prisma.adminUser.findUnique({ where: { id } })
   if (!user || (organizationId !== null && user.organizationId !== organizationId)) throw new Error('User not found')
@@ -182,8 +194,9 @@ export async function updateUser(
       ...(data.name !== undefined && { name: data.name.trim() }),
       ...(data.role !== undefined && { role: data.role }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.phone !== undefined && { phone: data.phone?.trim() || null }),
     },
-    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
+    select: { id: true, email: true, name: true, phone: true, role: true, isActive: true, createdAt: true },
   })
 }
 
@@ -203,7 +216,13 @@ export async function resetUserPassword(
 export async function deleteUser(organizationId: number | null, id: number): Promise<void> {
   const user = await prisma.adminUser.findUnique({ where: { id } })
   if (!user || (organizationId !== null && user.organizationId !== organizationId)) throw new Error('User not found')
-  await prisma.adminUser.delete({ where: { id } })
+  await prisma.adminUser.update({ where: { id }, data: { isActive: false, deletedAt: new Date() } })
+}
+
+export async function reviveUser(organizationId: number | null, id: number): Promise<void> {
+  const user = await prisma.adminUser.findUnique({ where: { id } })
+  if (!user || (organizationId !== null && user.organizationId !== organizationId)) throw new Error('User not found')
+  await prisma.adminUser.update({ where: { id }, data: { isActive: true, deletedAt: null } })
 }
 
 export async function setUserPropertyIds(
@@ -220,6 +239,73 @@ export async function setUserPropertyIds(
       data: propertyIds.map(propertyId => ({ adminUserId: userId, propertyId })),
     }),
   ])
+}
+
+export interface AdminCredentials {
+  name: string
+  email: string
+  temporaryPassword: string
+  loginUrl: string
+}
+
+export async function sendAdminCredentials(
+  orgId: number | null,
+  channel: 'email' | 'whatsapp',
+  to: string,
+  creds: AdminCredentials,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    if (channel === 'email') {
+      const html = `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f9fafb;border-radius:12px">
+          <h2 style="margin:0 0 8px;font-size:18px;color:#111">Your admin account is ready</h2>
+          <p style="margin:0 0 24px;font-size:14px;color:#6b7280">Hi ${creds.name}, here are your login credentials.</p>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:24px">
+            <table style="width:100%;font-size:14px;border-collapse:collapse">
+              <tr><td style="padding:6px 0;color:#6b7280">Login URL</td><td style="padding:6px 0;text-align:right"><a href="${creds.loginUrl}" style="color:#2563eb">${creds.loginUrl}</a></td></tr>
+              <tr><td style="padding:6px 0;color:#6b7280">Email</td><td style="padding:6px 0;text-align:right;color:#111">${creds.email}</td></tr>
+              <tr><td style="padding:6px 0;color:#6b7280">Temporary password</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-weight:700;color:#111">${creds.temporaryPassword}</td></tr>
+            </table>
+          </div>
+          <p style="margin:0;font-size:12px;color:#9ca3af">You will be asked to change your password on first login.</p>
+        </div>`
+      return sendEmail(orgId ?? 0, { to, subject: 'Your admin account credentials', html })
+    }
+
+    if (channel === 'whatsapp') {
+      if (!orgId) return { ok: false, error: 'No organisation to send WhatsApp from' }
+      const settings = await getCommSettings(orgId)
+      if (!settings.whatsappEnabled) return { ok: false, error: 'WhatsApp not configured for this organisation' }
+      const text = [
+        `Hi ${creds.name}, your admin account is ready.`,
+        ``,
+        `Login: ${creds.loginUrl}`,
+        `Email: ${creds.email}`,
+        `Temporary password: ${creds.temporaryPassword}`,
+        ``,
+        `You will be asked to change your password on first login.`,
+      ].join('\n')
+      if (settings.whatsappProvider === 'meta') {
+        if (!settings.whatsappPhoneNumberId || !settings.whatsappAccessToken)
+          return { ok: false, error: 'WhatsApp not configured' }
+        await sendWhatsAppMessage(settings.whatsappPhoneNumberId, settings.whatsappAccessToken, to, text)
+      } else if (settings.whatsappProvider === 'twilio') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const twilio = (await import('twilio' as any)) as any
+        const client = new twilio.default(settings.whatsappTwilioAccountSid, settings.whatsappTwilioAuthToken!)
+        await client.messages.create({ from: `whatsapp:${settings.whatsappTwilioNumber}`, to: `whatsapp:${to}`, body: text })
+      } else if (settings.whatsappProvider === 'wwebjs') {
+        await sendWebjsMessage({ orgId }, to, text)
+      } else {
+        return { ok: false, error: `WhatsApp provider not supported: ${settings.whatsappProvider}` }
+      }
+      return { ok: true }
+    }
+
+    return { ok: false, error: 'Invalid channel' }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 function generateTemporaryPassword(): string {
