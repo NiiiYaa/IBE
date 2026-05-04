@@ -58,6 +58,7 @@ model Organization {
   incentiveChainSlots         IncentiveChainSlot[]
   incentiveChainItemOverrides IncentiveChainItemOverride[]
   propertyOrganizations       PropertyOrganization[]
+  orgDataProviderConfig       OrgDataProviderConfig?
 }
 
 // roles: super | admin | observer | user
@@ -452,6 +453,8 @@ model Property {
   propertyCrossSellConfig PropertyCrossSellConfig?
   propertyGroupConfig     PropertyGroupConfig?
   propertyOrganizations   PropertyOrganization[]
+  propertyDataProviderConfig  PropertyDataProviderConfig?
+  propertyScore               PropertyScore?
 
   @@index([organizationId])
 }
@@ -1515,4 +1518,51 @@ model AffiliateProfile {
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+}
+
+// ── Data Provider (hotel score / review enrichment) ───────────────────────────
+
+model SystemDataProviderConfig {
+  id                  Int      @id @default(autoincrement())
+  providerType        String   @default("dataforseo")
+  refreshIntervalDays Int      @default(30)
+  enabled             Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model OrgDataProviderConfig {
+  id                  Int          @id @default(autoincrement())
+  organizationId      Int          @unique
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  useSystem           Boolean      @default(true)
+  refreshIntervalDays Int?
+  enabled             Boolean?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model PropertyDataProviderConfig {
+  id                  Int      @id @default(autoincrement())
+  propertyId          Int      @unique
+  property            Property @relation(fields: [propertyId], references: [id], map: "PropertyDataProviderConfig_propertyId_fkey")
+  useOrg              Boolean  @default(true)
+  refreshIntervalDays Int?
+  enabled             Boolean?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PropertyScore {
+  id          Int       @id @default(autoincrement())
+  propertyId  Int       @unique
+  property    Property  @relation(fields: [propertyId], references: [id], map: "PropertyScore_propertyId_fkey")
+  score       Float?
+  reviewCount Int?
+  source      String?
+  fetchedAt   DateTime?
+  status      String    @default("idle")
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
