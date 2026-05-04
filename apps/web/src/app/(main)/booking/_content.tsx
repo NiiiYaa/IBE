@@ -5,6 +5,7 @@ import { decodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useHotelConfig } from '@/hooks/use-hotel-config'
 import { readAffiliateCookie } from '@/hooks/use-affiliate-cookie'
+import { useSourceOrg } from '@/hooks/use-source-org'
 import { BookingForm } from '@/components/booking/BookingForm'
 import { BookingSummary, type SelectedRoom } from '@/components/booking/BookingSummary'
 import Link from 'next/link'
@@ -17,6 +18,7 @@ export function BookingContent() {
   const rawParams = useSearchParams()
   const searchId   = rawParams.get('searchId') ?? ''
   const affiliateId = rawParams.get('affiliateId') ?? readAffiliateCookie() ?? undefined
+  const sourceOrg = useSourceOrg()
   const campaignId = rawParams.get('campaignId') ?? undefined
 
   const searchParams = decodeSearchParams(rawParams)
@@ -129,6 +131,7 @@ export function BookingContent() {
             searchId={searchId}
             {...(affiliateId ? { affiliateId } : {})}
             {...(campaignId ? { campaignId } : {})}
+            {...(sourceOrg ? { sourceOrgSlug: sourceOrg } : {})}
             locale={locale}
             onlinePaymentEnabled={onlinePaymentEnabled}
           />

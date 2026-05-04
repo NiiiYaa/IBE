@@ -379,10 +379,18 @@ async function getItemTranslations(locale: string): Promise<Map<string, string>>
   return new Map(rows.map(r => [r.key, r.value]))
 }
 
-export async function resolveIncentiveSlotsForProperty(propertyId: number, locale = 'en') {
+export async function resolveIncentiveSlotsForProperty(propertyId: number, locale = 'en', sourceOrgId?: number) {
   // Need the property's orgId for chain inheritance
   const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { organizationId: true } })
-  const orgId = property?.organizationId ?? null
+  let orgId = property?.organizationId ?? null
+
+  if (sourceOrgId !== undefined) {
+    // Only use source org if it is actually associated with this property
+    const assoc = await prisma.propertyOrganization.findUnique({
+      where: { propertyId_organizationId: { propertyId, organizationId: sourceOrgId } },
+    })
+    if (assoc) orgId = sourceOrgId
+  }
 
   const [hotelPage, roomBanner, roomResults, translations] = await Promise.all([
     resolveSlot('hotel_page', orgId, propertyId),

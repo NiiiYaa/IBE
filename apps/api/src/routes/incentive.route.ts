@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { prisma } from '../db/client.js'
 import {
   listIncentiveItems,
   createIncentiveItem,
@@ -281,9 +282,15 @@ export async function incentivePublicRoutes(fastify: FastifyInstance) {
   fastify.get('/incentives/property/:propertyId', async (request, reply) => {
     const propertyId = Number((request.params as { propertyId: string }).propertyId)
     if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
-    const locale = (request.query as { locale?: string }).locale ?? 'en'
-    reply.header('Cache-Control', 'public, max-age=30')
-    return reply.send(await resolveIncentiveSlotsForProperty(propertyId, locale))
+    const query = request.query as { locale?: string; sourceOrg?: string }
+    const locale = query.locale ?? 'en'
+    let sourceOrgId: number | undefined
+    if (query.sourceOrg) {
+      const org = await prisma.organization.findFirst({ where: { slug: query.sourceOrg }, select: { id: true } })
+      if (org) sourceOrgId = org.id
+    }
+    reply.header('Cache-Control', sourceOrgId ? 'private, max-age=30' : 'public, max-age=30')
+    return reply.send(await resolveIncentiveSlotsForProperty(propertyId, locale, sourceOrgId))
   })
 
   fastify.get('/incentives/chain', async (request, reply) => {

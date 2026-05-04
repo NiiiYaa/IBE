@@ -8,6 +8,19 @@ import { useAdminAuth } from '@/hooks/use-admin-auth'
 import type { PropertyMode, PropertyRecord, PropertyOrgInfo, PropertyUserAssignment, ImportSummary, OrgSettingsResponse, OrgRecord } from '@ibe/shared'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
+function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' ||
+    /^10\./.test(hostname) || /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+}
+
+function buildB2CUrl(propertyId: number, subdomain: string | null | undefined, orgSlug: string | null | undefined, webDomain: string | null | undefined): string {
+  if (isLocalHost(window.location.hostname)) return `http://${window.location.hostname}:3000/?hotelId=${propertyId}`
+  if (subdomain) return `https://${subdomain}.hyperguest.net`
+  if (webDomain) return `${webDomain.replace(/\/$/, '')}/?hotelId=${propertyId}`
+  if (orgSlug) return `https://${orgSlug}.hyperguest.net/?hotelId=${propertyId}`
+  return `/?hotelId=${propertyId}`
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -446,13 +459,15 @@ function OrgPanel({ record, allOrgs, onRefresh }: { record: PropertyRecord; allO
 }
 
 function PropertyRow({
-  record, onSetDefault, showDefault, onRefresh, isSuper,
+  record, onSetDefault, showDefault, onRefresh, isSuper, orgSlug, webDomain,
 }: {
   record: PropertyRecord
   onSetDefault?: () => void
   showDefault?: boolean
   onRefresh: () => void
   isSuper?: boolean
+  orgSlug?: string | null
+  webDomain?: string | null
 }) {
   const qc = useQueryClient()
   const needsHGFetch = !record.name
@@ -464,6 +479,7 @@ function PropertyRow({
   const [showSubdomain, setShowSubdomain] = useState(false)
   const [showOrgs, setShowOrgs] = useState(false)
   const isDemo = record.isDemo ?? false
+  const isPrimary = record.isPrimary !== false
 
   const activeMutation = useMutation({
     mutationFn: (active: boolean) => apiClient.setPropertyActive(record.id, active),
@@ -524,24 +540,29 @@ function PropertyRow({
                   Default
                 </span>
               )}
+              {!isDemo && record.isPrimary === false && (
+                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700" title="Your organization is a secondary owner. Another organization controls the core configuration.">
+                  Secondary
+                </span>
+              )}
             </p>
           </div>
           {/* View / sync buttons */}
           <div className="flex shrink-0 items-center gap-1.5">
-            <a
-              href={record.subdomain
-                ? `https://${record.subdomain}.hyperguest.net`
-                : `https://ibe-web.onrender.com/?hotelId=${record.propertyId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              title={record.subdomain ? `https://${record.subdomain}.hyperguest.net` : 'Open booking engine'}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              IBE
-            </a>
+            {!isDemo && (
+              <a
+                href={buildB2CUrl(record.propertyId, record.subdomain, record.orgSlug ?? orgSlug, webDomain)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                title="Open guest booking engine"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                B2C
+              </a>
+            )}
             <SearchTestButton propertyId={record.propertyId} />
             <SyncButton propertyId={record.propertyId} lastSyncedAt={record.lastSyncedAt} onSynced={onRefresh} />
           </div>
@@ -550,42 +571,48 @@ function PropertyRow({
         {/* Management buttons row (non-demo only) */}
         {!isDemo && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[var(--color-border)] pt-3">
-            <button
-              onClick={() => setShowSubdomain(v => !v)}
-              className={['h-7 rounded-lg border px-3 text-xs transition-colors',
-                showSubdomain
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-              ].join(' ')}
-              title={record.subdomain ? `Subdomain: ${record.subdomain}.hyperguest.net` : 'Set subdomain'}
-            >
-              {record.subdomain ? `${record.subdomain}.hyperguest.net` : 'Set subdomain'}
-            </button>
+            {isPrimary && (
+              <button
+                onClick={() => setShowSubdomain(v => !v)}
+                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                  showSubdomain
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+                title={record.subdomain ? `Subdomain: ${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+              >
+                {record.subdomain ? `${record.subdomain}.hyperguest.net` : 'Set subdomain'}
+              </button>
+            )}
 
-            <button
-              onClick={() => setShowCreds(v => !v)}
-              className={['h-7 rounded-lg border px-3 text-xs transition-colors',
-                showCreds
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-              ].join(' ')}
-            >
-              HG credentials
-            </button>
+            {isPrimary && (
+              <button
+                onClick={() => setShowCreds(v => !v)}
+                className={['h-7 rounded-lg border px-3 text-xs transition-colors',
+                  showCreds
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                HG credentials
+              </button>
+            )}
 
-            <button
-              onClick={() => activeMutation.mutate(!record.isActive)}
-              disabled={activeMutation.isPending}
-              title={record.isActive ? 'Disable property' : 'Enable property'}
-              className={[
-                'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
-                record.isActive
-                  ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
-                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-              ].join(' ')}
-            >
-              {record.isActive ? 'Enabled' : 'Disabled'}
-            </button>
+            {isPrimary && (
+              <button
+                onClick={() => activeMutation.mutate(!record.isActive)}
+                disabled={activeMutation.isPending}
+                title={record.isActive ? 'Disable property' : 'Enable property'}
+                className={[
+                  'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
+                  record.isActive
+                    ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                {record.isActive ? 'Enabled' : 'Disabled'}
+              </button>
+            )}
 
             <button
               onClick={() => setShowAssign(v => !v)}
@@ -622,7 +649,7 @@ function PropertyRow({
               <div className="flex items-center gap-1">
                 <button onClick={handleDelete} disabled={deleting}
                   className="h-7 rounded-lg bg-[var(--color-error)] px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
-                  {deleting ? '…' : 'Confirm delete'}
+                  {deleting ? '…' : isPrimary ? 'Confirm delete' : 'Confirm remove'}
                 </button>
                 <button onClick={() => setDeleteConfirm(false)}
                   className="h-7 rounded-lg px-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
@@ -631,15 +658,17 @@ function PropertyRow({
               </div>
             ) : (
               <button onClick={() => setDeleteConfirm(true)}
-                className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)]">
-                Delete
+                className="h-7 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)]"
+                title={isPrimary ? 'Delete property' : 'Remove from your organization'}
+              >
+                {isPrimary ? 'Delete' : 'Remove'}
               </button>
             )}
           </div>
         )}
       </div>
 
-      {showSubdomain && !isDemo && (
+      {showSubdomain && !isDemo && isPrimary && (
         <SubdomainPanel
           record={record}
           onClose={() => setShowSubdomain(false)}
@@ -651,7 +680,7 @@ function PropertyRow({
         <AssignUsersPanel record={record} onClose={() => setShowAssign(false)} />
       )}
 
-      {showCreds && !isDemo && (
+      {showCreds && !isDemo && isPrimary && (
         <HGCredentialsPanel
           record={record}
           onClose={() => setShowCreds(false)}
@@ -666,7 +695,7 @@ function PropertyRow({
   )
 }
 
-function AddPropertyPanel({ onAdd, onImportDone, isPending, error, hasToken }: { onAdd: (id: number) => void; onImportDone: () => void; isPending: boolean; error: string | null; hasToken: boolean }) {
+function AddPropertyPanel({ onAdd, onImportDone, isPending, error, notice, hasToken }: { onAdd: (id: number) => void; onImportDone: () => void; isPending: boolean; error: string | null; notice: string | null; hasToken: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [newId, setNewId] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
@@ -739,6 +768,9 @@ function AddPropertyPanel({ onAdd, onImportDone, isPending, error, hasToken }: {
           </div>
           {(localError ?? error) && (
             <p className="mt-2 text-xs text-[var(--color-error)]">{localError ?? error}</p>
+          )}
+          {notice && !error && !localError && (
+            <p className="mt-2 text-xs text-amber-600">{notice}</p>
           )}
         </div>
 
@@ -837,10 +869,20 @@ export default function PropertiesPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-properties'] }),
   })
 
+  const [addNotice, setAddNotice] = useState<string | null>(null)
+
   const addMutation = useMutation({
     mutationFn: (propertyId: number) => apiClient.addProperty(propertyId),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['admin-properties'] }); setAddError(null) },
-    onError: (err: Error) => setAddError(err.message),
+    onSuccess: (record) => {
+      void qc.invalidateQueries({ queryKey: ['admin-properties'] })
+      setAddError(null)
+      if (record.isPrimary === false) {
+        setAddNotice('Property added as a secondary association — another organization is the primary owner and controls its core configuration.')
+      } else {
+        setAddNotice(null)
+      }
+    },
+    onError: (err: Error) => { setAddError(err.message); setAddNotice(null) },
   })
 
   const defaultMutation = useMutation({
@@ -891,10 +933,11 @@ export default function PropertiesPage() {
             <div className="mb-6">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Add Properties</p>
               <AddPropertyPanel
-                onAdd={id => addMutation.mutate(id)}
+                onAdd={id => { setAddNotice(null); addMutation.mutate(id) }}
                 onImportDone={() => void qc.invalidateQueries({ queryKey: ['admin-properties'] })}
                 isPending={addMutation.isPending}
                 error={addError}
+                notice={addNotice}
                 hasToken={hasToken}
               />
             </div>
@@ -959,6 +1002,8 @@ export default function PropertiesPage() {
               onSetDefault={() => defaultMutation.mutate(r.id)}
               onRefresh={() => void qc.invalidateQueries({ queryKey: [isSuper ? 'admin-super-properties' : 'admin-properties'] })}
               isSuper={isSuper}
+              orgSlug={isSuper ? (r.orgSlug ?? null) : (orgSettings?.orgSlug ?? null)}
+              webDomain={isSuper ? null : (orgSettings?.webDomain ?? null)}
             />
           ))}
         </div>

@@ -35,6 +35,7 @@ interface BookingFormProps {
   rooms: SelectedRoom[]
   searchId: string
   affiliateId?: string
+  sourceOrgSlug?: string
   locale: string
   onlinePaymentEnabled?: boolean
   payAtHotelCardGuaranteeRequired?: boolean
@@ -52,7 +53,7 @@ function resolvePaymentFlow(chargeParty: string, guaranteeRequired: boolean, onl
 }
 
 export function BookingForm({
-  propertyId, checkIn, checkOut, rooms, searchId, affiliateId, locale,
+  propertyId, checkIn, checkOut, rooms, searchId, affiliateId, sourceOrgSlug, locale,
   onlinePaymentEnabled = true,
   payAtHotelCardGuaranteeRequired = false,
 }: BookingFormProps) {
@@ -81,6 +82,7 @@ export function BookingForm({
       isTest: process.env.NEXT_PUBLIC_IS_TEST === 'true',
       searchId,
       affiliateId,
+      sourceOrgSlug,
       leadGuest: {
         title: GuestTitle.Mr,
         firstName: '', lastName: '',

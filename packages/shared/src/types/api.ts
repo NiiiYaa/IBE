@@ -210,6 +210,7 @@ export interface CreateBookingRequest {
   isTest?: boolean | undefined
   promoCode?: string | undefined
   promoDiscount?: number | undefined
+  sourceOrgSlug?: string | undefined
 }
 
 export interface BookingCancellationFrame {
@@ -767,6 +768,7 @@ export interface PropertyRecord {
   isPrimary?: boolean
   orgId?: number
   orgName?: string
+  orgSlug?: string | null
   hyperGuestOrgId?: string | null
   subdomain?: string | null
   hyperGuestBearerToken?: string | null

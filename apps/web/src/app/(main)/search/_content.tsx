@@ -12,6 +12,7 @@ import { useAiMode } from '@/context/ai-mode'
 import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { useIncentive } from '@/hooks/use-incentive'
+import { useSourceOrg } from '@/hooks/use-source-org'
 import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { RoomCard } from '@/components/search/RoomCard'
 import { RoomCardGrid } from '@/components/search/RoomCardGrid'
@@ -61,7 +62,8 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
   const { data: propertyData } = useProperty(searchParams?.hotelId ?? null)
   const { data: hotelConfig } = useHotelConfig(searchParams?.hotelId ?? null)
   const { bookingMode, maxRooms, multiRoomLimitBy } = useOffersConstraints(searchParams?.hotelId ?? null)
-  const { data: incentive } = useIncentive(searchParams?.hotelId ?? null, locale)
+  const sourceOrg = useSourceOrg()
+  const { data: incentive } = useIncentive(searchParams?.hotelId ?? null, locale, sourceOrg ?? undefined)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms

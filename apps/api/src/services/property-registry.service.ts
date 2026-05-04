@@ -33,6 +33,7 @@ export function makeDemoRecord(): PropertyRecord {
 export interface PropertyRecordWithOrg extends PropertyRecord {
   orgId: number
   orgName: string
+  orgSlug: string | null
   hyperGuestOrgId: string | null
   allOrgs: PropertyOrgInfo[]
 }
@@ -182,8 +183,15 @@ export async function addProperty(organizationId: number, propertyId: number): P
       return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, isActive: restored.isActive, isPrimary: true, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString(), name: restored.name ?? null }
     }
     if (!conflict.deletedAt) {
-      throw new PropertyConflictError(`Property is already registered under organization "${conflict.organization.name}"`, conflict.organization.name)
+      // Property is active and owned by another org — add this org as a secondary association
+      await prisma.propertyOrganization.upsert({
+        where: { propertyId_organizationId: { propertyId: conflict.id, organizationId } },
+        create: { propertyId: conflict.id, organizationId, isPrimary: false },
+        update: {},
+      })
+      return { id: conflict.id, propertyId: conflict.propertyId, isDefault: false, isActive: conflict.isActive, isPrimary: false, lastSyncedAt: conflict.lastSyncedAt?.toISOString() ?? null, createdAt: conflict.createdAt.toISOString(), name: conflict.name ?? null }
     }
+    // Property was soft-deleted by another org — take primary ownership
     const name = conflict.name ?? await fetchPropertyName(propertyId)
     const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
     const reassigned = await prisma.property.update({
@@ -264,7 +272,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
   const rows = await prisma.property.findMany({
     where: { deletedAt: null },
     include: {
-      organization: { select: { id: true, name: true, hyperGuestOrgId: true } },
+      organization: { select: { id: true, name: true, slug: true, hyperGuestOrgId: true } },
       propertyOrganizations: {
         include: { organization: { select: { id: true, name: true, hyperGuestOrgId: true } } },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
@@ -284,6 +292,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     subdomain: r.subdomain ?? null,
     orgId: r.organization.id,
     orgName: r.organization.name,
+    orgSlug: r.organization.slug ?? null,
     hyperGuestOrgId: r.organization.hyperGuestOrgId ?? null,
     allOrgs: r.propertyOrganizations.map(po => ({
       orgId: po.organization.id,

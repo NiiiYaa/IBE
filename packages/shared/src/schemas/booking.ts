@@ -47,6 +47,7 @@ export const CreateBookingRequestSchema = z.object({
   affiliateId: z.string().max(100).optional(),
   searchId: z.string().optional(),
   isTest: z.boolean().optional(),
+  sourceOrgSlug: z.string().max(100).optional(),
 })
   .refine(
     (data) => data.checkOut > data.checkIn,

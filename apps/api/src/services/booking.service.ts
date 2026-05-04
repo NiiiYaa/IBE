@@ -242,6 +242,9 @@ async function persistBooking(
       currency: booking.payment.chargeAmount.currency,
       agencyReference: request.agencyReference ?? null,
       affiliateId: request.affiliateId ?? null,
+      sourceOrgId: request.sourceOrgSlug
+        ? ((await prisma.organization.findFirst({ where: { slug: request.sourceOrgSlug }, select: { id: true } }))?.id ?? null)
+        : null,
       campaignId: request.campaignId ?? null,
       promoCode: request.promoCode ?? null,
       promoDiscountPct: request.promoDiscount ?? null,

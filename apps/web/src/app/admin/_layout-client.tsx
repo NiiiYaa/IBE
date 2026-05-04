@@ -13,6 +13,12 @@ import { apiClient } from '@/lib/api-client'
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 type Section = { title: string; items: NavItem[]; href?: string; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
 
+function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' ||
+    /^10\./.test(hostname) || /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+}
+
 const SECTIONS: Section[] = [
   {
     title: 'Dashboard',
@@ -318,7 +324,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   if (!_isBuyer && _enabledModels.includes('b2c') && _od) {
     if (propertyId !== null) {
       const _p = properties.find(p => p.propertyId === propertyId)
-      if (_p?.subdomain) {
+      if (isLocalHost(window.location.hostname)) {
+        b2cUrl = `http://${window.location.hostname}:3000/?hotelId=${propertyId}`
+      } else if (_p?.subdomain) {
         b2cUrl = `https://${_p.subdomain}.hyperguest.net`
       } else if (_webDomain) {
         b2cUrl = `${_webDomain.replace(/\/$/, '')}/?hotelId=${propertyId}`
@@ -326,9 +334,13 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         b2cUrl = `https://${_orgSlug}.hyperguest.net/?hotelId=${propertyId}`
       }
     } else {
-      b2cUrl = _webDomain
-        ? _webDomain.replace(/\/$/, '') + '/'
-        : _orgSlug ? `https://${_orgSlug}.hyperguest.net` : null
+      if (isLocalHost(window.location.hostname)) {
+        b2cUrl = `http://${window.location.hostname}:3000`
+      } else {
+        b2cUrl = _webDomain
+          ? _webDomain.replace(/\/$/, '') + '/'
+          : _orgSlug ? `https://${_orgSlug}.hyperguest.net` : null
+      }
     }
   }
 

@@ -47,8 +47,9 @@ export function PropertySelector({ properties, isSuper, superOrgs, selected, onS
       if (isSuper && selected.orgId === null) return '⚙ System'
       if (isSuper && selected.orgId !== null) {
         const prop = properties.find(p => p.orgId === selected.orgId)
-        const orgName = prop?.orgName ?? `Org ${selected.orgId}`
-        const hgId = prop?.hyperGuestOrgId
+        const org = superOrgs?.find(o => o.id === selected.orgId)
+        const orgName = prop?.orgName ?? org?.name ?? `Org ${selected.orgId}`
+        const hgId = prop?.hyperGuestOrgId ?? org?.hyperGuestOrgId
         return `⛓ ${orgName}${hgId ? ` (${hgId})` : ''} — chain`
       }
       return '⛓ Chain (all properties)'
