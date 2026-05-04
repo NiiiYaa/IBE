@@ -4,6 +4,8 @@ import { env } from '../config/env.js'
 import { refreshDueProperties } from './data-provider-fetch.service.js'
 import { getSystemConfig } from './data-provider.service.js'
 
+let _task: ReturnType<typeof cron.schedule> | undefined
+
 export function startDataProviderCron(): void {
   const schedule = env.DATA_PROVIDER_CRON
 
@@ -12,7 +14,7 @@ export function startDataProviderCron(): void {
     return
   }
 
-  cron.schedule(schedule, async () => {
+  _task = cron.schedule(schedule, async () => {
     try {
       const config = await getSystemConfig()
       if (!config.enabled) {
@@ -24,7 +26,11 @@ export function startDataProviderCron(): void {
     } catch (err) {
       logger.warn({ err }, '[DataProvider] Cron refresh failed (non-fatal)')
     }
-  })
+  }, { noOverlap: true })
 
   logger.info({ schedule }, '[DataProvider] Cron scheduled')
+}
+
+export function stopDataProviderCron(): void {
+  _task?.stop()
 }

@@ -84,6 +84,10 @@ async function shutdown(signal: string) {
     const { closeRedis } = await import('./utils/redis.js')
     await closeRedis()
   }
+  try {
+    const { stopDataProviderCron } = await import('./services/data-provider-cron.service.js')
+    stopDataProviderCron()
+  } catch { /* ignore */ }
   await prisma.$disconnect()
   process.exit(0)
 }
