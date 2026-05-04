@@ -29,15 +29,6 @@ export async function refreshProperty(propertyId: number): Promise<RefreshResult
 
   try {
     const staticData = await fetchPropertyStatic(propertyId)
-    if (!staticData) {
-      await prisma.propertyScore.upsert({
-        where: { propertyId },
-        create: { propertyId, status: 'error', errorMsg: 'Static property data unavailable' },
-        update: { status: 'error', errorMsg: 'Static property data unavailable' },
-      })
-      return { propertyId, skipped: false, score: null, reviewCount: null }
-    }
-
     const hotelName = staticData.name
     const cityName = staticData.location?.city?.name ?? ''
     const countryCode = staticData.location?.countryCode ?? ''
@@ -114,9 +105,10 @@ export async function findPropertiesDueForRefresh(): Promise<number[]> {
       due.push(propertyId)
       continue
     }
+    const config = await getEffectiveConfig(propertyId)
     const ageMs = now - score.fetchedAt.getTime()
     const ageDays = ageMs / (1000 * 60 * 60 * 24)
-    if (ageDays >= 30) {
+    if (ageDays >= config.refreshIntervalDays) {
       due.push(propertyId)
     }
   }

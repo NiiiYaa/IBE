@@ -82,6 +82,18 @@ describe('refreshProperty', () => {
       update: expect.objectContaining({ status: 'error', errorMsg: 'No score returned by provider' }),
     }))
   })
+
+  it('stores error status when fetchPropertyStatic throws', async () => {
+    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo' })
+    mockFetchPropertyStatic.mockRejectedValue(new Error('HyperGuest API error'))
+    mockPrisma.propertyScore.upsert.mockResolvedValue({})
+
+    const result = await refreshProperty(123)
+    expect(result).toEqual({ propertyId: 123, skipped: false, score: null, reviewCount: null })
+    expect(mockPrisma.propertyScore.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ status: 'error' }),
+    }))
+  })
 })
 
 describe('findPropertiesDueForRefresh', () => {
