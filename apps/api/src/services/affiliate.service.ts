@@ -7,7 +7,7 @@ function toAffiliate(row: {
   commissionRate: { toNumber(): number } | null
   discountRate: { toNumber(): number } | null
   displayText: string | null
-  notes: string | null; isActive: boolean; createdAt: Date
+  notes: string | null; isActive: boolean; status: string; createdAt: Date
   propertyId: number | null
 }, propertyEnabled?: boolean | null): Affiliate {
   return {
@@ -20,6 +20,7 @@ function toAffiliate(row: {
     displayText: row.displayText,
     notes: row.notes,
     isActive: row.isActive,
+    status: (row.status as Affiliate['status']) ?? 'active',
     createdAt: row.createdAt.toISOString(),
     propertyId: row.propertyId,
     isGlobal: row.propertyId === null,

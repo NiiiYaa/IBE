@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Affiliate, CreateAffiliateRequest, UpdateAffiliateRequest } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
@@ -182,6 +182,37 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
 
   const isEditing = editingId !== null
 
+  // ── Marketplace config (hotel-level) ─────────────────────────────────────────
+
+  const configQKey = useMemo(() => ['hotel-config-admin', scopedPropertyId], [scopedPropertyId])
+  const { data: hotelConfig } = useQuery({
+    queryKey: configQKey,
+    queryFn: () => apiClient.getHotelConfigAdmin(scopedPropertyId!),
+    enabled: scopedPropertyId != null,
+  })
+
+  const [mktEnabled, setMktEnabled] = useState(false)
+  const [mktRate, setMktRate] = useState<string>('')
+  const [mktDirty, setMktDirty] = useState(false)
+
+  useEffect(() => {
+    if (!hotelConfig) return
+    setMktEnabled(hotelConfig.affiliateMarketplace ?? false)
+    setMktRate(hotelConfig.affiliateDefaultCommissionRate != null ? String(hotelConfig.affiliateDefaultCommissionRate) : '')
+    setMktDirty(false)
+  }, [hotelConfig])
+
+  const { mutate: saveMkt, isPending: isSavingMkt } = useMutation({
+    mutationFn: () => apiClient.updateHotelConfig(scopedPropertyId!, {
+      affiliateMarketplace: mktEnabled,
+      affiliateDefaultCommissionRate: mktRate !== '' ? parseFloat(mktRate) : null,
+    }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: configQKey })
+      setMktDirty(false)
+    },
+  })
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-6">
@@ -190,6 +221,52 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
           ? <p className="mt-1 text-sm text-[var(--color-text-muted)]">Global defaults — apply to all properties unless overridden at the property level.</p>
           : <p className="mt-1 text-sm text-[var(--color-text-muted)]">Property-specific affiliates plus inherited global affiliates.</p>}
       </div>
+
+      {/* ── Marketplace Settings ────────────────────────────────────────────── */}
+      {scopedPropertyId != null && (
+        <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+          <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">Affiliate Marketplace</h2>
+          <p className="mb-4 text-xs text-[var(--color-text-muted)]">
+            Enable to list this hotel in the affiliate marketplace. Affiliates can then discover and join this hotel&apos;s program.
+          </p>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mktEnabled}
+                onChange={e => { setMktEnabled(e.target.checked); setMktDirty(true) }}
+                className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+              />
+              <span className="text-sm text-[var(--color-text)]">List in affiliate marketplace</span>
+            </label>
+            {mktEnabled && (
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-[var(--color-text)] whitespace-nowrap">Default commission rate (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={mktRate}
+                  placeholder="e.g. 8"
+                  onChange={e => { setMktRate(e.target.value); setMktDirty(true) }}
+                  className="w-24 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+                />
+                <span className="text-xs text-[var(--color-text-muted)]">Applied to new affiliates who join via the marketplace</span>
+              </div>
+            )}
+            {mktDirty && (
+              <button
+                onClick={() => saveMkt()}
+                disabled={isSavingMkt}
+                className="rounded-md bg-[var(--color-primary)] px-4 py-1.5 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+              >
+                {isSavingMkt ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {deleteError && (
         <div className="mb-4 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 px-4 py-2 text-sm text-[var(--color-error)]">
