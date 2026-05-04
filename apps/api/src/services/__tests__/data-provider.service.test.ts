@@ -38,7 +38,7 @@ const mockPrisma = prisma as unknown as {
   property: { findUnique: ReturnType<typeof vi.fn> }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => { vi.clearAllMocks() })
 
 describe('getSystemConfig', () => {
   it('returns hardcoded defaults when no row exists', async () => {
