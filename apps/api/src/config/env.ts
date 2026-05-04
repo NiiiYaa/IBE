@@ -51,6 +51,12 @@ const EnvSchema = z.object({
   // WhatsApp Cloud API webhook verification token
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('ibe-whatsapp-verify'),
 
+  // DataForSEO — hotel score/review data provider
+  DATAFORSEO_LOGIN: z.string().optional(),
+  DATAFORSEO_PASSWORD: z.string().optional(),
+  // Cron expression for daily score refresh (default: 2am every day)
+  DATA_PROVIDER_CRON: z.string().default('0 2 * * *'),
+
   // Built-in OAuth server — MCP OAuth for ChatGPT and Claude.ai connectors
   // If not set, an ephemeral key pair is generated at startup (tokens lost on restart).
   // Generate a persistent pair with: node -e "const {generateKeyPairSync}=require('crypto');const k=generateKeyPairSync('rsa',{modulusLength:2048});console.log(k.privateKey.export({type:'pkcs8',format:'pem'}));console.log(k.publicKey.export({type:'spki',format:'pem'}))"
