@@ -197,6 +197,28 @@ export function getTotalStringCount(): number {
   return STATIC_NAMESPACES.reduce((sum, ns) => sum + Object.keys(src[ns] ?? {}).length, 0)
 }
 
+export async function getFacilityCoverage(): Promise<{ total: number; perLocale: Record<string, number> }> {
+  const src = getEnglishSource()
+  const facilityKeys = new Set(
+    FACILITY_NAMESPACES.flatMap(ns => Object.keys(src[ns] ?? {}).map(k => `${ns}.${k}`))
+  )
+  const total = facilityKeys.size
+
+  const rows = await prisma.translation.findMany({
+    where: { namespace: { in: [...FACILITY_NAMESPACES] } },
+    select: { locale: true, namespace: true, key: true },
+  })
+
+  const perLocale: Record<string, number> = {}
+  for (const row of rows) {
+    if (facilityKeys.has(`${row.namespace}.${row.key}`)) {
+      perLocale[row.locale] = (perLocale[row.locale] ?? 0) + 1
+    }
+  }
+
+  return { total, perLocale }
+}
+
 export async function autoTranslateMissing(
   locale: string,
   namespace: TranslationNamespace | null,

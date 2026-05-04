@@ -12,6 +12,7 @@ import {
   getTranslationAIConfig,
   upsertTranslationAIConfig,
   getTotalStringCount,
+  getFacilityCoverage,
 } from '../services/translation.service.js'
 
 export async function translationsPublicRoutes(fastify: FastifyInstance) {
@@ -56,6 +57,11 @@ export async function translationsAdminRoutes(fastify: FastifyInstance) {
   // GET /admin/design/translations/status — per-locale, per-namespace counts
   fastify.get('/admin/design/translations/status', async (_request, reply) => {
     return reply.send(await getTranslationStatus())
+  })
+
+  // GET /admin/design/translations/facility-coverage — facility translation counts per locale
+  fastify.get('/admin/design/translations/facility-coverage', async (_request, reply) => {
+    return reply.send(await getFacilityCoverage())
   })
 
   // GET /admin/design/translations/:locale/:namespace — list rows for editing

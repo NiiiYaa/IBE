@@ -1187,26 +1187,36 @@ function TranslationStats({
     enabled: nonEn.length > 0,
   })
 
+  // Facility (hotel_facilities + room_facilities) coverage
+  const { data: facilityCoverage } = useQuery({
+    queryKey: ['facility-coverage'],
+    queryFn: () => apiClient.getFacilityCoverage(),
+    staleTime: 60_000,
+  })
+
   const dynamicTotal = dynamicCounts ? Math.max(0, ...dynamicCounts.map(d => d.total)) : 0
   const dynamicMap = useMemo(
     () => Object.fromEntries((dynamicCounts ?? []).map(d => [d.locale, d.translated])),
     [dynamicCounts]
   )
 
+  const facilityTotal = facilityCoverage?.total ?? 0
+  const facilityMap = facilityCoverage?.perLocale ?? {}
+
   const staticTotal = translationTotal?.total ?? 0
-  const total = staticTotal + dynamicTotal
+  const total = staticTotal + dynamicTotal + facilityTotal
 
   const stats = useMemo(
     () => nonEn.map(code => {
       const row = translationStatus?.find(s => s.locale === code)
       const staticTranslated = row ? row.namespaces.reduce((s, n) => s + n.translated, 0) : 0
-      const dynamicTranslated = dynamicMap[code] ?? 0
+      const dynamicTranslated = (dynamicMap[code] ?? 0) + (facilityMap[code] ?? 0)
       const translated = staticTranslated + dynamicTranslated
       const missing = total - translated
       const pct = total > 0 ? Math.round((translated / total) * 100) : 0
       return { code, translated, missing, pct }
     }).sort((a, b) => a.pct - b.pct),
-    [nonEn, translationStatus, dynamicMap, total]
+    [nonEn, translationStatus, dynamicMap, facilityMap, total]
   )
 
   if (nonEn.length === 0) return null

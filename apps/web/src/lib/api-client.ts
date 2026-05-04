@@ -1020,6 +1020,11 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/design/translations/total')
   },
 
+  /** Facility translation coverage — total key count + per-locale translated count */
+  getFacilityCoverage(): Promise<{ total: number; perLocale: Record<string, number> }> {
+    return apiRequest('/api/v1/admin/design/translations/facility-coverage')
+  },
+
   /** List translation rows for a locale + namespace */
   getTranslationRows(locale: string, namespace: string): Promise<import('@ibe/shared').TranslationRow[]> {
     return apiRequest(`/api/v1/admin/design/translations/${encodeURIComponent(locale)}/${encodeURIComponent(namespace)}`)
