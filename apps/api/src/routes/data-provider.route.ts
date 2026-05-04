@@ -6,6 +6,7 @@ import {
   upsertOrgConfig,
   getPropertyConfig,
   upsertPropertyConfig,
+  getEffectiveConfig,
 } from '../services/data-provider.service.js'
 import { refreshProperty } from '../services/data-provider-fetch.service.js'
 import { prisma } from '../db/client.js'
@@ -50,14 +51,26 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' })
     }
 
-    const [propertyConfig, score] = await Promise.all([
+    const property = await prisma.property.findUnique({ where: { propertyId: id }, select: { organizationId: true } })
+    const orgId = property?.organizationId ?? null
+
+    const [propertyConfig, orgConfig, systemConfig, effectiveConfig, score] = await Promise.all([
       getPropertyConfig(id),
-      prisma.propertyScore.findUnique({ where: { propertyId: id } }),
+      orgId ? getOrgConfig(orgId) : Promise.resolve(null),
+      getSystemConfig(),
+      getEffectiveConfig(id),
+      prisma.propertyScore.findUnique({ where: { propertyId: id }, select: {
+        propertyId: true, score: true, reviewCount: true, source: true,
+        fetchedAt: true, status: true, errorMsg: true,
+      }}),
     ])
 
     return reply.send({
       propertyId: id,
       propertyConfig,
+      orgConfig,
+      systemConfig,
+      effective: effectiveConfig,
       score: score
         ? { ...score, fetchedAt: score.fetchedAt?.toISOString() ?? null }
         : null,
@@ -68,6 +81,13 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/data-provider/property/:propertyId', async (request, reply) => {
     const id = parseInt((request.params as { propertyId: string }).propertyId, 10)
     if (isNaN(id) || id <= 0) return reply.status(400).send({ error: 'Invalid property ID' })
+
+    if (request.admin.organizationId !== null) {
+      const orgId = await getOrgIdForProperty(id)
+      if (orgId && orgId !== request.admin.organizationId)
+        return reply.status(403).send({ error: 'Access denied' })
+    }
+
     return reply.send(await upsertPropertyConfig(id, request.body as Record<string, unknown>))
   })
 
