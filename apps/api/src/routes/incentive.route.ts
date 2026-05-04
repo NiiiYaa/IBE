@@ -281,15 +281,17 @@ export async function incentivePublicRoutes(fastify: FastifyInstance) {
   fastify.get('/incentives/property/:propertyId', async (request, reply) => {
     const propertyId = Number((request.params as { propertyId: string }).propertyId)
     if (!propertyId) return reply.status(400).send({ error: 'Invalid propertyId' })
+    const locale = (request.query as { locale?: string }).locale ?? 'en'
     reply.header('Cache-Control', 'public, max-age=30')
-    return reply.send(await resolveIncentiveSlotsForProperty(propertyId))
+    return reply.send(await resolveIncentiveSlotsForProperty(propertyId, locale))
   })
 
   fastify.get('/incentives/chain', async (request, reply) => {
-    const query = request.query as { orgId?: string }
+    const query = request.query as { orgId?: string; locale?: string }
     const orgId = query.orgId ? Number(query.orgId) : null
     if (!orgId) return reply.status(400).send({ error: 'orgId required' })
+    const locale = query.locale ?? 'en'
     reply.header('Cache-Control', 'public, max-age=30')
-    return reply.send(await resolveIncentiveSlotsForChain(orgId))
+    return reply.send(await resolveIncentiveSlotsForChain(orgId, locale))
   })
 }

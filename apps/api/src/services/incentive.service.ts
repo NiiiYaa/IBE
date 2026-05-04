@@ -373,20 +373,27 @@ export async function setIncentiveSlot(
 
 // ── Public resolvers ──────────────────────────────────────────────────────────
 
-export async function resolveIncentiveSlotsForProperty(propertyId: number) {
+async function getItemTranslations(locale: string): Promise<Map<string, string>> {
+  if (!locale || locale === 'en') return new Map()
+  const rows = await prisma.translation.findMany({ where: { locale, namespace: 'incentive_items' } })
+  return new Map(rows.map(r => [r.key, r.value]))
+}
+
+export async function resolveIncentiveSlotsForProperty(propertyId: number, locale = 'en') {
   // Need the property's orgId for chain inheritance
   const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { organizationId: true } })
   const orgId = property?.organizationId ?? null
 
-  const [hotelPage, roomBanner, roomResults] = await Promise.all([
+  const [hotelPage, roomBanner, roomResults, translations] = await Promise.all([
     resolveSlot('hotel_page', orgId, propertyId),
     resolveSlot('room_banner', orgId, propertyId),
     resolveSlot('room_results', orgId, propertyId),
+    getItemTranslations(locale),
   ])
 
   function toDisplay(r: Awaited<ReturnType<typeof resolveSlot>>) {
     if (!r?.pkg) return null
-    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
+    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => translations.get(String(pi.item.id)) ?? pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
   }
 
   return {
@@ -397,22 +404,23 @@ export async function resolveIncentiveSlotsForProperty(propertyId: number) {
   }
 }
 
-export async function resolveIncentiveSlotsForChain(orgId: number) {
+export async function resolveIncentiveSlotsForChain(orgId: number, locale = 'en') {
   const settings = await prisma.orgSettings.findUnique({ where: { organizationId: orgId } })
   if (settings && !settings.incentivesEnabled) {
     return { chainPage: null, hotelPage: null, roomBanner: null, roomResults: null }
   }
 
-  const [chainPage, hotelPage, roomBanner, roomResults] = await Promise.all([
+  const [chainPage, hotelPage, roomBanner, roomResults, translations] = await Promise.all([
     resolveSlot('chain_page', orgId, undefined),
     resolveSlot('hotel_page', orgId, undefined),
     resolveSlot('room_banner', orgId, undefined),
     resolveSlot('room_results', orgId, undefined),
+    getItemTranslations(locale),
   ])
 
   function toDisplay(r: Awaited<ReturnType<typeof resolveSlot>>) {
     if (!r?.pkg) return null
-    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
+    return { name: r.pkg.name, items: r.pkg.items.map((pi: any) => translations.get(String(pi.item.id)) ?? pi.item.text), fontSize: r.pkg.fontSize ?? 'md' }
   }
 
   return {

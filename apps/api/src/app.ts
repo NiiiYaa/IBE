@@ -20,6 +20,7 @@ import { adminRoutes } from './routes/admin.route.js'
 import { ratesRoutes } from './routes/rates.route.js'
 import { promoRoutes } from './routes/promo.route.js'
 import { affiliateRoutes } from './routes/affiliate.route.js'
+import { affiliatePortalRoutes } from './routes/affiliate-portal.route.js'
 import { campaignRoutes } from './routes/campaign.route.js'
 import { communicationRoutes } from './routes/communication.route.js'
 import { messageRoutes } from './routes/message.route.js'
@@ -143,6 +144,7 @@ export async function buildApp() {
   await app.register(navRoutes, { prefix: '/api/v1' })
   await app.register(ratesRoutes, { prefix: '/api/v1' })
   await app.register(authRoutes, { prefix: '/api/v1' })
+  await app.register(affiliatePortalRoutes, { prefix: '/api/v1' })
   await app.register(b2bAuthRoutes, { prefix: '/api/v1' })
 
   // Marketing settings public endpoint (effective features per property)
