@@ -41,7 +41,7 @@ import { logger } from '../utils/logger.js'
 export async function search(params: SearchParams, buyerOrgId?: number, channel?: string): Promise<SearchResponse> {
   const nights = nightsBetween(params.checkIn, params.checkOut)
 
-  const offers = await getEffectiveOffersSettings(params.hotelId)
+  const offers = await getEffectiveOffersSettings(params.hotelId, channel === 'b2b' ? 'b2b' : 'b2c')
 
   if (nights < offers.minNights) {
     throw constraintError(`Minimum stay is ${offers.minNights} night${offers.minNights !== 1 ? 's' : ''}`)

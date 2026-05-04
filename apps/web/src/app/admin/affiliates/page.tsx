@@ -65,11 +65,11 @@ const DEFAULT_FORM: FormState = {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AffiliatesPage() {
-  const { propertyId } = useAdminProperty()
-  return <AffiliatesEditor propertyId={propertyId} />
+  const { propertyId, orgId } = useAdminProperty()
+  return <AffiliatesEditor propertyId={propertyId} contextOrgId={orgId} />
 }
 
-function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefined }) {
+function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | null | undefined; contextOrgId: number | null }) {
   const scopedPropertyId = propertyId === null ? null : (propertyId ?? undefined)
   const qc = useQueryClient()
   const [form, setForm] = useState<FormState>(DEFAULT_FORM)
@@ -182,7 +182,37 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
 
   const isEditing = editingId !== null
 
-  // ── Marketplace config (hotel-level) ─────────────────────────────────────────
+  // ── Marketplace config — chain level ─────────────────────────────────────────
+
+  const chainMktQKey = useMemo(() => ['affiliate-marketplace-config', contextOrgId], [contextOrgId])
+  const { data: chainMktConfig } = useQuery({
+    queryKey: chainMktQKey,
+    queryFn: () => apiClient.getAffiliateMarketplaceConfig(contextOrgId ?? undefined),
+  })
+
+  const [chainMktEnabled, setChainMktEnabled] = useState(false)
+  const [chainMktRate, setChainMktRate] = useState<string>('')
+  const [chainMktDirty, setChainMktDirty] = useState(false)
+
+  useEffect(() => {
+    if (!chainMktConfig) return
+    setChainMktEnabled(chainMktConfig.affiliateMarketplace)
+    setChainMktRate(chainMktConfig.affiliateDefaultCommissionRate != null ? String(chainMktConfig.affiliateDefaultCommissionRate) : '')
+    setChainMktDirty(false)
+  }, [chainMktConfig])
+
+  const { mutate: saveChainMkt, isPending: isSavingChainMkt } = useMutation({
+    mutationFn: () => apiClient.updateAffiliateMarketplaceConfig(
+      { affiliateMarketplace: chainMktEnabled, affiliateDefaultCommissionRate: chainMktRate !== '' ? parseFloat(chainMktRate) : null },
+      contextOrgId ?? undefined,
+    ),
+    onSuccess: updated => {
+      qc.setQueryData(chainMktQKey, updated)
+      setChainMktDirty(false)
+    },
+  })
+
+  // ── Marketplace config — hotel level ──────────────────────────────────────────
 
   const configQKey = useMemo(() => ['hotel-config-admin', scopedPropertyId], [scopedPropertyId])
   const { data: hotelConfig } = useQuery({
@@ -223,13 +253,61 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
       </div>
 
       {/* ── Marketplace Settings ────────────────────────────────────────────── */}
-      {scopedPropertyId != null && (
-        <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-          <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">Affiliate Marketplace</h2>
-          <p className="mb-4 text-xs text-[var(--color-text-muted)]">
-            Enable to list this hotel in the affiliate marketplace. Affiliates can then discover and join this hotel&apos;s program.
-          </p>
+      <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+        <h2 className="mb-1 text-sm font-semibold text-[var(--color-text)]">Affiliate Marketplace</h2>
+        <p className="mb-4 text-xs text-[var(--color-text-muted)]">
+          {scopedPropertyId == null
+            ? 'Set chain-wide defaults. Each hotel can override these individually.'
+            : 'Enable to list this hotel in the affiliate marketplace. Affiliates can then discover and join this hotel\'s program.'}
+        </p>
+
+        {scopedPropertyId == null ? (
+          // Chain-level editor
           <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={chainMktEnabled}
+                onChange={e => { setChainMktEnabled(e.target.checked); setChainMktDirty(true) }}
+                className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+              />
+              <span className="text-sm text-[var(--color-text)]">List all hotels in affiliate marketplace by default</span>
+            </label>
+            {chainMktEnabled && (
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-[var(--color-text)] whitespace-nowrap">Default commission rate (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={chainMktRate}
+                  placeholder="e.g. 8"
+                  onChange={e => { setChainMktRate(e.target.value); setChainMktDirty(true) }}
+                  className="w-24 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+                />
+                <span className="text-xs text-[var(--color-text-muted)]">Applied to affiliates joining via the marketplace (hotels can override)</span>
+              </div>
+            )}
+            {chainMktDirty && (
+              <button
+                onClick={() => saveChainMkt()}
+                disabled={isSavingChainMkt}
+                className="rounded-md bg-[var(--color-primary)] px-4 py-1.5 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+              >
+                {isSavingChainMkt ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
+        ) : (
+          // Hotel-level editor with chain inheritance hint
+          <div className="space-y-4">
+            {chainMktConfig && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Chain default: <span className="font-medium">{chainMktConfig.affiliateMarketplace ? 'Enabled' : 'Disabled'}</span>
+                {chainMktConfig.affiliateDefaultCommissionRate != null && ` · ${chainMktConfig.affiliateDefaultCommissionRate}% commission`}
+              </p>
+            )}
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -248,7 +326,7 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
                   max={100}
                   step={0.1}
                   value={mktRate}
-                  placeholder="e.g. 8"
+                  placeholder={chainMktConfig?.affiliateDefaultCommissionRate != null ? `Chain: ${chainMktConfig.affiliateDefaultCommissionRate}` : 'e.g. 8'}
                   onChange={e => { setMktRate(e.target.value); setMktDirty(true) }}
                   className="w-24 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
                 />
@@ -265,8 +343,8 @@ function AffiliatesEditor({ propertyId }: { propertyId: number | null | undefine
               </button>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {deleteError && (
         <div className="mb-4 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 px-4 py-2 text-sm text-[var(--color-error)]">

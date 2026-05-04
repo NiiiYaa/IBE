@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { listAffiliates, createAffiliate, updateAffiliate, deleteAffiliate, getAffiliateOrg } from '../services/affiliate.service.js'
 import { getOrgIdForProperty } from '../services/property-registry.service.js'
+import { prisma } from '../db/client.js'
 
 async function resolveOrgId(admin: { organizationId: number | null }, propertyId: number | null): Promise<number | null> {
   if (admin.organizationId) return admin.organizationId
@@ -73,5 +74,50 @@ export async function affiliateRoutes(fastify: FastifyInstance) {
     }
     await deleteAffiliate(orgId, id)
     return reply.send({ ok: true })
+  })
+
+  // GET /admin/affiliates/marketplace-config — chain-level marketplace defaults
+  fastify.get('/admin/affiliates/marketplace-config', async (request, reply) => {
+    const qs = request.query as { propertyId?: string; orgId?: string }
+    const propertyId = qs.propertyId ? parseInt(qs.propertyId, 10) : null
+    const explicitOrgId = qs.orgId ? parseInt(qs.orgId, 10) : null
+    const orgId = request.admin.organizationId ?? explicitOrgId ?? (propertyId ? await getOrgIdForProperty(propertyId) : null)
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    const row = await prisma.orgSettings.findUnique({
+      where: { organizationId: orgId },
+      select: { affiliateMarketplace: true, affiliateDefaultCommissionRate: true },
+    })
+    return reply.send({
+      affiliateMarketplace: row?.affiliateMarketplace ?? false,
+      affiliateDefaultCommissionRate: row?.affiliateDefaultCommissionRate != null
+        ? Number(row.affiliateDefaultCommissionRate) : null,
+    })
+  })
+
+  // PUT /admin/affiliates/marketplace-config — update chain-level marketplace defaults
+  fastify.put('/admin/affiliates/marketplace-config', async (request, reply) => {
+    const qs = request.query as { propertyId?: string; orgId?: string }
+    const propertyId = qs.propertyId ? parseInt(qs.propertyId, 10) : null
+    const explicitOrgId = qs.orgId ? parseInt(qs.orgId, 10) : null
+    const orgId = request.admin.organizationId ?? explicitOrgId ?? (propertyId ? await getOrgIdForProperty(propertyId) : null)
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    const body = request.body as { affiliateMarketplace?: boolean; affiliateDefaultCommissionRate?: number | null }
+    const data: Record<string, unknown> = {}
+    if (body.affiliateMarketplace !== undefined) data.affiliateMarketplace = body.affiliateMarketplace
+    if (body.affiliateDefaultCommissionRate !== undefined) data.affiliateDefaultCommissionRate = body.affiliateDefaultCommissionRate
+    await prisma.orgSettings.upsert({
+      where: { organizationId: orgId },
+      create: { organizationId: orgId, ...data },
+      update: data,
+    })
+    const row = await prisma.orgSettings.findUnique({
+      where: { organizationId: orgId },
+      select: { affiliateMarketplace: true, affiliateDefaultCommissionRate: true },
+    })
+    return reply.send({
+      affiliateMarketplace: row?.affiliateMarketplace ?? false,
+      affiliateDefaultCommissionRate: row?.affiliateDefaultCommissionRate != null
+        ? Number(row.affiliateDefaultCommissionRate) : null,
+    })
   })
 }

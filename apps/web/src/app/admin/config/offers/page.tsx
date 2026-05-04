@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { OrgOffersSettings, UpdateOffersSettingsRequest, CancellationPolicyFilter, ChargePartyFilter, PaymentMethodFilter } from '@ibe/shared'
+import type { OrgOffersSettings, UpdateOffersSettingsRequest, CancellationPolicyFilter, ChargePartyFilter, PaymentMethodFilter, OffersChannel } from '@ibe/shared'
 import { BoardType, BOARD_TYPE_LABELS } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { Section, FormRow, SaveBar } from '../../design/components'
 
@@ -40,14 +41,67 @@ const PAYMENT_METHOD_OPTIONS: { value: PaymentMethodFilter; label: string }[] = 
 
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD', 'KRW', 'EGP', 'THB', 'SGD', 'ILS', 'SAR']
 
+// ── Channel tab switcher ──────────────────────────────────────────────────────
+
+function ChannelTabs({ value, onChange }: { value: OffersChannel; onChange: (c: OffersChannel) => void }) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1 w-fit">
+      {(['b2c', 'b2b'] as OffersChannel[]).map(ch => (
+        <button
+          key={ch}
+          type="button"
+          onClick={() => onChange(ch)}
+          className={[
+            'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+            value === ch
+              ? 'bg-[var(--color-primary)] text-white shadow-sm'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+          ].join(' ')}
+        >
+          {ch === 'b2c' ? 'B2C (Guests)' : 'B2B (Partners)'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
-  const { propertyId } = useAdminProperty()
+  const { admin } = useAdminAuth()
+  const { propertyId, orgId: contextOrgId } = useAdminProperty()
+  const [channel, setChannel] = useState<OffersChannel>('b2c')
+
   if (propertyId === undefined) return null
-  return propertyId === null
-    ? <GlobalOffersEditor />
-    : <PropertyOffersEditor propertyId={propertyId} />
+
+  const isSuper = admin?.role === 'super'
+  const isSystemLevel = isSuper && contextOrgId === null
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--color-text)]">Offers</h1>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            {isSystemLevel
+              ? 'System-wide defaults inherited by all chains.'
+              : propertyId === null
+                ? 'Chain defaults inherited by all properties. Leave a field blank to use the system default.'
+                : 'Property overrides. Leave blank to inherit from chain defaults.'}
+          </p>
+        </div>
+        <ChannelTabs value={channel} onChange={setChannel} />
+      </div>
+
+      {isSystemLevel ? (
+        <SystemOffersEditor key={channel} channel={channel} />
+      ) : propertyId === null ? (
+        <GlobalOffersEditor key={channel} channel={channel} />
+      ) : (
+        <PropertyOffersEditor key={channel} propertyId={propertyId} channel={channel} />
+      )}
+    </div>
+  )
 }
 
 // ── Shared UI helpers ─────────────────────────────────────────────────────────
@@ -99,13 +153,12 @@ function CheckboxGroup<T extends string>({
   options: { value: T; label: string }[]
   value: T[] | null
   onChange: (v: T[] | null) => void
-  inheritedLabel?: string
+  inheritedLabel?: string | undefined
 }) {
   const isAllowed = (v: T) => value === null || value.includes(v)
 
   function toggle(v: T) {
     if (value === null) {
-      // Currently "all allowed" — switching to explicit list excluding this item
       onChange(options.map(o => o.value).filter(o => o !== v))
     } else if (value.includes(v)) {
       const next = value.filter(o => o !== v)
@@ -184,17 +237,9 @@ function MultiRoomLimitSelector({
   )
 }
 
-// ── Global (org-level) editor ─────────────────────────────────────────────────
+// ── Shared form fields ────────────────────────────────────────────────────────
 
-function GlobalOffersEditor() {
-  const qc = useQueryClient()
-  const qKey = ['org-offers-settings']
-
-  const { data, isLoading } = useQuery<OrgOffersSettings>({
-    queryKey: qKey,
-    queryFn: () => apiClient.getOrgOffersSettings(),
-  })
-
+function useOffersForm(data: OrgOffersSettings | undefined, fallback?: OrgOffersSettings) {
   const [minNights, setMinNights] = useState<number | null>(null)
   const [maxNights, setMaxNights] = useState<number | null>(null)
   const [minRooms, setMinRooms] = useState<number | null>(null)
@@ -221,93 +266,72 @@ function GlobalOffersEditor() {
     setPaymentMethods(data.allowedPaymentMethods)
     setMinOfferValue(data.minOfferValue)
     setMinOfferCurrency(data.minOfferCurrency)
-    setBookingMode(data.bookingMode ?? 'single')
-    setMultiRoomLimitBy(data.multiRoomLimitBy ?? 'hotel')
+    setBookingMode(data.bookingMode ?? fallback?.bookingMode ?? 'single')
+    setMultiRoomLimitBy(data.multiRoomLimitBy ?? fallback?.multiRoomLimitBy ?? 'hotel')
     setIsDirty(false)
-  }, [data])
+  }, [data, fallback?.bookingMode, fallback?.multiRoomLimitBy])
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: (d: UpdateOffersSettingsRequest) => apiClient.updateOrgOffersSettings(d),
-    onSuccess: updated => {
-      qc.setQueryData(qKey, updated)
-    },
+  const markDirty = () => setIsDirty(true)
+  const payload = (): UpdateOffersSettingsRequest => ({
+    minNights, maxNights, minRooms, maxRooms,
+    allowedCancellationPolicies: cancellation,
+    allowedBoardTypes: boards,
+    allowedChargeParties: chargeParties,
+    allowedPaymentMethods: paymentMethods,
+    minOfferValue, minOfferCurrency, bookingMode, multiRoomLimitBy,
   })
 
-  function doSave() {
-    mutate({
-      minNights,
-      maxNights,
-      minRooms,
-      maxRooms,
-      allowedCancellationPolicies: cancellation,
-      allowedBoardTypes: boards,
-      allowedChargeParties: chargeParties,
-      allowedPaymentMethods: paymentMethods,
-      minOfferValue,
-      minOfferCurrency,
-      bookingMode,
-      multiRoomLimitBy,
-    })
+  return {
+    minNights, setMinNights, maxNights, setMaxNights,
+    minRooms, setMinRooms, maxRooms, setMaxRooms,
+    cancellation, setCancellation,
+    boards, setBoards,
+    chargeParties, setChargeParties,
+    paymentMethods, setPaymentMethods,
+    minOfferValue, setMinOfferValue,
+    minOfferCurrency, setMinOfferCurrency,
+    bookingMode, setBookingMode,
+    multiRoomLimitBy, setMultiRoomLimitBy,
+    isDirty, markDirty, payload,
   }
+}
 
-  function markDirty() { setIsDirty(true) }
-
-  if (isLoading) {
-    return (
-      <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
-        Loading…
-      </div>
-    )
+function OffersFormFields({
+  form,
+  currencies,
+  defaultCurrency,
+  upperHints,
+}: {
+  form: ReturnType<typeof useOffersForm>
+  currencies: string[]
+  defaultCurrency: string
+  upperHints?: {
+    minNights: string; maxNights: string; minRooms: string; maxRooms: string
+    cancellation: string | undefined; boards: string | undefined
+    chargeParties: string | undefined; paymentMethods: string | undefined
+    bookingMode: string | undefined; minOfferValue: string | undefined
   }
-
+}) {
+  const md = form.markDirty
   return (
-    <form onSubmit={e => { e.preventDefault(); doSave() }} className="mx-auto max-w-2xl space-y-6 p-6">
-      <div className="mb-2">
-        <h1 className="text-xl font-bold text-[var(--color-text)]">Offers</h1>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Global defaults inherited by all properties. Leave a field blank to use the system default.
-        </p>
-      </div>
-
+    <>
       <Section title="Search Constraints">
         <p className="text-xs text-[var(--color-text-muted)]">
-          Guests will see a validation message if they exceed these limits. Leave blank to use defaults (nights 1–30, rooms 1–6).
+          Guests will see a validation message if they exceed these limits.
+          {!upperHints && ' Leave blank to use system defaults (nights 1–30, rooms 1–6).'}
         </p>
         <div className="grid grid-cols-2 gap-4">
-          <NumberField
-            label="Min nights"
-            value={minNights}
-            placeholder={String(SYSTEM_DEFAULTS.minNights)}
-            min={1}
-            onChange={v => { setMinNights(v); markDirty() }}
-          />
-          <NumberField
-            label="Max nights"
-            value={maxNights}
-            placeholder={String(SYSTEM_DEFAULTS.maxNights)}
-            min={1}
-            onChange={v => { setMaxNights(v); markDirty() }}
-          />
-          <NumberField
-            label="Min rooms"
-            value={minRooms}
-            placeholder={String(SYSTEM_DEFAULTS.minRooms)}
-            min={1}
-            onChange={v => { setMinRooms(v); markDirty() }}
-          />
-          <NumberField
-            label="Max rooms"
-            value={maxRooms}
-            placeholder={String(SYSTEM_DEFAULTS.maxRooms)}
-            min={1}
-            onChange={v => { setMaxRooms(v); markDirty() }}
-          />
+          <NumberField label="Min nights" value={form.minNights} placeholder={upperHints?.minNights ?? String(SYSTEM_DEFAULTS.minNights)} min={1} onChange={v => { form.setMinNights(v); md() }} />
+          <NumberField label="Max nights" value={form.maxNights} placeholder={upperHints?.maxNights ?? String(SYSTEM_DEFAULTS.maxNights)} min={1} onChange={v => { form.setMaxNights(v); md() }} />
+          <NumberField label="Min rooms" value={form.minRooms} placeholder={upperHints?.minRooms ?? String(SYSTEM_DEFAULTS.minRooms)} min={1} onChange={v => { form.setMinRooms(v); md() }} />
+          <NumberField label="Max rooms" value={form.maxRooms} placeholder={upperHints?.maxRooms ?? String(SYSTEM_DEFAULTS.maxRooms)} min={1} onChange={v => { form.setMaxRooms(v); md() }} />
         </div>
       </Section>
 
       <Section title="Allow Multi-Room Booking Flow">
         <p className="text-xs text-[var(--color-text-muted)]">
-          Single-room: selecting an offer goes straight to checkout. Multi-room: guests add offers to a cart and book all rooms at once. Properties can override this.
+          Single-room: selecting an offer goes straight to checkout. Multi-room: guests add offers to a cart.
+          {upperHints?.bookingMode && ` Inheriting: ${upperHints.bookingMode}.`}
         </p>
         <div className="flex gap-4 pt-1">
           {([
@@ -317,104 +341,131 @@ function GlobalOffersEditor() {
             <label key={opt.value}
               className={[
                 'flex flex-1 cursor-pointer flex-col gap-1 rounded-xl border-2 px-4 py-3 transition-colors',
-                bookingMode === opt.value
+                form.bookingMode === opt.value
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/50',
               ].join(' ')}
             >
               <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="bookingMode"
-                  value={opt.value}
-                  checked={bookingMode === opt.value}
-                  onChange={() => { setBookingMode(opt.value); markDirty() }}
-                  className="accent-[var(--color-primary)]"
-                />
+                <input type="radio" name="bookingMode" value={opt.value} checked={form.bookingMode === opt.value}
+                  onChange={() => { form.setBookingMode(opt.value); md() }} className="accent-[var(--color-primary)]" />
                 <span className="text-sm font-medium text-[var(--color-text)]">{opt.label}</span>
               </div>
               <p className="ml-5 text-xs text-[var(--color-text-muted)]">{opt.hint}</p>
             </label>
           ))}
         </div>
-        {bookingMode === 'multi' && (
-          <MultiRoomLimitSelector value={multiRoomLimitBy} onChange={v => { setMultiRoomLimitBy(v); markDirty() }} />
+        {form.bookingMode === 'multi' && (
+          <MultiRoomLimitSelector value={form.multiRoomLimitBy} onChange={v => { form.setMultiRoomLimitBy(v); md() }} />
         )}
       </Section>
 
       <Section title="Rate Filters">
         <p className="text-xs text-[var(--color-text-muted)]">
-          Allowlists — only checked options will be shown to guests. Check all or leave all checked to show everything.
+          Allowlists — only checked options will be shown. Check all to allow everything.
         </p>
-        <CheckboxGroup
-          label="Cancellation Policy"
-          options={CANCELLATION_OPTIONS}
-          value={cancellation}
-          onChange={v => { setCancellation(v); markDirty() }}
-        />
-        <CheckboxGroup
-          label="Board Types"
-          options={BOARD_OPTIONS}
-          value={boards as string[] | null}
-          onChange={v => { setBoards(v); markDirty() }}
-        />
-        <CheckboxGroup
-          label="Charge Party"
-          options={CHARGE_PARTY_OPTIONS}
-          value={chargeParties}
-          onChange={v => { setChargeParties(v); markDirty() }}
-        />
-        <CheckboxGroup
-          label="Payment Method"
-          options={PAYMENT_METHOD_OPTIONS}
-          value={paymentMethods}
-          onChange={v => { setPaymentMethods(v); markDirty() }}
-        />
+        <CheckboxGroup label="Cancellation Policy" options={CANCELLATION_OPTIONS} value={form.cancellation}
+          onChange={v => { form.setCancellation(v); md() }}
+          inheritedLabel={upperHints?.cancellation} />
+        <CheckboxGroup label="Board Types" options={BOARD_OPTIONS} value={form.boards as string[] | null}
+          onChange={v => { form.setBoards(v); md() }}
+          inheritedLabel={upperHints?.boards} />
+        <CheckboxGroup label="Charge Party" options={CHARGE_PARTY_OPTIONS} value={form.chargeParties}
+          onChange={v => { form.setChargeParties(v); md() }}
+          inheritedLabel={upperHints?.chargeParties} />
+        <CheckboxGroup label="Payment Method" options={PAYMENT_METHOD_OPTIONS} value={form.paymentMethods}
+          onChange={v => { form.setPaymentMethods(v); md() }}
+          inheritedLabel={upperHints?.paymentMethods} />
       </Section>
 
       <Section title="Minimum Offer Value">
         <p className="text-xs text-[var(--color-text-muted)]">
-          Offers with a total price below this threshold will be hidden from guests. Leave blank to show all.
+          Offers with a total price below this threshold will be hidden.
+          {upperHints?.minOfferValue && ` Inheriting: ${upperHints.minOfferValue}.`}
         </p>
         <div className="grid grid-cols-2 gap-4">
-          <NumberField
-            label="Minimum value"
-            hint="(leave blank for no minimum)"
-            value={minOfferValue}
-            placeholder="e.g. 50"
-            min={0}
-            onChange={v => { setMinOfferValue(v); markDirty() }}
-          />
+          <NumberField label="Minimum value" hint="(leave blank to inherit)" value={form.minOfferValue}
+            placeholder={upperHints?.minOfferValue ?? 'no minimum'} min={0}
+            onChange={v => { form.setMinOfferValue(v); md() }} />
           <FormRow label="Currency">
-            <select
-              value={minOfferCurrency ?? ''}
-              onChange={e => { setMinOfferCurrency(e.target.value || null); markDirty() }}
-              className={inputCls}
-            >
-              <option value="">{SYSTEM_DEFAULTS.minOfferCurrency} (default)</option>
-              {COMMON_CURRENCIES.map(c => (
+            <select value={form.minOfferCurrency ?? ''} onChange={e => { form.setMinOfferCurrency(e.target.value || null); md() }} className={inputCls}>
+              <option value="">{defaultCurrency} (default)</option>
+              {[...new Set([...currencies, ...COMMON_CURRENCIES])].map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </FormRow>
         </div>
       </Section>
+    </>
+  )
+}
 
-      <SaveBar isDirty={isDirty} isSaving={isPending} onSave={doSave} />
+// ── System-level editor (super admin only) ────────────────────────────────────
+
+function SystemOffersEditor({ channel }: { channel: OffersChannel }) {
+  const qc = useQueryClient()
+  const qKey = ['system-offers-settings', channel]
+
+  const { data, isLoading } = useQuery<OrgOffersSettings>({
+    queryKey: qKey,
+    queryFn: () => apiClient.getSystemOffersSettings(channel),
+  })
+
+  const form = useOffersForm(data)
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (d: UpdateOffersSettingsRequest) => apiClient.updateSystemOffersSettings(channel, d),
+    onSuccess: updated => { qc.setQueryData(qKey, updated) },
+  })
+
+  if (isLoading) return <Spinner />
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); mutate(form.payload()) }} className="space-y-6">
+      <OffersFormFields form={form} currencies={COMMON_CURRENCIES} defaultCurrency={SYSTEM_DEFAULTS.minOfferCurrency} />
+      <SaveBar isDirty={form.isDirty} isSaving={isPending} onSave={() => mutate(form.payload())} />
+    </form>
+  )
+}
+
+// ── Global (org-level) editor ─────────────────────────────────────────────────
+
+function GlobalOffersEditor({ channel }: { channel: OffersChannel }) {
+  const qc = useQueryClient()
+  const qKey = ['org-offers-settings', channel]
+
+  const { data, isLoading } = useQuery<OrgOffersSettings>({
+    queryKey: qKey,
+    queryFn: () => apiClient.getOrgOffersSettings(channel),
+  })
+
+  const form = useOffersForm(data)
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (d: UpdateOffersSettingsRequest) => apiClient.updateOrgOffersSettings(channel, d),
+    onSuccess: updated => { qc.setQueryData(qKey, updated) },
+  })
+
+  if (isLoading) return <Spinner />
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); mutate(form.payload()) }} className="space-y-6">
+      <OffersFormFields form={form} currencies={COMMON_CURRENCIES} defaultCurrency={SYSTEM_DEFAULTS.minOfferCurrency} />
+      <SaveBar isDirty={form.isDirty} isSaving={isPending} onSave={() => mutate(form.payload())} />
     </form>
   )
 }
 
 // ── Property-level editor ─────────────────────────────────────────────────────
 
-
-function PropertyOffersEditor({ propertyId }: { propertyId: number }) {
+function PropertyOffersEditor({ propertyId, channel }: { propertyId: number; channel: OffersChannel }) {
   const qc = useQueryClient()
-  const qKey = ['property-offers-admin', propertyId]
+  const qKey = ['property-offers-admin', propertyId, channel]
 
   const { data, isLoading } = useQuery({
     queryKey: qKey,
-    queryFn: () => apiClient.getPropertyOffersAdmin(propertyId),
+    queryFn: () => apiClient.getPropertyOffersAdmin(propertyId, channel),
     enabled: propertyId > 0,
   })
 
@@ -430,250 +481,78 @@ function PropertyOffersEditor({ propertyId }: { propertyId: number }) {
 
   const overrides = data?.overrides
   const orgDefaults = data?.orgDefaults
+  const systemDefaults = data?.systemDefaults
 
-  // Effective fallback values (org default ?? system default)
-  const fallback = {
-    minNights: orgDefaults?.minNights ?? SYSTEM_DEFAULTS.minNights,
-    maxNights: orgDefaults?.maxNights ?? SYSTEM_DEFAULTS.maxNights,
-    minRooms: orgDefaults?.minRooms ?? SYSTEM_DEFAULTS.minRooms,
-    maxRooms: orgDefaults?.maxRooms ?? SYSTEM_DEFAULTS.maxRooms,
-    minOfferCurrency: orgDefaults?.minOfferCurrency ?? SYSTEM_DEFAULTS.minOfferCurrency,
+  // Effective fallback: org ?? system ?? hardcoded
+  function effectiveHint(
+    orgVal: string | number | null | undefined,
+    sysVal: string | number | null | undefined,
+    hardcoded: string | number,
+    label?: string,
+  ): string {
+    if (orgVal != null) return `${label ?? 'Chain'}: ${orgVal}`
+    if (sysVal != null) return `System: ${sysVal}`
+    return `System default: ${hardcoded}`
   }
 
-  const [minNights, setMinNights] = useState<number | null>(null)
-  const [maxNights, setMaxNights] = useState<number | null>(null)
-  const [minRooms, setMinRooms] = useState<number | null>(null)
-  const [maxRooms, setMaxRooms] = useState<number | null>(null)
-  const [cancellation, setCancellation] = useState<CancellationPolicyFilter[] | null>(null)
-  const [boards, setBoards] = useState<string[] | null>(null)
-  const [chargeParties, setChargeParties] = useState<ChargePartyFilter[] | null>(null)
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodFilter[] | null>(null)
-  const [minOfferValue, setMinOfferValue] = useState<number | null>(null)
-  const [minOfferCurrency, setMinOfferCurrency] = useState<string | null>(null)
-  const [bookingMode, setBookingMode] = useState<'single' | 'multi'>('single')
-  const [multiRoomLimitBy, setMultiRoomLimitBy] = useState<'search' | 'hotel'>('hotel')
-  const [isDirty, setIsDirty] = useState(false)
-
-  useEffect(() => {
-    if (!overrides) return
-    setMinNights(overrides.minNights)
-    setMaxNights(overrides.maxNights)
-    setMinRooms(overrides.minRooms)
-    setMaxRooms(overrides.maxRooms)
-    setCancellation(overrides.allowedCancellationPolicies)
-    setBoards(overrides.allowedBoardTypes)
-    setChargeParties(overrides.allowedChargeParties)
-    setPaymentMethods(overrides.allowedPaymentMethods)
-    setMinOfferValue(overrides.minOfferValue)
-    setMinOfferCurrency(overrides.minOfferCurrency)
-    setBookingMode(overrides.bookingMode ?? orgDefaults?.bookingMode ?? 'single')
-    setMultiRoomLimitBy(overrides.multiRoomLimitBy ?? orgDefaults?.multiRoomLimitBy ?? 'hotel')
-    setIsDirty(false)
-  }, [overrides, orgDefaults])
+  const form = useOffersForm(overrides, orgDefaults ?? undefined)
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (d: UpdateOffersSettingsRequest) => apiClient.updatePropertyOffersSettings(propertyId, d),
-    onSuccess: updated => {
-      qc.setQueryData(qKey, updated)
-    },
+    mutationFn: (d: UpdateOffersSettingsRequest) => apiClient.updatePropertyOffersSettings(propertyId, channel, d),
+    onSuccess: updated => { qc.setQueryData(qKey, updated) },
   })
 
-  function doSave() {
-    mutate({
-      minNights,
-      maxNights,
-      minRooms,
-      maxRooms,
-      allowedCancellationPolicies: cancellation,
-      allowedBoardTypes: boards,
-      allowedChargeParties: chargeParties,
-      allowedPaymentMethods: paymentMethods,
-      minOfferValue,
-      minOfferCurrency,
-      bookingMode,
-      multiRoomLimitBy,
-    })
-  }
+  if (isLoading) return <Spinner />
 
-  function markDirty() { setIsDirty(true) }
-
-  if (isLoading) {
-    return (
-      <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
-        Loading…
-      </div>
-    )
-  }
-
-  function inheritHint(globalVal: number | null, systemVal: number) {
-    const eff = globalVal ?? systemVal
-    return `Inheriting: ${eff} (from ${globalVal != null ? 'global' : 'system default'})`
+  const upperHints = {
+    minNights: effectiveHint(orgDefaults?.minNights, systemDefaults?.minNights, SYSTEM_DEFAULTS.minNights),
+    maxNights: effectiveHint(orgDefaults?.maxNights, systemDefaults?.maxNights, SYSTEM_DEFAULTS.maxNights),
+    minRooms: effectiveHint(orgDefaults?.minRooms, systemDefaults?.minRooms, SYSTEM_DEFAULTS.minRooms),
+    maxRooms: effectiveHint(orgDefaults?.maxRooms, systemDefaults?.maxRooms, SYSTEM_DEFAULTS.maxRooms),
+    cancellation: (() => {
+      const v = orgDefaults?.allowedCancellationPolicies ?? systemDefaults?.allowedCancellationPolicies
+      return v ? `Inheriting: ${v.join(', ')}` : 'Inheriting: all allowed'
+    })(),
+    boards: (() => {
+      const v = orgDefaults?.allowedBoardTypes ?? systemDefaults?.allowedBoardTypes
+      return v ? `Inheriting: ${v.join(', ')}` : 'Inheriting: all allowed'
+    })(),
+    chargeParties: (() => {
+      const v = orgDefaults?.allowedChargeParties ?? systemDefaults?.allowedChargeParties
+      return v ? `Inheriting: ${v.join(', ')}` : 'Inheriting: all allowed'
+    })(),
+    paymentMethods: (() => {
+      const v = orgDefaults?.allowedPaymentMethods ?? systemDefaults?.allowedPaymentMethods
+      return v ? `Inheriting: ${v.join(', ')}` : 'Inheriting: all allowed'
+    })(),
+    bookingMode: (() => {
+      const v = orgDefaults?.bookingMode ?? systemDefaults?.bookingMode
+      return v ?? undefined
+    })(),
+    minOfferValue: (() => {
+      const v = orgDefaults?.minOfferValue ?? systemDefaults?.minOfferValue
+      const cur = orgDefaults?.minOfferCurrency ?? systemDefaults?.minOfferCurrency ?? hotelDefaultCurrency
+      return v != null ? `${v} ${cur}` : undefined
+    })(),
   }
 
   return (
-    <form onSubmit={e => { e.preventDefault(); doSave() }} className="mx-auto max-w-2xl space-y-6 p-6">
-      <div className="mb-2">
-        <h1 className="text-xl font-bold text-[var(--color-text)]">Offers</h1>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Property-specific overrides. Leave blank to inherit from global defaults.
-        </p>
-      </div>
-
-      <Section title="Search Constraints">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Guests see a validation message if they exceed these limits.
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <NumberField
-            label="Min nights"
-            value={minNights}
-            placeholder={inheritHint(orgDefaults?.minNights ?? null, SYSTEM_DEFAULTS.minNights)}
-            min={1}
-            onChange={v => { setMinNights(v); markDirty() }}
-          />
-          <NumberField
-            label="Max nights"
-            value={maxNights}
-            placeholder={inheritHint(orgDefaults?.maxNights ?? null, SYSTEM_DEFAULTS.maxNights)}
-            min={1}
-            onChange={v => { setMaxNights(v); markDirty() }}
-          />
-          <NumberField
-            label="Min rooms"
-            value={minRooms}
-            placeholder={inheritHint(orgDefaults?.minRooms ?? null, SYSTEM_DEFAULTS.minRooms)}
-            min={1}
-            onChange={v => { setMinRooms(v); markDirty() }}
-          />
-          <NumberField
-            label="Max rooms"
-            value={maxRooms}
-            placeholder={inheritHint(orgDefaults?.maxRooms ?? null, SYSTEM_DEFAULTS.maxRooms)}
-            min={1}
-            onChange={v => { setMaxRooms(v); markDirty() }}
-          />
-        </div>
-      </Section>
-
-      <Section title="Allow Multi-Room Booking Flow">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Single-room: selecting an offer goes straight to checkout. Multi-room: guests add offers to a cart and book all rooms at once.
-          {orgDefaults?.bookingMode != null && ` Global default: ${orgDefaults.bookingMode}.`}
-        </p>
-        <div className="flex gap-4 pt-1">
-          {([
-            { value: 'single', label: 'Single-room booking', hint: 'Select → checkout immediately' },
-            { value: 'multi',  label: 'Multi-room booking',  hint: 'Select → add to cart → book all' },
-          ] as const).map(opt => (
-            <label key={opt.value}
-              className={[
-                'flex flex-1 cursor-pointer flex-col gap-1 rounded-xl border-2 px-4 py-3 transition-colors',
-                bookingMode === opt.value
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]'
-                  : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/50',
-              ].join(' ')}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="bookingMode"
-                  value={opt.value}
-                  checked={bookingMode === opt.value}
-                  onChange={() => { setBookingMode(opt.value); markDirty() }}
-                  className="accent-[var(--color-primary)]"
-                />
-                <span className="text-sm font-medium text-[var(--color-text)]">{opt.label}</span>
-              </div>
-              <p className="ml-5 text-xs text-[var(--color-text-muted)]">{opt.hint}</p>
-            </label>
-          ))}
-        </div>
-        {bookingMode === 'multi' && (
-          <MultiRoomLimitSelector value={multiRoomLimitBy} onChange={v => { setMultiRoomLimitBy(v); markDirty() }} />
-        )}
-      </Section>
-
-      <Section title="Rate Filters">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Allowlists — only checked options shown to guests. Leave all checked to inherit global settings.
-        </p>
-        <CheckboxGroup
-          label="Cancellation Policy"
-          options={CANCELLATION_OPTIONS}
-          value={cancellation}
-          onChange={v => { setCancellation(v); markDirty() }}
-          inheritedLabel={
-            orgDefaults?.allowedCancellationPolicies
-              ? `Global: ${orgDefaults.allowedCancellationPolicies.join(', ')}`
-              : 'Global: all allowed'
-          }
-        />
-        <CheckboxGroup
-          label="Board Types"
-          options={BOARD_OPTIONS}
-          value={boards as string[] | null}
-          onChange={v => { setBoards(v); markDirty() }}
-          inheritedLabel={
-            orgDefaults?.allowedBoardTypes
-              ? `Global: ${orgDefaults.allowedBoardTypes.join(', ')}`
-              : 'Global: all allowed'
-          }
-        />
-        <CheckboxGroup
-          label="Charge Party"
-          options={CHARGE_PARTY_OPTIONS}
-          value={chargeParties}
-          onChange={v => { setChargeParties(v); markDirty() }}
-          inheritedLabel={
-            orgDefaults?.allowedChargeParties
-              ? `Global: ${orgDefaults.allowedChargeParties.join(', ')}`
-              : 'Global: all allowed'
-          }
-        />
-        <CheckboxGroup
-          label="Payment Method"
-          options={PAYMENT_METHOD_OPTIONS}
-          value={paymentMethods}
-          onChange={v => { setPaymentMethods(v); markDirty() }}
-          inheritedLabel={
-            orgDefaults?.allowedPaymentMethods
-              ? `Global: ${orgDefaults.allowedPaymentMethods.join(', ')}`
-              : 'Global: all allowed'
-          }
-        />
-      </Section>
-
-      <Section title="Minimum Offer Value">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Offers below this price threshold are hidden.
-          {orgDefaults?.minOfferValue != null
-            ? ` Global: ${orgDefaults.minOfferValue} ${orgDefaults.minOfferCurrency ?? fallback.minOfferCurrency}`
-            : ' Global: no minimum set.'}
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <NumberField
-            label="Minimum value"
-            hint="(blank = inherit global)"
-            value={minOfferValue}
-            placeholder={orgDefaults?.minOfferValue != null ? String(orgDefaults.minOfferValue) : 'no minimum'}
-            min={0}
-            onChange={v => { setMinOfferValue(v); markDirty() }}
-          />
-          <FormRow label="Currency">
-            <select
-              value={minOfferCurrency ?? ''}
-              onChange={e => { setMinOfferCurrency(e.target.value || null); markDirty() }}
-              className={inputCls}
-            >
-              <option value="">{fallback.minOfferCurrency} (default)</option>
-              {[...new Set([hotelDefaultCurrency, ...hotelCurrencies, ...COMMON_CURRENCIES])]
-                .map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </FormRow>
-        </div>
-      </Section>
-
-      <SaveBar isDirty={isDirty} isSaving={isPending} onSave={doSave} />
+    <form onSubmit={e => { e.preventDefault(); mutate(form.payload()) }} className="space-y-6">
+      <OffersFormFields
+        form={form}
+        currencies={[...new Set([hotelDefaultCurrency, ...hotelCurrencies, ...COMMON_CURRENCIES])]}
+        defaultCurrency={hotelDefaultCurrency}
+        upperHints={upperHints}
+      />
+      <SaveBar isDirty={form.isDirty} isSaving={isPending} onSave={() => mutate(form.payload())} />
     </form>
+  )
+}
+
+function Spinner() {
+  return (
+    <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
+      Loading…
+    </div>
   )
 }

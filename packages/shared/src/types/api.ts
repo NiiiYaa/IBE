@@ -1291,6 +1291,7 @@ export type PaymentMethodFilter = 'online' | 'at_hotel'
 
 export type BookingMode = 'single' | 'multi'
 export type MultiRoomLimitBy = 'search' | 'hotel'
+export type OffersChannel = 'b2c' | 'b2b'
 
 export interface OrgOffersSettings {
   minNights: number | null
@@ -1309,8 +1310,10 @@ export interface OrgOffersSettings {
 
 export interface PropertyOffersAdminResponse {
   propertyId: number
-  overrides: OrgOffersSettings   // null fields = inheriting from org
-  orgDefaults: OrgOffersSettings // org-level values (null = system default)
+  channel: OffersChannel
+  overrides: OrgOffersSettings    // null fields = inheriting from org
+  orgDefaults: OrgOffersSettings  // org-level values (null = system default)
+  systemDefaults: OrgOffersSettings
 }
 
 export interface UpdateOffersSettingsRequest {

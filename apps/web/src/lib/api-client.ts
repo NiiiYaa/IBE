@@ -57,6 +57,7 @@ import type {
   OrgOffersSettings,
   PropertyOffersAdminResponse,
   UpdateOffersSettingsRequest,
+  OffersChannel,
   ImportSummary,
   OnsiteConversionSettings,
   OnsiteStats,
@@ -100,6 +101,7 @@ import type {
   PropertyWhatsAppSettingsResponse,
   UpdatePropertyWhatsAppSettingsRequest,
   AffiliateMarketplaceEntry,
+  AffiliateMarketplaceConfig,
   AffiliatePortalBooking,
   AffiliatePortalStats,
   AffiliateRegisterRequest,
@@ -554,6 +556,19 @@ export const apiClient = {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/affiliates/${id}`, { method: 'DELETE' })
   },
 
+  getAffiliateMarketplaceConfig(orgId?: number): Promise<AffiliateMarketplaceConfig> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<AffiliateMarketplaceConfig>(`/api/v1/admin/affiliates/marketplace-config${qs}`)
+  },
+
+  updateAffiliateMarketplaceConfig(data: AffiliateMarketplaceConfig, orgId?: number): Promise<AffiliateMarketplaceConfig> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest<AffiliateMarketplaceConfig>(`/api/v1/admin/affiliates/marketplace-config${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
   setPropertyOverride(data: SetPropertyOverrideRequest): Promise<{ ok: boolean }> {
     return apiRequest<{ ok: boolean }>('/api/v1/admin/property-overrides', {
       method: 'PUT',
@@ -638,23 +653,34 @@ export const apiClient = {
 
   // ── Admin: Offers Settings ─────────────────────────────────────────────────
 
-  getOrgOffersSettings(): Promise<OrgOffersSettings> {
-    return apiRequest<OrgOffersSettings>('/api/v1/admin/offers/global')
+  getSystemOffersSettings(channel: OffersChannel): Promise<OrgOffersSettings> {
+    return apiRequest<OrgOffersSettings>(`/api/v1/admin/offers/system?channel=${channel}`)
   },
 
-  updateOrgOffersSettings(data: UpdateOffersSettingsRequest): Promise<OrgOffersSettings> {
-    return apiRequest<OrgOffersSettings>('/api/v1/admin/offers/global', {
+  updateSystemOffersSettings(channel: OffersChannel, data: UpdateOffersSettingsRequest): Promise<OrgOffersSettings> {
+    return apiRequest<OrgOffersSettings>(`/api/v1/admin/offers/system?channel=${channel}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
   },
 
-  getPropertyOffersAdmin(propertyId: number): Promise<PropertyOffersAdminResponse> {
-    return apiRequest<PropertyOffersAdminResponse>(`/api/v1/admin/offers/property/${propertyId}`)
+  getOrgOffersSettings(channel: OffersChannel): Promise<OrgOffersSettings> {
+    return apiRequest<OrgOffersSettings>(`/api/v1/admin/offers/global?channel=${channel}`)
   },
 
-  updatePropertyOffersSettings(propertyId: number, data: UpdateOffersSettingsRequest): Promise<PropertyOffersAdminResponse> {
-    return apiRequest<PropertyOffersAdminResponse>(`/api/v1/admin/offers/property/${propertyId}`, {
+  updateOrgOffersSettings(channel: OffersChannel, data: UpdateOffersSettingsRequest): Promise<OrgOffersSettings> {
+    return apiRequest<OrgOffersSettings>(`/api/v1/admin/offers/global?channel=${channel}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  getPropertyOffersAdmin(propertyId: number, channel: OffersChannel): Promise<PropertyOffersAdminResponse> {
+    return apiRequest<PropertyOffersAdminResponse>(`/api/v1/admin/offers/property/${propertyId}?channel=${channel}`)
+  },
+
+  updatePropertyOffersSettings(propertyId: number, channel: OffersChannel, data: UpdateOffersSettingsRequest): Promise<PropertyOffersAdminResponse> {
+    return apiRequest<PropertyOffersAdminResponse>(`/api/v1/admin/offers/property/${propertyId}?channel=${channel}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
