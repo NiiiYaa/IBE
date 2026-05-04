@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, TranslationRow, AutoTranslateProgressEvent, GlobalDesignAdminResponse, TranslationAIConfigResponse, TranslationAIConfigUpdate, AIProvider } from '@ibe/shared'
-import { TRANSLATION_NAMESPACES, AI_PROVIDERS, AI_PROVIDER_LABELS, AI_PROVIDER_MODELS } from '@ibe/shared'
+import { TRANSLATION_NAMESPACES, FACILITY_NAMESPACES, AI_PROVIDERS, AI_PROVIDER_LABELS, AI_PROVIDER_MODELS } from '@ibe/shared'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
@@ -606,11 +606,12 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
     }, 0)
   }, [translationStatus, translationTotal, localeOptions])
 
-  // Fetch all namespaces in parallel for selected locale
+  // Fetch all non-facility namespaces in parallel for selected locale
+  const STATIC_NAMESPACES = TRANSLATION_NAMESPACES.filter(ns => !(FACILITY_NAMESPACES as readonly string[]).includes(ns))
   const { data: allRowsByNs, isLoading: rowsLoading, isError: rowsError, refetch: refetchRows } = useQuery({
     queryKey: ['translation-rows-all', selectedLocale],
     queryFn: () => Promise.all(
-      TRANSLATION_NAMESPACES.map(ns =>
+      STATIC_NAMESPACES.map(ns =>
         apiClient.getTranslationRows(selectedLocale!, ns).then(rows => ({ namespace: ns, rows }))
       )
     ),
@@ -798,7 +799,7 @@ function TranslationManager({ enabledLocales }: { enabledLocales: string[] }) {
               </button>
               <select value={nsFilter} onChange={e => setNsFilter(e.target.value)} className={ctrlCls}>
                 <option value="">All pages</option>
-                {TRANSLATION_NAMESPACES.map(ns => (
+                {STATIC_NAMESPACES.map(ns => (
                   <option key={ns} value={ns}>{NS_LABELS[ns] ?? ns}</option>
                 ))}
               </select>
@@ -1315,10 +1316,12 @@ function LocaleOrderEditor({
 
 const DYNAMIC_TYPES = [
   { key: 'incentive_items' as const, label: 'Incentives' },
-  // Future types: { key: 'package_names', label: 'Package Names' }, etc.
+  { key: 'hotel_facilities' as const, label: 'Hotel Facilities' },
+  { key: 'room_facilities' as const, label: 'Room Facilities' },
 ] as const
 
 type DynamicTypeKey = typeof DYNAMIC_TYPES[number]['key']
+const FACILITY_TYPES = new Set<DynamicTypeKey>(['hotel_facilities', 'room_facilities'])
 
 function DynamicStringsManager({
   enabledLocales,
@@ -1360,31 +1363,43 @@ function DynamicStringsManager({
 
   const sourceKey = sourcePropertyId ?? 'chain'
 
+  const isFacility = FACILITY_TYPES.has(selectedType)
+
   const rowsKey = useMemo(
-    () => ['incentive-item-translations', selectedType, selectedLocale, orgId ?? 'system', sourceKey],
-    [selectedType, selectedLocale, orgId, sourceKey],
+    () => isFacility
+      ? ['facility-translations', selectedType, selectedLocale]
+      : ['incentive-item-translations', selectedType, selectedLocale, orgId ?? 'system', sourceKey],
+    [isFacility, selectedType, selectedLocale, orgId, sourceKey],
   )
 
-  const { data: rows = [], isLoading: rowsLoading, refetch } = useQuery<DynamicTranslationRow[]>({
+  type AnyRow = { value: string | null; text?: string; en?: string; key?: string; id?: number }
+  const { data: rawRows, isLoading: rowsLoading, refetch } = useQuery<AnyRow[]>({
     queryKey: rowsKey,
-    queryFn: () => apiClient.listIncentiveItemTranslations(selectedLocale!, orgId, sourcePropertyId),
+    queryFn: isFacility
+      ? () => apiClient.getTranslationRows(selectedLocale!, selectedType) as Promise<AnyRow[]>
+      : () => apiClient.listIncentiveItemTranslations(selectedLocale!, orgId, sourcePropertyId) as Promise<AnyRow[]>,
     enabled: !!selectedLocale,
     staleTime: 30_000,
   })
 
-  // Total missing across all locales for the current source
+  // Normalise: facility rows are TranslationRow {key,en,value}; incentive rows are DynamicTranslationRow {id,text,value}
+  const rows: AnyRow[] = useMemo(() => rawRows ?? [], [rawRows])
+
+  // Total missing across all locales
   const allMissingKey = useMemo(
-    () => ['incentive-dynamic-all-missing', selectedType, orgId ?? 'system', sourceKey],
-    [selectedType, orgId, sourceKey],
+    () => isFacility
+      ? ['facility-all-missing', selectedType]
+      : ['incentive-dynamic-all-missing', selectedType, orgId ?? 'system', sourceKey],
+    [isFacility, selectedType, orgId, sourceKey],
   )
   const { data: allLanguagesMissing } = useQuery({
     queryKey: allMissingKey,
     queryFn: async () => {
       const counts = await Promise.all(
         localeOptions.map(locale =>
-          apiClient.listIncentiveItemTranslations(locale, orgId, sourcePropertyId)
-            .then(r => r.filter(x => !x.value).length)
-            .catch(() => 0)
+          isFacility
+            ? apiClient.getTranslationRows(locale, selectedType).then(r => r.filter(x => !x.value).length).catch(() => 0)
+            : apiClient.listIncentiveItemTranslations(locale, orgId, sourcePropertyId).then(r => r.filter(x => !x.value).length).catch(() => 0)
         )
       )
       return counts.reduce((sum, n) => sum + n, 0)
@@ -1394,34 +1409,47 @@ function DynamicStringsManager({
   })
 
   const filteredRows = useMemo(() => {
-    let r = rows
+    let r = rows as Array<{ value: string | null; text?: string; en?: string; key?: string; id?: number }>
     if (missingOnly) r = r.filter(x => !x.value)
     if (searchText) {
       const q = searchText.toLowerCase()
-      r = r.filter(x => x.text.toLowerCase().includes(q) || (x.value ?? '').toLowerCase().includes(q))
+      r = r.filter(x => {
+        const label = x.text ?? x.en ?? ''
+        return label.toLowerCase().includes(q) || (x.value ?? '').toLowerCase().includes(q)
+      })
     }
     return r
   }, [rows, missingOnly, searchText])
 
-  const missingCount = useMemo(() => rows.filter(r => !r.value).length, [rows])
+  const missingCount = useMemo(() => rows.filter((r: { value: string | null }) => !r.value).length, [rows])
 
   function invalidateAllMissing() {
     void qc.invalidateQueries({ queryKey: allMissingKey })
   }
 
   async function streamAutoTranslate(locale: string) {
-    const params = new URLSearchParams()
-    if (orgId != null) params.set('orgId', String(orgId))
-    if (sourcePropertyId != null) params.set('propertyId', String(sourcePropertyId))
-    const qs = params.toString() ? `?${params}` : ''
-
-    const res = await fetch(`/api/v1/admin/incentives/translations/${locale}/auto-translate${qs}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({}),
-      signal: abortRef.current!.signal,
-    })
+    let res: Response
+    if (isFacility) {
+      res = await fetch('/api/v1/admin/design/translations/auto-translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ locale, namespace: selectedType }),
+        signal: abortRef.current!.signal,
+      })
+    } else {
+      const params = new URLSearchParams()
+      if (orgId != null) params.set('orgId', String(orgId))
+      if (sourcePropertyId != null) params.set('propertyId', String(sourcePropertyId))
+      const qs = params.toString() ? `?${params}` : ''
+      res = await fetch(`/api/v1/admin/incentives/translations/${locale}/auto-translate${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+        signal: abortRef.current!.signal,
+      })
+    }
     if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`)
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
@@ -1438,7 +1466,7 @@ function DynamicStringsManager({
           const event = JSON.parse(line.slice(6)) as AutoTranslateProgressEvent
           if (event.type === 'progress') setTranslateCount(c => c + 1)
           if (event.type === 'error') setTranslateError(event.message)
-          if (event.type === 'done') void qc.invalidateQueries({ queryKey: ['incentive-item-translations'] })
+          if (event.type === 'done') void qc.invalidateQueries({ queryKey: isFacility ? ['facility-translations'] : ['incentive-item-translations'] })
         } catch { /* ignore */ }
       }
     }
@@ -1459,7 +1487,8 @@ function DynamicStringsManager({
   }
 
   async function runTranslateAll() {
-    if (!window.confirm('AI-translate all missing incentive item strings for every enabled language?')) return
+    const label = isFacility ? 'facility names' : 'incentive item strings'
+    if (!window.confirm(`AI-translate all missing ${label} for every enabled language?`)) return
     if (translating) return
     setTranslating(true); setTranslateCount(0); setTranslateError(null)
     abortRef.current = new AbortController()
@@ -1492,7 +1521,9 @@ function DynamicStringsManager({
         <div>
           <h2 className="text-base font-semibold text-[var(--color-text)]">Dynamic Strings</h2>
           <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-            Translate incentive item text — custom strings defined in Marketing → Incentives.
+            {isFacility
+              ? 'Translate HyperGuest facility names — shown on hotel and room pages.'
+              : 'Translate incentive item text — custom strings defined in Marketing → Incentives.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1518,8 +1549,8 @@ function DynamicStringsManager({
               <option key={t.key} value={t.key}>{t.label}</option>
             ))}
           </select>
-          {/* Source picker — visible when there are hotels to choose from */}
-          {sourceOptions.length > 1 && (
+          {/* Source picker — incentives only, not applicable to global facility lists */}
+          {!isFacility && sourceOptions.length > 1 && (
             <select
               value={sourcePropertyId ?? ''}
               onChange={e => {
@@ -1588,7 +1619,7 @@ function DynamicStringsManager({
             </div>
           ) : filteredRows.length === 0 ? (
             <p className="py-10 text-center text-sm text-[var(--color-text-muted)]">
-              {missingOnly ? 'All items are translated.' : 'No incentive items defined yet.'}
+              {missingOnly ? 'All items are translated.' : isFacility ? 'No facility entries found.' : 'No incentive items defined yet.'}
             </p>
           ) : (
             <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
@@ -1604,14 +1635,24 @@ function DynamicStringsManager({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map(row => (
-                      <DynamicItemRow
-                        key={row.id}
-                        row={row}
-                        locale={selectedLocale}
-                        onSaved={() => { void refetch(); invalidateAllMissing() }}
-                      />
-                    ))}
+                    {filteredRows.map((row, i) =>
+                      isFacility ? (
+                        <FacilityItemRow
+                          key={(row as { key: string }).key ?? i}
+                          row={row as { key: string; en: string; value: string | null }}
+                          namespace={selectedType}
+                          locale={selectedLocale}
+                          onSaved={() => { void refetch(); invalidateAllMissing() }}
+                        />
+                      ) : (
+                        <DynamicItemRow
+                          key={(row as { id: number }).id}
+                          row={row as DynamicTranslationRow}
+                          locale={selectedLocale}
+                          onSaved={() => { void refetch(); invalidateAllMissing() }}
+                        />
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1620,6 +1661,95 @@ function DynamicStringsManager({
         </>
       )}
     </div>
+  )
+}
+
+function FacilityItemRow({
+  row, namespace, locale, onSaved,
+}: {
+  row: { key: string; en: string; value: string | null }
+  namespace: string
+  locale: string
+  onSaved: () => void
+}) {
+  const [value, setValue] = useState(row.value ?? '')
+  const [saving, setSaving] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+  const [rowError, setRowError] = useState<string | null>(null)
+  const savedRef = useRef(row.value ?? '')
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => { setValue(row.value ?? ''); savedRef.current = row.value ?? '' }, [row.value])
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
+
+  async function save(val = value) {
+    const trimmed = val.trim()
+    if (trimmed === savedRef.current) return
+    setSaving(true); setRowError(null)
+    try {
+      await apiClient.upsertTranslation(locale, namespace, row.key, trimmed)
+      savedRef.current = trimmed
+      setJustSaved(true)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setJustSaved(false), 1800)
+      onSaved()
+    } catch { setRowError('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  async function aiTranslate() {
+    setAiRunning(true); setRowError(null)
+    try {
+      const { value: translated } = await apiClient.translateOneString(locale, namespace, row.key)
+      setValue(translated)
+      savedRef.current = translated
+      setJustSaved(true)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setJustSaved(false), 1800)
+      onSaved()
+    } catch (err) { setRowError(err instanceof Error ? err.message : 'AI failed') }
+    finally { setAiRunning(false) }
+  }
+
+  const isDirty = value.trim() !== savedRef.current
+  const isEmpty = !savedRef.current
+  const busy = saving || aiRunning
+
+  return (
+    <tr className={['border-b border-[var(--color-border)] last:border-0', isEmpty ? 'bg-amber-50/40' : ''].join(' ')}>
+      <td className="px-4 py-2 text-xs text-[var(--color-text-muted)] align-middle">{row.en}</td>
+      <td className="px-4 py-2 align-middle">
+        <div>
+          <input
+            type="text"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            onBlur={() => save()}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            className={['w-full rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-light)]',
+              justSaved ? 'border-[var(--color-success)] bg-[var(--color-success)]/5' : 'border-[var(--color-border)] bg-[var(--color-background)]',
+            ].join(' ')}
+          />
+          {rowError && <p className="mt-0.5 text-[10px] text-[var(--color-error)]">{rowError}</p>}
+        </div>
+      </td>
+      <td className="px-2 py-2 align-middle">
+        <button
+          onClick={aiTranslate}
+          disabled={busy}
+          title="AI translate"
+          className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-primary)] disabled:opacity-40"
+        >
+          {aiRunning
+            ? <span className="inline-block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+            : isDirty && !saving
+              ? <span className="text-[10px] font-bold text-[var(--color-primary)]">↑</span>
+              : <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+          }
+        </button>
+      </td>
+    </tr>
   )
 }
 

@@ -1,7 +1,11 @@
 export const TRANSLATION_NAMESPACES = [
   'common', 'search', 'properties', 'rooms', 'booking',
   'confirmation', 'account', 'groups', 'crossSell', 'weather', 'events',
+  'hotel_facilities', 'room_facilities',
 ] as const
+
+export const FACILITY_NAMESPACES = ['hotel_facilities', 'room_facilities'] as const
+export type FacilityNamespace = typeof FACILITY_NAMESPACES[number]
 
 export type TranslationNamespace = typeof TRANSLATION_NAMESPACES[number]
 

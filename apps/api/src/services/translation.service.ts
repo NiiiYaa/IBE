@@ -3,7 +3,10 @@ import { prisma } from '../db/client.js'
 import { resolveAIConfig, encryptApiKey, decryptApiKey } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import type { TranslationNamespace, TranslationRow, TranslationLocaleStatus, TranslationStatusResponse, AutoTranslateProgressEvent, TranslationAIConfigResponse, TranslationAIConfigUpdate, AIProvider } from '@ibe/shared'
-import { TRANSLATION_NAMESPACES } from '@ibe/shared'
+import { TRANSLATION_NAMESPACES, FACILITY_NAMESPACES } from '@ibe/shared'
+
+// Namespaces shown in static coverage/editor — excludes facility lists (shown in Dynamic Strings)
+const STATIC_NAMESPACES = TRANSLATION_NAMESPACES.filter(ns => !(FACILITY_NAMESPACES as readonly string[]).includes(ns))
 import { listIncentiveItems } from './incentive.service.js'
 
 const _require = createRequire(import.meta.url)
@@ -56,7 +59,7 @@ export async function getTranslationStatus(): Promise<TranslationStatusResponse>
       const existingSet = new Set(existing.map(r => `${r.namespace}.${r.key}`))
 
       let totalMissing = 0
-      const namespaces = TRANSLATION_NAMESPACES.map(ns => {
+      const namespaces = STATIC_NAMESPACES.map(ns => {
         const keys = Object.keys(src[ns] ?? {})
         const translated = keys.filter(k => existingSet.has(`${ns}.${k}`)).length
         const missing = keys.length - translated
@@ -191,7 +194,7 @@ export async function translateSingleString(
 
 export function getTotalStringCount(): number {
   const src = getEnglishSource()
-  return TRANSLATION_NAMESPACES.reduce((sum, ns) => sum + Object.keys(src[ns] ?? {}).length, 0)
+  return STATIC_NAMESPACES.reduce((sum, ns) => sum + Object.keys(src[ns] ?? {}).length, 0)
 }
 
 export async function autoTranslateMissing(
@@ -231,7 +234,7 @@ export async function autoTranslateMissing(
   if (!aiConfig) throw new Error('No AI config found at system level. Configure an AI model in Admin → AI → Configuration first.')
 
   const src = getEnglishSource()
-  const namespacesToProcess = namespace ? [namespace] : [...TRANSLATION_NAMESPACES]
+  const namespacesToProcess = namespace ? [namespace] : [...STATIC_NAMESPACES]
 
   // Find all missing keys across requested namespaces
   const existing = await prisma.translation.findMany({
