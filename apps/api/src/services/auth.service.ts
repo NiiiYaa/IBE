@@ -159,9 +159,19 @@ export async function getAdminById(id: number) {
   })
   if (!user || !user.isActive) return null
 
-  if (user.role !== 'super' && user.organizationId) {
-    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { isActive: true, deletedAt: true } })
-    if (!org || !org.isActive || org.deletedAt) return null
+  let orgName: string | null = null
+  let orgHyperGuestOrgId: string | null = null
+  if (user.organizationId) {
+    const org = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { isActive: true, deletedAt: true, name: true, hyperGuestOrgId: true },
+    })
+    if (!org || !org.isActive || org.deletedAt) {
+      if (user.role !== 'super') return null
+    } else {
+      orgName = org.name
+      orgHyperGuestOrgId = org.hyperGuestOrgId
+    }
   }
 
   return {
@@ -173,6 +183,8 @@ export async function getAdminById(id: number) {
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
     propertyIds: user.role === 'user' ? user.adminUserProperties.map(p => p.propertyId) : undefined,
+    orgName,
+    orgHyperGuestOrgId,
   }
 }
 

@@ -214,6 +214,8 @@ export interface AdminMe {
   isActive: boolean
   mustChangePassword: boolean
   propertyIds?: number[]
+  orgName: string | null
+  orgHyperGuestOrgId: string | null
 }
 
 export interface DataProviderGlobalResponse {
