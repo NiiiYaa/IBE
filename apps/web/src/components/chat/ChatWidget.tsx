@@ -36,7 +36,10 @@ export function ChatWidget({ propertyId, orgId, whatsappPrefilledMessage }: Prop
     const name = chatConfig?.name
     const base = whatsappPrefilledMessage
       ?? (name ? `Hello, I'd like to find out about ${name}.` : `Hello, I'd like to find out about your property.`)
-    const text = propertyId ? `${base} (property id: ${propertyId})` : base
+    const suffix = propertyId
+      ? `(property id: ${propertyId}${orgId ? `, org id: ${orgId}` : ''})`
+      : null
+    const text = suffix ? `${base} ${suffix}` : base
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
   }
 

@@ -55,19 +55,21 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
 
     // Extract hotel name from greeting and lock to the correct property/org immediately,
     // overriding any stale phone-registry context from a previous conversation.
-    // 1. Prefer property ID embedded in greeting: "... (property 12345)"
-    const pidMatch = message.match(/\(property\s+id:\s*(\d+)\)/i)
+    // 1. Prefer property ID (and optional org ID) embedded in greeting
+    const pidMatch = message.match(/\(property\s+id:\s*(\d+)(?:,\s*org\s+id:\s*(\d+))?\)/i)
     if (pidMatch) {
       const pid = parseInt(pidMatch[1]!, 10)
+      const embeddedOrgId = pidMatch[2] ? parseInt(pidMatch[2], 10) : undefined
       const prop = await prisma.property.findUnique({
         where: { propertyId: pid },
         select: { propertyId: true, organizationId: true },
       })
       if (prop) {
-        orgId = prop.organizationId
+        // Use the org from the greeting if provided (correct chain context), otherwise fall back to property's own org
+        orgId = embeddedOrgId ?? prop.organizationId
         propertyId = prop.propertyId
-        await setWaSessionContext(sessionId, { orgId: prop.organizationId, propertyId: prop.propertyId })
-        logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId }, '[WhatsApp] Fresh greeting locked to property by ID')
+        await setWaSessionContext(sessionId, { orgId, propertyId: prop.propertyId })
+        logger.info({ from, sessionId, propertyId: prop.propertyId, orgId }, '[WhatsApp] Fresh greeting locked to property by ID')
       }
     } else {
       // 2. Fall back to name matching — strip brand qualifiers like "by ASTON", "- Collection"

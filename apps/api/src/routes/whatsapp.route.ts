@@ -95,10 +95,18 @@ async function processInbound(phoneNumberId: string, from: string, text: string,
     await Promise.all([session.save(sessionId, []), clearWaSessionContext(sessionId)])
     logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
 
-    // 1. Prefer property ID embedded in greeting: "... (property 12345)"
-    const pidMatch = text.match(/\(property\s+id:\s*(\d+)\)/i)
+    // 1. Prefer property ID (and optional org ID) embedded in greeting
+    const pidMatch = text.match(/\(property\s+id:\s*(\d+)(?:,\s*org\s+id:\s*(\d+))?\)/i)
     if (pidMatch) {
       freshPropertyId = parseInt(pidMatch[1]!, 10)
+      // If the greeting specifies an org (multi-org hotel), use it instead of the phone's org
+      if (pidMatch[2]) {
+        const embeddedOrgId = parseInt(pidMatch[2], 10)
+        await setWaSessionContext(sessionId, { orgId: embeddedOrgId, propertyId: freshPropertyId })
+        logger.info({ sessionId, propertyId: freshPropertyId, orgId: embeddedOrgId }, '[WhatsApp] Fresh greeting locked to property by ID')
+        // Skip the default setWaSessionContext below
+        freshPropertyId = undefined
+      }
     } else {
       // 2. Fall back to name match within this org
       const nameMatch = text.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*(?:\(|$)/i)
