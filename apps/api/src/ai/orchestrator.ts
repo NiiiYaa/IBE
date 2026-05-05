@@ -122,9 +122,23 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     }
   }
 
-  // Use WhatsApp-specific model override if configured
-  const effectiveModel = (channel === 'whatsapp' && aiConfig.whatsappModel) ? aiConfig.whatsappModel : aiConfig.model
-  const adapter = getProviderAdapter(aiConfig.provider)
+  let effectiveProvider = aiConfig.provider
+  let effectiveApiKey = aiConfig.apiKey
+  let effectiveModel = aiConfig.model
+
+  if (channel === 'whatsapp') {
+    if (aiConfig.whatsappProvider && aiConfig.whatsappProvider !== aiConfig.provider) {
+      // Different provider — use its own key and model
+      effectiveProvider = aiConfig.whatsappProvider
+      effectiveApiKey = aiConfig.whatsappApiKey ?? aiConfig.apiKey
+      effectiveModel = aiConfig.whatsappModel ?? aiConfig.model
+    } else if (aiConfig.whatsappModel) {
+      // Same provider, model override only
+      effectiveModel = aiConfig.whatsappModel
+    }
+  }
+
+  const adapter = getProviderAdapter(effectiveProvider)
 
   // WhatsApp-specific additions: plain URLs only, concise formatting
   const channelHint = channel === 'whatsapp'
@@ -142,7 +156,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++
 
-    const response = await adapter.call(messages, ALL_TOOLS, systemPrompt, aiConfig.apiKey, effectiveModel)
+    const response = await adapter.call(messages, ALL_TOOLS, systemPrompt, effectiveApiKey, effectiveModel)
 
     if (response.stopReason === 'error') {
       logger.error({ sessionId, error: response.error }, '[Orchestrator] Provider error')
