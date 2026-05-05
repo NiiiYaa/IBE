@@ -5,6 +5,7 @@ export interface SystemDataProviderConfig {
   providerType: DataProviderType
   refreshIntervalDays: number
   enabled: boolean
+  openToAll: boolean
 }
 
 export interface OrgDataProviderConfig {
@@ -12,6 +13,10 @@ export interface OrgDataProviderConfig {
   useSystem: boolean
   refreshIntervalDays: number | null
   enabled: boolean | null
+  providerType: DataProviderType | null
+  loginSet: boolean
+  passwordMasked: string | null
+  systemServiceDisabled: boolean
 }
 
 export interface PropertyDataProviderConfig {
@@ -19,6 +24,10 @@ export interface PropertyDataProviderConfig {
   useOrg: boolean
   refreshIntervalDays: number | null
   enabled: boolean | null
+  providerType: DataProviderType | null
+  loginSet: boolean
+  passwordMasked: string | null
+  orgServiceDisabled: boolean
 }
 
 export interface PropertyScore {
@@ -26,7 +35,7 @@ export interface PropertyScore {
   score: number | null
   reviewCount: number | null
   source: string | null
-  fetchedAt: string | null  // ISO string
+  fetchedAt: string | null
   status: ScoreStatus
   errorMsg: string | null
 }
