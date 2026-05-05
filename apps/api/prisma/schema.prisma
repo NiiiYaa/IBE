@@ -1552,7 +1552,7 @@ model OrgDataProviderConfig {
 model PropertyDataProviderConfig {
   id                  Int      @id @default(autoincrement())
   propertyId          Int      @unique
-  property            Property @relation(fields: [propertyId], references: [id], map: "PropertyDataProviderConfig_propertyId_fkey")
+  property            Property @relation(fields: [propertyId], references: [propertyId], map: "PropertyDataProviderConfig_propertyId_fkey")
   useOrg              Boolean  @default(true)
   refreshIntervalDays Int?
   enabled             Boolean?
