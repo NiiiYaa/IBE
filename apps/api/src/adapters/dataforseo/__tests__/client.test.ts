@@ -5,11 +5,13 @@ vi.stubGlobal('fetch', mockFetch)
 
 import { fetchHotelScore } from '../client.js'
 
+const TEST_CID = '4172147798342520944'
+
 beforeEach(() => { vi.clearAllMocks() })
 
 describe('fetchHotelScore', () => {
   it('returns null when login/password not configured', async () => {
-    const result = await fetchHotelScore('Hotel Test', 'Paris', 'FR', undefined, undefined)
+    const result = await fetchHotelScore(TEST_CID, undefined, undefined)
     expect(result).toBeNull()
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -31,7 +33,7 @@ describe('fetchHotelScore', () => {
       }),
     })
 
-    const result = await fetchHotelScore('Hotel Test', 'Paris', 'FR', 'testlogin', 'testpassword')
+    const result = await fetchHotelScore(TEST_CID, 'testlogin', 'testpassword')
     expect(result).toEqual({ score: 4.5, reviewCount: 1240 })
   })
 
@@ -41,19 +43,19 @@ describe('fetchHotelScore', () => {
       json: async () => ({ tasks: [{ status_code: 20000, result: [{ items: [] }] }] }),
     })
 
-    const result = await fetchHotelScore('Unknown Hotel', 'Nowhere', 'XX', 'login', 'pass')
+    const result = await fetchHotelScore(TEST_CID, 'login', 'pass')
     expect(result).toBeNull()
   })
 
   it('returns null on HTTP error', async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 403 })
-    const result = await fetchHotelScore('Hotel Test', 'Paris', 'FR', 'login', 'pass')
+    const result = await fetchHotelScore(TEST_CID, 'login', 'pass')
     expect(result).toBeNull()
   })
 
   it('returns null on network error', async () => {
     mockFetch.mockRejectedValue(new Error('network failure'))
-    const result = await fetchHotelScore('Hotel Test', 'Paris', 'FR', 'login', 'pass')
+    const result = await fetchHotelScore(TEST_CID, 'login', 'pass')
     expect(result).toBeNull()
   })
 })

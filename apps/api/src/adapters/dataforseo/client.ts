@@ -49,9 +49,7 @@ export interface HotelScoreResult {
 }
 
 export async function fetchHotelScore(
-  hotelName: string,
-  cityName: string,
-  countryCode: string,
+  cid: string,
   login: string | undefined,
   password: string | undefined,
 ): Promise<HotelScoreResult | null> {
@@ -61,7 +59,6 @@ export async function fetchHotelScore(
   }
 
   const credentials = Buffer.from(`${login}:${password}`).toString('base64')
-  const locationName = `${cityName},${countryCode}`
 
   try {
     const res = await fetch(DATAFORSEO_URL, {
@@ -70,36 +67,32 @@ export async function fetchHotelScore(
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([{
-        hotel_identifier: hotelName,
-        location_name: locationName,
-        language_name: 'English',
-      }]),
+      body: JSON.stringify([{ hotel_identifier: cid }]),
       signal: AbortSignal.timeout(15000),
     })
 
     if (!res.ok) {
-      logger.warn({ hotelName, status: res.status }, '[DataForSEO] HTTP error')
+      logger.warn({ cid, status: res.status }, '[DataForSEO] HTTP error')
       return null
     }
 
     const data = await res.json() as DataForSEOResponse
     const task = data.tasks?.[0]
     if (!task || task.status_code !== 20000) {
-      logger.warn({ hotelName, taskStatus: task?.status_code }, '[DataForSEO] Task error')
+      logger.warn({ cid, taskStatus: task?.status_code }, '[DataForSEO] Task error')
       return null
     }
 
     const item = task.result?.[0]?.items?.find(i => i.type === 'hotel_info')
     if (!item?.rating) {
-      logger.info({ hotelName, locationName }, '[DataForSEO] No hotel_info item found')
+      logger.info({ cid }, '[DataForSEO] No hotel_info item found')
       return null
     }
 
-    logger.info({ hotelName, score: item.rating.value, reviewCount: item.rating.votes_count }, '[DataForSEO] Score fetched')
+    logger.info({ cid, score: item.rating.value, reviewCount: item.rating.votes_count }, '[DataForSEO] Score fetched')
     return { score: item.rating.value, reviewCount: item.rating.votes_count }
   } catch (err) {
-    logger.warn({ hotelName, err }, '[DataForSEO] Fetch failed')
+    logger.warn({ cid, err }, '[DataForSEO] Fetch failed')
     return null
   }
 }

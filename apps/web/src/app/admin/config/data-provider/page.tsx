@@ -586,6 +586,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
   const [password, setPassword] = useState('')
   const [refreshIntervalDays, setRefreshIntervalDays] = useState<number | null>(null)
   const [orgServiceDisabled, setOrgServiceDisabled] = useState(false)
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -595,12 +596,18 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
       setProviderType(propData.providerType ?? 'dataforseo')
       setRefreshIntervalDays(propData.refreshIntervalDays)
       setOrgServiceDisabled(propData.orgServiceDisabled)
+      setGoogleMapsUrl(propData.googleMapsUrl ?? '')
     }
   }, [propData])
+
+  const parsedCid = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)?.[1]
+    ? String(BigInt(`0x${googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)![1]}`))
+    : null
 
   const isDirty = !!propData && (
     useOrg !== propData.useOrg ||
     orgServiceDisabled !== propData.orgServiceDisabled ||
+    googleMapsUrl !== (propData.googleMapsUrl ?? '') ||
     (!useOrg && (
       providerType !== (propData.providerType ?? 'dataforseo') ||
       login !== '' ||
@@ -613,7 +620,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const body: Record<string, unknown> = { useOrg, orgServiceDisabled }
+      const body: Record<string, unknown> = { useOrg, orgServiceDisabled, googleMapsUrl: googleMapsUrl || null }
       if (!useOrg) {
         body.providerType = providerType
         if (login) body.login = login
@@ -705,6 +712,32 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
             </div>
           </div>
         )}
+      </SectionCard>
+
+      <SectionCard title="Google Rating Lookup">
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Google Maps URL</label>
+            <input
+              type="url"
+              value={googleMapsUrl}
+              onChange={e => setGoogleMapsUrl(e.target.value)}
+              placeholder="https://www.google.com/maps/place/..."
+              className={inputCls}
+            />
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Open the hotel on Google Maps, copy the full URL, and paste it here.
+            </p>
+          </div>
+          {googleMapsUrl && (
+            parsedCid
+              ? <p className="text-xs text-[var(--color-success)]">CID extracted: {parsedCid}</p>
+              : <p className="text-xs text-[var(--color-error)]">Could not extract CID — make sure to use a full Google Maps URL.</p>
+          )}
+          {!googleMapsUrl && propData?.googleMapsUrl && (
+            <p className="text-xs text-[var(--color-text-muted)]">Current URL saved. Paste a new one to update.</p>
+          )}
+        </div>
       </SectionCard>
 
       {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}

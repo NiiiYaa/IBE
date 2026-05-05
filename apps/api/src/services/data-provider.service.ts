@@ -4,6 +4,21 @@ import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 
+// ── Google Maps CID parser ────────────────────────────────────────────────────
+
+// Extracts the Google CID (decimal string) from a Google Maps URL.
+// Google Maps URLs embed the CID as the second hex value in the !1s0x...:0x... segment.
+// Example: !1s0x4876035aec559b97:0x39d8bfb462bd7070 → "4172147798342520944"
+export function parseCidFromGoogleMapsUrl(url: string): string | null {
+  const match = url.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+  if (!match) return null
+  try {
+    return BigInt(`0x${match[1]}`).toString()
+  } catch {
+    return null
+  }
+}
+
 // ── Encryption ────────────────────────────────────────────────────────────────
 
 function getEncryptionKey(): Buffer {
@@ -56,6 +71,7 @@ export interface EffectiveDataProviderConfig {
   enabled: boolean
   login: string | undefined
   password: string | undefined
+  cid: string | null
 }
 
 // ── Row mappers ───────────────────────────────────────────────────────────────
@@ -117,6 +133,7 @@ function rowToPropertyConfig(row: {
   providerType: string | null
   login: string | null
   password: string | null
+  googleMapsUrl: string | null
   orgServiceDisabled: boolean
 }): PropertyDataProviderConfig {
   return {
@@ -127,6 +144,7 @@ function rowToPropertyConfig(row: {
     providerType: (row.providerType as DataProviderType | null) ?? null,
     loginSet: !!row.login,
     passwordMasked: row.password ? maskPassword(row.password) : null,
+    googleMapsUrl: row.googleMapsUrl,
     orgServiceDisabled: row.orgServiceDisabled,
   }
 }
@@ -197,7 +215,7 @@ export async function getPropertyConfig(propertyId: number): Promise<PropertyDat
 
 export async function upsertPropertyConfig(
   propertyId: number,
-  updates: Partial<Pick<PropertyDataProviderConfig, 'useOrg' | 'refreshIntervalDays' | 'enabled' | 'providerType' | 'orgServiceDisabled'>> & { login?: string; password?: string },
+  updates: Partial<Pick<PropertyDataProviderConfig, 'useOrg' | 'refreshIntervalDays' | 'enabled' | 'providerType' | 'orgServiceDisabled' | 'googleMapsUrl'>> & { login?: string; password?: string },
 ): Promise<PropertyDataProviderConfig> {
   const data: Record<string, unknown> = {}
   if (updates.useOrg !== undefined) data.useOrg = updates.useOrg
@@ -205,6 +223,7 @@ export async function upsertPropertyConfig(
   if (updates.enabled !== undefined) data.enabled = updates.enabled
   if (updates.providerType !== undefined) data.providerType = updates.providerType
   if (updates.orgServiceDisabled !== undefined) data.orgServiceDisabled = updates.orgServiceDisabled
+  if (updates.googleMapsUrl !== undefined) data.googleMapsUrl = updates.googleMapsUrl || null
   if (updates.login !== undefined && updates.login !== '') data.login = encryptCredential(updates.login)
   if (updates.password !== undefined && updates.password !== '') data.password = encryptCredential(updates.password)
 
@@ -229,6 +248,8 @@ export async function getEffectiveConfig(propertyId: number): Promise<EffectiveD
   const system = systemRow ? rowToSystemConfig(systemRow) : { ...SYSTEM_DEFAULTS }
   const systemAccessible = system.openToAll && !(orgRow?.systemServiceDisabled ?? false)
 
+  const cid = propRow?.googleMapsUrl ? parseCidFromGoogleMapsUrl(propRow.googleMapsUrl) : null
+
   // property uses own config when useOrg=false OR orgServiceDisabled=true
   if (propRow && (!propRow.useOrg || propRow.orgServiceDisabled)) {
     return {
@@ -237,6 +258,7 @@ export async function getEffectiveConfig(propertyId: number): Promise<EffectiveD
       enabled: propRow.enabled ?? system.enabled,
       login: propRow.login ? decryptCredential(propRow.login) : undefined,
       password: propRow.password ? decryptCredential(propRow.password) : undefined,
+      cid,
     }
   }
 
@@ -248,6 +270,7 @@ export async function getEffectiveConfig(propertyId: number): Promise<EffectiveD
       enabled: propRow?.enabled ?? orgRow.enabled ?? system.enabled,
       login: orgRow.login ? decryptCredential(orgRow.login) : undefined,
       password: orgRow.password ? decryptCredential(orgRow.password) : undefined,
+      cid,
     }
   }
 
@@ -258,5 +281,6 @@ export async function getEffectiveConfig(propertyId: number): Promise<EffectiveD
     enabled: propRow?.enabled ?? system.enabled,
     login: systemRow?.login ? decryptCredential(systemRow.login) : env.DATAFORSEO_LOGIN,
     password: systemRow?.password ? decryptCredential(systemRow.password) : env.DATAFORSEO_PASSWORD,
+    cid,
   }
 }

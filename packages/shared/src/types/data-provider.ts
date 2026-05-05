@@ -29,6 +29,7 @@ export interface PropertyDataProviderConfig {
   providerType: DataProviderType | null
   loginSet: boolean
   passwordMasked: string | null
+  googleMapsUrl: string | null
   orgServiceDisabled: boolean
 }
 

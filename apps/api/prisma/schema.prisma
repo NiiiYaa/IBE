@@ -1559,6 +1559,7 @@ model PropertyDataProviderConfig {
   providerType        String?
   login               String?
   password            String?
+  googleMapsUrl       String?
   orgServiceDisabled  Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

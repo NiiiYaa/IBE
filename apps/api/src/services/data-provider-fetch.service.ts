@@ -2,7 +2,6 @@ import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 import { getEffectiveConfig } from './data-provider.service.js'
 import { fetchHotelScore } from '../adapters/dataforseo/client.js'
-import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 
 export interface RefreshResult {
   propertyId: number
@@ -19,6 +18,10 @@ export async function refreshProperty(propertyId: number, { force = false } = {}
     return { propertyId, skipped: true, reason: 'disabled' }
   }
 
+  if (!config.cid) {
+    return { propertyId, skipped: true, reason: 'No Google Maps URL configured for this property' }
+  }
+
   // Verify the property exists in the local DB before writing PropertyScore (FK constraint)
   const propertyExists = await prisma.property.findUnique({ where: { propertyId }, select: { propertyId: true } })
   if (!propertyExists) {
@@ -33,15 +36,8 @@ export async function refreshProperty(propertyId: number, { force = false } = {}
   })
 
   try {
-    const staticData = await fetchPropertyStatic(propertyId)
-    const hotelName = staticData.name
-    const cityName = staticData.location?.city?.name ?? ''
-    const countryCode = staticData.location?.countryCode ?? ''
-
     const result = await fetchHotelScore(
-      hotelName,
-      cityName,
-      countryCode,
+      config.cid,
       config.login,
       config.password,
     )
