@@ -122,6 +122,8 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     }
   }
 
+  // Use faster WhatsApp-specific model if configured
+  const effectiveModel = (channel === 'whatsapp' && aiConfig.whatsappModel) ? aiConfig.whatsappModel : aiConfig.model
   const adapter = getProviderAdapter(aiConfig.provider)
 
   // WhatsApp-specific additions: plain URLs only, concise formatting
@@ -140,7 +142,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++
 
-    const response = await adapter.call(messages, ALL_TOOLS, systemPrompt, aiConfig.apiKey, aiConfig.model)
+    const response = await adapter.call(messages, ALL_TOOLS, systemPrompt, aiConfig.apiKey, effectiveModel)
 
     if (response.stopReason === 'error') {
       logger.error({ sessionId, error: response.error }, '[Orchestrator] Provider error')

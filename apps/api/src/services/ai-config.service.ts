@@ -73,6 +73,7 @@ export async function upsertSystemAIConfig(data: AIConfigUpdate): Promise<AIConf
   const update: Record<string, unknown> = {}
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
+  if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -114,6 +115,7 @@ export async function upsertOrgAIConfig(organizationId: number, data: OrgAIConfi
   if (data.useInherited !== undefined) update.useInherited = data.useInherited
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
+  if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -167,6 +169,7 @@ export async function upsertPropertyAIConfig(propertyId: number, data: PropertyA
   if (data.useInherited !== undefined) update.useInherited = data.useInherited
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
+  if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -186,6 +189,7 @@ export async function upsertPropertyAIConfig(propertyId: number, data: PropertyA
 export interface ResolvedAIConfig {
   provider: AIProvider
   model: string
+  whatsappModel: string | null
   apiKey: string
   systemPrompt: string | null
   source: 'property' | 'org' | 'system'
@@ -202,6 +206,7 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
       return {
         provider: propRow.provider as AIProvider,
         model: propRow.model!,
+        whatsappModel: propRow.whatsappModel ?? null,
         apiKey: isFakeProp ? '' : decryptApiKey(propRow.apiKey!),
         systemPrompt: propRow.systemPrompt,
         source: 'property',
@@ -216,6 +221,7 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
         return {
           provider: orgRow.provider as AIProvider,
           model: orgRow.model!,
+          whatsappModel: orgRow.whatsappModel ?? null,
           apiKey: isFakeOrg ? '' : decryptApiKey(orgRow.apiKey!),
           systemPrompt: orgRow.systemPrompt,
           source: 'org',
@@ -232,6 +238,7 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
       return {
         provider: orgRow.provider as AIProvider,
         model: orgRow.model!,
+        whatsappModel: orgRow.whatsappModel ?? null,
         apiKey: isFakeOrg ? '' : decryptApiKey(orgRow.apiKey!),
         systemPrompt: orgRow.systemPrompt,
         source: 'org',
@@ -246,6 +253,7 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
     return {
       provider: systemRow.provider as AIProvider,
       model: systemRow.model,
+      whatsappModel: systemRow.whatsappModel ?? null,
       apiKey: isFakeSys ? '' : decryptApiKey(systemRow.apiKey),
       systemPrompt: systemRow.systemPrompt,
       source: 'system',
