@@ -95,16 +95,21 @@ async function processInbound(phoneNumberId: string, from: string, text: string,
     await Promise.all([session.save(sessionId, []), clearWaSessionContext(sessionId)])
     logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
 
-    // Extract hotel name from the greeting and resolve to a specific property.
-    // The name comes from property.name (via chatConfig), so it matches the DB exactly.
-    const nameMatch = text.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*$/i)
-    if (nameMatch) {
-      const pid = await resolvePropertyByNameInOrg(org.organizationId, nameMatch[1]!.trim())
-      if (pid) {
-        freshPropertyId = pid
-        await setWaSessionContext(sessionId, { orgId: org.organizationId, propertyId: pid })
-        logger.info({ sessionId, propertyId: pid }, '[WhatsApp] Fresh greeting locked to property')
+    // 1. Prefer property ID embedded in greeting: "... (property 12345)"
+    const pidMatch = text.match(/\(property\s+(\d+)\)/i)
+    if (pidMatch) {
+      freshPropertyId = parseInt(pidMatch[1]!, 10)
+    } else {
+      // 2. Fall back to name match within this org
+      const nameMatch = text.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*(?:\(|$)/i)
+      if (nameMatch) {
+        const pid = await resolvePropertyByNameInOrg(org.organizationId, nameMatch[1]!.trim())
+        if (pid) freshPropertyId = pid
       }
+    }
+    if (freshPropertyId) {
+      await setWaSessionContext(sessionId, { orgId: org.organizationId, propertyId: freshPropertyId })
+      logger.info({ sessionId, propertyId: freshPropertyId }, '[WhatsApp] Fresh greeting locked to property')
     }
   }
 
