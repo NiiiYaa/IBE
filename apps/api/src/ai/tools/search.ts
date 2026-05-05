@@ -52,16 +52,16 @@ const BOARD_ABBR: Record<string, string> = {
 }
 
 function formatCancellationPolicy(deadlines: { deadline: string; type: string }[], isRefundable: boolean): string {
-  if (!isRefundable) return 'Non-refundable'
+  if (!isRefundable) return '✘ Non-refundable'
 
-  const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  const fmt = (d: Date) => `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'long' })}-${d.getFullYear()}`
 
   // Prefer explicit "free" deadline (latest = when free window closes)
   const free = deadlines.filter(d => d.type === 'free')
   if (free.length > 0) {
     const latest = free.reduce((max, d) => new Date(d.deadline) > new Date(max.deadline) ? d : max)
     const date = new Date(latest.deadline)
-    if (!isNaN(date.getTime())) return `Free cancellation until ${fmt(date)}`
+    if (!isNaN(date.getTime())) return `✓ Free until ${fmt(date)} | ✘ Fees apply after ${fmt(date)}`
   }
 
   // Fall back: earliest penalty deadline = when free cancellation ends
@@ -69,10 +69,10 @@ function formatCancellationPolicy(deadlines: { deadline: string; type: string }[
   if (penalty.length > 0) {
     const earliest = penalty.reduce((min, d) => new Date(d.deadline) < new Date(min.deadline) ? d : min)
     const date = new Date(earliest.deadline)
-    if (!isNaN(date.getTime())) return `Free cancellation until ${fmt(date)}`
+    if (!isNaN(date.getTime())) return `✓ Free until ${fmt(date)} | ✘ Fees apply after ${fmt(date)}`
   }
 
-  return 'Free cancellation'
+  return '✓ Free cancellation'
 }
 
 function boardAbbr(board: string, label: string): string {
