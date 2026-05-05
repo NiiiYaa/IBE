@@ -1,12 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useRef } from 'react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { SaveBar } from '../../design/components'
 import type { DataProviderType, SystemDataProviderConfig, OrgDataProviderConfig } from '@ibe/shared'
+
+function extractTripAdvisorKey(input: string): string | null {
+  const match = input.match(/g\d+-d\d+/)
+  return match ? match[0] : null
+}
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
 
@@ -281,6 +286,107 @@ function ScorePanel({ propertyId }: { propertyId: number }) {
           propertyId={propertyId}
           onRefreshed={() => qc.invalidateQueries({ queryKey: ['dp-property', propertyId] })}
         />
+      </div>
+    </SectionCard>
+  )
+}
+
+// ── TripAdvisor section ────────────────────────────────────────────────────────
+
+function TripAdvisorSection({ propertyId, propertyName }: { propertyId: number; propertyName: string | null }) {
+  const qc = useQueryClient()
+  const [urlInput, setUrlInput] = useState('')
+  const [saved, setSaved] = useState(false)
+  const initialized = useRef(false)
+
+  const { data: config } = useQuery({
+    queryKey: ['admin-config', propertyId],
+    queryFn: () => apiClient.getHotelConfigAdmin(propertyId),
+    staleTime: Infinity,
+  })
+
+  useEffect(() => {
+    initialized.current = false
+    setUrlInput('')
+  }, [propertyId])
+
+  useEffect(() => {
+    if (!initialized.current && config?.tripadvisorHotelKey !== undefined) {
+      initialized.current = true
+      setUrlInput(config.tripadvisorHotelKey ?? '')
+    }
+  }, [config?.tripadvisorHotelKey])
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (key: string | null) =>
+      apiClient.updateHotelConfig(propertyId, { tripadvisorHotelKey: key }),
+    onSuccess: (fresh) => {
+      qc.setQueryData(['admin-config', propertyId], fresh)
+      qc.setQueryData(['hotel-config', propertyId], fresh)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    },
+  })
+
+  const extractedKey = extractTripAdvisorKey(urlInput)
+  const currentKey = config?.tripadvisorHotelKey ?? null
+  const isDirty = extractedKey !== currentKey
+
+  return (
+    <SectionCard title="TripAdvisor">
+      <div className="space-y-3">
+        {propertyName && (
+          <a
+            href={`https://www.tripadvisor.com/Search?q=${encodeURIComponent(propertyName)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          >
+            Open in TripAdvisor →
+          </a>
+        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">TripAdvisor URL or hotel key</label>
+          <input
+            type="text"
+            placeholder="https://www.tripadvisor.com/Hotel_Review-g293916-d305496-... or g293916-d305496"
+            value={urlInput}
+            onChange={e => setUrlInput(e.target.value)}
+            className={inputCls}
+          />
+          {urlInput && (
+            <p className="mt-1 text-xs">
+              {extractedKey
+                ? <span className="text-[var(--color-success)]">Hotel key: <strong>{extractedKey}</strong></span>
+                : <span className="text-[var(--color-error)]">No hotel key found — paste the full TripAdvisor URL</span>
+              }
+            </p>
+          )}
+          {!urlInput && currentKey && (
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Current key: <strong>{currentKey}</strong></p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => mutate(extractedKey)}
+            disabled={isPending || !isDirty || (urlInput !== '' && !extractedKey)}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+          >
+            {isPending ? 'Saving…' : 'Save'}
+          </button>
+          {currentKey && (
+            <button
+              type="button"
+              onClick={() => { setUrlInput(''); mutate(null) }}
+              disabled={isPending}
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-50"
+            >
+              Remove
+            </button>
+          )}
+          {saved && <span className="text-xs text-[var(--color-success)]">Saved</span>}
+        </div>
       </div>
     </SectionCard>
   )
@@ -722,27 +828,17 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
         )}
       </SectionCard>
 
-      <SectionCard title="Google Rating Lookup">
+      <SectionCard title="Google">
         <div className="space-y-3">
           {data?.propertyName && (
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={`https://www.google.com/maps/search/${encodeURIComponent(data.propertyName)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              >
-                Open in Google Maps →
-              </a>
-              <a
-                href={`https://www.tripadvisor.com/Search?q=${encodeURIComponent(data.propertyName)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              >
-                Open in TripAdvisor →
-              </a>
-            </div>
+            <a
+              href={`https://www.google.com/maps/search/${encodeURIComponent(data.propertyName)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            >
+              Open in Google Maps →
+            </a>
           )}
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Google Maps URL</label>
@@ -777,6 +873,8 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
           )}
         </div>
       </SectionCard>
+
+      <TripAdvisorSection propertyId={propertyId} propertyName={data?.propertyName ?? null} />
 
       {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={saving} onSave={handleSave} />

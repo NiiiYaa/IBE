@@ -1,17 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PriceComparisonOta } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
 
 const DEFAULT_PROPERTY_ID = Number(process.env['NEXT_PUBLIC_DEFAULT_HOTEL_ID'])
-
-function extractHotelKey(input: string): string | null {
-  const match = input.match(/g\d+-d\d+/)
-  return match ? match[0] : null
-}
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -33,100 +28,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 
-function TripAdvisorSection({ propertyId }: { propertyId: number }) {
-  const qc = useQueryClient()
-  const [urlInput, setUrlInput] = useState('')
-  const [saved, setSaved] = useState(false)
-  const initialized = useRef(false)
-
-  const { data: config } = useQuery({
-    queryKey: ['admin-config', propertyId],
-    queryFn: () => apiClient.getHotelConfigAdmin(propertyId),
-    staleTime: Infinity,
-  })
-
-  useEffect(() => {
-    initialized.current = false
-    setUrlInput('')
-  }, [propertyId])
-
-  useEffect(() => {
-    if (!initialized.current && config?.tripadvisorHotelKey !== undefined) {
-      initialized.current = true
-      setUrlInput(config.tripadvisorHotelKey ?? '')
-    }
-  }, [config?.tripadvisorHotelKey])
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: (key: string | null) =>
-      apiClient.updateHotelConfig(propertyId, { tripadvisorHotelKey: key }),
-    onSuccess: (fresh) => {
-      qc.setQueryData(['admin-config', propertyId], fresh)
-      qc.setQueryData(['hotel-config', propertyId], fresh)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    },
-  })
-
-  const extractedKey = extractHotelKey(urlInput)
-  const currentKey = config?.tripadvisorHotelKey ?? null
-  const isDirty = extractedKey !== currentKey
-
-  return (
-    <div className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">TripAdvisor Hotel Key</h2>
-        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-          Paste your hotel's TripAdvisor URL to enable live price comparison via the Xotelo API — no scraping needed.
-        </p>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">TripAdvisor URL or hotel key</label>
-        <input
-          type="text"
-          placeholder="https://www.tripadvisor.com/Hotel_Review-g293916-d305496-... or g293916-d305496"
-          value={urlInput}
-          onChange={e => setUrlInput(e.target.value)}
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
-        />
-        {urlInput && (
-          <p className="mt-1 text-xs">
-            {extractedKey
-              ? <span className="text-[var(--color-success)]">Hotel key detected: <strong>{extractedKey}</strong></span>
-              : <span className="text-[var(--color-error)]">No hotel key found — paste the full TripAdvisor URL</span>
-            }
-          </p>
-        )}
-        {!urlInput && currentKey && (
-          <p className="mt-1 text-xs text-[var(--color-text-muted)]">Current key: <strong>{currentKey}</strong></p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => mutate(extractedKey)}
-          disabled={isPending || !isDirty || (urlInput !== '' && !extractedKey)}
-          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-        >
-          {isPending ? 'Saving…' : 'Save'}
-        </button>
-        {currentKey && (
-          <button
-            type="button"
-            onClick={() => { setUrlInput(''); mutate(null) }}
-            disabled={isPending}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-50"
-          >
-            Remove
-          </button>
-        )}
-        {saved && <span className="text-xs text-[var(--color-success)]">Saved</span>}
-      </div>
-    </div>
-  )
-}
 
 const KNOWN_OTAS = ['Booking.com', 'Expedia', 'Hotels.com', 'Agoda', 'TripAdvisor', 'Airbnb', 'Google Hotels']
 
@@ -369,8 +270,6 @@ export default function PriceComparisonPage() {
           Show guests how your direct rate compares to OTAs in real time.
         </p>
       </div>
-
-      <TripAdvisorSection propertyId={propertyId} />
 
       <div className="mb-2 flex items-center justify-between">
         <div>
