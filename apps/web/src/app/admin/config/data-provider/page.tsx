@@ -291,6 +291,127 @@ function ScorePanel({ propertyId }: { propertyId: number }) {
   )
 }
 
+// ── Google section ─────────────────────────────────────────────────────────────
+
+function GoogleSection({ propertyId, propertyName }: { propertyId: number; propertyName: string | null }) {
+  const qc = useQueryClient()
+  const [urlInput, setUrlInput] = useState('')
+  const [saved, setSaved] = useState(false)
+  const initialized = useRef(false)
+
+  const { data } = useQuery({
+    queryKey: ['dp-property', propertyId],
+    queryFn: () => apiClient.getPropertyDataProviderConfig(propertyId),
+  })
+  const propData = data?.propertyConfig ?? null
+
+  useEffect(() => {
+    initialized.current = false
+    setUrlInput('')
+  }, [propertyId])
+
+  useEffect(() => {
+    if (!initialized.current && propData !== undefined) {
+      initialized.current = true
+      setUrlInput(propData?.googleMapsUrl ?? '')
+    }
+  }, [propData])
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (url: string | null) =>
+      apiClient.updatePropertyDataProviderConfig(propertyId, { googleMapsUrl: url }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dp-property', propertyId] })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    },
+  })
+
+  const parsed = (() => {
+    const cidMatch = urlInput.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+    let cid: string | null = null
+    if (cidMatch) { try { cid = BigInt(`0x${cidMatch[1]}`).toString() } catch { /* ignore */ } }
+    const coordMatch = urlInput.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+    return {
+      cid,
+      lat: coordMatch?.[1] ? parseFloat(coordMatch[1]) : null,
+      lng: coordMatch?.[2] ? parseFloat(coordMatch[2]) : null,
+    }
+  })()
+
+  const currentUrl = propData?.googleMapsUrl ?? null
+  const isDirty = urlInput !== (currentUrl ?? '')
+
+  return (
+    <SectionCard title="Google">
+      <div className="space-y-3">
+        {propertyName && (
+          <a
+            href={`https://www.google.com/maps/search/${encodeURIComponent(propertyName)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          >
+            Open in Google Maps →
+          </a>
+        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Google Maps URL</label>
+          <input
+            type="url"
+            value={urlInput}
+            onChange={e => setUrlInput(e.target.value)}
+            placeholder="https://www.google.com/maps/place/..."
+            className={inputCls}
+          />
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            Find the hotel, copy the full URL from the browser, and paste it here.
+          </p>
+        </div>
+        {urlInput && (
+          parsed.cid
+            ? (
+              <div className="space-y-0.5 text-xs text-[var(--color-success)]">
+                <p>CID: {parsed.cid}</p>
+                {parsed.lat !== null && <p>Coordinates: {parsed.lat}, {parsed.lng}</p>}
+              </div>
+            )
+            : <p className="text-xs text-[var(--color-error)]">Could not extract CID — make sure to use a full Google Maps URL.</p>
+        )}
+        {!urlInput && currentUrl && (
+          <div className="space-y-0.5 text-xs text-[var(--color-text-muted)]">
+            <p>URL saved.</p>
+            {propData?.lat !== null && propData?.lat !== undefined && (
+              <p>Coordinates: {propData.lat}, {propData.lng}</p>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => mutate(urlInput || null)}
+            disabled={isPending || !isDirty || (urlInput !== '' && !parsed.cid)}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+          >
+            {isPending ? 'Saving…' : 'Save'}
+          </button>
+          {currentUrl && (
+            <button
+              type="button"
+              onClick={() => { setUrlInput(''); mutate(null) }}
+              disabled={isPending}
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-50"
+            >
+              Remove
+            </button>
+          )}
+          {saved && <span className="text-xs text-[var(--color-success)]">Saved</span>}
+        </div>
+      </div>
+    </SectionCard>
+  )
+}
+
 // ── TripAdvisor section ────────────────────────────────────────────────────────
 
 function TripAdvisorSection({ propertyId, propertyName }: { propertyId: number; propertyName: string | null }) {
@@ -692,7 +813,6 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
   const [password, setPassword] = useState('')
   const [refreshIntervalDays, setRefreshIntervalDays] = useState<number | null>(null)
   const [orgServiceDisabled, setOrgServiceDisabled] = useState(false)
-  const [googleMapsUrl, setGoogleMapsUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -702,26 +822,12 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
       setProviderType(propData.providerType ?? 'dataforseo')
       setRefreshIntervalDays(propData.refreshIntervalDays)
       setOrgServiceDisabled(propData.orgServiceDisabled)
-      setGoogleMapsUrl(propData.googleMapsUrl ?? '')
     }
   }, [propData])
-
-  const parsedGoogleMaps = (() => {
-    const cidMatch = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
-    let cid: string | null = null
-    if (cidMatch) { try { cid = BigInt(`0x${cidMatch[1]}`).toString() } catch { /* ignore */ } }
-    const coordMatch = googleMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-    return {
-      cid,
-      lat: coordMatch?.[1] ? parseFloat(coordMatch[1]) : null,
-      lng: coordMatch?.[2] ? parseFloat(coordMatch[2]) : null,
-    }
-  })()
 
   const isDirty = (
     useOrg !== (propData?.useOrg ?? true) ||
     orgServiceDisabled !== (propData?.orgServiceDisabled ?? false) ||
-    googleMapsUrl !== (propData?.googleMapsUrl ?? '') ||
     (!useOrg && (
       providerType !== (propData?.providerType ?? 'dataforseo') ||
       login !== '' ||
@@ -734,7 +840,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const body: Record<string, unknown> = { useOrg, orgServiceDisabled, googleMapsUrl: googleMapsUrl || null }
+      const body: Record<string, unknown> = { useOrg, orgServiceDisabled }
       if (!useOrg) {
         body.providerType = providerType
         if (login) body.login = login
@@ -828,51 +934,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
         )}
       </SectionCard>
 
-      <SectionCard title="Google">
-        <div className="space-y-3">
-          {data?.propertyName && (
-            <a
-              href={`https://www.google.com/maps/search/${encodeURIComponent(data.propertyName)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            >
-              Open in Google Maps →
-            </a>
-          )}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Google Maps URL</label>
-            <input
-              type="url"
-              value={googleMapsUrl}
-              onChange={e => setGoogleMapsUrl(e.target.value)}
-              placeholder="https://www.google.com/maps/place/..."
-              className={inputCls}
-            />
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              Find the hotel, copy the full URL from the browser, and paste it here.
-            </p>
-          </div>
-          {googleMapsUrl && (
-            parsedGoogleMaps.cid
-              ? (
-                <div className="space-y-0.5 text-xs text-[var(--color-success)]">
-                  <p>CID: {parsedGoogleMaps.cid}</p>
-                  {parsedGoogleMaps.lat !== null && (
-                    <p>Coordinates: {parsedGoogleMaps.lat}, {parsedGoogleMaps.lng}</p>
-                  )}
-                </div>
-              )
-              : <p className="text-xs text-[var(--color-error)]">Could not extract CID — make sure to use a full Google Maps URL.</p>
-          )}
-          {!googleMapsUrl && propData?.googleMapsUrl && (
-            <div className="space-y-0.5 text-xs text-[var(--color-text-muted)]">
-              <p>URL saved.</p>
-              {propData.lat !== null && <p>Coordinates: {propData.lat}, {propData.lng}</p>}
-            </div>
-          )}
-        </div>
-      </SectionCard>
+      <GoogleSection propertyId={propertyId} propertyName={data?.propertyName ?? null} />
 
       <TripAdvisorSection propertyId={propertyId} propertyName={data?.propertyName ?? null} />
 
