@@ -122,7 +122,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     }
   }
 
-  // Use faster WhatsApp-specific model if configured
+  // Use WhatsApp-specific model override if configured
   const effectiveModel = (channel === 'whatsapp' && aiConfig.whatsappModel) ? aiConfig.whatsappModel : aiConfig.model
   const adapter = getProviderAdapter(aiConfig.provider)
 
