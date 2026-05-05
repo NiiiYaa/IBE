@@ -47,6 +47,7 @@ export interface PropertyScore {
 
 export interface DataProviderAdminResponse {
   propertyId: number
+  propertyName: string | null
   score: PropertyScore | null
   propertyConfig: PropertyDataProviderConfig | null
   orgConfig: OrgDataProviderConfig | null

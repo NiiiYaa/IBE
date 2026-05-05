@@ -73,7 +73,7 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' })
     }
 
-    const property = await prisma.property.findUnique({ where: { propertyId: id }, select: { organizationId: true } })
+    const property = await prisma.property.findUnique({ where: { propertyId: id }, select: { organizationId: true, name: true } })
     const orgId = property?.organizationId ?? null
 
     const [propertyConfig, orgConfig, systemConfig, effectiveConfig, score] = await Promise.all([
@@ -92,6 +92,7 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
 
     return reply.send({
       propertyId: id,
+      propertyName: property?.name ?? null,
       propertyConfig,
       orgConfig,
       systemConfig,

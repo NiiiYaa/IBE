@@ -724,6 +724,26 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
 
       <SectionCard title="Google Rating Lookup">
         <div className="space-y-3">
+          {data?.propertyName && (
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`https://www.google.com/maps/search/${encodeURIComponent(data.propertyName)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              >
+                Open in Google Maps →
+              </a>
+              <a
+                href={`https://www.tripadvisor.com/Search?q=${encodeURIComponent(data.propertyName)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              >
+                Open in TripAdvisor →
+              </a>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Google Maps URL</label>
             <input
@@ -734,7 +754,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
               className={inputCls}
             />
             <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              Open the hotel on Google Maps, copy the full URL, and paste it here.
+              Find the hotel, copy the full URL from the browser, and paste it here.
             </p>
           </div>
           {googleMapsUrl && (
