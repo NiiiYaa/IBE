@@ -88,6 +88,7 @@ export async function upsertSystemAIConfig(data: AIConfigUpdate): Promise<AIConf
     data: {
       provider: (data.provider ?? 'openai') as string,
       model: data.model ?? 'gpt-4o',
+      whatsappModel: data.whatsappModel ?? null,
       apiKey: data.apiKey ? encryptApiKey(data.apiKey) : '',
       systemPrompt: data.systemPrompt ?? null,
       enabled: data.enabled ?? false,
