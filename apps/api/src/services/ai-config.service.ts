@@ -80,6 +80,7 @@ export async function upsertSystemAIConfig(data: AIConfigUpdate): Promise<AIConf
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappProvider === null) update.whatsappApiKey = null
   if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
@@ -127,6 +128,7 @@ export async function upsertOrgAIConfig(organizationId: number, data: OrgAIConfi
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappProvider === null) update.whatsappApiKey = null
   if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
@@ -183,6 +185,7 @@ export async function upsertPropertyAIConfig(propertyId: number, data: PropertyA
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
   if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappProvider === null) update.whatsappApiKey = null
   if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt

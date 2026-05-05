@@ -152,6 +152,21 @@ function AIConfigForm({
         </div>
       </div>
 
+      {!isFake && (
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">API Key</label>
+        <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Leave blank to keep the current key.</p>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={e => setApiKey(e.target.value)}
+          placeholder="Paste new API key…"
+          className={inputCls}
+          autoComplete="off"
+        />
+      </div>
+      )}
+
       <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4">
         <p className="text-sm font-medium text-[var(--color-text)]">WhatsApp AI Override <span className="font-normal text-[var(--color-text-muted)]">(optional)</span></p>
         <div>
@@ -205,21 +220,6 @@ function AIConfigForm({
           />
         </div>
       </div>
-
-      {!isFake && (
-      <div>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">API Key</label>
-        <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Leave blank to keep the current key.</p>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
-          placeholder="Paste new API key…"
-          className={inputCls}
-          autoComplete="off"
-        />
-      </div>
-      )}
 
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">System Prompt</label>
