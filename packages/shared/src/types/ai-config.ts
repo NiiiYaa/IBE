@@ -62,6 +62,9 @@ export interface AIConfigResponse {
   provider: AIProvider | null
   model: string | null
   whatsappModel: string | null
+  whatsappProvider: AIProvider | null
+  whatsappApiKeySet: boolean
+  whatsappApiKeyMasked: string | null
   apiKeySet: boolean
   apiKeyMasked: string | null
   systemPrompt: string | null
@@ -85,6 +88,8 @@ export interface AIConfigUpdate {
   provider?: AIProvider
   model?: string
   whatsappModel?: string | null
+  whatsappProvider?: AIProvider | null
+  whatsappApiKey?: string
   apiKey?: string
   systemPrompt?: string | null
   enabled?: boolean
