@@ -222,6 +222,8 @@ function SystemConfigSection() {
   const [providerType, setProviderType] = useState<DataProviderType>('dataforseo')
   const [refreshIntervalDays, setRefreshIntervalDays] = useState(30)
   const [enabled, setEnabled] = useState(false)
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -238,15 +240,22 @@ function SystemConfigSection() {
     openToAll !== data.openToAll ||
     providerType !== data.providerType ||
     refreshIntervalDays !== data.refreshIntervalDays ||
-    enabled !== data.enabled
+    enabled !== data.enabled ||
+    login !== '' ||
+    password !== ''
   )
 
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
     try {
-      await apiClient.updateSystemDataProviderConfig({ openToAll, providerType, refreshIntervalDays, enabled })
+      const body: Record<string, unknown> = { openToAll, providerType, refreshIntervalDays, enabled }
+      if (login) body.login = login
+      if (password) body.password = password
+      await apiClient.updateSystemDataProviderConfig(body)
       qc.invalidateQueries({ queryKey: ['dp-system'] })
+      setLogin('')
+      setPassword('')
     } catch {
       setSaveError('Failed to save. Please try again.')
     } finally {
@@ -294,10 +303,18 @@ function SystemConfigSection() {
       </SectionCard>
 
       <SectionCard title="System Credentials">
-        <p className="mb-3 text-xs text-[var(--color-text-muted)]">System credentials are configured via environment variables, not stored in the database.</p>
-        <div className="space-y-2 text-sm">
-          <p className="text-[var(--color-text-muted)]">Login: <span className="font-mono">DATAFORSEO_LOGIN</span></p>
-          <p className="text-[var(--color-text-muted)]">Password: <span className="font-mono">DATAFORSEO_PASSWORD</span></p>
+        <div className="space-y-4">
+          <CredentialFields
+            loginSet={data?.loginSet ?? false}
+            passwordMasked={data?.passwordMasked ?? null}
+            login={login}
+            password={password}
+            onLoginChange={setLogin}
+            onPasswordChange={setPassword}
+          />
+          <p className="text-xs text-[var(--color-text-muted)]">
+            If not configured here, falls back to <span className="font-mono">DATAFORSEO_LOGIN</span> / <span className="font-mono">DATAFORSEO_PASSWORD</span> env vars.
+          </p>
         </div>
       </SectionCard>
 

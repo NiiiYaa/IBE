@@ -1755,7 +1755,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/data-provider/system')
   },
 
-  updateSystemDataProviderConfig(data: Partial<SystemDataProviderConfig>): Promise<SystemDataProviderConfig> {
+  updateSystemDataProviderConfig(data: Record<string, unknown>): Promise<SystemDataProviderConfig> {
     return apiRequest('/api/v1/admin/data-provider/system', { method: 'PUT', body: JSON.stringify(data) })
   },
 

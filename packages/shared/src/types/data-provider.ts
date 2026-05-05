@@ -6,6 +6,8 @@ export interface SystemDataProviderConfig {
   refreshIntervalDays: number
   enabled: boolean
   openToAll: boolean
+  loginSet: boolean
+  passwordMasked: string | null
 }
 
 export interface OrgDataProviderConfig {

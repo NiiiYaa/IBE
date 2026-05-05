@@ -65,6 +65,8 @@ const SYSTEM_DEFAULTS: SystemDataProviderConfig = {
   refreshIntervalDays: 30,
   enabled: false,
   openToAll: true,
+  loginSet: false,
+  passwordMasked: null,
 }
 
 function rowToSystemConfig(row: {
@@ -72,12 +74,16 @@ function rowToSystemConfig(row: {
   refreshIntervalDays: number
   enabled: boolean
   openToAll: boolean
+  login: string | null
+  password: string | null
 }): SystemDataProviderConfig {
   return {
     providerType: row.providerType as DataProviderType,
     refreshIntervalDays: row.refreshIntervalDays,
     enabled: row.enabled,
     openToAll: row.openToAll,
+    loginSet: !!row.login,
+    passwordMasked: row.password ? maskPassword(row.password) : null,
   }
 }
 
@@ -133,20 +139,22 @@ export async function getSystemConfig(): Promise<SystemDataProviderConfig> {
 }
 
 export async function upsertSystemConfig(
-  updates: Partial<SystemDataProviderConfig>,
+  updates: Partial<SystemDataProviderConfig> & { login?: string; password?: string },
 ): Promise<SystemDataProviderConfig> {
   const existing = await prisma.systemDataProviderConfig.findFirst()
-  const data = {
-    ...(updates.providerType !== undefined && { providerType: updates.providerType }),
-    ...(updates.refreshIntervalDays !== undefined && { refreshIntervalDays: updates.refreshIntervalDays }),
-    ...(updates.enabled !== undefined && { enabled: updates.enabled }),
-    ...(updates.openToAll !== undefined && { openToAll: updates.openToAll }),
-  }
+  const data: Record<string, unknown> = {}
+  if (updates.providerType !== undefined) data.providerType = updates.providerType
+  if (updates.refreshIntervalDays !== undefined) data.refreshIntervalDays = updates.refreshIntervalDays
+  if (updates.enabled !== undefined) data.enabled = updates.enabled
+  if (updates.openToAll !== undefined) data.openToAll = updates.openToAll
+  if (updates.login !== undefined && updates.login !== '') data.login = encryptCredential(updates.login)
+  if (updates.password !== undefined && updates.password !== '') data.password = encryptCredential(updates.password)
   if (existing) {
     const row = await prisma.systemDataProviderConfig.update({ where: { id: existing.id }, data })
     return rowToSystemConfig(row)
   }
-  const row = await prisma.systemDataProviderConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
+  const defaults = { providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true }
+  const row = await prisma.systemDataProviderConfig.create({ data: { ...defaults, ...data } })
   return rowToSystemConfig(row)
 }
 
@@ -243,12 +251,12 @@ export async function getEffectiveConfig(propertyId: number): Promise<EffectiveD
     }
   }
 
-  // system level (with optional property-level enabled/interval overrides)
+  // system level — DB credentials take precedence over env vars
   return {
     providerType: system.providerType,
     refreshIntervalDays: propRow?.refreshIntervalDays ?? system.refreshIntervalDays,
     enabled: propRow?.enabled ?? system.enabled,
-    login: env.DATAFORSEO_LOGIN,
-    password: env.DATAFORSEO_PASSWORD,
+    login: systemRow?.login ? decryptCredential(systemRow.login) : env.DATAFORSEO_LOGIN,
+    password: systemRow?.password ? decryptCredential(systemRow.password) : env.DATAFORSEO_PASSWORD,
   }
 }

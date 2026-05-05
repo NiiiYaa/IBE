@@ -57,16 +57,21 @@ describe('getSystemConfig', () => {
   it('returns defaults when no row exists', async () => {
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue(null)
     const result = await getSystemConfig()
-    expect(result).toEqual({ providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true })
+    expect(result).toEqual({ providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true, loginSet: false, passwordMasked: null })
   })
 
-  it('returns stored values including openToAll', async () => {
+  it('returns stored values including openToAll and loginSet', async () => {
+    const encLogin = encryptCredential('sys@dataforseo.com')
+    const encPass = encryptCredential('syspass')
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
       providerType: 'dataforseo', refreshIntervalDays: 14, enabled: true, openToAll: false,
+      login: encLogin, password: encPass,
     })
     const result = await getSystemConfig()
     expect(result.openToAll).toBe(false)
     expect(result.enabled).toBe(true)
+    expect(result.loginSet).toBe(true)
+    expect(result.passwordMasked).toBe('****')
   })
 })
 
@@ -92,10 +97,10 @@ describe('getOrgConfig', () => {
 })
 
 describe('getEffectiveConfig', () => {
-  it('uses system env credentials when org and property both inherit', async () => {
+  it('uses system env credentials when no DB credentials set and org/property inherit', async () => {
     mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
-      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: true,
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: true, login: null, password: null,
     })
     mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue(null)
     mockPrisma.propertyDataProviderConfig.findUnique.mockResolvedValue(null)
@@ -106,12 +111,27 @@ describe('getEffectiveConfig', () => {
     expect(result.password).toBe('env-pass')
   })
 
+  it('uses system DB credentials over env vars when set', async () => {
+    const encLogin = encryptCredential('sys@dataforseo.com')
+    const encPass = encryptCredential('sysdbpass')
+    mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
+    mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: true, login: encLogin, password: encPass,
+    })
+    mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue(null)
+    mockPrisma.propertyDataProviderConfig.findUnique.mockResolvedValue(null)
+
+    const result = await getEffectiveConfig(1)
+    expect(result.login).toBe('sys@dataforseo.com')
+    expect(result.password).toBe('sysdbpass')
+  })
+
   it('uses org credentials when org has useSystem=false', async () => {
     const encLogin = encryptCredential('org@test.com')
     const encPass = encryptCredential('orgpass')
     mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
-      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true,
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true, login: null, password: null,
     })
     mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue({
       useSystem: false, refreshIntervalDays: 7, enabled: true,
@@ -129,7 +149,7 @@ describe('getEffectiveConfig', () => {
     const encLogin = encryptCredential('org@test.com')
     mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
-      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: false,
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: false, login: null, password: null,
     })
     mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue({
       useSystem: true, refreshIntervalDays: null, enabled: null,
@@ -146,7 +166,7 @@ describe('getEffectiveConfig', () => {
     const encPass = encryptCredential('proppass')
     mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
-      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true,
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: false, openToAll: true, login: null, password: null,
     })
     mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue({
       useSystem: false, refreshIntervalDays: 7, enabled: false,
@@ -166,7 +186,7 @@ describe('getEffectiveConfig', () => {
     const encLogin = encryptCredential('prop@test.com')
     mockPrisma.property.findUnique.mockResolvedValue({ propertyId: 1, organizationId: 10 })
     mockPrisma.systemDataProviderConfig.findFirst.mockResolvedValue({
-      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: true,
+      providerType: 'dataforseo', refreshIntervalDays: 30, enabled: true, openToAll: true, login: null, password: null,
     })
     mockPrisma.orgDataProviderConfig.findUnique.mockResolvedValue(null)
     mockPrisma.propertyDataProviderConfig.findUnique.mockResolvedValue({
