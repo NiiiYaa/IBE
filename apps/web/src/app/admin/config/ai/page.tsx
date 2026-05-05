@@ -158,7 +158,10 @@ function AIConfigForm({
           <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Provider</label>
           <select
             value={whatsappProvider}
-            onChange={e => setWhatsappProvider(e.target.value as AIProvider | '')}
+            onChange={e => {
+              setWhatsappProvider(e.target.value as AIProvider | '')
+              setWhatsappApiKey('')
+            }}
             className={inputCls}
           >
             <option value="">— Same as above (no override) —</option>
