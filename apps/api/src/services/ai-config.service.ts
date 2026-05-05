@@ -46,6 +46,8 @@ function rowToResponse(row: {
   provider: string | null
   model: string | null
   whatsappModel?: string | null
+  whatsappProvider?: string | null
+  whatsappApiKey?: string | null
   apiKey: string | null
   systemPrompt: string | null
   enabled: boolean
@@ -54,6 +56,9 @@ function rowToResponse(row: {
     provider: (row?.provider as AIProvider) ?? null,
     model: row?.model ?? null,
     whatsappModel: row?.whatsappModel ?? null,
+    whatsappProvider: (row?.whatsappProvider as AIProvider) ?? null,
+    whatsappApiKeySet: !!row?.whatsappApiKey,
+    whatsappApiKeyMasked: row?.whatsappApiKey ? maskApiKey(row.whatsappApiKey) : null,
     apiKeySet: !!row?.apiKey,
     apiKeyMasked: row?.apiKey ? maskApiKey(row.apiKey) : null,
     systemPrompt: row?.systemPrompt ?? null,
@@ -74,6 +79,8 @@ export async function upsertSystemAIConfig(data: AIConfigUpdate): Promise<AIConf
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
+  if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -89,6 +96,8 @@ export async function upsertSystemAIConfig(data: AIConfigUpdate): Promise<AIConf
       provider: (data.provider ?? 'openai') as string,
       model: data.model ?? 'gpt-4o',
       whatsappModel: data.whatsappModel ?? null,
+      whatsappProvider: data.whatsappProvider ?? null,
+      whatsappApiKey: data.whatsappApiKey ? encryptApiKey(data.whatsappApiKey) : null,
       apiKey: data.apiKey ? encryptApiKey(data.apiKey) : '',
       systemPrompt: data.systemPrompt ?? null,
       enabled: data.enabled ?? false,
@@ -117,6 +126,8 @@ export async function upsertOrgAIConfig(organizationId: number, data: OrgAIConfi
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
+  if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -171,6 +182,8 @@ export async function upsertPropertyAIConfig(propertyId: number, data: PropertyA
   if (data.provider !== undefined) update.provider = data.provider
   if (data.model !== undefined) update.model = data.model
   if (data.whatsappModel !== undefined) update.whatsappModel = data.whatsappModel
+  if (data.whatsappProvider !== undefined) update.whatsappProvider = data.whatsappProvider
+  if (data.whatsappApiKey !== undefined && data.whatsappApiKey !== '') update.whatsappApiKey = encryptApiKey(data.whatsappApiKey)
   if (data.apiKey !== undefined && data.apiKey !== '') update.apiKey = encryptApiKey(data.apiKey)
   if (data.systemPrompt !== undefined) update.systemPrompt = data.systemPrompt
   if (data.enabled !== undefined) update.enabled = data.enabled
@@ -191,6 +204,8 @@ export interface ResolvedAIConfig {
   provider: AIProvider
   model: string
   whatsappModel: string | null
+  whatsappProvider: AIProvider | null
+  whatsappApiKey: string | null
   apiKey: string
   systemPrompt: string | null
   source: 'property' | 'org' | 'system'
@@ -208,6 +223,8 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
         provider: propRow.provider as AIProvider,
         model: propRow.model!,
         whatsappModel: propRow.whatsappModel ?? null,
+        whatsappProvider: (propRow.whatsappProvider as AIProvider) ?? null,
+        whatsappApiKey: propRow.whatsappApiKey ? decryptApiKey(propRow.whatsappApiKey) : null,
         apiKey: isFakeProp ? '' : decryptApiKey(propRow.apiKey!),
         systemPrompt: propRow.systemPrompt,
         source: 'property',
@@ -223,6 +240,8 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
           provider: orgRow.provider as AIProvider,
           model: orgRow.model!,
           whatsappModel: orgRow.whatsappModel ?? null,
+          whatsappProvider: (orgRow.whatsappProvider as AIProvider) ?? null,
+          whatsappApiKey: orgRow.whatsappApiKey ? decryptApiKey(orgRow.whatsappApiKey) : null,
           apiKey: isFakeOrg ? '' : decryptApiKey(orgRow.apiKey!),
           systemPrompt: orgRow.systemPrompt,
           source: 'org',
@@ -240,6 +259,8 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
         provider: orgRow.provider as AIProvider,
         model: orgRow.model!,
         whatsappModel: orgRow.whatsappModel ?? null,
+        whatsappProvider: (orgRow.whatsappProvider as AIProvider) ?? null,
+        whatsappApiKey: orgRow.whatsappApiKey ? decryptApiKey(orgRow.whatsappApiKey) : null,
         apiKey: isFakeOrg ? '' : decryptApiKey(orgRow.apiKey!),
         systemPrompt: orgRow.systemPrompt,
         source: 'org',
@@ -255,6 +276,8 @@ export async function resolveAIConfig(propertyId?: number, orgId?: number): Prom
       provider: systemRow.provider as AIProvider,
       model: systemRow.model,
       whatsappModel: systemRow.whatsappModel ?? null,
+      whatsappProvider: (systemRow.whatsappProvider as AIProvider) ?? null,
+      whatsappApiKey: systemRow.whatsappApiKey ? decryptApiKey(systemRow.whatsappApiKey) : null,
       apiKey: isFakeSys ? '' : decryptApiKey(systemRow.apiKey),
       systemPrompt: systemRow.systemPrompt,
       source: 'system',
