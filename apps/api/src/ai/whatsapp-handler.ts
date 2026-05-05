@@ -52,28 +52,49 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
       clearWaSessionContext(sessionId),
     ])
     logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
+
+    // Extract hotel name from greeting and lock to the correct property/org immediately,
+    // overriding any stale phone-registry context from a previous conversation.
+    const nameMatch = message.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*$/i)
+    if (nameMatch) {
+      const hotelName = nameMatch[1]!.trim()
+      const prop = await prisma.property.findFirst({
+        where: { name: { equals: hotelName, mode: 'insensitive' }, deletedAt: null },
+        select: { propertyId: true, organizationId: true },
+      })
+      if (prop) {
+        orgId = prop.organizationId
+        propertyId = prop.propertyId
+        await setWaSessionContext(sessionId, { orgId: prop.organizationId, propertyId: prop.propertyId })
+        logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId }, '[WhatsApp] Fresh greeting locked to property')
+      }
+    }
   }
 
   // Resolve context: phone registry → saved session context
   // Always fill gaps — orgId from registry, propertyId from saved session (even when orgId is already known)
   let waCtxAlreadySaved = false
-  if (myPhone && (!orgId || !propertyId)) {
-    const phoneCtx = resolveWebjsPhoneContext(myPhone)
-    if (phoneCtx) {
-      if (!orgId) orgId = phoneCtx.orgId
-      if (!propertyId) propertyId = phoneCtx.propertyId
-    }
-  }
-  if (!propertyId) {
-    const savedCtx = await getWaSessionContext(sessionId)
-    if (savedCtx) {
-      if (!orgId) orgId = savedCtx.orgId
-      // Only restore saved propertyId if it belongs to the current org (prevents cross-org contamination)
-      if (savedCtx.propertyId && (!orgId || savedCtx.orgId === orgId)) {
-        propertyId = savedCtx.propertyId
-        waCtxAlreadySaved = true
+  if (!orgId || !propertyId) {
+    if (myPhone) {
+      const phoneCtx = resolveWebjsPhoneContext(myPhone)
+      if (phoneCtx) {
+        if (!orgId) orgId = phoneCtx.orgId
+        if (!propertyId) propertyId = phoneCtx.propertyId
       }
     }
+    if (!propertyId) {
+      const savedCtx = await getWaSessionContext(sessionId)
+      if (savedCtx) {
+        if (!orgId) orgId = savedCtx.orgId
+        // Only restore saved propertyId if it belongs to the current org (prevents cross-org contamination)
+        if (savedCtx.propertyId && (!orgId || savedCtx.orgId === orgId)) {
+          propertyId = savedCtx.propertyId
+          waCtxAlreadySaved = true
+        }
+      }
+    }
+  } else {
+    waCtxAlreadySaved = true  // already resolved from fresh greeting
   }
 
   const result = await runOrchestrator({
