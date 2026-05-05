@@ -933,6 +933,8 @@ model SystemAIConfig {
   provider      String   // openai | gemini | anthropic | grok
   model         String
   whatsappModel String?  // optional faster model for WhatsApp channel
+  whatsappProvider String? // optional distinct LLM provider for WhatsApp channel
+  whatsappApiKey   String? // AES-256-CBC encrypted; required when whatsappProvider differs
   apiKey        String   // AES-256-CBC encrypted via AI_CONFIG_ENCRYPTION_KEY
   systemPrompt  String?
   enabled       Boolean  @default(false)
@@ -958,6 +960,8 @@ model OrgAIConfig {
   provider       String?      // openai | gemini | anthropic | grok
   model          String?
   whatsappModel  String?      // optional faster model for WhatsApp channel
+  whatsappProvider String?    // optional distinct LLM provider for WhatsApp channel
+  whatsappApiKey   String?    // AES-256-CBC encrypted; required when whatsappProvider differs
   apiKey         String?      // AES-256-CBC encrypted
   systemPrompt   String?
   enabled        Boolean      @default(false)
@@ -973,6 +977,8 @@ model PropertyAIConfig {
   provider      String?  // openai | gemini | anthropic | grok
   model         String?
   whatsappModel String?  // optional faster model for WhatsApp channel
+  whatsappProvider String? // optional distinct LLM provider for WhatsApp channel
+  whatsappApiKey   String? // AES-256-CBC encrypted; required when whatsappProvider differs
   apiKey        String?  // AES-256-CBC encrypted
   systemPrompt  String?
   enabled       Boolean  @default(false)
