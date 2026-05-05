@@ -8,7 +8,7 @@ import { logger } from '../utils/logger.js'
 
 function getEncryptionKey(): Buffer {
   if (!env.DATA_PROVIDER_ENCRYPTION_KEY) {
-    logger.warn('[DataProvider] DATA_PROVIDER_ENCRYPTION_KEY not set — credentials stored unencrypted')
+    logger.warn('[DataProvider] DATA_PROVIDER_ENCRYPTION_KEY not set — credentials encrypted with zero key (insecure, dev only)')
     return Buffer.alloc(32, 0)
   }
   return createHash('sha256').update(env.DATA_PROVIDER_ENCRYPTION_KEY).digest()
@@ -31,7 +31,8 @@ export function decryptCredential(stored: string): string {
     const enc = Buffer.from(stored.slice(33), 'hex')
     const decipher = createDecipheriv('aes-256-cbc', key, iv)
     return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, '[DataProvider] Failed to decrypt credential — returning raw value')
     return stored
   }
 }
