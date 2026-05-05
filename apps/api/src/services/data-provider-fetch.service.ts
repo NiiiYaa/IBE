@@ -1,6 +1,5 @@
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
-import { env } from '../config/env.js'
 import { getEffectiveConfig } from './data-provider.service.js'
 import { fetchHotelScore } from '../adapters/dataforseo/client.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
@@ -37,8 +36,8 @@ export async function refreshProperty(propertyId: number): Promise<RefreshResult
       hotelName,
       cityName,
       countryCode,
-      env.DATAFORSEO_LOGIN,
-      env.DATAFORSEO_PASSWORD,
+      config.login,
+      config.password,
     )
 
     if (!result) {

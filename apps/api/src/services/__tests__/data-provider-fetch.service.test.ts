@@ -25,10 +25,6 @@ vi.mock('../../adapters/hyperguest/static.js', () => ({
   fetchPropertyStatic: vi.fn(),
 }))
 
-vi.mock('../../config/env.js', () => ({
-  env: { DATAFORSEO_LOGIN: 'testlogin', DATAFORSEO_PASSWORD: 'testpass' },
-}))
-
 import { prisma } from '../../db/client.js'
 import { getEffectiveConfig } from '../data-provider.service.js'
 import { fetchHotelScore } from '../../adapters/dataforseo/client.js'
@@ -44,14 +40,14 @@ beforeEach(() => { vi.clearAllMocks() })
 
 describe('refreshProperty', () => {
   it('skips and returns early when effective config has enabled=false', async () => {
-    mockGetEffectiveConfig.mockResolvedValue({ enabled: false, refreshIntervalDays: 30, providerType: 'dataforseo' })
+    mockGetEffectiveConfig.mockResolvedValue({ enabled: false, refreshIntervalDays: 30, providerType: 'dataforseo', login: undefined, password: undefined })
     const result = await refreshProperty(123)
     expect(result).toEqual({ propertyId: 123, skipped: true, reason: 'disabled' })
     expect(mockFetchHotelScore).not.toHaveBeenCalled()
   })
 
   it('updates PropertyScore with fetched data on success', async () => {
-    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo' })
+    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo', login: 'testlogin', password: 'testpass' })
     mockFetchPropertyStatic.mockResolvedValue({
       name: 'Grand Hotel',
       location: { city: { name: 'Paris' }, countryCode: 'FR' },
@@ -61,6 +57,7 @@ describe('refreshProperty', () => {
 
     const result = await refreshProperty(123)
     expect(result).toEqual({ propertyId: 123, skipped: false, score: 4.6, reviewCount: 890 })
+    expect(mockFetchHotelScore).toHaveBeenCalledWith('Grand Hotel', 'Paris', 'FR', 'testlogin', 'testpass')
     expect(mockPrisma.propertyScore.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { propertyId: 123 },
       update: expect.objectContaining({ score: 4.6, reviewCount: 890, status: 'done' }),
@@ -68,7 +65,7 @@ describe('refreshProperty', () => {
   })
 
   it('stores error status when DataForSEO returns null', async () => {
-    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo' })
+    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo', login: 'testlogin', password: 'testpass' })
     mockFetchPropertyStatic.mockResolvedValue({
       name: 'Unknown Hotel',
       location: { city: { name: 'Nowhere' }, countryCode: 'XX' },
@@ -84,7 +81,7 @@ describe('refreshProperty', () => {
   })
 
   it('stores error status when fetchPropertyStatic throws', async () => {
-    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo' })
+    mockGetEffectiveConfig.mockResolvedValue({ enabled: true, refreshIntervalDays: 30, providerType: 'dataforseo', login: 'testlogin', password: 'testpass' })
     mockFetchPropertyStatic.mockRejectedValue(new Error('HyperGuest API error'))
     mockPrisma.propertyScore.upsert.mockResolvedValue({})
 
