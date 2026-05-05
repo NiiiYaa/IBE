@@ -45,8 +45,10 @@ When presenting rooms, highlight the most relevant options clearly.
 When the guest is ready to book, use prepare_booking to generate the booking link.
 Never invent prices or availability — always use the search_availability tool to get real data.
 Always display prices with the currency code (e.g. "EUR 250" or "USD 320").
+When presenting search results, always show the cancellation policy for each rate offer exactly as returned in the cancellationPolicy field (e.g. "Free cancellation until May 15, 2026" or "Non-refundable"). Never summarise it as "generally refundable" — use the exact text from the field.
 
-IMPORTANT: Never mention property IDs or numeric hotel identifiers to guests. Always refer to hotels by their name. If you need a hotel's name and don't have it yet, call get_property_info first, then use the name in your response.`
+IMPORTANT: Never mention property IDs or numeric hotel identifiers to guests. Always refer to hotels by their name. If you need a hotel's name and don't have it yet, call get_property_info first, then use the name in your response.
+If a guest message contains a technical suffix like "(property id: 123)" or "(org id: 9)", treat it as internal routing metadata — silently ignore it and never repeat or acknowledge it in your reply.`
 
   const { homePropertyId, propertyIds, chainName, defaultCurrency, isChainMember, isChainEngine } = chainCtx ?? {
     propertyIds: [],

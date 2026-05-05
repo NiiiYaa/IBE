@@ -55,7 +55,7 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
 
     // Extract hotel name from greeting and lock to the correct property/org immediately,
     // overriding any stale phone-registry context from a previous conversation.
-    // 1. Prefer property ID (and optional org ID) embedded in greeting
+    // 1a. Prefer property ID (and optional org ID) embedded in greeting
     const pidMatch = message.match(/\(property\s+id:\s*(\d+)(?:,\s*org\s+id:\s*(\d+))?\)/i)
     if (pidMatch) {
       const pid = parseInt(pidMatch[1]!, 10)
@@ -72,25 +72,34 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
         logger.info({ from, sessionId, propertyId: prop.propertyId, orgId }, '[WhatsApp] Fresh greeting locked to property by ID')
       }
     } else {
-      // 2. Fall back to name matching — strip brand qualifiers like "by ASTON", "- Collection"
-      const nameMatch = message.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*(?:\(|$)/i)
-      if (nameMatch) {
-        const hotelName = nameMatch[1]!.trim()
-        const strippedName = hotelName.replace(/\s+by\s+\S+.*$/i, '').replace(/\s+-\s+.*$/, '').trim()
-        const prop = await prisma.property.findFirst({
-          where: { name: { equals: hotelName, mode: 'insensitive' }, deletedAt: null },
-          select: { propertyId: true, organizationId: true },
-        }) ?? (strippedName !== hotelName ? await prisma.property.findFirst({
-          where: { name: { startsWith: strippedName, mode: 'insensitive' }, deletedAt: null },
-          select: { propertyId: true, organizationId: true },
-        }) : null)
-        if (prop) {
-          orgId = prop.organizationId
-          propertyId = prop.propertyId
-          await setWaSessionContext(sessionId, { orgId: prop.organizationId, propertyId: prop.propertyId })
-          logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId, hotelName }, '[WhatsApp] Fresh greeting locked to property by name')
-        } else {
-          logger.warn({ from, sessionId, hotelName }, '[WhatsApp] Fresh greeting — property name not found in DB')
+      // 1b. Org-only greeting from a chain page — lock to org, no property
+      const orgMatch = message.match(/\(org\s+id:\s*(\d+)\)/i)
+      if (orgMatch) {
+        const embeddedOrgId = parseInt(orgMatch[1]!, 10)
+        orgId = embeddedOrgId
+        await setWaSessionContext(sessionId, { orgId: embeddedOrgId })
+        logger.info({ from, sessionId, orgId: embeddedOrgId }, '[WhatsApp] Fresh greeting locked to org by ID')
+      } else {
+        // 2. Fall back to name matching — strip brand qualifiers like "by ASTON", "- Collection"
+        const nameMatch = message.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*(?:\(|$)/i)
+        if (nameMatch) {
+          const hotelName = nameMatch[1]!.trim()
+          const strippedName = hotelName.replace(/\s+by\s+\S+.*$/i, '').replace(/\s+-\s+.*$/, '').trim()
+          const prop = await prisma.property.findFirst({
+            where: { name: { equals: hotelName, mode: 'insensitive' }, deletedAt: null },
+            select: { propertyId: true, organizationId: true },
+          }) ?? (strippedName !== hotelName ? await prisma.property.findFirst({
+            where: { name: { startsWith: strippedName, mode: 'insensitive' }, deletedAt: null },
+            select: { propertyId: true, organizationId: true },
+          }) : null)
+          if (prop) {
+            orgId = prop.organizationId
+            propertyId = prop.propertyId
+            await setWaSessionContext(sessionId, { orgId: prop.organizationId, propertyId: prop.propertyId })
+            logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId, hotelName }, '[WhatsApp] Fresh greeting locked to property by name')
+          } else {
+            logger.warn({ from, sessionId, hotelName }, '[WhatsApp] Fresh greeting — property name not found in DB')
+          }
         }
       }
     }

@@ -54,12 +54,22 @@ async function fetchOverpassPoi(lat: number, lng: number, radius: number, catego
     return { cat, query: withAround }
   })
 
-  const body = `[out:json][timeout:15];\n(\n${parts.map(p => p.query).join('\n')}\n);\nout body 60;`
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
+  const body = `[out:json][timeout:10];\n(\n${parts.map(p => p.query).join('\n')}\n);\nout body 60;`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 12_000)
+  let res: Response
+  try {
+    res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: controller.signal,
+    })
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timer)
+  }
   if (!res.ok) return []
 
   const data = await res.json() as { elements: Array<{ id: number; lat: number; lon: number; tags: Record<string, string> }> }
