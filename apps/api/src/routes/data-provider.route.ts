@@ -27,7 +27,10 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
 
   // GET /admin/data-provider/global — org-level config + system config
   fastify.get('/admin/data-provider/global', async (request, reply) => {
-    const orgId = request.admin.organizationId
+    const rawOrgId = (request.query as Record<string, string>).orgId
+    const orgId = request.admin.role === 'super'
+      ? (rawOrgId ? parseInt(rawOrgId, 10) : request.admin.organizationId)
+      : request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const [orgConfig, systemConfig] = await Promise.all([getOrgConfig(orgId), getSystemConfig()])
     return reply.send({
@@ -41,9 +44,12 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
 
   // PUT /admin/data-provider/global
   fastify.put('/admin/data-provider/global', async (request, reply) => {
-    const orgId = request.admin.organizationId
-    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const body = { ...(request.body as Record<string, unknown>) }
+    const orgId = request.admin.role === 'super'
+      ? ((body.orgId as number | undefined) ?? request.admin.organizationId)
+      : request.admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    delete body.orgId
     // Only super admin can set systemServiceDisabled
     if (request.admin.role !== 'super') delete body.systemServiceDisabled
     const [orgConfig, systemConfig] = await Promise.all([

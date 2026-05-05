@@ -1759,12 +1759,14 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/data-provider/system', { method: 'PUT', body: JSON.stringify(data) })
   },
 
-  getOrgDataProviderConfig(): Promise<DataProviderGlobalResponse> {
-    return apiRequest('/api/v1/admin/data-provider/global')
+  getOrgDataProviderConfig(orgId?: number | null): Promise<DataProviderGlobalResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/data-provider/global${qs}`)
   },
 
-  updateOrgDataProviderConfig(data: Record<string, unknown>): Promise<DataProviderGlobalResponse> {
-    return apiRequest('/api/v1/admin/data-provider/global', { method: 'PUT', body: JSON.stringify(data) })
+  updateOrgDataProviderConfig(data: Record<string, unknown>, orgId?: number | null): Promise<DataProviderGlobalResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/data-provider/global', { method: 'PUT', body: JSON.stringify(body) })
   },
 
   getPropertyDataProviderConfig(propertyId: number): Promise<DataProviderAdminResponse> {

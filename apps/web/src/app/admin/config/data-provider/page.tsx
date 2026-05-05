@@ -309,14 +309,14 @@ function SystemConfigSection() {
 
 // ── Org config section ─────────────────────────────────────────────────────────
 
-function OrgConfigSection() {
+function OrgConfigSection({ orgId }: { orgId: number | null }) {
   const { admin } = useAdminAuth()
   const qc = useQueryClient()
   const isSuper = admin?.role === 'super'
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dp-global'],
-    queryFn: () => apiClient.getOrgDataProviderConfig(),
+    queryKey: ['dp-global', orgId],
+    queryFn: () => apiClient.getOrgDataProviderConfig(orgId),
   })
 
   const orgData: OrgDataProviderConfig | null = data?.orgConfig ?? null
@@ -367,8 +367,8 @@ function OrgConfigSection() {
         if (refreshIntervalDays !== null) body.refreshIntervalDays = refreshIntervalDays
         if (enabled !== null) body.enabled = enabled
       }
-      await apiClient.updateOrgDataProviderConfig(body)
-      qc.invalidateQueries({ queryKey: ['dp-global'] })
+      await apiClient.updateOrgDataProviderConfig(body, orgId)
+      qc.invalidateQueries({ queryKey: ['dp-global', orgId] })
       setLogin('')
       setPassword('')
     } catch {
@@ -622,5 +622,5 @@ export default function DataProviderPage() {
 
   if (isSystemLevel) return <SystemConfigSection />
   if (propertyId !== null) return <PropertyConfigSection propertyId={propertyId} />
-  return <OrgConfigSection />
+  return <OrgConfigSection orgId={orgId} />
 }
