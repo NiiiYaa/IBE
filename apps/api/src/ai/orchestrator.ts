@@ -107,7 +107,12 @@ ${currencyInstruction}`
 export async function runOrchestrator(input: OrchestratorInput): Promise<OrchestratorResult> {
   const { message, session, sessionId, propertyId, customSystemPrompt, channel } = input
 
-  const aiConfig = await resolveAIConfig(propertyId, input.orgId)
+  const [aiConfig, chainCtx, history] = await Promise.all([
+    resolveAIConfig(propertyId, input.orgId),
+    resolveChainContext(propertyId, input.orgId),
+    session.load(sessionId),
+  ])
+
   if (!aiConfig) {
     return {
       text: 'AI assistant is not configured for this hotel. Please contact the hotel directly.',
@@ -118,7 +123,6 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
   }
 
   const adapter = getProviderAdapter(aiConfig.provider)
-  const chainCtx = await resolveChainContext(propertyId, input.orgId)
 
   // WhatsApp-specific additions: plain URLs only, concise formatting
   const channelHint = channel === 'whatsapp'
@@ -126,8 +130,6 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     : ''
 
   const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, chainCtx) + channelHint
-
-  const history = await session.load(sessionId)
   const userMessage: ChatMessage = { role: 'user', content: message }
   let messages: ChatMessage[] = [...history, userMessage]
 
