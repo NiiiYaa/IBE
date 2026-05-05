@@ -378,7 +378,7 @@ export default async function HomePage({
 
   const chatWidgetProps = {
     ...(defaultPropertyId ? { propertyId: defaultPropertyId } : {}),
-    ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
+    orgId: tenant.orgId,
     whatsappPrefilledMessage: isMulti
       ? `Hello, I'd like to find out about ${displayName}${displayName.toLowerCase().includes('collection') ? '' : ' Collection'}.`
       : `Hello, I'd like to find out about ${displayName}.`,
