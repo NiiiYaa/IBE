@@ -7,7 +7,7 @@ export const filterResultsTool: ToolDefinition = {
   parameters: {
     type: 'object',
     properties: {
-      rooms: { type: 'array', description: 'The rooms array from a previous search_availability result' },
+      rooms: { type: 'array', items: { type: 'object' }, description: 'The rooms array from a previous search_availability result' },
       maxPrice: { type: 'number', description: 'Maximum price per night' },
       minPrice: { type: 'number', description: 'Minimum price per night' },
       refundableOnly: { type: 'boolean', description: 'Only show refundable rates' },
