@@ -45,6 +45,7 @@ export function maskApiKey(stored: string): string {
 function rowToResponse(row: {
   provider: string | null
   model: string | null
+  whatsappModel?: string | null
   apiKey: string | null
   systemPrompt: string | null
   enabled: boolean
@@ -52,6 +53,7 @@ function rowToResponse(row: {
   return {
     provider: (row?.provider as AIProvider) ?? null,
     model: row?.model ?? null,
+    whatsappModel: row?.whatsappModel ?? null,
     apiKeySet: !!row?.apiKey,
     apiKeyMasked: row?.apiKey ? maskApiKey(row.apiKey) : null,
     systemPrompt: row?.systemPrompt ?? null,

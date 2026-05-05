@@ -61,6 +61,7 @@ export const AI_PROVIDER_MODELS: Record<AIProvider, string[]> = {
 export interface AIConfigResponse {
   provider: AIProvider | null
   model: string | null
+  whatsappModel: string | null
   apiKeySet: boolean
   apiKeyMasked: string | null
   systemPrompt: string | null
@@ -83,6 +84,7 @@ export interface PropertyAIConfigResponse extends AIConfigResponse {
 export interface AIConfigUpdate {
   provider?: AIProvider
   model?: string
+  whatsappModel?: string | null
   apiKey?: string
   systemPrompt?: string | null
   enabled?: boolean

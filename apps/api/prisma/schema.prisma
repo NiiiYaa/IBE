@@ -929,14 +929,15 @@ model PropertyMarketingSettings {
 // Org and Property levels have a useInherited flag to fall back to the parent.
 
 model SystemAIConfig {
-  id           Int      @id @default(autoincrement())
-  provider     String   // openai | gemini | anthropic | grok
-  model        String
-  apiKey       String   // AES-256-CBC encrypted via AI_CONFIG_ENCRYPTION_KEY
-  systemPrompt String?
-  enabled      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  provider      String   // openai | gemini | anthropic | grok
+  model         String
+  whatsappModel String?  // optional faster model for WhatsApp channel
+  apiKey        String   // AES-256-CBC encrypted via AI_CONFIG_ENCRYPTION_KEY
+  systemPrompt  String?
+  enabled       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model TranslationAIConfig {
@@ -956,6 +957,7 @@ model OrgAIConfig {
   useInherited   Boolean      @default(true)
   provider       String?      // openai | gemini | anthropic | grok
   model          String?
+  whatsappModel  String?      // optional faster model for WhatsApp channel
   apiKey         String?      // AES-256-CBC encrypted
   systemPrompt   String?
   enabled        Boolean      @default(false)
@@ -965,17 +967,18 @@ model OrgAIConfig {
 }
 
 model PropertyAIConfig {
-  id           Int      @id @default(autoincrement())
-  propertyId   Int      @unique
-  useInherited Boolean  @default(true)
-  provider     String?  // openai | gemini | anthropic | grok
-  model        String?
-  apiKey       String?  // AES-256-CBC encrypted
-  systemPrompt String?
-  enabled      Boolean  @default(false)
+  id            Int      @id @default(autoincrement())
+  propertyId    Int      @unique
+  useInherited  Boolean  @default(true)
+  provider      String?  // openai | gemini | anthropic | grok
+  model         String?
+  whatsappModel String?  // optional faster model for WhatsApp channel
+  apiKey        String?  // AES-256-CBC encrypted
+  systemPrompt  String?
+  enabled       Boolean  @default(false)
   systemServiceDisabled Boolean @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // ── AI Channels ───────────────────────────────────────────────────────────────
