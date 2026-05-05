@@ -82,6 +82,7 @@ function InheritedBadge({ config, from }: { config: AIConfigResponse | null; fro
 function AIConfigForm({
   initialProvider,
   initialModel,
+  initialWhatsappModel,
   initialSystemPrompt,
   initialEnabled,
   isSuper,
@@ -93,6 +94,7 @@ function AIConfigForm({
 }: {
   initialProvider: AIProvider | null
   initialModel: string | null
+  initialWhatsappModel: string | null
   initialSystemPrompt: string | null
   initialEnabled: boolean
   isSuper: boolean
@@ -104,6 +106,7 @@ function AIConfigForm({
 }) {
   const [provider, setProvider] = useState<AIProvider>(initialProvider ?? 'openai')
   const [model, setModel] = useState(initialModel ?? AI_PROVIDER_MODELS[initialProvider ?? 'openai'][0])
+  const [whatsappModel, setWhatsappModel] = useState(initialWhatsappModel ?? '')
   const [apiKey, setApiKey] = useState('')
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt ?? '')
   const [enabled, setEnabled] = useState(initialEnabled)
@@ -143,6 +146,20 @@ function AIConfigForm({
             ))}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">WhatsApp Model <span className="font-normal text-[var(--color-text-muted)]">(optional)</span></label>
+        <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Use a faster model for WhatsApp responses. Leave blank to use the main model above.</p>
+        <input
+          type="text"
+          value={whatsappModel}
+          onChange={e => setWhatsappModel(e.target.value)}
+          placeholder={`e.g. ${AI_PROVIDER_MODELS[provider]?.[1] ?? 'gpt-4o-mini'}`}
+          className={inputCls}
+          autoComplete="off"
+          spellCheck={false}
+        />
       </div>
 
       {!isFake && (
@@ -208,7 +225,7 @@ function AIConfigForm({
         <button
           type="button"
           disabled={saving}
-          onClick={() => onSave({ provider, ...(model ? { model } : {}), ...(apiKey ? { apiKey } : {}), systemPrompt: systemPrompt || null, enabled })}
+          onClick={() => onSave({ provider, ...(model ? { model } : {}), whatsappModel: whatsappModel.trim() || null, ...(apiKey ? { apiKey } : {}), systemPrompt: systemPrompt || null, enabled })}
           className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Save'}
@@ -272,6 +289,7 @@ function SystemConfigSection() {
       <AIConfigForm
         initialProvider={(data?.provider as AIProvider) ?? null}
         initialModel={data?.model ?? null}
+        initialWhatsappModel={data?.whatsappModel ?? null}
         initialSystemPrompt={data?.systemPrompt ?? null}
         initialEnabled={data?.enabled ?? false}
         isSuper={true}
@@ -367,6 +385,7 @@ function OrgConfigSection({ orgId, isSuper }: { orgId?: number; isSuper: boolean
           <AIConfigForm
             initialProvider={(data?.provider as AIProvider) ?? null}
             initialModel={data?.model ?? null}
+            initialWhatsappModel={data?.whatsappModel ?? null}
             initialSystemPrompt={data?.systemPrompt ?? null}
             initialEnabled={data?.enabled ?? false}
             isSuper={isSuper}
@@ -465,6 +484,7 @@ function PropertyConfigSection({ propertyId, isSuper }: { propertyId: number; is
           <AIConfigForm
             initialProvider={(data?.provider as AIProvider) ?? null}
             initialModel={data?.model ?? null}
+            initialWhatsappModel={data?.whatsappModel ?? null}
             initialSystemPrompt={data?.systemPrompt ?? null}
             initialEnabled={data?.enabled ?? false}
             isSuper={isSuper}
