@@ -106,6 +106,10 @@ import type {
   AffiliatePortalStats,
   AffiliateRegisterRequest,
   AffiliateProfile,
+  SystemDataProviderConfig,
+  OrgDataProviderConfig,
+  PropertyDataProviderConfig,
+  DataProviderAdminResponse,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -210,6 +214,11 @@ export interface AdminMe {
   isActive: boolean
   mustChangePassword: boolean
   propertyIds?: number[]
+}
+
+export interface DataProviderGlobalResponse {
+  orgConfig: OrgDataProviderConfig
+  systemConfig: SystemDataProviderConfig
 }
 
 export const apiClient = {
@@ -1738,6 +1747,36 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ text }),
     })
+  },
+
+  // ── Data Provider ─────────────────────────────────────────────────────────────
+
+  getSystemDataProviderConfig(): Promise<SystemDataProviderConfig> {
+    return apiRequest('/api/v1/admin/data-provider/system')
+  },
+
+  updateSystemDataProviderConfig(data: Partial<SystemDataProviderConfig>): Promise<SystemDataProviderConfig> {
+    return apiRequest('/api/v1/admin/data-provider/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getOrgDataProviderConfig(): Promise<DataProviderGlobalResponse> {
+    return apiRequest('/api/v1/admin/data-provider/global')
+  },
+
+  updateOrgDataProviderConfig(data: Record<string, unknown>): Promise<DataProviderGlobalResponse> {
+    return apiRequest('/api/v1/admin/data-provider/global', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPropertyDataProviderConfig(propertyId: number): Promise<DataProviderAdminResponse> {
+    return apiRequest(`/api/v1/admin/data-provider/property/${propertyId}`)
+  },
+
+  updatePropertyDataProviderConfig(propertyId: number, data: Record<string, unknown>): Promise<DataProviderAdminResponse> {
+    return apiRequest(`/api/v1/admin/data-provider/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  refreshDataProviderProperty(propertyId: number): Promise<{ propertyId: number; skipped: boolean; reason?: string; score?: number | null; reviewCount?: number | null }> {
+    return apiRequest(`/api/v1/admin/data-provider/refresh/${propertyId}`, { method: 'POST' })
   },
 
   // ── Affiliate Portal ───────────────────────────────────────────────────────
