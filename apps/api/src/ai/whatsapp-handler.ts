@@ -56,7 +56,7 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
     // Extract hotel name from greeting and lock to the correct property/org immediately,
     // overriding any stale phone-registry context from a previous conversation.
     // 1. Prefer property ID embedded in greeting: "... (property 12345)"
-    const pidMatch = message.match(/\(property\s+(\d+)\)/i)
+    const pidMatch = message.match(/\(property\s+id:\s*(\d+)\)/i)
     if (pidMatch) {
       const pid = parseInt(pidMatch[1]!, 10)
       const prop = await prisma.property.findUnique({

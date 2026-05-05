@@ -96,7 +96,7 @@ async function processInbound(phoneNumberId: string, from: string, text: string,
     logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
 
     // 1. Prefer property ID embedded in greeting: "... (property 12345)"
-    const pidMatch = text.match(/\(property\s+(\d+)\)/i)
+    const pidMatch = text.match(/\(property\s+id:\s*(\d+)\)/i)
     if (pidMatch) {
       freshPropertyId = parseInt(pidMatch[1]!, 10)
     } else {
