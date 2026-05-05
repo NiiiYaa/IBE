@@ -223,6 +223,7 @@ function SystemConfigSection() {
   const [refreshIntervalDays, setRefreshIntervalDays] = useState(30)
   const [enabled, setEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (data) {
@@ -242,9 +243,12 @@ function SystemConfigSection() {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       await apiClient.updateSystemDataProviderConfig({ openToAll, providerType, refreshIntervalDays, enabled })
       qc.invalidateQueries({ queryKey: ['dp-system'] })
+    } catch {
+      setSaveError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -297,6 +301,7 @@ function SystemConfigSection() {
         </div>
       </SectionCard>
 
+      {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={saving} onSave={handleSave} />
     </div>
   )
@@ -323,16 +328,17 @@ function OrgConfigSection() {
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [refreshIntervalDays, setRefreshIntervalDays] = useState<number | null>(null)
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState<boolean | null>(null)
   const [systemServiceDisabled, setSystemServiceDisabled] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (orgData) {
       setUseSystem(orgData.useSystem)
       setProviderType(orgData.providerType ?? 'dataforseo')
       setRefreshIntervalDays(orgData.refreshIntervalDays)
-      setEnabled(orgData.enabled ?? false)
+      setEnabled(orgData.enabled)
       setSystemServiceDisabled(orgData.systemServiceDisabled)
     }
   }, [orgData])
@@ -345,12 +351,13 @@ function OrgConfigSection() {
       login !== '' ||
       password !== '' ||
       refreshIntervalDays !== orgData.refreshIntervalDays ||
-      enabled !== (orgData.enabled ?? false)
+      enabled !== orgData.enabled
     ))
   )
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       const body: Record<string, unknown> = { useSystem, systemServiceDisabled }
       if (!useSystem) {
@@ -358,12 +365,14 @@ function OrgConfigSection() {
         if (login) body.login = login
         if (password) body.password = password
         if (refreshIntervalDays !== null) body.refreshIntervalDays = refreshIntervalDays
-        body.enabled = enabled
+        if (enabled !== null) body.enabled = enabled
       }
       await apiClient.updateOrgDataProviderConfig(body)
       qc.invalidateQueries({ queryKey: ['dp-global'] })
       setLogin('')
       setPassword('')
+    } catch {
+      setSaveError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -440,13 +449,14 @@ function OrgConfigSection() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <Toggle checked={enabled} onChange={setEnabled} />
+              <Toggle checked={enabled ?? false} onChange={setEnabled} />
               <span className="text-sm text-[var(--color-text)]">{enabled ? 'Enabled' : 'Disabled'}</span>
             </div>
           </div>
         )}
       </SectionCard>
 
+      {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={saving} onSave={handleSave} />
     </div>
   )
@@ -475,6 +485,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
   const [refreshIntervalDays, setRefreshIntervalDays] = useState<number | null>(null)
   const [orgServiceDisabled, setOrgServiceDisabled] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (propData) {
@@ -498,6 +509,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       const body: Record<string, unknown> = { useOrg, orgServiceDisabled }
       if (!useOrg) {
@@ -510,6 +522,8 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
       qc.invalidateQueries({ queryKey: ['dp-property', propertyId] })
       setLogin('')
       setPassword('')
+    } catch {
+      setSaveError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -591,6 +605,7 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
         )}
       </SectionCard>
 
+      {saveError && <p className="text-sm text-[var(--color-error)]">{saveError}</p>}
       <SaveBar isDirty={isDirty} isSaving={saving} onSave={handleSave} />
     </div>
   )
