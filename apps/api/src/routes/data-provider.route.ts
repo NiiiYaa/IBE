@@ -138,7 +138,7 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' })
     }
 
-    const result = await refreshProperty(id)
+    const result = await refreshProperty(id, { force: true })
     return reply.send(result)
   })
 }

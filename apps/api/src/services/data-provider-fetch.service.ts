@@ -12,11 +12,17 @@ export interface RefreshResult {
   reviewCount?: number | null
 }
 
-export async function refreshProperty(propertyId: number): Promise<RefreshResult> {
+export async function refreshProperty(propertyId: number, { force = false } = {}): Promise<RefreshResult> {
   const config = await getEffectiveConfig(propertyId)
 
-  if (!config.enabled) {
+  if (!force && !config.enabled) {
     return { propertyId, skipped: true, reason: 'disabled' }
+  }
+
+  // Verify the property exists in the local DB before writing PropertyScore (FK constraint)
+  const propertyExists = await prisma.property.findUnique({ where: { propertyId }, select: { propertyId: true } })
+  if (!propertyExists) {
+    return { propertyId, skipped: true, reason: 'Property not registered in database' }
   }
 
   // Mark as fetching

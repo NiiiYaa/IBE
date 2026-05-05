@@ -169,21 +169,29 @@ function TestConnectionButton() {
 
 // ── Refresh button ─────────────────────────────────────────────────────────────
 
-type RefreshStatus = 'idle' | 'refreshing' | 'done' | 'error'
+type RefreshStatus = 'idle' | 'refreshing' | 'done' | 'skipped' | 'error'
 
 function RefreshButton({ propertyId, onRefreshed }: { propertyId: number; onRefreshed: () => void }) {
   const [status, setStatus] = useState<RefreshStatus>('idle')
+  const [msg, setMsg] = useState<string | null>(null)
 
   async function run() {
     setStatus('refreshing')
+    setMsg(null)
     try {
-      await apiClient.refreshDataProviderProperty(propertyId)
-      setStatus('done')
-      onRefreshed()
-      setTimeout(() => setStatus('idle'), 3000)
+      const result = await apiClient.refreshDataProviderProperty(propertyId)
+      if (result.skipped) {
+        setStatus('skipped')
+        setMsg(result.reason ?? 'Skipped')
+        setTimeout(() => { setStatus('idle'); setMsg(null) }, 5000)
+      } else {
+        setStatus('done')
+        onRefreshed()
+        setTimeout(() => { setStatus('idle'); setMsg(null) }, 3000)
+      }
     } catch {
       setStatus('error')
-      setTimeout(() => setStatus('idle'), 4000)
+      setTimeout(() => { setStatus('idle'); setMsg(null) }, 4000)
     }
   }
 
@@ -196,6 +204,11 @@ function RefreshButton({ propertyId, onRefreshed }: { propertyId: number; onRefr
   if (status === 'done') return (
     <span className="flex h-7 items-center gap-1 rounded-lg border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-3 text-xs font-medium text-[var(--color-success)]">
       ✓ Refreshed
+    </span>
+  )
+  if (status === 'skipped') return (
+    <span className="flex h-7 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-700">
+      ⚠ {msg ?? 'Skipped'}
     </span>
   )
   if (status === 'error') return (
@@ -561,7 +574,11 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
 
   const propData = data?.propertyConfig ?? null
   const orgData = data?.orgConfig ?? null
-  const orgAccessible = !!(orgData && !propData?.orgServiceDisabled)
+  const sysData = data?.systemConfig ?? null
+  // orgData null means org has no explicit config row but may still inherit from system.
+  // Org level is accessible when orgServiceDisabled is not set AND either the org has its own
+  // config row OR the system is open (so the org can inherit from system).
+  const orgAccessible = !propData?.orgServiceDisabled && (orgData !== null || (sysData?.openToAll ?? true))
 
   const [useOrg, setUseOrg] = useState(true)
   const [providerType, setProviderType] = useState<DataProviderType>('dataforseo')
@@ -651,13 +668,13 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
         {(useOrg && orgAccessible) ? (
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-sm">
             <p className="font-medium text-[var(--color-text)] mb-1">Inheriting from organization</p>
-            {orgData && (
-              <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
-                <p>Provider: {orgData.providerType ?? 'dataforseo'}</p>
-                {orgData.refreshIntervalDays !== null && <p>Refresh interval: {orgData.refreshIntervalDays} days</p>}
-                {orgData.loginSet && <p>Login: configured ✓</p>}
-              </div>
-            )}
+            <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
+              <p>Provider: {orgData?.providerType ?? sysData?.providerType ?? 'dataforseo'}</p>
+              {(orgData?.refreshIntervalDays ?? sysData?.refreshIntervalDays) != null && (
+                <p>Refresh interval: {orgData?.refreshIntervalDays ?? sysData?.refreshIntervalDays} days</p>
+              )}
+              {(orgData?.loginSet || sysData?.loginSet) && <p>Login: configured ✓</p>}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
