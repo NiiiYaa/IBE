@@ -1567,7 +1567,7 @@ model PropertyDataProviderConfig {
 model PropertyScore {
   id          Int       @id @default(autoincrement())
   propertyId  Int       @unique
-  property    Property  @relation(fields: [propertyId], references: [id], map: "PropertyScore_propertyId_fkey")
+  property    Property  @relation(fields: [propertyId], references: [propertyId], map: "PropertyScore_propertyId_fkey")
   score       Float?
   reviewCount Int?
   source      String?
