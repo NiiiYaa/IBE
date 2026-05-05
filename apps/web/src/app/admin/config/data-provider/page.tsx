@@ -72,24 +72,32 @@ function CredentialFields({
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Login (email)</label>
-        {loginSet && (
-          <p className="mb-1 text-xs text-[var(--color-text-muted)]">Login configured. Enter a new value to replace it.</p>
-        )}
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="text-sm font-medium text-[var(--color-text)]">Login (email)</label>
+          {loginSet && !login && (
+            <span className="flex items-center gap-1 text-xs font-medium text-[var(--color-success)]">
+              <span>✓</span> Configured
+            </span>
+          )}
+        </div>
         <input
           type="text"
           value={login}
           onChange={e => onLoginChange(e.target.value)}
-          placeholder={loginSet ? 'Enter new login to replace…' : 'DataForSEO login email'}
+          placeholder={loginSet ? 'Enter new value to replace…' : 'DataForSEO login email'}
           className={inputCls}
           autoComplete="off"
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Password</label>
-        {passwordMasked && (
-          <p className="mb-1 text-xs text-[var(--color-text-muted)]">Password set ({passwordMasked}). Leave blank to keep existing.</p>
-        )}
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="text-sm font-medium text-[var(--color-text)]">Password</label>
+          {passwordMasked && !password && (
+            <span className="flex items-center gap-1 text-xs font-medium text-[var(--color-success)]">
+              <span>✓</span> Configured
+            </span>
+          )}
+        </div>
         <input
           type="password"
           value={password}
@@ -100,6 +108,62 @@ function CredentialFields({
         />
       </div>
     </div>
+  )
+}
+
+// ── Test connection button ─────────────────────────────────────────────────────
+
+type TestStatus = 'idle' | 'testing' | 'ok' | 'error'
+
+function TestConnectionButton() {
+  const [status, setStatus] = useState<TestStatus>('idle')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  async function run() {
+    setStatus('testing')
+    setErrorMsg(null)
+    try {
+      const result = await apiClient.testDataProviderConnection()
+      if (result.success) {
+        setStatus('ok')
+        setTimeout(() => setStatus('idle'), 4000)
+      } else {
+        setStatus('error')
+        setErrorMsg(result.error ?? 'Connection failed')
+        setTimeout(() => { setStatus('idle'); setErrorMsg(null) }, 6000)
+      }
+    } catch {
+      setStatus('error')
+      setErrorMsg('Request failed')
+      setTimeout(() => { setStatus('idle'); setErrorMsg(null) }, 6000)
+    }
+  }
+
+  if (status === 'testing') return (
+    <span className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-xs text-[var(--color-text-muted)]">
+      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+      Testing…
+    </span>
+  )
+  if (status === 'ok') return (
+    <span className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-3 text-xs font-medium text-[var(--color-success)]">
+      ✓ Connected
+    </span>
+  )
+  if (status === 'error') return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-8 items-center gap-1 rounded-lg border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 px-3 text-xs font-medium text-[var(--color-error)]">
+        ✗ {errorMsg ?? 'Failed'}
+      </span>
+    </div>
+  )
+  return (
+    <button
+      onClick={run}
+      className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+    >
+      Test Connection
+    </button>
   )
 }
 
@@ -315,6 +379,10 @@ function SystemConfigSection() {
           <p className="text-xs text-[var(--color-text-muted)]">
             If not configured here, falls back to <span className="font-mono">DATAFORSEO_LOGIN</span> / <span className="font-mono">DATAFORSEO_PASSWORD</span> env vars.
           </p>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-[var(--color-text-muted)]">Verify the credentials work:</span>
+            <TestConnectionButton />
+          </div>
         </div>
       </SectionCard>
 

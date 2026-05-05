@@ -7,9 +7,12 @@ import {
   getPropertyConfig,
   upsertPropertyConfig,
   getEffectiveConfig,
+  decryptCredential,
 } from '../services/data-provider.service.js'
 import { refreshProperty } from '../services/data-provider-fetch.service.js'
+import { testDataForSEOConnection } from '../adapters/dataforseo/client.js'
 import { prisma } from '../db/client.js'
+import { env } from '../config/env.js'
 import { getOrgIdForProperty } from '../services/property-registry.service.js'
 
 export async function dataProviderRoutes(fastify: FastifyInstance) {
@@ -113,6 +116,15 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
     if (request.admin.role === 'observer') delete body.orgServiceDisabled
 
     return reply.send(await upsertPropertyConfig(id, body as Parameters<typeof upsertPropertyConfig>[1]))
+  })
+
+  // POST /admin/data-provider/test-connection — super admin: tests system credentials
+  fastify.post('/admin/data-provider/test-connection', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Super admin only' })
+    const systemRow = await prisma.systemDataProviderConfig.findFirst()
+    const login = systemRow?.login ? decryptCredential(systemRow.login) : env.DATAFORSEO_LOGIN
+    const password = systemRow?.password ? decryptCredential(systemRow.password) : env.DATAFORSEO_PASSWORD
+    return reply.send(await testDataForSEOConnection(login, password))
   })
 
   // POST /admin/data-provider/refresh/:propertyId — manual trigger

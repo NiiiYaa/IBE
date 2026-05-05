@@ -1781,6 +1781,10 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/data-provider/refresh/${propertyId}`, { method: 'POST' })
   },
 
+  testDataProviderConnection(): Promise<{ success: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/data-provider/test-connection', { method: 'POST' })
+  },
+
   // ── Affiliate Portal ───────────────────────────────────────────────────────
 
   affiliateRegister(data: AffiliateRegisterRequest): Promise<{ ok: boolean; message: string }> {

@@ -1,6 +1,27 @@
 import { logger } from '../../utils/logger.js'
 
 const DATAFORSEO_URL = 'https://api.dataforseo.com/v3/business_data/google/hotel_info/live/advanced'
+const DATAFORSEO_USER_DATA_URL = 'https://api.dataforseo.com/v3/appendix/user_data'
+
+export async function testDataForSEOConnection(
+  login: string | undefined,
+  password: string | undefined,
+): Promise<{ success: boolean; error?: string }> {
+  if (!login || !password) return { success: false, error: 'No credentials configured' }
+  const credentials = Buffer.from(`${login}:${password}`).toString('base64')
+  try {
+    const res = await fetch(DATAFORSEO_USER_DATA_URL, {
+      headers: { 'Authorization': `Basic ${credentials}` },
+      signal: AbortSignal.timeout(10000),
+    })
+    if (res.status === 401 || res.status === 403) return { success: false, error: 'Invalid credentials' }
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
+    return { success: true }
+  } catch (err) {
+    logger.warn({ err }, '[DataForSEO] Connection test failed')
+    return { success: false, error: err instanceof Error ? err.message : 'Connection failed' }
+  }
+}
 
 interface DataForSEORating {
   value: number
