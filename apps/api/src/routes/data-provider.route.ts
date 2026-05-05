@@ -25,19 +25,32 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
     return reply.send(await upsertSystemConfig(request.body as Record<string, unknown>))
   })
 
-  // GET /admin/data-provider/global — org-level config
+  // GET /admin/data-provider/global — org-level config + system config
   fastify.get('/admin/data-provider/global', async (request, reply) => {
     const orgId = request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
-    const config = await getOrgConfig(orgId)
-    return reply.send(config ?? { organizationId: orgId, useSystem: true, refreshIntervalDays: null, enabled: null })
+    const [orgConfig, systemConfig] = await Promise.all([getOrgConfig(orgId), getSystemConfig()])
+    return reply.send({
+      orgConfig: orgConfig ?? {
+        organizationId: orgId, useSystem: true, refreshIntervalDays: null, enabled: null,
+        providerType: null, loginSet: false, passwordMasked: null, systemServiceDisabled: false,
+      },
+      systemConfig,
+    })
   })
 
   // PUT /admin/data-provider/global
   fastify.put('/admin/data-provider/global', async (request, reply) => {
     const orgId = request.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
-    return reply.send(await upsertOrgConfig(orgId, request.body as Record<string, unknown>))
+    const body = { ...(request.body as Record<string, unknown>) }
+    // Only super admin can set systemServiceDisabled
+    if (request.admin.role !== 'super') delete body.systemServiceDisabled
+    const [orgConfig, systemConfig] = await Promise.all([
+      upsertOrgConfig(orgId, body as Parameters<typeof upsertOrgConfig>[1]),
+      getSystemConfig(),
+    ])
+    return reply.send({ orgConfig, systemConfig })
   })
 
   // GET /admin/data-provider/property/:propertyId — config + current score
@@ -59,21 +72,22 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
       orgId ? getOrgConfig(orgId) : Promise.resolve(null),
       getSystemConfig(),
       getEffectiveConfig(id),
-      prisma.propertyScore.findUnique({ where: { propertyId: id }, select: {
-        propertyId: true, score: true, reviewCount: true, source: true,
-        fetchedAt: true, status: true, errorMsg: true,
-      }}),
+      prisma.propertyScore.findUnique({
+        where: { propertyId: id },
+        select: { propertyId: true, score: true, reviewCount: true, source: true, fetchedAt: true, status: true, errorMsg: true },
+      }),
     ])
+
+    // Strip decrypted credentials — never send login/password to the client
+    const { login: _l, password: _p, ...safeEffective } = effectiveConfig
 
     return reply.send({
       propertyId: id,
       propertyConfig,
       orgConfig,
       systemConfig,
-      effective: effectiveConfig,
-      score: score
-        ? { ...score, fetchedAt: score.fetchedAt?.toISOString() ?? null }
-        : null,
+      effective: safeEffective,
+      score: score ? { ...score, fetchedAt: score.fetchedAt?.toISOString() ?? null } : null,
     })
   })
 
@@ -88,7 +102,11 @@ export async function dataProviderRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' })
     }
 
-    return reply.send(await upsertPropertyConfig(id, request.body as Record<string, unknown>))
+    const body = { ...(request.body as Record<string, unknown>) }
+    // Observers cannot set orgServiceDisabled
+    if (request.admin.role === 'observer') delete body.orgServiceDisabled
+
+    return reply.send(await upsertPropertyConfig(id, body as Parameters<typeof upsertPropertyConfig>[1]))
   })
 
   // POST /admin/data-provider/refresh/:propertyId — manual trigger
