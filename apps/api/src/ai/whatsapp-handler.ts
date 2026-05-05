@@ -58,15 +58,23 @@ export async function runWhatsAppTurn(params: WhatsAppTurnParams): Promise<strin
     const nameMatch = message.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*$/i)
     if (nameMatch) {
       const hotelName = nameMatch[1]!.trim()
+      // Strip trailing brand qualifiers like "by ASTON", "- Autograph Collection", etc.
+      const strippedName = hotelName.replace(/\s+by\s+\S+.*$/i, '').replace(/\s+-\s+.*$/, '').trim()
+      // Try exact match first, then starts-with using the stripped name (handles brand suffixes)
       const prop = await prisma.property.findFirst({
         where: { name: { equals: hotelName, mode: 'insensitive' }, deletedAt: null },
         select: { propertyId: true, organizationId: true },
-      })
+      }) ?? (strippedName !== hotelName ? await prisma.property.findFirst({
+        where: { name: { startsWith: strippedName, mode: 'insensitive' }, deletedAt: null },
+        select: { propertyId: true, organizationId: true },
+      }) : null)
       if (prop) {
         orgId = prop.organizationId
         propertyId = prop.propertyId
         await setWaSessionContext(sessionId, { orgId: prop.organizationId, propertyId: prop.propertyId })
-        logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId }, '[WhatsApp] Fresh greeting locked to property')
+        logger.info({ from, sessionId, propertyId: prop.propertyId, orgId: prop.organizationId, hotelName }, '[WhatsApp] Fresh greeting locked to property')
+      } else {
+        logger.warn({ from, sessionId, hotelName }, '[WhatsApp] Fresh greeting — property name not found in DB')
       }
     }
   }
