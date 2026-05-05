@@ -1344,7 +1344,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/test', { method: 'POST', body: JSON.stringify({ provider, apiKey, model }) })
   },
 
-  testStoredAIConnection(level: 'system' | 'org' | 'property', opts?: { orgId?: number; propertyId?: number }): Promise<AITestResult> {
+  testStoredAIConnection(level: 'system' | 'org' | 'property', opts?: { orgId?: number; propertyId?: number; whatsapp?: boolean }): Promise<AITestResult> {
     return apiRequest('/api/v1/admin/ai/test-stored', { method: 'POST', body: JSON.stringify({ level, ...opts }) })
   },
 

@@ -83,14 +83,28 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
 
   // POST /admin/ai/test-stored — test the already-stored (encrypted) key for a given level
   fastify.post('/admin/ai/test-stored', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-    const { level, orgId: rawOrgId, propertyId: rawPropertyId } =
-      request.body as { level: 'system' | 'org' | 'property'; orgId?: number; propertyId?: number }
+    const { level, orgId: rawOrgId, propertyId: rawPropertyId, whatsapp } =
+      request.body as { level: 'system' | 'org' | 'property'; orgId?: number; propertyId?: number; whatsapp?: boolean }
+
+    function resolveKey(row: { provider: string | null; apiKey: string | null; model: string | null; whatsappProvider?: string | null; whatsappApiKey?: string | null; whatsappModel?: string | null } | null) {
+      if (!row) return null
+      if (whatsapp) {
+        const provider = row.whatsappProvider || row.provider
+        const apiKey = row.whatsappApiKey || row.apiKey
+        const model = row.whatsappModel || row.model
+        if (!provider || !apiKey) return null
+        return { provider: provider as AIProvider, apiKey: decryptApiKey(apiKey), model: model ?? '' }
+      }
+      if (!row.provider || !row.apiKey) return null
+      return { provider: row.provider as AIProvider, apiKey: decryptApiKey(row.apiKey), model: row.model ?? '' }
+    }
 
     if (level === 'system') {
       if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
       const row = await prisma.systemAIConfig.findFirst()
-      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
-      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+      const resolved = resolveKey(row)
+      if (!resolved) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(resolved.provider, resolved.apiKey, resolved.model))
     }
 
     if (level === 'org') {
@@ -99,8 +113,9 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
         : request.admin.organizationId
       if (!orgId) return reply.status(400).send({ error: 'No organization context' })
       const row = await prisma.orgAIConfig.findUnique({ where: { organizationId: orgId } })
-      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
-      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+      const resolved = resolveKey(row)
+      if (!resolved) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(resolved.provider, resolved.apiKey, resolved.model))
     }
 
     if (level === 'property') {
@@ -108,8 +123,9 @@ export async function aiConfigRoutes(fastify: FastifyInstance) {
       const prop = await prisma.property.findUnique({ where: { propertyId: rawPropertyId } })
       if (!prop) return reply.status(404).send({ error: 'Property not found' })
       const row = await prisma.propertyAIConfig.findUnique({ where: { propertyId: prop.id } })
-      if (!row?.provider || !row.apiKey) return reply.send({ ok: false, error: 'No stored key' })
-      return reply.send(await testAIConnection(row.provider as AIProvider, decryptApiKey(row.apiKey), row.model ?? ''))
+      const resolved = resolveKey(row)
+      if (!resolved) return reply.send({ ok: false, error: 'No stored key' })
+      return reply.send(await testAIConnection(resolved.provider, resolved.apiKey, resolved.model))
     }
 
     return reply.status(400).send({ error: 'Invalid level' })

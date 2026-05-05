@@ -347,7 +347,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       }
     } else {
       if (isLocalHost(window.location.hostname)) {
-        b2cUrl = `http://${window.location.hostname}:3000`
+        b2cUrl = _orgSlug
+          ? `http://${window.location.hostname}:3000/?chain=${_orgSlug}`
+          : `http://${window.location.hostname}:3000`
       } else {
         b2cUrl = _webDomain
           ? _webDomain.replace(/\/$/, '') + '/'

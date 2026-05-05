@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AIChannel, AIChannelSettings, SellModel } from '@ibe/shared'
 import { AI_CHANNELS, AI_CHANNEL_LABELS, AI_CHANNEL_DESCRIPTIONS } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
+import { useAdminAuth } from '@/hooks/use-admin-auth'
+import { useAdminProperty } from '../../../property-context'
 import { Section, SaveBar } from '../../../design/components'
 
 const FEATURES: { key: AIChannel; label: string; description: string }[] = AI_CHANNELS.map(key => ({
@@ -26,16 +28,25 @@ const DEFAULT_SETTINGS: AIChannelSettings = {
 
 export default function AIChannelsPage() {
   const qc = useQueryClient()
-  const qKey = ['admin-ai-channels']
+  const { admin } = useAdminAuth()
+  const { orgId: selectedOrgId } = useAdminProperty()
+  const effectiveOrgId = selectedOrgId ?? admin?.organizationId ?? undefined
+  const qKey = ['admin-ai-channels', effectiveOrgId]
 
   const { data, isLoading } = useQuery({
     queryKey: qKey,
-    queryFn: () => apiClient.getOrgAIChannels(),
+    queryFn: () => apiClient.getOrgAIChannels(effectiveOrgId),
   })
 
   const [settings, setSettings] = useState<AIChannelSettings>(DEFAULT_SETTINGS)
   const [isDirty, setIsDirty] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Reset when switching orgs so stale data from previous org is never shown
+  useEffect(() => {
+    setSettings(DEFAULT_SETTINGS)
+    setIsDirty(false)
+  }, [effectiveOrgId])
 
   useEffect(() => {
     if (!data) return
@@ -44,7 +55,7 @@ export default function AIChannelsPage() {
   }, [data])
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () => apiClient.updateOrgAIChannels(settings),
+    mutationFn: () => apiClient.updateOrgAIChannels(settings, effectiveOrgId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qKey })
       setIsDirty(false)
