@@ -377,7 +377,7 @@ export default async function HomePage({
   const onsitePage = isMulti ? 'chain' as const : 'hotel' as const
 
   const chatWidgetProps = {
-    ...(defaultPropertyId ? { propertyId: defaultPropertyId } : {}),
+    ...(!isMulti && defaultPropertyId ? { propertyId: defaultPropertyId } : {}),
     orgId: tenant.orgId,
     whatsappPrefilledMessage: isMulti
       ? `Hello, I'd like to find out about ${displayName}${displayName.toLowerCase().includes('collection') ? '' : ' Collection'}.`
