@@ -25,6 +25,7 @@ export interface RateOffer {
   boardLabel: string
   boardAbbr: string
   isRefundable: boolean
+  cancellationPolicy: string
   price: number
 }
 
@@ -48,6 +49,16 @@ const BOARD_ABBR: Record<string, string> = {
   'FB': 'FB', 'FULL_BOARD': 'FB', 'FULLBOARD': 'FB',
   'AI': 'AI', 'ALL_INCLUSIVE': 'AI', 'ALLINCLUSIVE': 'AI',
   'SC': 'SC', 'SELF_CATERING': 'SC',
+}
+
+function formatCancellationPolicy(deadlines: { deadline: string; type: string }[], isRefundable: boolean): string {
+  if (!isRefundable) return 'Non-refundable'
+  const free = deadlines.filter(d => d.type === 'free')
+  if (free.length === 0) return 'Free cancellation'
+  const latest = free.reduce((max, d) => new Date(d.deadline) > new Date(max.deadline) ? d : max)
+  const date = new Date(latest.deadline)
+  if (isNaN(date.getTime())) return 'Free cancellation'
+  return `Free cancellation until ${date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`
 }
 
 function boardAbbr(board: string, label: string): string {
@@ -110,7 +121,7 @@ export async function executeSearchAvailability(args: Record<string, unknown>, c
       const bedding = room.bedding.map(b => `${b.quantity} ${b.type}`).join(', ') || 'Standard'
 
       // One offer per (board, isRefundable) pair — cheapest price wins
-      const byKey = new Map<string, RateOffer>()
+      const byKey = new Map<string, RateOffer & { _deadlines: { deadline: string; type: string }[] }>()
       for (const rate of room.rates) {
         const key = `${rate.board}-${rate.isRefundable ? '1' : '0'}`
         const existing = byKey.get(key)
@@ -121,11 +132,17 @@ export async function executeSearchAvailability(args: Record<string, unknown>, c
             boardLabel: rate.boardLabel,
             boardAbbr: boardAbbr(rate.board, rate.boardLabel),
             isRefundable: rate.isRefundable,
+            cancellationPolicy: '',
             price: rate.prices.sell.amount,
+            _deadlines: rate.cancellationDeadlines ?? [],
           })
         }
       }
-      const offers = [...byKey.values()].sort((a, b) => a.price - b.price)
+      // Resolve cancellation policy string now that cheapest rate per group is known
+      for (const offer of byKey.values()) {
+        offer.cancellationPolicy = formatCancellationPolicy(offer._deadlines, offer.isRefundable)
+      }
+      const offers = [...byKey.values()].sort((a, b) => a.price - b.price).map(({ _deadlines: _, ...o }) => o)
       const lowestPrice = offers[0]?.price ?? 0
       const currency = room.rates[0]?.prices.sell.currency ?? 'EUR'
 
