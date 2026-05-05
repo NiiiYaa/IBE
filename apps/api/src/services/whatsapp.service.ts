@@ -55,6 +55,46 @@ export async function resolveOrgByPhoneNumberId(phoneNumberId: string): Promise<
 }
 
 /**
+ * Given a hotel name from a WhatsApp greeting, resolve the matching propertyId within the org.
+ * Uses case-insensitive exact match — the greeting name comes from property.name so they should align.
+ */
+export async function resolvePropertyByNameInOrg(organizationId: number, name: string): Promise<number | null> {
+  const prop = await prisma.property.findFirst({
+    where: { organizationId, name: { equals: name, mode: 'insensitive' }, deletedAt: null },
+    select: { propertyId: true },
+  })
+  return prop?.propertyId ?? null
+}
+
+/**
+ * Mark an inbound WhatsApp message as read (shows blue ✓✓ to the sender immediately).
+ * Fire-and-forget — failures are logged but never thrown.
+ */
+export async function markMessageRead(
+  phoneNumberId: string,
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${phoneNumberId}/messages`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    logger.warn({ phoneNumberId, messageId, status: res.status, body }, '[WhatsApp] markMessageRead failed')
+  }
+}
+
+/**
  * Get any property ID belonging to an org (used to resolve AI config).
  */
 export async function getOrgPropertyId(organizationId: number): Promise<number | undefined> {

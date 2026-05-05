@@ -3,7 +3,7 @@ import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 import { runOrchestrator } from '../ai/orchestrator.js'
 import { RedisSession } from '../ai/sessions/redis-session.js'
-import { resolveOrgByPhoneNumberId, sendWhatsAppMessage } from '../services/whatsapp.service.js'
+import { resolveOrgByPhoneNumberId, sendWhatsAppMessage, resolvePropertyByNameInOrg, markMessageRead } from '../services/whatsapp.service.js'
 import { getWaSessionContext, setWaSessionContext, clearWaSessionContext } from '../services/communication.service.js'
 import { extractPropertyIdFromToolResults } from '../ai/whatsapp-handler.js'
 
@@ -63,7 +63,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
           const text = msg.text.body
 
           // Run async — do not block the 200 reply
-          processInbound(phoneNumberId, from, text).catch(err => {
+          processInbound(phoneNumberId, from, text, msg.id).catch(err => {
             logger.error({ err, phoneNumberId, from }, '[WhatsApp] processInbound error')
           })
         }
@@ -72,25 +72,46 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
   })
 }
 
-async function processInbound(phoneNumberId: string, from: string, text: string): Promise<void> {
+async function processInbound(phoneNumberId: string, from: string, text: string, msgId: string): Promise<void> {
   const org = await resolveOrgByPhoneNumberId(phoneNumberId)
   if (!org) {
     logger.warn({ phoneNumberId }, '[WhatsApp] No enabled org found for phone_number_id')
     return
   }
 
+  // Acknowledge immediately — shows blue ✓✓ to the sender while we process
+  markMessageRead(phoneNumberId, org.accessToken, msgId).catch(err => {
+    logger.warn({ err, msgId }, '[WhatsApp] markMessageRead fire-and-forget error')
+  })
+
   const sessionId = `wa:${phoneNumberId}:${from}`
 
   // Fresh greeting from IBE button — reset session so hotel context doesn't carry over
   const isFreshGreeting = /^hello,?\s+i['']d like to find out about\b/i.test(text.trim())
+  let freshPropertyId: number | undefined
+
   if (isFreshGreeting) {
     const session = new RedisSession()
     await Promise.all([session.save(sessionId, []), clearWaSessionContext(sessionId)])
     logger.info({ from, sessionId }, '[WhatsApp] Fresh greeting — session reset')
+
+    // Extract hotel name from the greeting and resolve to a specific property.
+    // The name comes from property.name (via chatConfig), so it matches the DB exactly.
+    const nameMatch = text.match(/hello,?\s+i['']d like to find out about (.+?)\.\s*$/i)
+    if (nameMatch) {
+      const pid = await resolvePropertyByNameInOrg(org.organizationId, nameMatch[1]!.trim())
+      if (pid) {
+        freshPropertyId = pid
+        await setWaSessionContext(sessionId, { orgId: org.organizationId, propertyId: pid })
+        logger.info({ sessionId, propertyId: pid }, '[WhatsApp] Fresh greeting locked to property')
+      }
+    }
   }
 
-  // Use hotel locked from a previous turn; fall back to chain-level (no home property)
-  const savedCtx = isFreshGreeting ? null : await getWaSessionContext(sessionId)
+  // Use resolved property from fresh greeting, or one locked from a previous turn
+  const savedCtx = isFreshGreeting
+    ? (freshPropertyId ? { orgId: org.organizationId, propertyId: freshPropertyId } : null)
+    : await getWaSessionContext(sessionId)
   const propertyId = savedCtx?.propertyId
 
   logger.info({ from, orgId: org.organizationId, propertyId, sessionId }, '[WhatsApp] Routing message')
