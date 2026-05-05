@@ -1527,19 +1527,24 @@ model SystemDataProviderConfig {
   providerType        String   @default("dataforseo")
   refreshIntervalDays Int      @default(30)
   enabled             Boolean  @default(false)
+  openToAll           Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
 
 model OrgDataProviderConfig {
-  id                  Int          @id @default(autoincrement())
-  organizationId      Int          @unique
-  organization        Organization @relation(fields: [organizationId], references: [id])
-  useSystem           Boolean      @default(true)
-  refreshIntervalDays Int?
-  enabled             Boolean?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  useSystem             Boolean      @default(true)
+  refreshIntervalDays   Int?
+  enabled               Boolean?
+  providerType          String?
+  login                 String?
+  password              String?
+  systemServiceDisabled Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }
 
 model PropertyDataProviderConfig {
@@ -1549,6 +1554,10 @@ model PropertyDataProviderConfig {
   useOrg              Boolean  @default(true)
   refreshIntervalDays Int?
   enabled             Boolean?
+  providerType        String?
+  login               String?
+  password            String?
+  orgServiceDisabled  Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
