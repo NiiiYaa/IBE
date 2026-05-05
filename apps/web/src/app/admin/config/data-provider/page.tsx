@@ -233,6 +233,13 @@ function RefreshButton({ propertyId, onRefreshed }: { propertyId: number; onRefr
 
 // ── Score panel ────────────────────────────────────────────────────────────────
 
+const STATUS_COLORS: Record<string, string> = {
+  idle: 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+  fetching: 'bg-amber-100 text-amber-700',
+  done: 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
+  error: 'bg-[var(--color-error)]/10 text-[var(--color-error)]',
+}
+
 function ScorePanel({ propertyId }: { propertyId: number }) {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
@@ -241,51 +248,66 @@ function ScorePanel({ propertyId }: { propertyId: number }) {
   })
   const score = data?.score
 
-  const statusColors: Record<string, string> = {
-    idle: 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
-    fetching: 'bg-amber-100 text-amber-700',
-    done: 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-    error: 'bg-[var(--color-error)]/10 text-[var(--color-error)]',
-  }
-
   return (
     <SectionCard title="Current Score">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          {isLoading ? (
-            <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
-          ) : score ? (
-            <>
-              <div className="flex items-center gap-3">
-                {score.score !== null
-                  ? <span className="text-2xl font-bold text-[var(--color-text)]">{score.score.toFixed(1)}</span>
-                  : <span className="text-sm text-[var(--color-text-muted)]">No score</span>
-                }
-                {score.reviewCount !== null && (
-                  <span className="text-sm text-[var(--color-text-muted)]">{score.reviewCount.toLocaleString()} reviews</span>
+      <div className="grid grid-cols-2 gap-4">
+        {/* Google (DataForSEO) */}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Google</p>
+          <div className="space-y-1">
+            {isLoading ? (
+              <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
+            ) : score ? (
+              <>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {score.score !== null
+                    ? <span className="text-2xl font-bold text-[var(--color-text)]">{score.score.toFixed(1)}</span>
+                    : <span className="text-sm text-[var(--color-text-muted)]">No score</span>
+                  }
+                  {score.reviewCount !== null && (
+                    <span className="text-sm text-[var(--color-text-muted)]">{score.reviewCount.toLocaleString()} reviews</span>
+                  )}
+                  <span className={['rounded-full px-2 py-0.5 text-xs font-medium', STATUS_COLORS[score.status] ?? STATUS_COLORS.idle].join(' ')}>
+                    {score.status}
+                  </span>
+                </div>
+                {score.source && <p className="text-xs text-[var(--color-text-muted)]">Source: {score.source}</p>}
+                {score.fetchedAt && (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Last fetched: {new Date(score.fetchedAt).toLocaleString()}
+                  </p>
                 )}
-                <span className={['rounded-full px-2 py-0.5 text-xs font-medium', statusColors[score.status] ?? statusColors.idle].join(' ')}>
-                  {score.status}
-                </span>
-              </div>
-              {score.source && <p className="text-xs text-[var(--color-text-muted)]">Source: {score.source}</p>}
-              {score.fetchedAt && (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Last fetched: {new Date(score.fetchedAt).toLocaleString()}
-                </p>
-              )}
-              {score.errorMsg && (
-                <p className="text-xs text-[var(--color-error)]">Error: {score.errorMsg}</p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-[var(--color-text-muted)]">No score fetched yet.</p>
-          )}
+                {score.errorMsg && (
+                  <p className="text-xs text-[var(--color-error)]">Error: {score.errorMsg}</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-[var(--color-text-muted)]">No score fetched yet.</p>
+            )}
+          </div>
+          <RefreshButton
+            propertyId={propertyId}
+            onRefreshed={() => qc.invalidateQueries({ queryKey: ['dp-property', propertyId] })}
+          />
         </div>
-        <RefreshButton
-          propertyId={propertyId}
-          onRefreshed={() => qc.invalidateQueries({ queryKey: ['dp-property', propertyId] })}
-        />
+
+        {/* TripAdvisor — placeholder, API coming later */}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">TripAdvisor</p>
+          <div className="space-y-1">
+            <p className="text-sm text-[var(--color-text-muted)]">No score fetched yet.</p>
+          </div>
+          <button
+            disabled
+            className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] opacity-50 cursor-not-allowed"
+            title="TripAdvisor score refresh coming soon"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
     </SectionCard>
   )
@@ -378,14 +400,22 @@ function GoogleSection({ propertyId, propertyName }: { propertyId: number; prope
             )
             : <p className="text-xs text-[var(--color-error)]">Could not extract CID — make sure to use a full Google Maps URL.</p>
         )}
-        {!urlInput && currentUrl && (
-          <div className="space-y-0.5 text-xs text-[var(--color-text-muted)]">
-            <p>URL saved.</p>
-            {propData?.lat !== null && propData?.lat !== undefined && (
-              <p>Coordinates: {propData.lat}, {propData.lng}</p>
-            )}
-          </div>
-        )}
+        {!urlInput && currentUrl && (() => {
+          const cidMatch = currentUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+          let savedCid: string | null = null
+          if (cidMatch) { try { savedCid = BigInt(`0x${cidMatch[1]}`).toString() } catch { /* ignore */ } }
+          return (
+            <div className="space-y-0.5 text-xs text-[var(--color-text-muted)]">
+              {savedCid
+                ? <p>CID: <span className="font-mono text-[var(--color-text)]">{savedCid}</span></p>
+                : <p>URL saved (no CID — re-paste the full Google Maps URL)</p>
+              }
+              {propData?.lat !== null && propData?.lat !== undefined && (
+                <p>Coordinates: {propData.lat}, {propData.lng}</p>
+              )}
+            </div>
+          )
+        })()}
         <div className="flex items-center gap-3">
           <button
             type="button"

@@ -1,6 +1,6 @@
 import { logger } from '../../utils/logger.js'
 
-const DATAFORSEO_URL = 'https://api.dataforseo.com/v3/business_data/google/hotel_info/live/advanced'
+const MY_BUSINESS_INFO_URL = 'https://api.dataforseo.com/v3/business_data/google/my_business_info/live'
 const DATAFORSEO_USER_DATA_URL = 'https://api.dataforseo.com/v3/appendix/user_data'
 
 export async function testDataForSEOConnection(
@@ -30,7 +30,7 @@ interface DataForSEORating {
 
 interface DataForSEOItem {
   type: string
-  title: string
+  title?: string
   rating?: DataForSEORating
 }
 
@@ -48,51 +48,65 @@ export interface HotelScoreResult {
   reviewCount: number
 }
 
+export interface HotelScoreFailure {
+  reason: string
+}
+
+export type HotelScoreOutcome =
+  | { ok: true; result: HotelScoreResult }
+  | { ok: false; failure: HotelScoreFailure }
+
 export async function fetchHotelScore(
   cid: string,
   login: string | undefined,
   password: string | undefined,
-): Promise<HotelScoreResult | null> {
+): Promise<HotelScoreOutcome> {
   if (!login || !password) {
-    logger.debug('[DataForSEO] No credentials configured, skipping')
-    return null
+    return { ok: false, failure: { reason: 'No credentials configured' } }
   }
 
   const credentials = Buffer.from(`${login}:${password}`).toString('base64')
 
   try {
-    const res = await fetch(DATAFORSEO_URL, {
+    const res = await fetch(MY_BUSINESS_INFO_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([{ hotel_identifier: cid }]),
+      body: JSON.stringify([{ keyword: `cid:${cid}`, location_code: 2840, language_code: 'en' }]),
       signal: AbortSignal.timeout(15000),
     })
 
     if (!res.ok) {
       logger.warn({ cid, status: res.status }, '[DataForSEO] HTTP error')
-      return null
+      return { ok: false, failure: { reason: `DataForSEO HTTP ${res.status}` } }
     }
 
     const data = await res.json() as DataForSEOResponse
     const task = data.tasks?.[0]
     if (!task || task.status_code !== 20000) {
-      logger.warn({ cid, taskStatus: task?.status_code }, '[DataForSEO] Task error')
-      return null
+      const code = task?.status_code ?? 'no task'
+      logger.warn({ cid, taskStatus: code }, '[DataForSEO] Task error')
+      return { ok: false, failure: { reason: `DataForSEO task error: ${code}` } }
     }
 
-    const item = task.result?.[0]?.items?.find(i => i.type === 'hotel_info')
-    if (!item?.rating) {
-      logger.info({ cid }, '[DataForSEO] No hotel_info item found')
-      return null
+    const items = task.result?.[0]?.items ?? []
+    const item = items.find(i => i.type === 'google_business_info')
+    if (!item) {
+      const types = items.map(i => i.type).join(', ') || 'none'
+      logger.warn({ cid, itemTypes: types }, '[DataForSEO] No google_business_info item in response')
+      return { ok: false, failure: { reason: `Business not found in Google Maps (got: ${types})` } }
+    }
+    if (!item.rating) {
+      logger.warn({ cid, itemTitle: item.title }, '[DataForSEO] google_business_info found but has no rating')
+      return { ok: false, failure: { reason: `Business found ("${item.title}") but has no rating` } }
     }
 
     logger.info({ cid, score: item.rating.value, reviewCount: item.rating.votes_count }, '[DataForSEO] Score fetched')
-    return { score: item.rating.value, reviewCount: item.rating.votes_count }
+    return { ok: true, result: { score: item.rating.value, reviewCount: item.rating.votes_count } }
   } catch (err) {
     logger.warn({ cid, err }, '[DataForSEO] Fetch failed')
-    return null
+    return { ok: false, failure: { reason: err instanceof Error ? err.message : 'Fetch failed' } }
   }
 }

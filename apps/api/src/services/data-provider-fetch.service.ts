@@ -36,35 +36,36 @@ export async function refreshProperty(propertyId: number, { force = false } = {}
   })
 
   try {
-    const result = await fetchHotelScore(
+    const outcome = await fetchHotelScore(
       config.cid,
       config.login,
       config.password,
     )
 
-    if (!result) {
+    if (!outcome.ok) {
       await prisma.propertyScore.upsert({
         where: { propertyId },
-        create: { propertyId, status: 'error', errorMsg: 'No score returned by provider' },
-        update: { status: 'error', errorMsg: 'No score returned by provider', fetchedAt: new Date() },
+        create: { propertyId, status: 'error', errorMsg: outcome.failure.reason, fetchedAt: new Date() },
+        update: { status: 'error', errorMsg: outcome.failure.reason, fetchedAt: new Date() },
       })
       return { propertyId, skipped: false, score: null, reviewCount: null }
     }
 
+    const { score, reviewCount } = outcome.result
     await prisma.propertyScore.upsert({
       where: { propertyId },
       create: {
         propertyId,
-        score: result.score,
-        reviewCount: result.reviewCount,
+        score,
+        reviewCount,
         source: 'dataforseo',
         fetchedAt: new Date(),
         status: 'done',
         errorMsg: null,
       },
       update: {
-        score: result.score,
-        reviewCount: result.reviewCount,
+        score,
+        reviewCount,
         source: 'dataforseo',
         fetchedAt: new Date(),
         status: 'done',
@@ -72,8 +73,8 @@ export async function refreshProperty(propertyId: number, { force = false } = {}
       },
     })
 
-    logger.info({ propertyId, score: result.score, reviewCount: result.reviewCount }, '[DataProvider] Score saved')
-    return { propertyId, skipped: false, score: result.score, reviewCount: result.reviewCount }
+    logger.info({ propertyId, score, reviewCount }, '[DataProvider] Score saved')
+    return { propertyId, skipped: false, score, reviewCount }
   } catch (err) {
     logger.warn({ propertyId, err }, '[DataProvider] Refresh failed')
     await prisma.propertyScore.upsert({
