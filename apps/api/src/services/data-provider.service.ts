@@ -4,19 +4,31 @@ import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 
-// ── Google Maps CID parser ────────────────────────────────────────────────────
+// ── Google Maps URL parser ────────────────────────────────────────────────────
 
-// Extracts the Google CID (decimal string) from a Google Maps URL.
-// Google Maps URLs embed the CID as the second hex value in the !1s0x...:0x... segment.
-// Example: !1s0x4876035aec559b97:0x39d8bfb462bd7070 → "4172147798342520944"
-export function parseCidFromGoogleMapsUrl(url: string): string | null {
-  const match = url.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
-  if (!match) return null
-  try {
-    return BigInt(`0x${match[1]}`).toString()
-  } catch {
-    return null
+export interface GoogleMapsData {
+  cid: string | null   // decimal CID from !1s0x...:0x... segment
+  lat: number | null   // from @<lat>,<lng>,<zoom>
+  lng: number | null
+}
+
+export function parseGoogleMapsUrl(url: string): GoogleMapsData {
+  const cidMatch = url.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+  let cid: string | null = null
+  if (cidMatch) {
+    try { cid = BigInt(`0x${cidMatch[1]}`).toString() } catch { /* ignore */ }
   }
+
+  const coordMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+  const lat = coordMatch?.[1] ? parseFloat(coordMatch[1]) : null
+  const lng = coordMatch?.[2] ? parseFloat(coordMatch[2]) : null
+
+  return { cid, lat, lng }
+}
+
+// Keep old export for backwards compat with fetch service
+export function parseCidFromGoogleMapsUrl(url: string): string | null {
+  return parseGoogleMapsUrl(url).cid
 }
 
 // ── Encryption ────────────────────────────────────────────────────────────────
@@ -134,6 +146,8 @@ function rowToPropertyConfig(row: {
   login: string | null
   password: string | null
   googleMapsUrl: string | null
+  lat: number | null
+  lng: number | null
   orgServiceDisabled: boolean
 }): PropertyDataProviderConfig {
   return {
@@ -145,6 +159,8 @@ function rowToPropertyConfig(row: {
     loginSet: !!row.login,
     passwordMasked: row.password ? maskPassword(row.password) : null,
     googleMapsUrl: row.googleMapsUrl,
+    lat: row.lat,
+    lng: row.lng,
     orgServiceDisabled: row.orgServiceDisabled,
   }
 }
@@ -223,7 +239,18 @@ export async function upsertPropertyConfig(
   if (updates.enabled !== undefined) data.enabled = updates.enabled
   if (updates.providerType !== undefined) data.providerType = updates.providerType
   if (updates.orgServiceDisabled !== undefined) data.orgServiceDisabled = updates.orgServiceDisabled
-  if (updates.googleMapsUrl !== undefined) data.googleMapsUrl = updates.googleMapsUrl || null
+  if (updates.googleMapsUrl !== undefined) {
+    const url = updates.googleMapsUrl || null
+    data.googleMapsUrl = url
+    if (url) {
+      const parsed = parseGoogleMapsUrl(url)
+      data.lat = parsed.lat
+      data.lng = parsed.lng
+    } else {
+      data.lat = null
+      data.lng = null
+    }
+  }
   if (updates.login !== undefined && updates.login !== '') data.login = encryptCredential(updates.login)
   if (updates.password !== undefined && updates.password !== '') data.password = encryptCredential(updates.password)
 

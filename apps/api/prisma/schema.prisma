@@ -1560,6 +1560,8 @@ model PropertyDataProviderConfig {
   login               String?
   password            String?
   googleMapsUrl       String?
+  lat                 Float?
+  lng                 Float?
   orgServiceDisabled  Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

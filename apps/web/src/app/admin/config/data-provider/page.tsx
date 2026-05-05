@@ -600,10 +600,16 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
     }
   }, [propData])
 
-  const parsedCid = (() => {
-    const m = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
-    if (!m) return null
-    try { return BigInt(`0x${m[1]}`).toString() } catch { return null }
+  const parsedGoogleMaps = (() => {
+    const cidMatch = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+    let cid: string | null = null
+    if (cidMatch) { try { cid = BigInt(`0x${cidMatch[1]}`).toString() } catch { /* ignore */ } }
+    const coordMatch = googleMapsUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+    return {
+      cid,
+      lat: coordMatch?.[1] ? parseFloat(coordMatch[1]) : null,
+      lng: coordMatch?.[2] ? parseFloat(coordMatch[2]) : null,
+    }
   })()
 
   const isDirty = (
@@ -732,12 +738,22 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
             </p>
           </div>
           {googleMapsUrl && (
-            parsedCid
-              ? <p className="text-xs text-[var(--color-success)]">CID extracted: {parsedCid}</p>
+            parsedGoogleMaps.cid
+              ? (
+                <div className="space-y-0.5 text-xs text-[var(--color-success)]">
+                  <p>CID: {parsedGoogleMaps.cid}</p>
+                  {parsedGoogleMaps.lat !== null && (
+                    <p>Coordinates: {parsedGoogleMaps.lat}, {parsedGoogleMaps.lng}</p>
+                  )}
+                </div>
+              )
               : <p className="text-xs text-[var(--color-error)]">Could not extract CID — make sure to use a full Google Maps URL.</p>
           )}
           {!googleMapsUrl && propData?.googleMapsUrl && (
-            <p className="text-xs text-[var(--color-text-muted)]">Current URL saved. Paste a new one to update.</p>
+            <div className="space-y-0.5 text-xs text-[var(--color-text-muted)]">
+              <p>URL saved.</p>
+              {propData.lat !== null && <p>Coordinates: {propData.lat}, {propData.lng}</p>}
+            </div>
           )}
         </div>
       </SectionCard>
