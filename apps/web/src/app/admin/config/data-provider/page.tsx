@@ -600,19 +600,21 @@ function PropertyConfigSection({ propertyId }: { propertyId: number }) {
     }
   }, [propData])
 
-  const parsedCid = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)?.[1]
-    ? String(BigInt(`0x${googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)![1]}`))
-    : null
+  const parsedCid = (() => {
+    const m = googleMapsUrl.match(/!1s0x[0-9a-f]+:0x([0-9a-f]+)/i)
+    if (!m) return null
+    try { return BigInt(`0x${m[1]}`).toString() } catch { return null }
+  })()
 
-  const isDirty = !!propData && (
-    useOrg !== propData.useOrg ||
-    orgServiceDisabled !== propData.orgServiceDisabled ||
-    googleMapsUrl !== (propData.googleMapsUrl ?? '') ||
+  const isDirty = (
+    useOrg !== (propData?.useOrg ?? true) ||
+    orgServiceDisabled !== (propData?.orgServiceDisabled ?? false) ||
+    googleMapsUrl !== (propData?.googleMapsUrl ?? '') ||
     (!useOrg && (
-      providerType !== (propData.providerType ?? 'dataforseo') ||
+      providerType !== (propData?.providerType ?? 'dataforseo') ||
       login !== '' ||
       password !== '' ||
-      refreshIntervalDays !== propData.refreshIntervalDays
+      refreshIntervalDays !== (propData?.refreshIntervalDays ?? null)
     ))
   )
 
