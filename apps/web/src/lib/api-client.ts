@@ -1310,8 +1310,11 @@ export const apiClient = {
     return apiRequest(`/api/v1/ai/enabled${qs}`)
   },
 
-  getChatConfig(propertyId?: number): Promise<{ aiEnabled: boolean; whatsappNumber: string | null; name: string | null }> {
-    const qs = propertyId ? `?propertyId=${propertyId}` : ''
+  getChatConfig(propertyId?: number, orgId?: number): Promise<{ aiEnabled: boolean; whatsappNumber: string | null; name: string | null }> {
+    const params = new URLSearchParams()
+    if (propertyId) params.set('propertyId', String(propertyId))
+    else if (orgId) params.set('orgId', String(orgId))
+    const qs = params.size ? `?${params}` : ''
     return apiRequest(`/api/v1/ai/chat-config${qs}`)
   },
 

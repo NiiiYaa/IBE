@@ -20,9 +20,9 @@ export function ChatWidget({ propertyId, orgId, whatsappPrefilledMessage }: Prop
   const [aiOpen, setAiOpen] = useState(false)
 
   const { data: chatConfig } = useQuery({
-    queryKey: ['chat-config', propertyId],
-    queryFn: () => apiClient.getChatConfig(propertyId),
-    enabled: !!propertyId,
+    queryKey: ['chat-config', propertyId, orgId],
+    queryFn: () => apiClient.getChatConfig(propertyId, orgId),
+    enabled: !!(propertyId || orgId),
     staleTime: 60_000,
   })
 

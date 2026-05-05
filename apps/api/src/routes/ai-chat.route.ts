@@ -59,15 +59,17 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
   // GET /api/v1/ai/chat-config?propertyId=X — public: which conversation channels are available?
   // Returns AI enabled flag + WhatsApp contact number (if configured with Twilio).
   fastify.get('/ai/chat-config', async (request, reply) => {
-    const { propertyId: rawId } = request.query as { propertyId?: string }
+    const { propertyId: rawId, orgId: rawOrgId } = request.query as { propertyId?: string; orgId?: string }
     const propertyId = rawId ? parseInt(rawId, 10) : NaN
+    const orgIdParam = rawOrgId ? parseInt(rawOrgId, 10) : NaN
 
     const pid = !isNaN(propertyId) ? propertyId : undefined
-    const [aiConfig, orgId, property] = await Promise.all([
-      resolveAIConfig(pid),
-      pid ? getOrgIdForProperty(pid) : Promise.resolve(undefined),
+    const [aiConfig, resolvedOrgId, property] = await Promise.all([
+      resolveAIConfig(pid, !isNaN(orgIdParam) ? orgIdParam : undefined),
+      pid ? getOrgIdForProperty(pid) : Promise.resolve(!isNaN(orgIdParam) ? orgIdParam : undefined),
       pid ? prisma.property.findUnique({ where: { propertyId: pid }, select: { name: true, organizationId: true } }) : Promise.resolve(null),
     ])
+    const orgId = resolvedOrgId
 
     let whatsappNumber: string | null = null
     if (orgId) {
