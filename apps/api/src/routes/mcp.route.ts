@@ -336,24 +336,13 @@ async function handleToolCall(
 
     const LARGE_CHAIN_THRESHOLD = 50
 
-    // For large chains with no query, return only the count and ask AI to request a filter
-    // instead of dumping a random page that would be unhelpful and invite pagination loops
     const totalUnfiltered = await prisma.property.count({ where: baseWhere })
-    if (totalUnfiltered > LARGE_CHAIN_THRESHOLD && !query) {
-      return mcpResult(JSON.stringify({
-        properties: [],
-        total: totalUnfiltered,
-        note: `This chain has ${totalUnfiltered} hotels. Please ask the user which city, country, or hotel name they are looking for, then call list_properties again with a query parameter to filter the results.`,
-      }))
-    }
+    const isLargeChain = totalUnfiltered > LARGE_CHAIN_THRESHOLD
 
-    // Name filter applied in DB — matches property.name or hotelConfig.displayName
+    // Name filter applied in DB — matches property.name only (no HotelConfig relation on Property)
     const nameWhere = query ? {
       ...baseWhere,
-      OR: [
-        { name:       { contains: query, mode: 'insensitive' as const } },
-        { hotelConfig: { displayName: { contains: query, mode: 'insensitive' as const } } },
-      ],
+      name: { contains: query, mode: 'insensitive' as const },
     } : baseWhere
 
     const [dbTotal, dbProperties] = await Promise.all([
@@ -377,7 +366,7 @@ async function handleToolCall(
           select: { propertyId: true, name: true, isDefault: true },
           orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
         }),
-        fetchHotelList(),
+        fetchHotelList().catch(() => [] as Awaited<ReturnType<typeof fetchHotelList>>),
       ])
       const orgPropertyIds = new Set(allProps.map(p => p.propertyId))
       const qLower = query.toLowerCase()
@@ -430,11 +419,18 @@ async function handleToolCall(
         } : {}),
       }
     })
+    const paginationNote = offset + list.length < effectiveTotal
+      ? `Showing ${offset + 1}–${offset + list.length} of ${effectiveTotal}. Use offset to get more.`
+      : undefined
+    const largeChainNote = isLargeChain && !query
+      ? `This chain has ${totalUnfiltered} hotels in total. Use the query parameter to filter by city or hotel name for more targeted results.`
+      : undefined
+    const note = paginationNote ?? largeChainNote
     return mcpResult(JSON.stringify({
       properties: list,
       returned: list.length,
       total: effectiveTotal,
-      ...(offset + list.length < effectiveTotal ? { note: `Showing ${offset + 1}–${offset + list.length} of ${effectiveTotal}. Use offset to get more.` } : {}),
+      ...(note ? { note } : {}),
     }))
   }
 
