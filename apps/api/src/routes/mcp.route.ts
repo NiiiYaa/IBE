@@ -549,6 +549,7 @@ interface SseSession {
   end: () => void
   defaultPropertyId: number | null
   orgId: number | null
+  orgSlug: string | null
 }
 const sseSessions = new Map<string, SseSession>()
 
@@ -573,11 +574,22 @@ async function resolveDefaultProperty(scope: Awaited<ReturnType<typeof validateA
   return first?.propertyId ?? null
 }
 
+function proxyImage(url: string): string {
+  return `${env.WEB_BASE_URL}/api/v1/public/image-proxy?url=${encodeURIComponent(url)}`
+}
+
+function orgUrl(orgSlug: string | null): string {
+  if (!orgSlug) return env.WEB_BASE_URL
+  const base = env.WEB_BASE_URL.replace(/^https?:\/\//, '').replace(/^www\./, '')
+  return `https://${orgSlug}.${base}`
+}
+
 async function handleToolCall(
   toolName: string,
   args: Record<string, unknown>,
   defaultPropertyId: number | null,
   orgId: number | null,
+  orgSlug: string | null,
 ): Promise<{ content: { type: string; text: string }[]; structuredContent?: unknown; _meta?: unknown; isError?: boolean }> {
   const pid = (args['propertyId'] as number | undefined) ?? defaultPropertyId ?? 0
 
@@ -656,6 +668,7 @@ async function handleToolCall(
     const staticMap = new Map(
       statics.map((r, i) => [pids[i]!, r.status === 'fulfilled' ? r.value : null])
     )
+    const base = orgUrl(orgSlug)
     const list = effectiveProperties.map(p => {
       const s = staticMap.get(p.propertyId)
       const cfg = configMap.get(p.propertyId)
@@ -663,7 +676,7 @@ async function handleToolCall(
         propertyId: p.propertyId,
         name: cfg?.displayName || p.name || `Property ${p.propertyId}`,
         isDefault: p.isDefault,
-        bookUrl: `${env.WEB_BASE_URL}/?hotelId=${p.propertyId}`,
+        bookUrl: `${base}/?hotelId=${p.propertyId}`,
         detailUrl: `${env.WEB_BASE_URL}/hotel/${p.propertyId}`,
         ...(s ? {
           stars: s.rating ?? null,
@@ -675,7 +688,7 @@ async function handleToolCall(
             : null,
           phone: s.contact.phone || null,
           website: s.contact.website || null,
-          images: s.images.slice(0, 2).map(i => i.uri),
+          images: s.images.slice(0, 2).map(i => proxyImage(i.uri)),
         } : {}),
       }
     })
@@ -708,13 +721,14 @@ async function handleToolCall(
       ])
       const desc = detail.descriptions.find(d => d.locale === 'en')?.text ?? detail.descriptions[0]?.text ?? ''
       const name = config?.displayName || detail.name
+      const base = orgUrl(orgSlug)
       const hotel = {
         propertyId: pid, name, starRating: detail.starRating,
         city: detail.location.city, address: detail.location.address,
         country: detail.location.countryCode, description: desc,
         tagline: config?.tagline ?? null,
-        images: detail.images.slice(0, 6).map(i => i.url),
-        bookUrl: `${env.WEB_BASE_URL}/?hotelId=${pid}`,
+        images: detail.images.slice(0, 6).map(i => proxyImage(i.url)),
+        bookUrl: `${base}/?hotelId=${pid}`,
         detailUrl: `${env.WEB_BASE_URL}/hotel/${pid}`,
       }
       const structuredContent = { hotel }
@@ -826,6 +840,7 @@ async function dispatchJsonRpc(
   body: { jsonrpc: string; method: string; params?: unknown; id?: string | number | null },
   defaultPropertyId: number | null,
   orgId: number | null,
+  orgSlug: string | null,
 ): Promise<object | null> {
   if (body.jsonrpc !== '2.0') {
     return { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid JSON-RPC version' }, id: body.id ?? null }
@@ -899,7 +914,7 @@ async function dispatchJsonRpc(
 
   if (body.method === 'tools/call') {
     const p = body.params as { name?: string; arguments?: Record<string, unknown> } | undefined
-    const result = await handleToolCall(p?.name ?? '', p?.arguments ?? {}, defaultPropertyId, orgId)
+    const result = await handleToolCall(p?.name ?? '', p?.arguments ?? {}, defaultPropertyId, orgId, orgSlug)
     return { jsonrpc: '2.0', result, id: body.id ?? null }
   }
 
@@ -927,12 +942,16 @@ export async function mcpRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
     }
 
-    const defaultPropertyId = await resolveDefaultProperty(scope)
     const orgId = scope.kind === 'org' ? scope.orgId : null
+    const [defaultPropertyId, orgSlugRow] = await Promise.all([
+      resolveDefaultProperty(scope),
+      orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { slug: true } }) : null,
+    ])
+    const orgSlug = orgSlugRow?.slug ?? null
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
     try {
-      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId)
+      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId, orgSlug)
       if (!response) return reply.status(204).send()
       return reply.send(response)
     } catch (err) {
@@ -949,11 +968,15 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     if (!scope) {
       return reply.status(401).send({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null })
     }
-    const defaultPropertyId = await resolveDefaultProperty(scope)
     const orgId = scope.kind === 'org' ? scope.orgId : null
+    const [defaultPropertyId, orgSlugRow] = await Promise.all([
+      resolveDefaultProperty(scope),
+      orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { slug: true } }) : null,
+    ])
+    const orgSlug = orgSlugRow?.slug ?? null
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
     try {
-      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId)
+      const response = await dispatchJsonRpc(body, defaultPropertyId, orgId, orgSlug)
       if (!response) return reply.status(204).send()
       return reply.send(response)
     } catch (err) {
@@ -973,8 +996,12 @@ export async function mcpRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Unauthorized' })
     }
 
-    const defaultPropertyId = await resolveDefaultProperty(scope)
     const orgId = scope.kind === 'org' ? scope.orgId : null
+    const [defaultPropertyId, orgSlugRow] = await Promise.all([
+      resolveDefaultProperty(scope),
+      orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { slug: true } }) : null,
+    ])
+    const orgSlug = orgSlugRow?.slug ?? null
     const sessionId = crypto.randomUUID()
 
     reply.hijack()
@@ -991,6 +1018,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
       end:   () => { try { res.end() } catch { /* already ended */ } },
       defaultPropertyId,
       orgId,
+      orgSlug,
     }
     sseSessions.set(sessionId, session)
 
@@ -1021,7 +1049,7 @@ export async function mcpRoutes(fastify: FastifyInstance) {
     const body = request.body as { jsonrpc: string; method: string; params?: unknown; id?: string | number | null }
 
     try {
-      const response = await dispatchJsonRpc(body, session.defaultPropertyId, session.orgId)
+      const response = await dispatchJsonRpc(body, session.defaultPropertyId, session.orgId, session.orgSlug)
       if (response) {
         session.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`)
       }
