@@ -442,18 +442,22 @@ async function handleToolCall(
         prisma.hotelConfig.findUnique({ where: { propertyId: pid } }).catch(() => null),
       ])
       const desc = detail.descriptions.find(d => d.locale === 'en')?.text ?? detail.descriptions[0]?.text ?? ''
-      return mcpResult(JSON.stringify({
-        propertyId: pid,
-        name: config?.displayName || detail.name,
-        starRating: detail.starRating,
-        city: detail.location.city,
-        address: detail.location.address,
-        country: detail.location.countryCode,
-        description: desc,
-        tagline: config?.tagline ?? null,
-        images: detail.images.slice(0, 5).map(i => i.url),
-        detailUrl: `${env.WEB_BASE_URL}/hotel/${pid}`,
-      }))
+      const name = config?.displayName || detail.name
+      const imageUrls = detail.images.slice(0, 5).map(i => i.url)
+      const detailUrl = `${env.WEB_BASE_URL}/hotel/${pid}`
+      const imagesMd = imageUrls.map((url, i) => `![${name} photo ${i + 1}](${url})`).join('\n')
+      const data = {
+        propertyId: pid, name, starRating: detail.starRating,
+        city: detail.location.city, address: detail.location.address,
+        country: detail.location.countryCode, description: desc,
+        tagline: config?.tagline ?? null, detailUrl,
+      }
+      return {
+        content: [
+          { type: 'text', text: imagesMd },
+          { type: 'text', text: JSON.stringify(data) },
+        ],
+      }
     } catch {
       return mcpError(`Property ${pid} not found`)
     }

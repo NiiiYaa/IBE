@@ -19,8 +19,9 @@ export async function getKeyPair(): Promise<OAuthKeyPair> {
   if (_keyPair) return _keyPair
   const kid = 'ibe-mcp-1'
   if (env.OAUTH_PRIVATE_KEY_PEM && env.OAUTH_PUBLIC_KEY_PEM) {
-    const privateKey = await importPKCS8(env.OAUTH_PRIVATE_KEY_PEM, 'RS256')
-    const publicKey  = await importSPKI(env.OAUTH_PUBLIC_KEY_PEM, 'RS256')
+    const normalizePem = (s: string) => s.replace(/\\n/g, '\n').split('\n').map(l => l.trim()).join('\n')
+    const privateKey = await importPKCS8(normalizePem(env.OAUTH_PRIVATE_KEY_PEM), 'RS256')
+    const publicKey  = await importSPKI(normalizePem(env.OAUTH_PUBLIC_KEY_PEM), 'RS256')
     _keyPair = { privateKey, publicJwk: { ...(await exportJWK(publicKey)), kid, alg: 'RS256', use: 'sig' }, kid }
   } else {
     const { privateKey, publicKey } = await generateKeyPair('RS256')
