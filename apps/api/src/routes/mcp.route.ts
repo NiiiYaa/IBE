@@ -3,7 +3,7 @@ import { validateApiKey } from '../services/mcp.service.js'
 import { isJwt, validateMcpJwt, getOAuthScope, getOAuthAudience, getOAuthIssuer } from '../services/oauth.service.js'
 import { search } from '../services/search.service.js'
 import { getPropertyDetail } from '../services/static.service.js'
-import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
+import { fetchPropertyStatic, fetchHotelList } from '../adapters/hyperguest/static.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
@@ -367,34 +367,33 @@ async function handleToolCall(
       }),
     ])
 
-    // City/country fallback: DB name search found nothing — try matching via static data (cached in Redis)
+    // Fallback: DB name search found nothing — match by name/city/country from HG hotel list (single cached call)
     let effectiveProperties = dbProperties
     let effectiveTotal = dbTotal
     if (query && dbProperties.length === 0) {
-      const allProps = await prisma.property.findMany({
-        where: baseWhere,
-        select: { propertyId: true, name: true, isDefault: true },
-        orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
-        take: 200,
-      })
-      // Fetch statics in batches of 25 to avoid hammering the HG API on cache miss
-      const BATCH = 25
+      const [allProps, allHgHotels] = await Promise.all([
+        prisma.property.findMany({
+          where: baseWhere,
+          select: { propertyId: true, name: true, isDefault: true },
+          orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
+        }),
+        fetchHotelList(),
+      ])
+      const orgPropertyIds = new Set(allProps.map(p => p.propertyId))
       const qLower = query.toLowerCase()
-      const cityMatched: typeof allProps = []
-      for (let i = 0; i < allProps.length; i += BATCH) {
-        const batch = allProps.slice(i, i + BATCH)
-        const batchStatics = await Promise.allSettled(batch.map(p => fetchPropertyStatic(p.propertyId)))
-        for (let j = 0; j < batch.length; j++) {
-          const r = batchStatics[j]
-          if (!r || r.status !== 'fulfilled') continue
-          const loc = r.value.location
-          const city = loc?.city?.name?.toLowerCase() ?? ''
-          const country = loc?.countryCode?.toLowerCase() ?? ''
-          if (city.includes(qLower) || country.includes(qLower)) cityMatched.push(batch[j]!)
-        }
-      }
-      effectiveTotal = cityMatched.length
-      effectiveProperties = cityMatched.slice(offset, offset + limit)
+      const matchedIds = new Set(
+        allHgHotels
+          .filter(h =>
+            h.name.toLowerCase().includes(qLower) ||
+            h.city.toLowerCase().includes(qLower) ||
+            h.country.toLowerCase().includes(qLower)
+          )
+          .map(h => h.hotel_id)
+          .filter(id => orgPropertyIds.has(id))
+      )
+      const matched = allProps.filter(p => matchedIds.has(p.propertyId))
+      effectiveTotal = matched.length
+      effectiveProperties = matched.slice(offset, offset + limit)
     }
 
     const pids = effectiveProperties.map(p => p.propertyId)

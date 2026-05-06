@@ -1,5 +1,6 @@
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
+import { fetchHotelList } from '../adapters/hyperguest/static.js'
 
 export const DEMO_HG_ID = 125346
 
@@ -56,9 +57,16 @@ export async function getOrgIdForProperty(propertyId: number): Promise<number | 
 export async function listProperties(organizationId: number, showDemoProperty = false): Promise<PropertyRecord[]> {
   const rows = await prisma.property.findMany({
     where: { deletedAt: null, propertyOrganizations: { some: { organizationId } } },
-    include: { propertyOrganizations: { where: { organizationId }, select: { isPrimary: true } } },
+    include: {
+      propertyOrganizations: { where: { organizationId }, select: { isPrimary: true } },
+    },
     orderBy: { createdAt: 'asc' },
   })
+  const configs = await prisma.hotelConfig.findMany({
+    where: { propertyId: { in: rows.map(r => r.propertyId) } },
+    select: { propertyId: true, displayName: true },
+  })
+  const configMap = new Map(configs.map(c => [c.propertyId, c.displayName]))
   const real: PropertyRecord[] = rows.map(r => ({
     id: r.id,
     propertyId: r.propertyId,
@@ -68,6 +76,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     name: r.name ?? null,
+    displayName: configMap.get(r.propertyId) ?? null,
     subdomain: r.subdomain ?? null,
     hyperGuestBearerToken: r.hyperGuestBearerToken ? '****' + r.hyperGuestBearerToken.slice(-4) : null,
     hyperGuestStaticDomain: r.hyperGuestStaticDomain ?? null,
@@ -280,6 +289,15 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     },
     orderBy: [{ organizationId: 'asc' }, { createdAt: 'asc' }],
   })
+  const [allConfigs, hgList] = await Promise.all([
+    prisma.hotelConfig.findMany({
+      where: { propertyId: { in: rows.map(r => r.propertyId) } },
+      select: { propertyId: true, displayName: true },
+    }),
+    fetchHotelList().catch(() => [] as Awaited<ReturnType<typeof fetchHotelList>>),
+  ])
+  const allConfigMap = new Map(allConfigs.map(c => [c.propertyId, c.displayName]))
+  const hgNameMap = new Map(hgList.map(h => [h.hotel_id, h.name]))
   return rows.map(r => ({
     id: r.id,
     propertyId: r.propertyId,
@@ -288,7 +306,8 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     isPrimary: true,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
-    name: r.name ?? null,
+    name: r.name ?? hgNameMap.get(r.propertyId) ?? null,
+    displayName: allConfigMap.get(r.propertyId) ?? null,
     subdomain: r.subdomain ?? null,
     orgId: r.organization.id,
     orgName: r.organization.name,

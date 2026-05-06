@@ -765,6 +765,7 @@ export interface PropertyRecord {
   lastSyncedAt: string | null
   createdAt: string
   name?: string | null
+  displayName?: string | null
   isDemo?: boolean
   isPrimary?: boolean
   orgId?: number

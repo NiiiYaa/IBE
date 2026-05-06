@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useProperty } from '@/hooks/use-property'
@@ -834,6 +834,106 @@ function AddPropertyPanel({ onAdd, onImportDone, isPending, error, notice, hasTo
   )
 }
 
+function OrgCombobox({ orgs, value, onChange }: {
+  orgs: OrgRecord[]
+  value: number | null
+  onChange: (id: number | null) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selectedOrg = orgs.find(o => o.id === value) ?? null
+  const filtered = search
+    ? orgs.filter(o =>
+        o.name.toLowerCase().includes(search.toLowerCase()) ||
+        (o.hyperGuestOrgId ?? '').toLowerCase().includes(search.toLowerCase())
+      )
+    : orgs
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function select(id: number | null) {
+    onChange(id)
+    setOpen(false)
+    setSearch('')
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-44">
+      <button
+        type="button"
+        onClick={() => { setOpen(v => !v); setSearch('') }}
+        className="flex w-full items-center justify-between gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+      >
+        <span className="truncate text-left">
+          {selectedOrg ? selectedOrg.name : <span className="text-[var(--color-text-muted)]">All orgs</span>}
+        </span>
+        <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+          <div className="p-2">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search org…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-1.5 text-xs focus:border-[var(--color-primary)] focus:outline-none"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => select(null)}
+              className={[
+                'flex w-full items-center px-3 py-2 text-left text-sm hover:bg-[var(--color-primary-light)]',
+                value === null ? 'font-medium text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]',
+              ].join(' ')}
+            >
+              All orgs
+            </button>
+            {filtered.map(o => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => select(o.id)}
+                className={[
+                  'flex w-full flex-col px-3 py-2 text-left hover:bg-[var(--color-primary-light)]',
+                  value === o.id ? 'bg-[var(--color-primary-light)]' : '',
+                ].join(' ')}
+              >
+                <span className={['text-sm', value === o.id ? 'font-medium text-[var(--color-primary)]' : 'text-[var(--color-text)]'].join(' ')}>
+                  {o.name}
+                </span>
+                {o.hyperGuestOrgId && (
+                  <span className="text-xs text-[var(--color-text-muted)]">{o.hyperGuestOrgId}</span>
+                )}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-xs text-[var(--color-text-muted)]">No orgs match</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type FilterStatus = 'all' | 'active' | 'inactive'
@@ -843,6 +943,7 @@ export default function PropertiesPage() {
   const [addError, setAddError] = useState<string | null>(null)
   const [filterText, setFilterText] = useState('')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [filterOrgId, setFilterOrgId] = useState<number | null>(null)
   const { admin, isAuthenticated } = useAdminAuth()
   const { orgId: contextOrgId } = useAdminProperty()
   const isSuper = admin?.role === 'super'
@@ -944,10 +1045,17 @@ export default function PropertiesPage() {
   const filteredProperties = properties.filter(p => {
     if (filterStatus === 'active' && !p.isActive) return false
     if (filterStatus === 'inactive' && p.isActive) return false
+    if (filterOrgId) {
+      const inOrg = (p.orgId === filterOrgId) || (p.allOrgs?.some(o => o.orgId === filterOrgId) ?? false)
+      if (!inOrg) return false
+    }
     if (filterText) {
       const text = filterText.toLowerCase()
       const matchesId = String(p.propertyId).includes(text)
-      const matchesName = (p.name ?? '').toLowerCase().includes(text) || (p.orgName ?? '').toLowerCase().includes(text)
+      const matchesName =
+        (p.displayName ?? '').toLowerCase().includes(text) ||
+        (p.name ?? '').toLowerCase().includes(text) ||
+        (p.orgName ?? '').toLowerCase().includes(text)
       if (!matchesId && !matchesName) return false
     }
     return true
@@ -1056,23 +1164,36 @@ export default function PropertiesPage() {
 
       {/* Filters */}
       {!loading && properties.length > 1 && (
-        <div className="mb-4 flex gap-2">
-          <input
-            type="text"
-            placeholder="Search by ID or name…"
-            value={filterText}
-            onChange={e => setFilterText(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
-          />
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value as FilterStatus)}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+        <div className="mb-4 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              placeholder="Search by ID, name or org…"
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              className="min-w-0 flex-[3_1_0%] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+            />
+            {isSuper && allOrgs.length > 0 && (
+              <OrgCombobox orgs={allOrgs} value={filterOrgId} onChange={setFilterOrgId} />
+            )}
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value as FilterStatus)}
+              className="w-32 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          {(filterText || filterOrgId !== null || filterStatus !== 'all') && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Showing{' '}
+              <span className="font-medium text-[var(--color-text)]">{filteredProperties.length}</span>
+              {' '}hotel{filteredProperties.length !== 1 ? 's' : ''} out of{' '}
+              <span className="font-medium text-[var(--color-text)]">{properties.length}</span> available
+            </p>
+          )}
         </div>
       )}
 
