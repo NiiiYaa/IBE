@@ -356,7 +356,7 @@ async function handleToolCall(
       ],
     } : baseWhere
 
-    const [total, properties] = await Promise.all([
+    const [dbTotal, dbProperties] = await Promise.all([
       query ? prisma.property.count({ where: nameWhere }) : Promise.resolve(totalUnfiltered),
       prisma.property.findMany({
         where: nameWhere,
@@ -367,7 +367,31 @@ async function handleToolCall(
       }),
     ])
 
-    const pids = properties.map(p => p.propertyId)
+    // City/country fallback: DB name search found nothing — try matching via static data (cached in Redis)
+    let effectiveProperties = dbProperties
+    let effectiveTotal = dbTotal
+    if (query && dbProperties.length === 0) {
+      const allProps = await prisma.property.findMany({
+        where: baseWhere,
+        select: { propertyId: true, name: true, isDefault: true },
+        orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
+        take: 200,
+      })
+      const allStatics = await Promise.allSettled(allProps.map(p => fetchPropertyStatic(p.propertyId)))
+      const qLower = query.toLowerCase()
+      const cityMatched = allProps.filter((_, i) => {
+        const r = allStatics[i]
+        if (!r || r.status !== 'fulfilled') return false
+        const loc = r.value.location
+        const city = loc?.city?.name?.toLowerCase() ?? ''
+        const country = loc?.countryCode?.toLowerCase() ?? ''
+        return city.includes(qLower) || country.includes(qLower)
+      })
+      effectiveTotal = cityMatched.length
+      effectiveProperties = cityMatched.slice(offset, offset + limit)
+    }
+
+    const pids = effectiveProperties.map(p => p.propertyId)
     const [configs, statics] = await Promise.all([
       prisma.hotelConfig.findMany({
         where: { propertyId: { in: pids } },
@@ -379,13 +403,14 @@ async function handleToolCall(
     const staticMap = new Map(
       statics.map((r, i) => [pids[i]!, r.status === 'fulfilled' ? r.value : null])
     )
-    const list = properties.map(p => {
+    const list = effectiveProperties.map(p => {
       const s = staticMap.get(p.propertyId)
       const cfg = configMap.get(p.propertyId)
       return {
         propertyId: p.propertyId,
         name: cfg?.displayName || p.name || `Property ${p.propertyId}`,
         isDefault: p.isDefault,
+        detailUrl: `${env.WEB_BASE_URL}/hotel/${p.propertyId}`,
         ...(s ? {
           stars: s.rating ?? null,
           address: s.location.address || null,
@@ -396,14 +421,15 @@ async function handleToolCall(
             : null,
           phone: s.contact.phone || null,
           website: s.contact.website || null,
+          images: s.images.slice(0, 2).map(i => i.uri),
         } : {}),
       }
     })
     return mcpResult(JSON.stringify({
       properties: list,
       returned: list.length,
-      total,
-      ...(offset + list.length < total ? { note: `Showing ${offset + 1}–${offset + list.length} of ${total}. Use offset to get more.` } : {}),
+      total: effectiveTotal,
+      ...(offset + list.length < effectiveTotal ? { note: `Showing ${offset + 1}–${offset + list.length} of ${effectiveTotal}. Use offset to get more.` } : {}),
     }))
   }
 
@@ -424,6 +450,8 @@ async function handleToolCall(
         country: detail.location.countryCode,
         description: desc,
         tagline: config?.tagline ?? null,
+        images: detail.images.slice(0, 5).map(i => i.url),
+        detailUrl: `${env.WEB_BASE_URL}/hotel/${pid}`,
       }))
     } catch {
       return mcpError(`Property ${pid} not found`)
