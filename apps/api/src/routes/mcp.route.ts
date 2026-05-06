@@ -8,8 +8,9 @@ import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 
-const WIDGET_URI           = 'hotel://widget/room-results'
-const PROPERTY_LIST_URI    = 'hotel://widget/property-list'
+const WIDGET_URI            = 'hotel://widget/room-results'
+const PROPERTY_LIST_URI     = 'hotel://widget/property-list'
+const PROPERTY_DETAIL_URI   = 'hotel://widget/property-detail'
 
 const WIDGET_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -341,6 +342,135 @@ const PROPERTY_LIST_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
+const PROPERTY_DETAIL_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotel Details</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px; color: #111; background: #fff;
+    }
+    .status { color: #888; font-size: 13px; text-align: center; padding: 24px 0; }
+
+    /* Photo strip */
+    .photos { display: flex; gap: 4px; overflow-x: auto; scroll-snap-type: x mandatory; height: 200px; background: #f3f4f6; }
+    .photos::-webkit-scrollbar { display: none; }
+    .photos img {
+      flex: 0 0 auto; height: 100%; width: auto; max-width: 320px;
+      object-fit: cover; scroll-snap-align: start; display: block;
+    }
+    .photos-ph {
+      width: 100%; height: 200px; background: linear-gradient(135deg,#f3f4f6,#e5e7eb);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 48px; color: #9ca3af;
+    }
+
+    /* Content */
+    .content { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+    .hotel-name { font-size: 18px; font-weight: 700; color: #111; line-height: 1.2; }
+
+    .meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .stars { color: #f59e0b; font-size: 15px; letter-spacing: -1px; }
+    .badge {
+      font-size: 11px; font-weight: 500; background: #f3f4f6;
+      color: #374151; border-radius: 6px; padding: 2px 8px;
+    }
+
+    .location { font-size: 13px; color: #6b7280; display: flex; align-items: flex-start; gap: 5px; }
+    .location-icon { flex-shrink: 0; margin-top: 1px; }
+
+    .divider { border: none; border-top: 1px solid #f3f4f6; }
+
+    .tagline { font-size: 14px; font-weight: 600; color: #374151; font-style: italic; }
+    .desc {
+      font-size: 13px; color: #4b5563; line-height: 1.6;
+      display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    .actions { display: flex; gap: 8px; padding-top: 2px; }
+    .btn {
+      flex: 1; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; padding: 10px 12px;
+      border-radius: 10px; text-decoration: none; transition: background .15s;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn-secondary:hover { background: #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div id="app"><p class="status">Loading hotel…</p></div>
+  <script>
+    window.addEventListener('message', function(event) {
+      var msg = event.data
+      if (!msg || msg.jsonrpc !== '2.0') return
+      if (msg.method === 'ui/initialize') {
+        var t = event.source || window.parent
+        var o = event.origin && event.origin !== 'null' ? event.origin : '*'
+        t.postMessage({ jsonrpc: '2.0', id: msg.id, result: {} }, o)
+        return
+      }
+      if (msg.method === 'ui/notifications/tool-result') {
+        var result = (msg.params && msg.params.result) || {}
+        var meta = result._meta || {}
+        var h = meta.hotel || (result.structuredContent && result.structuredContent.hotel)
+        if (h) render(h)
+      }
+    })
+
+    function esc(str) {
+      return String(str == null ? '' : str).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+      })
+    }
+
+    function stars(n) {
+      if (!n) return ''
+      var s = ''; for (var i = 0; i < Math.min(5, Math.round(n)); i++) s += '★'
+      return s
+    }
+
+    function render(h) {
+      var app = document.getElementById('app')
+
+      var photosHtml = (h.images && h.images.length)
+        ? '<div class="photos">' + h.images.map(function(u) {
+            return '<img src="' + esc(u) + '" alt="' + esc(h.name) + '" loading="lazy">'
+          }).join('') + '</div>'
+        : '<div class="photos-ph">🏨</div>'
+
+      var st = stars(h.starRating)
+      var loc = [h.address, h.city, h.country].filter(Boolean).map(esc).join(', ')
+
+      var bookBtn = h.bookUrl
+        ? '<a href="' + esc(h.bookUrl) + '" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Book now</a>' : ''
+      var detailBtn = h.detailUrl
+        ? '<a href="' + esc(h.detailUrl) + '" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">View page</a>' : ''
+
+      app.innerHTML = photosHtml +
+        '<div class="content">' +
+          '<p class="hotel-name">' + esc(h.name) + '</p>' +
+          '<div class="meta-row">' +
+            (st ? '<span class="stars">' + st + '</span>' : '') +
+            (h.starRating ? '<span class="badge">' + h.starRating + '-star</span>' : '') +
+          '</div>' +
+          (loc ? '<div class="location"><span class="location-icon">📍</span><span>' + loc + '</span></div>' : '') +
+          '<hr class="divider">' +
+          (h.tagline ? '<p class="tagline">"' + esc(h.tagline) + '"</p>' : '') +
+          (h.description ? '<p class="desc">' + esc(h.description) + '</p>' : '') +
+          '<div class="actions">' + bookBtn + detailBtn + '</div>' +
+        '</div>'
+    }
+  <\/script>
+</body>
+</html>`
+
 const PROTOCOL_VERSION = '2024-11-05'
 
 const MCP_TOOLS = [
@@ -578,20 +708,20 @@ async function handleToolCall(
       ])
       const desc = detail.descriptions.find(d => d.locale === 'en')?.text ?? detail.descriptions[0]?.text ?? ''
       const name = config?.displayName || detail.name
-      const imageUrls = detail.images.slice(0, 5).map(i => i.url)
-      const detailUrl = `${env.WEB_BASE_URL}/hotel/${pid}`
-      const imagesMd = imageUrls.map((url, i) => `![${name} photo ${i + 1}](${url})`).join('\n')
-      const data = {
+      const hotel = {
         propertyId: pid, name, starRating: detail.starRating,
         city: detail.location.city, address: detail.location.address,
         country: detail.location.countryCode, description: desc,
-        tagline: config?.tagline ?? null, detailUrl,
+        tagline: config?.tagline ?? null,
+        images: detail.images.slice(0, 6).map(i => i.url),
+        bookUrl: `${env.WEB_BASE_URL}/?hotelId=${pid}`,
+        detailUrl: `${env.WEB_BASE_URL}/hotel/${pid}`,
       }
+      const structuredContent = { hotel }
       return {
-        content: [
-          { type: 'text', text: imagesMd },
-          { type: 'text', text: JSON.stringify(data) },
-        ],
+        content: [{ type: 'text', text: JSON.stringify(hotel) }],
+        structuredContent,
+        _meta: { ui: { resourceUri: PROPERTY_DETAIL_URI }, hotel },
       }
     } catch {
       return mcpError(`Property ${pid} not found`)
@@ -732,8 +862,9 @@ async function dispatchJsonRpc(
       jsonrpc: '2.0',
       result: {
         resources: [
-          { uri: WIDGET_URI,        name: 'Room Results Widget', mimeType: 'text/html;profile=mcp-app' },
-          { uri: PROPERTY_LIST_URI, name: 'Hotel List Widget',   mimeType: 'text/html;profile=mcp-app' },
+          { uri: WIDGET_URI,           name: 'Room Results Widget',  mimeType: 'text/html;profile=mcp-app' },
+          { uri: PROPERTY_LIST_URI,    name: 'Hotel List Widget',    mimeType: 'text/html;profile=mcp-app' },
+          { uri: PROPERTY_DETAIL_URI,  name: 'Hotel Detail Widget',  mimeType: 'text/html;profile=mcp-app' },
         ],
       },
       id: body.id ?? null,
@@ -753,6 +884,13 @@ async function dispatchJsonRpc(
       return {
         jsonrpc: '2.0',
         result: { contents: [{ uri: PROPERTY_LIST_URI, mimeType: 'text/html;profile=mcp-app', text: PROPERTY_LIST_HTML }] },
+        id: body.id ?? null,
+      }
+    }
+    if (uri === PROPERTY_DETAIL_URI) {
+      return {
+        jsonrpc: '2.0',
+        result: { contents: [{ uri: PROPERTY_DETAIL_URI, mimeType: 'text/html;profile=mcp-app', text: PROPERTY_DETAIL_HTML }] },
         id: body.id ?? null,
       }
     }
