@@ -377,16 +377,22 @@ async function handleToolCall(
         orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
         take: 200,
       })
-      const allStatics = await Promise.allSettled(allProps.map(p => fetchPropertyStatic(p.propertyId)))
+      // Fetch statics in batches of 25 to avoid hammering the HG API on cache miss
+      const BATCH = 25
       const qLower = query.toLowerCase()
-      const cityMatched = allProps.filter((_, i) => {
-        const r = allStatics[i]
-        if (!r || r.status !== 'fulfilled') return false
-        const loc = r.value.location
-        const city = loc?.city?.name?.toLowerCase() ?? ''
-        const country = loc?.countryCode?.toLowerCase() ?? ''
-        return city.includes(qLower) || country.includes(qLower)
-      })
+      const cityMatched: typeof allProps = []
+      for (let i = 0; i < allProps.length; i += BATCH) {
+        const batch = allProps.slice(i, i + BATCH)
+        const batchStatics = await Promise.allSettled(batch.map(p => fetchPropertyStatic(p.propertyId)))
+        for (let j = 0; j < batch.length; j++) {
+          const r = batchStatics[j]
+          if (!r || r.status !== 'fulfilled') continue
+          const loc = r.value.location
+          const city = loc?.city?.name?.toLowerCase() ?? ''
+          const country = loc?.countryCode?.toLowerCase() ?? ''
+          if (city.includes(qLower) || country.includes(qLower)) cityMatched.push(batch[j]!)
+        }
+      }
       effectiveTotal = cityMatched.length
       effectiveProperties = cityMatched.slice(offset, offset + limit)
     }
