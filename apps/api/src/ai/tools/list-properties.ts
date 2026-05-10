@@ -1,13 +1,14 @@
 import { prisma } from '../../db/client.js'
 import { fetchPropertyStatic } from '../../adapters/hyperguest/static.js'
+import { cacheGet } from '../../utils/cache.js'
 import { logger } from '../../utils/logger.js'
+import type { HGPropertyStatic } from '@ibe/shared'
 import type { ToolDefinition } from '../adapters/types.js'
 
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 20
-// When DB names don't contain the query (city searches), scan this many properties
-// via HyperGuest to find matches by city. Capped to avoid excess API calls.
-const CITY_SCAN_LIMIT = 50
+// Max uncached (API) calls when city-scanning; cached hits are unlimited
+const CITY_API_FETCH_LIMIT = 50
 
 export const listPropertiesTool: ToolDefinition = {
   name: 'list_chain_hotels',
@@ -57,66 +58,99 @@ export async function executeListProperties(args: Record<string, unknown>): Prom
     select: { propertyId: true, name: true },
   })
 
-  let candidates = rows
-  let cityScan = false
-  if (query) {
-    const matched = rows.filter(r => r.name?.toLowerCase().includes(query))
-    if (matched.length > 0) {
-      candidates = matched
-    } else {
-      // No DB name matched — likely a city query. Scan a wider pool so the
-      // HyperGuest city filter (step 2) has enough candidates to work with.
-      candidates = rows
-      cityScan = true
+  // Step 2: city-scan strategy — check Redis cache for ALL candidates first (no API cost),
+  // then make HyperGuest API calls only for cache misses (capped to avoid rate limits).
+  function buildHotel(propertyId: number, data: HGPropertyStatic) {
+    const city = data.location?.city?.name ?? null
+    const description = data.descriptions?.find(d => d.language === 'en')?.description
+      ?? data.descriptions?.[0]?.description
+      ?? null
+    if (query) {
+      const words = query.split(/\s+/).filter(Boolean)
+      const matches = (s: string) => words.some(w => s.includes(w))
+      const hgName = (data.name ?? '').toLowerCase()
+      const dbName = (rows.find(r => r.propertyId === propertyId)?.name ?? '').toLowerCase()
+      const cityStr = (city ?? '').toLowerCase()
+      if (!matches(cityStr) && !matches(hgName) && !matches(dbName)) return null
+    }
+    return {
+      propertyId,
+      name: data.name ?? `Property ${propertyId}`,
+      city,
+      country: data.location?.countryCode ?? null,
+      rating: data.rating ?? null,
+      description: description?.slice(0, 150) ?? null,
     }
   }
 
-  const scanLimit = cityScan ? Math.min(candidates.length, CITY_SCAN_LIMIT) : limit
-  const toFetch = candidates.slice(0, scanLimit).map(r => r.propertyId)
+  let candidates = rows
+  if (query) {
+    const matched = rows.filter(r => r.name?.toLowerCase().includes(query))
+    // If DB names match (hotel name search), use only those — no city-scan needed
+    if (matched.length > 0) candidates = matched
+    // Otherwise it's likely a city query — scan all candidates via cache/API below
+  }
 
-  // Step 2: enrich with HyperGuest static data for matched subset only
-  const results = await Promise.all(
-    toFetch.map(async (propertyId) => {
-      try {
-        const data = await fetchPropertyStatic(propertyId)
-        const city = data.location?.city?.name ?? null
-        const description = data.descriptions?.find(d => d.language === 'en')?.description
-          ?? data.descriptions?.[0]?.description
-          ?? null
-        // If query provided, filter by city or hotel name (HyperGuest name takes priority over DB name)
-        if (query) {
-          const hgName = (data.name ?? '').toLowerCase()
-          const dbName = (rows.find(r => r.propertyId === propertyId)?.name ?? '').toLowerCase()
-          const cityStr = (city ?? '').toLowerCase()
-          // Split multi-word queries so "Quentin Prague" matches city="Prague" AND name="Quentin..."
-          const words = query.split(/\s+/).filter(Boolean)
-          const matches = (s: string) => words.some(w => s.includes(w))
-          if (!matches(cityStr) && !matches(hgName) && !matches(dbName)) return null
-        }
-        return {
-          propertyId,
-          name: data.name ?? `Property ${propertyId}`,
-          city,
-          country: data.location?.countryCode ?? null,
-          rating: data.rating ?? null,
-          description: description?.slice(0, 150) ?? null,
-        }
-      } catch (err) {
-        logger.warn({ propertyId, err }, '[AI Tool] list_chain_hotels fetch failed')
-        return null
-      }
-    })
-  )
+  const isCityQuery = query && candidates === rows
 
-  const hotels = results.filter(Boolean).slice(0, limit)
+  let hotels: ReturnType<typeof buildHotel>[]
+
+  if (isCityQuery) {
+    // Check Redis cache for all candidates simultaneously (zero API calls)
+    const cacheChecks = await Promise.all(
+      candidates.map(async r => ({
+        propertyId: r.propertyId,
+        data: await cacheGet<HGPropertyStatic>(`hg:static:property:${r.propertyId}`),
+      }))
+    )
+
+    const fromCache = cacheChecks.filter(c => c.data !== null) as { propertyId: number; data: HGPropertyStatic }[]
+    const cacheMissIds = cacheChecks.filter(c => c.data === null).map(c => c.propertyId)
+
+    // Filter cached results by city/name
+    const cacheMatches = fromCache.map(c => buildHotel(c.propertyId, c.data)).filter(Boolean)
+
+    // Fetch uncached ones from HyperGuest API (limited to avoid hammering the API)
+    const toFetchFromApi = cacheMissIds.slice(0, CITY_API_FETCH_LIMIT)
+    const apiResults = await Promise.all(
+      toFetchFromApi.map(async propertyId => {
+        try {
+          const data = await fetchPropertyStatic(propertyId)
+          return buildHotel(propertyId, data)
+        } catch (err) {
+          logger.warn({ propertyId, err }, '[AI Tool] list_chain_hotels fetch failed')
+          return null
+        }
+      })
+    )
+
+    hotels = [...cacheMatches, ...apiResults.filter(Boolean)].slice(0, limit)
+  } else {
+    // Hotel name search or no query — fetch only the top `limit` candidates
+    const toFetch = candidates.slice(0, limit).map(r => r.propertyId)
+    const results = await Promise.all(
+      toFetch.map(async propertyId => {
+        try {
+          const data = await fetchPropertyStatic(propertyId)
+          return buildHotel(propertyId, data)
+        } catch (err) {
+          logger.warn({ propertyId, err }, '[AI Tool] list_chain_hotels fetch failed')
+          return null
+        }
+      })
+    )
+    hotels = results.filter(Boolean).slice(0, limit)
+  }
+
+  const hotelCount = hotels.length
   const totalInChain = propertyIds.length
-  const filtered = query && hotels.length < totalInChain
+  const filtered = query && hotelCount < totalInChain
 
   return {
     hotels,
-    returned: hotels.length,
+    returned: hotelCount,
     totalInChain,
-    ...(filtered ? { note: `Showing ${hotels.length} of ${totalInChain} hotels matching "${query}". Ask the guest to refine if needed.` } : {}),
-    ...(hotels.length === 0 ? { note: `No hotels matched "${query}". Ask the guest to try a different city or name.` } : {}),
+    ...(filtered ? { note: `Showing ${hotelCount} of ${totalInChain} hotels matching "${query}". Ask the guest to refine if needed.` } : {}),
+    ...(hotelCount === 0 ? { note: `No hotels matched "${query}". Ask the guest to try a different city or name.` } : {}),
   }
 }
