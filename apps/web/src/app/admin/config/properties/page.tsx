@@ -973,7 +973,12 @@ export default function PropertiesPage() {
   const loading = !admin || (isSuper ? superLoading : isLoading)
   const mode = data?.mode ?? 'single'
   const showDemoProperty = data?.showDemoProperty ?? false
-  const properties = isSuper ? (superData?.properties ?? []) : (data?.properties ?? [])
+  const allSuperProperties = superData?.properties ?? []
+  const properties = isSuper
+    ? (contextOrgId
+        ? allSuperProperties.filter(p => p.orgId === contextOrgId || p.allOrgs?.some(o => o.orgId === contextOrgId))
+        : allSuperProperties)
+    : (data?.properties ?? [])
   const hasToken = orgSettings ? orgSettings.effectiveBearerTokenSet : true
 
   const modeMutation = useMutation({
@@ -987,7 +992,10 @@ export default function PropertiesPage() {
   const [superAddError, setSuperAddError] = useState<string | null>(null)
   const [superAddPending, setSuperAddPending] = useState(false)
   const [backfillPending, setBackfillPending] = useState(false)
-  const [backfillResult, setBackfillResult] = useState<{ total: number; filled: number; failed: number } | null>(null)
+  const [backfillProgress, setBackfillProgress] = useState<{ filled: number; failed: number; total: number } | null>(null)
+  const [backfillDone, setBackfillDone] = useState(false)
+  const [backfillErrors, setBackfillErrors] = useState<{ propertyId: number; name: string | null }[]>([])
+  const [showBackfillErrors, setShowBackfillErrors] = useState(false)
 
   const { data: allOrgs = [] } = useQuery<OrgRecord[]>({
     queryKey: ['super-orgs'],
@@ -1166,22 +1174,47 @@ export default function PropertiesPage() {
         </div>
       )}
 
-      {!loading && !isSuper && realProperties.length > 0 && (
+      {!loading && (isSuper || realProperties.length > 0) && (
         <div className="mb-6">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Backfill Names</p>
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
             <p className="mb-3 text-xs text-[var(--color-text-muted)]">
               Fetch property names from HyperGuest for any properties missing a name. Required for AI city search to work across all your properties.
+              {isSuper && ' Runs sequentially — may take a few minutes for large chains.'}
             </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={async () => {
                   setBackfillPending(true)
-                  setBackfillResult(null)
+                  setBackfillProgress(null)
+                  setBackfillDone(false)
+                  setBackfillErrors([])
                   try {
-                    const res = await apiClient.backfillPropertyNames()
-                    setBackfillResult(res)
-                    void qc.invalidateQueries({ queryKey: ['admin-properties'] })
+                    const res = await fetch('/api/v1/admin/properties/backfill-names', { method: 'POST' })
+                    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+                    const reader = res.body.getReader()
+                    const decoder = new TextDecoder()
+                    let buf = ''
+                    while (true) {
+                      const { done, value } = await reader.read()
+                      if (done) break
+                      buf += decoder.decode(value, { stream: true })
+                      const lines = buf.split('\n')
+                      buf = lines.pop() ?? ''
+                      for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue
+                        try {
+                          const evt = JSON.parse(line.slice(6))
+                          if (evt.type === 'progress' || evt.type === 'total') setBackfillProgress(evt)
+                          if (evt.type === 'done') {
+                            setBackfillProgress(evt)
+                            setBackfillDone(true)
+                            if (evt.errors?.length) setBackfillErrors(evt.errors)
+                            void qc.invalidateQueries({ queryKey: [isSuper ? 'admin-super-properties' : 'admin-properties'] })
+                          }
+                        } catch { /* malformed chunk */ }
+                      }
+                    }
                   } finally {
                     setBackfillPending(false)
                   }
@@ -1196,53 +1229,21 @@ export default function PropertiesPage() {
                   </span>
                 ) : 'Run backfill'}
               </button>
-              {backfillResult && (
+              {backfillProgress && (
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Done: <span className="font-medium text-[var(--color-success)]">{backfillResult.filled} filled</span>
-                  {backfillResult.failed > 0 && <span className="ml-1 text-[var(--color-error)]">· {backfillResult.failed} failed</span>}
-                  <span className="ml-1">of {backfillResult.total} missing</span>
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSuper && (
-        <div className="mb-6">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Backfill Names</p>
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-            <p className="mb-3 text-xs text-[var(--color-text-muted)]">
-              Fetch names from HyperGuest static data for all properties where the name is missing in the database. Runs sequentially — may take a few minutes for large chains.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={async () => {
-                  setBackfillPending(true)
-                  setBackfillResult(null)
-                  try {
-                    const res = await apiClient.backfillPropertyNames()
-                    setBackfillResult(res)
-                    void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
-                  } finally {
-                    setBackfillPending(false)
-                  }
-                }}
-                disabled={backfillPending}
-                className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-              >
-                {backfillPending ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Running…
-                  </span>
-                ) : 'Run backfill'}
-              </button>
-              {backfillResult && (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Done: <span className="font-medium text-[var(--color-success)]">{backfillResult.filled} filled</span>
-                  {backfillResult.failed > 0 && <span className="ml-1 text-[var(--color-error)]">· {backfillResult.failed} failed</span>}
-                  <span className="ml-1">of {backfillResult.total} missing</span>
+                  {backfillDone ? (
+                    <>Done: <span className="font-medium text-[var(--color-success)]">{backfillProgress.filled} filled</span>
+                    {backfillProgress.failed > 0 && (
+                      <>
+                        <span className="ml-1 text-[var(--color-error)]">· {backfillProgress.failed} failed</span>
+                        <button onClick={() => setShowBackfillErrors(true)} className="ml-1.5 underline text-[var(--color-error)] hover:opacity-80">view</button>
+                      </>
+                    )}
+                    <span className="ml-1">of {backfillProgress.total}</span></>
+                  ) : (
+                    <><span className="font-medium text-[var(--color-text)]">{(backfillProgress.filled ?? 0) + (backfillProgress.failed ?? 0)}</span>
+                    <span> / {backfillProgress.total} hotels</span></>
+                  )}
                 </p>
               )}
             </div>
@@ -1303,6 +1304,36 @@ export default function PropertiesPage() {
               webDomain={isSuper ? null : (orgSettings?.webDomain ?? null)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Backfill errors modal */}
+      {showBackfillErrors && backfillErrors.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowBackfillErrors(false)}>
+          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[var(--color-text)]">Failed / missing ({backfillErrors.length})</h2>
+              <button onClick={() => setShowBackfillErrors(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mb-4 max-h-64 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 font-mono text-xs text-[var(--color-text)]">
+              {backfillErrors.map(e => (
+                <div key={e.propertyId}>{e.propertyId} — {e.name ?? 'no name'}</div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const text = backfillErrors.map(e => `${e.propertyId} — ${e.name ?? 'no name'}`).join('\n')
+                void navigator.clipboard.writeText(text)
+              }}
+              className="w-full rounded-lg border border-[var(--color-border)] py-2 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            >
+              Copy list
+            </button>
+          </div>
         </div>
       )}
 

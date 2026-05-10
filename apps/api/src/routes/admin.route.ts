@@ -376,7 +376,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // ── Property name backfill (any admin, scoped to their org) ──────────────
+  // ── Property name backfill — SSE progress stream (any admin, scoped to their org) ──
   fastify.post('/admin/properties/backfill-names', async (request, reply) => {
     const isSuper = request.admin.role === 'super'
     const orgId = request.admin.organizationId
@@ -387,15 +387,26 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const rows = await prisma.property.findMany({
       where,
-      select: { propertyId: true },
+      select: { propertyId: true, name: true },
       orderBy: { propertyId: 'asc' },
     })
 
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.setHeader('X-Accel-Buffering', 'no')
+    reply.raw.flushHeaders()
+
+    const send = (data: object) => reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
+
+    send({ type: 'total', total: rows.length })
+
     let filled = 0
     let failed = 0
-    const errors: { propertyId: number; error: string }[] = []
+    const errors: { propertyId: number; name: string | null }[] = []
 
-    for (const { propertyId } of rows) {
+    for (const row of rows) {
+      const { propertyId } = row
       try {
         const data = await fetchPropertyStatic(propertyId)
         const name = data.name ?? null
@@ -404,15 +415,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
           filled++
         } else {
           failed++
-          errors.push({ propertyId, error: 'No name in static data' })
+          errors.push({ propertyId, name: row.name })
         }
-      } catch (err) {
+      } catch {
         failed++
-        errors.push({ propertyId, error: err instanceof Error ? err.message : 'Unknown error' })
+        errors.push({ propertyId, name: row.name })
       }
+      send({ type: 'progress', filled, failed, total: rows.length })
     }
 
-    return reply.send({ total: rows.length, filled, failed, errors: errors.slice(0, 50) })
+    send({ type: 'done', filled, failed, total: rows.length, errors })
+    reply.raw.end()
+    return reply
   })
 
   // ── B2B Connections (org-scoped) ──────────────────────────────────────────
