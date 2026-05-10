@@ -1,7 +1,7 @@
 FROM node:20-alpine
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 RUN apk add --no-cache openssl
 
 WORKDIR /repo
