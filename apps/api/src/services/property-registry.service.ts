@@ -1,8 +1,22 @@
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 import { fetchHotelList } from '../adapters/hyperguest/static.js'
+import { cacheGet } from '../utils/cache.js'
+import type { HGPropertyStatic } from '@ibe/shared'
 
 export const DEMO_HG_ID = 125346
+
+// Resolve names from the Redis static data cache for properties where the DB name is null.
+// This is a best-effort, zero-cost operation — cache misses are silently skipped.
+async function resolveCachedNames(propertyIds: number[]): Promise<Map<number, string>> {
+  const entries = await Promise.all(
+    propertyIds.map(async id => {
+      const data = await cacheGet<HGPropertyStatic>(`hg:static:property:${id}`)
+      return data?.name ? [id, data.name] as const : null
+    })
+  )
+  return new Map(entries.filter((e): e is [number, string] => e !== null))
+}
 
 export interface PropertyOrgInfo {
   orgId: number
@@ -67,6 +81,8 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     select: { propertyId: true, displayName: true },
   })
   const configMap = new Map(configs.map(c => [c.propertyId, c.displayName]))
+  const nullNameIds = rows.filter(r => !r.name).map(r => r.propertyId)
+  const cachedNames = nullNameIds.length > 0 ? await resolveCachedNames(nullNameIds) : new Map<number, string>()
   const real: PropertyRecord[] = rows.map(r => ({
     id: r.id,
     propertyId: r.propertyId,
@@ -75,7 +91,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     isPrimary: r.propertyOrganizations[0]?.isPrimary ?? false,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
-    name: r.name ?? null,
+    name: r.name ?? cachedNames.get(r.propertyId) ?? null,
     displayName: configMap.get(r.propertyId) ?? null,
     subdomain: r.subdomain ?? null,
     hyperGuestBearerToken: r.hyperGuestBearerToken ? '****' + r.hyperGuestBearerToken.slice(-4) : null,
@@ -102,6 +118,13 @@ export async function updateLastSyncedAt(propertyId: number): Promise<void> {
   await prisma.property.updateMany({
     where: { propertyId, deletedAt: null },
     data: { lastSyncedAt: new Date() },
+  })
+}
+
+export async function updatePropertyName(propertyId: number, name: string): Promise<void> {
+  await prisma.property.updateMany({
+    where: { propertyId, deletedAt: null, name: null },
+    data: { name },
   })
 }
 
@@ -298,6 +321,8 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
   ])
   const allConfigMap = new Map(allConfigs.map(c => [c.propertyId, c.displayName]))
   const hgNameMap = new Map(hgList.map(h => [h.hotel_id, h.name]))
+  const superNullNameIds = rows.filter(r => !r.name && !hgNameMap.has(r.propertyId)).map(r => r.propertyId)
+  const superCachedNames = superNullNameIds.length > 0 ? await resolveCachedNames(superNullNameIds) : new Map<number, string>()
   return rows.map(r => ({
     id: r.id,
     propertyId: r.propertyId,
@@ -306,7 +331,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     isPrimary: true,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
-    name: r.name ?? hgNameMap.get(r.propertyId) ?? null,
+    name: r.name ?? hgNameMap.get(r.propertyId) ?? superCachedNames.get(r.propertyId) ?? null,
     displayName: allConfigMap.get(r.propertyId) ?? null,
     subdomain: r.subdomain ?? null,
     orgId: r.organization.id,

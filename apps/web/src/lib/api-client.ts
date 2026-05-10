@@ -436,6 +436,10 @@ export const apiClient = {
     return apiRequest<{ properties: PropertyRecord[] }>('/api/v1/admin/super/properties')
   },
 
+  backfillPropertyNames(): Promise<{ total: number; filled: number; failed: number; errors: { propertyId: number; error: string }[] }> {
+    return apiRequest('/api/v1/admin/super/properties/backfill-names', { method: 'POST' })
+  },
+
   getPropertyOrgs(propertyDbId: number): Promise<import('@ibe/shared').PropertyOrgInfo[]> {
     return apiRequest(`/api/v1/admin/super/properties/${propertyDbId}/orgs`)
   },
@@ -1586,8 +1590,11 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
   },
 
-  getMcpOAuthConfig(orgId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; mcpUrl: string; claude: { clientId: string; clientSecret: string } }> {
-    const qs = orgId ? `?orgId=${orgId}` : ''
+  getMcpOAuthConfig(orgId?: number, propertyId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; mcpUrl: string; claude: { clientId: string; clientSecret: string } }> {
+    const params = new URLSearchParams()
+    if (orgId) params.set('orgId', String(orgId))
+    if (propertyId) params.set('propertyId', String(propertyId))
+    const qs = params.size ? `?${params}` : ''
     return apiRequest(`/api/v1/admin/ai/mcp/oauth/config${qs}`)
   },
 

@@ -66,30 +66,21 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
   // GET /admin/ai/mcp/oauth/config — built-in OAuth server info + Claude.ai credentials
   fastify.get('/admin/ai/mcp/oauth/config', async (request, reply) => {
     const req = request as any
-    const qOrgId = (request.query as Record<string, string>).orgId
+    const query = request.query as Record<string, string>
+    const qOrgId = query.orgId
+    const qPropertyId = query.propertyId ? parseInt(query.propertyId, 10) : null
     const orgId: number | null = req.admin.role === 'super'
       ? (qOrgId ? parseInt(qOrgId, 10) : null)
       : req.admin.organizationId
     if (!orgId) return reply.status(400).send({ error: 'No organization context' })
     const base = env.WEB_BASE_URL
-    const [claude, org] = await Promise.all([
+    const [claude, org, property] = await Promise.all([
       getOrCreateClaudeClient(orgId),
-      prisma.organization.findUnique({
-        where: { id: orgId },
-        select: {
-          slug: true,
-          properties: {
-            where: { isActive: true },
-            select: { subdomain: true },
-            orderBy: { propertyId: 'asc' },
-            take: 1,
-          },
-        },
-      }),
+      prisma.organization.findUnique({ where: { id: orgId }, select: { slug: true } }),
+      qPropertyId ? prisma.property.findUnique({ where: { propertyId: qPropertyId }, select: { subdomain: true } }) : null,
     ])
-    const propertySub = org?.properties[0]?.subdomain
-    const mcpUrl = propertySub
-      ? `https://${propertySub}.hyperguest.net/api/v1/mcp`
+    const mcpUrl = property?.subdomain
+      ? `https://${property.subdomain}.hyperguest.net/api/v1/mcp`
       : org?.slug
         ? `https://${org.slug}.hyperguest.net/api/v1/mcp`
         : `${base}/api/v1/mcp`

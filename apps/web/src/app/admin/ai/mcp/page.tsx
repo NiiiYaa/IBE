@@ -123,7 +123,6 @@ function PlatformSnippet({
   rotatingClaude?: boolean
 }) {
   const json = mcpJsonSnippet(endpoint, apiKey)
-  const mcpBase = oauthData?.mcpUrl ?? endpoint
 
   if (platform === 'claude') return (
     <div className="space-y-3 text-sm">
@@ -144,9 +143,9 @@ function PlatformSnippet({
           <p className="text-xs text-[var(--color-text-muted)]">Paste into the <strong>Remote MCP server URL</strong> field — no API key in the URL.</p>
           <div className="flex items-center gap-2">
             <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-              {mcpBase}
+              {endpoint}
             </div>
-            <button type="button" onClick={() => copyText(mcpBase)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+            <button type="button" onClick={() => copyText(endpoint)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
           </div>
         </div>
 
@@ -211,9 +210,9 @@ function PlatformSnippet({
           <p className="text-xs text-[var(--color-text-muted)]">If OAuth is unavailable, paste this URL directly — no Advanced settings needed:</p>
           <div className="flex items-center gap-2 mt-1">
             <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-              {`${mcpBase}/${apiKey}`}
+              {`${endpoint}/${apiKey}`}
             </div>
-            <button type="button" onClick={() => copyText(`${mcpBase}/${apiKey}`)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+            <button type="button" onClick={() => copyText(`${endpoint}/${apiKey}`)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
           </div>
         </div>
       </div>
@@ -240,7 +239,7 @@ function PlatformSnippet({
   )
 
   if (platform === 'chatgpt') {
-    const chatgptKeyUrl = `${mcpBase}/${apiKey}`
+    const chatgptKeyUrl = `${endpoint}/${apiKey}`
     return (
       <div className="space-y-5 text-sm">
         {/* OAuth — primary flow */}
@@ -249,9 +248,9 @@ function PlatformSnippet({
           <p className="text-xs text-[var(--color-text-muted)]">Paste into <strong>Connector URL</strong> — no API key in the URL; OAuth handles authentication.</p>
           <div className="flex items-center gap-2">
             <div className="flex-1 font-mono text-xs text-[var(--color-text)] break-all rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-              {mcpBase}
+              {endpoint}
             </div>
-            <button type="button" onClick={() => copyText(mcpBase)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
+            <button type="button" onClick={() => copyText(endpoint)} className="shrink-0 rounded-md border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">Copy</button>
           </div>
         </div>
 
@@ -472,7 +471,7 @@ export default function AdminMcpPage() {
     ? ['admin-mcp-property', propertyId]
     : ['admin-mcp-org', superOrgId]
   const channelsQKey = ['admin-ai-channels', superOrgId]
-  const oauthQKey = ['admin-mcp-oauth', superOrgId]
+  const oauthQKey = ['admin-mcp-oauth', superOrgId, propertyId]
 
   // All hooks must be called unconditionally — no early returns before this point
   const { data: mcpData, isLoading: mcpLoading } = useQuery({
@@ -492,12 +491,11 @@ export default function AdminMcpPage() {
 
   const { data: oauthData, refetch: refetchOAuth } = useQuery({
     queryKey: oauthQKey,
-    queryFn: () => apiClient.getMcpOAuthConfig(superOrgId),
+    queryFn: () => apiClient.getMcpOAuthConfig(superOrgId, propertyId ?? undefined),
     enabled: !isSystemLevel,
   })
 
-  const [mcpEndpoint, setMcpEndpoint] = useState('/api/v1/mcp')
-  useEffect(() => { setMcpEndpoint(getMcpEndpoint()) }, [])
+  const mcpEndpoint = oauthData?.mcpUrl ?? getMcpEndpoint()
 
   const [enabled, setEnabled] = useState(false)
   const [apiKey, setApiKey] = useState<string | null>(null)

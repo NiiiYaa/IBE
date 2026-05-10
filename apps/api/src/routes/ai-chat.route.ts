@@ -132,6 +132,8 @@ export async function aiChatRoutes(fastify: FastifyInstance) {
     reply.raw.setHeader('Connection', 'keep-alive')
     reply.raw.setHeader('X-Accel-Buffering', 'no')
     reply.raw.flushHeaders()
+    // Heartbeat keeps Cloudflare/proxy from 524-timing out while the LLM runs
+    reply.raw.write(': ping\n\n')
 
     try {
       // If WhatsApp channel sent no org/property context, resolve it:

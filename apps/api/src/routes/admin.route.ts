@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { getOrgSettings, updateOrgSettings, setPropertyMode, setShowCitySelector, setShowDemoProperty, setRateProvider } from '../services/org.service.js'
 import type { PropertyMode, SellModel } from '../services/org.service.js'
-import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers, getPropertyOrgs, addOrgToProperty, removeOrgFromProperty, transferPrimaryOwnership } from '../services/property-registry.service.js'
+import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers, getPropertyOrgs, addOrgToProperty, removeOrgFromProperty, transferPrimaryOwnership, updatePropertyName } from '../services/property-registry.service.js'
 import { runImport } from '../services/import.service.js'
 import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
+import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 import { env } from '../config/env.js'
 import { prisma } from '../db/client.js'
 import { listOrgNavItems, createOrgNavItem, updateOrgNavItem, deleteOrgNavItem } from '../services/org-nav.service.js'
@@ -373,6 +374,40 @@ export async function adminRoutes(fastify: FastifyInstance) {
     } catch (err) {
       return reply.status(409).send({ error: err instanceof Error ? err.message : 'Failed' })
     }
+  })
+
+  // ── Property name backfill (super admin only) ─────────────────────────────
+  fastify.post('/admin/super/properties/backfill-names', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+
+    const rows = await prisma.property.findMany({
+      where: { deletedAt: null, name: null },
+      select: { propertyId: true },
+      orderBy: { propertyId: 'asc' },
+    })
+
+    let filled = 0
+    let failed = 0
+    const errors: { propertyId: number; error: string }[] = []
+
+    for (const { propertyId } of rows) {
+      try {
+        const data = await fetchPropertyStatic(propertyId)
+        const name = data.name ?? null
+        if (name) {
+          await updatePropertyName(propertyId, name)
+          filled++
+        } else {
+          failed++
+          errors.push({ propertyId, error: 'No name in static data' })
+        }
+      } catch (err) {
+        failed++
+        errors.push({ propertyId, error: err instanceof Error ? err.message : 'Unknown error' })
+      }
+    }
+
+    return reply.send({ total: rows.length, filled, failed, errors: errors.slice(0, 50) })
   })
 
   // ── B2B Connections (org-scoped) ──────────────────────────────────────────

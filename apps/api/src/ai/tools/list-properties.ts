@@ -5,35 +5,51 @@ import type { ToolDefinition } from '../adapters/types.js'
 
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 20
+// When DB names don't contain the query (city searches), scan this many properties
+// via HyperGuest to find matches by city. Capped to avoid excess API calls.
+const CITY_SCAN_LIMIT = 50
 
 export const listPropertiesTool: ToolDefinition = {
   name: 'list_chain_hotels',
-  description: 'Search hotels in this chain by city or name. Always pass a query when the chain has many hotels — never call without a query for chains larger than 20 properties. Returns up to 10 matching hotels.',
+  description: 'Search hotels in this chain by city or name. Always pass a query — never call without one. Returns up to 10 matching hotels.',
   parameters: {
     type: 'object',
     properties: {
+      orgId: {
+        type: 'number',
+        description: 'Organization ID — use this for large chains instead of listing all propertyIds',
+      },
       propertyIds: {
         type: 'array',
         items: { type: 'number' },
-        description: 'All property IDs from the property context',
+        description: 'Property IDs to search — use only for small chains (≤20 hotels)',
       },
       query: {
         type: 'string',
-        description: 'City name or hotel name to search for (e.g. "Barcelona", "Grand Hotel"). Required when chain has more than 20 hotels.',
+        description: 'City name or hotel name to search for (e.g. "Barcelona", "Grand Hotel"). Required.',
       },
       limit: {
         type: 'number',
         description: 'Max results to return (default 10, max 20)',
       },
     },
-    required: ['propertyIds'],
   },
 }
 
 export async function executeListProperties(args: Record<string, unknown>): Promise<unknown> {
-  const propertyIds = args.propertyIds as number[]
   const query = (args.query as string | undefined)?.toLowerCase().trim()
   const limit = Math.min((args.limit as number | undefined) ?? DEFAULT_LIMIT, MAX_LIMIT)
+
+  // Resolve property IDs: prefer explicit list; fall back to org-level lookup for large chains
+  let propertyIds = args.propertyIds as number[] | undefined
+  if (!propertyIds?.length && args.orgId) {
+    const props = await prisma.property.findMany({
+      where: { organizationId: args.orgId as number, deletedAt: null },
+      select: { propertyId: true },
+    })
+    propertyIds = props.map(p => p.propertyId)
+  }
+  if (!propertyIds?.length) return { hotels: [], returned: 0, totalInChain: 0, note: 'No property context available.' }
 
   // Step 1: filter candidates using DB names (fast, no external API)
   const rows = await prisma.property.findMany({
@@ -42,13 +58,21 @@ export async function executeListProperties(args: Record<string, unknown>): Prom
   })
 
   let candidates = rows
+  let cityScan = false
   if (query) {
     const matched = rows.filter(r => r.name?.toLowerCase().includes(query))
-    // Fall back to unfiltered slice if DB names are missing / no match
-    candidates = matched.length > 0 ? matched : rows
+    if (matched.length > 0) {
+      candidates = matched
+    } else {
+      // No DB name matched — likely a city query. Scan a wider pool so the
+      // HyperGuest city filter (step 2) has enough candidates to work with.
+      candidates = rows
+      cityScan = true
+    }
   }
 
-  const toFetch = candidates.slice(0, limit).map(r => r.propertyId)
+  const scanLimit = cityScan ? Math.min(candidates.length, CITY_SCAN_LIMIT) : limit
+  const toFetch = candidates.slice(0, scanLimit).map(r => r.propertyId)
 
   // Step 2: enrich with HyperGuest static data for matched subset only
   const results = await Promise.all(
@@ -84,7 +108,7 @@ export async function executeListProperties(args: Record<string, unknown>): Prom
     })
   )
 
-  const hotels = results.filter(Boolean)
+  const hotels = results.filter(Boolean).slice(0, limit)
   const totalInChain = propertyIds.length
   const filtered = query && hotels.length < totalInChain
 

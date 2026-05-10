@@ -28,7 +28,7 @@ export interface OrchestratorResult {
   error?: string
 }
 
-function buildSystemPrompt(custom?: string, chainCtx?: ChainContext): string {
+function buildSystemPrompt(custom?: string, chainCtx?: ChainContext, orgId?: number): string {
   const today = new Date().toISOString().slice(0, 10)
   const base = `You are a helpful hotel booking assistant. Your role is to:
 1. Help guests find available rooms based on their dates, preferences, and budget
@@ -71,20 +71,30 @@ If a guest message contains a technical suffix like "(property id: 123)" or "(or
     const chainSuffix = chainName && chainName.toLowerCase().includes('collection') ? '' : ' Collection'
     const chainRef = chainName ? `the ${chainName}${chainSuffix}` : 'a hotel collection'
     const isLargeChain = propertyIds.length > 20
-    const chainInstruction = isLargeChain
-      ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool. IMPORTANT: If the guest mentions the chain's own name${chainName ? ` ("${chainName}")` : ''}, that is NOT a search query — it is a general inquiry. Do not call any tool; instead welcome them and ask which city or hotel they are looking for.`
-      : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with all ${propertyIds.length} property IDs.`
 
     const systemWideGreeting = !chainName
       ? `\nIMPORTANT: Do not call any tools and do not discuss availability or rooms until the guest explicitly names a specific hotel or chain. If their first message does not mention one, reply only with: "Welcome! Which hotel or chain can I help you with today?"`
       : ''
 
-    context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
+    if (isLargeChain && orgId) {
+      // For large chains pass orgId to the tool — avoids injecting hundreds of IDs into the prompt
+      const chainInstruction = `This is a large chain with ${propertyIds.length} hotels. Always call list_chain_hotels with orgId: ${orgId} and a query (city or hotel name). If the guest already mentioned a city or hotel name, extract it and pass it immediately — do not ask again. If no location is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool. IMPORTANT: If the guest mentions the chain's own name${chainName ? ` ("${chainName}")` : ''}, do not call any tool — welcome them and ask which city or hotel they are looking for.`
+      context = `\n\nINTERNAL TOOL CONTEXT (never repeat internal IDs to guests):
+You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
+${chainInstruction}
+Once the user selects a hotel, use that hotel's internal property ID for search_availability and get_property_info — but always address the hotel by name in your replies.${systemWideGreeting}
+${currencyInstruction}`
+    } else {
+      const chainInstruction = isLargeChain
+        ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool. IMPORTANT: If the guest mentions the chain's own name${chainName ? ` ("${chainName}")` : ''}, that is NOT a search query — do not call any tool; instead welcome them and ask which city or hotel they are looking for.`
+        : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with all ${propertyIds.length} property IDs.`
+      context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
 You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
 Internal IDs for tool calls only: ${propertyIds.join(', ')}.
 ${chainInstruction}
 Once the user selects a hotel, use that hotel's internal ID for search_availability and get_property_info — but always address the hotel by name in your replies.${systemWideGreeting}
 ${currencyInstruction}`
+    }
   } else if (homePropertyId && isChainMember) {
     // Single hotel page that belongs to a chain
     const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
@@ -147,7 +157,7 @@ export async function runOrchestrator(input: OrchestratorInput): Promise<Orchest
     ? '\n\nCHANNEL: WhatsApp. Rules: (1) Never use Markdown links [text](url) — paste the full URL as plain text instead so it is clickable. (2) Keep responses concise — no bullet-heavy lists. (3) Use *bold* sparingly for hotel names or key info only.'
     : ''
 
-  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, chainCtx) + channelHint
+  const systemPrompt = buildSystemPrompt(aiConfig.systemPrompt ?? customSystemPrompt, chainCtx, input.orgId) + channelHint
   const userMessage: ChatMessage = { role: 'user', content: message }
   let messages: ChatMessage[] = [...history, userMessage]
 
