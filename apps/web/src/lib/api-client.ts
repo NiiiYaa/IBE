@@ -437,7 +437,7 @@ export const apiClient = {
   },
 
   backfillPropertyNames(): Promise<{ total: number; filled: number; failed: number; errors: { propertyId: number; error: string }[] }> {
-    return apiRequest('/api/v1/admin/super/properties/backfill-names', { method: 'POST' })
+    return apiRequest('/api/v1/admin/properties/backfill-names', { method: 'POST' })
   },
 
   getPropertyOrgs(propertyDbId: number): Promise<import('@ibe/shared').PropertyOrgInfo[]> {

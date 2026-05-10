@@ -376,12 +376,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // ── Property name backfill (super admin only) ─────────────────────────────
-  fastify.post('/admin/super/properties/backfill-names', async (request, reply) => {
-    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+  // ── Property name backfill (any admin, scoped to their org) ──────────────
+  fastify.post('/admin/properties/backfill-names', async (request, reply) => {
+    const isSuper = request.admin.role === 'super'
+    const orgId = request.admin.organizationId
+
+    const where = isSuper
+      ? { deletedAt: null, name: null }
+      : { deletedAt: null, name: null, propertyOrganizations: { some: { organizationId: orgId! } } }
 
     const rows = await prisma.property.findMany({
-      where: { deletedAt: null, name: null },
+      where,
       select: { propertyId: true },
       orderBy: { propertyId: 'asc' },
     })

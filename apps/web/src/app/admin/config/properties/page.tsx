@@ -1166,6 +1166,48 @@ export default function PropertiesPage() {
         </div>
       )}
 
+      {!loading && !isSuper && realProperties.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Backfill Names</p>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <p className="mb-3 text-xs text-[var(--color-text-muted)]">
+              Fetch property names from HyperGuest for any properties missing a name. Required for AI city search to work across all your properties.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  setBackfillPending(true)
+                  setBackfillResult(null)
+                  try {
+                    const res = await apiClient.backfillPropertyNames()
+                    setBackfillResult(res)
+                    void qc.invalidateQueries({ queryKey: ['admin-properties'] })
+                  } finally {
+                    setBackfillPending(false)
+                  }
+                }}
+                disabled={backfillPending}
+                className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              >
+                {backfillPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Running…
+                  </span>
+                ) : 'Run backfill'}
+              </button>
+              {backfillResult && (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Done: <span className="font-medium text-[var(--color-success)]">{backfillResult.filled} filled</span>
+                  {backfillResult.failed > 0 && <span className="ml-1 text-[var(--color-error)]">· {backfillResult.failed} failed</span>}
+                  <span className="ml-1">of {backfillResult.total} missing</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isSuper && (
         <div className="mb-6">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Backfill Names</p>
