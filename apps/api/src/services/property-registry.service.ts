@@ -2,7 +2,7 @@ import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 import { fetchHotelList } from '../adapters/hyperguest/static.js'
 import { cacheGet } from '../utils/cache.js'
-import type { HGPropertyStatic } from '@ibe/shared'
+import type { HGPropertyStatic, PropertyStatus } from '@ibe/shared'
 
 export const DEMO_HG_ID = 125346
 
@@ -29,7 +29,7 @@ export interface PropertyRecord {
   id: number
   propertyId: number
   isDefault: boolean
-  isActive: boolean
+  status: PropertyStatus
   lastSyncedAt: string | null
   createdAt: string
   name?: string | null
@@ -42,7 +42,11 @@ export interface PropertyRecord {
 }
 
 export function makeDemoRecord(): PropertyRecord {
-  return { id: 0, propertyId: DEMO_HG_ID, isDefault: false, isActive: true, lastSyncedAt: null, createdAt: new Date().toISOString(), isDemo: true }
+  return { id: 0, propertyId: DEMO_HG_ID, isDefault: false, status: 'active', lastSyncedAt: null, createdAt: new Date().toISOString(), isDemo: true }
+}
+
+export function checkPropertyCompleteness(data: HGPropertyStatic): boolean {
+  return !!(data.name?.trim() && data.rooms.length > 0 && data.location?.address?.trim())
 }
 
 export interface PropertyRecordWithOrg extends PropertyRecord {
@@ -87,7 +91,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
     id: r.id,
     propertyId: r.propertyId,
     isDefault: r.isDefault,
-    isActive: r.isActive,
+    status: r.status as PropertyStatus,
     isPrimary: r.propertyOrganizations[0]?.isPrimary ?? false,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
@@ -104,7 +108,7 @@ export async function listProperties(organizationId: number, showDemoProperty = 
       id: 0,
       propertyId: DEMO_HG_ID,
       isDefault: real.length === 0,
-      isActive: true,
+      status: 'active',
       lastSyncedAt: null,
       createdAt: new Date().toISOString(),
       isDemo: true,
@@ -205,14 +209,14 @@ export async function addProperty(organizationId: number, propertyId: number): P
       const name = conflict.name ?? await fetchPropertyName(propertyId)
       const restored = await prisma.property.update({
         where: { propertyId },
-        data: { deletedAt: null, isActive: true, ...(name ? { name } : {}) },
+        data: { deletedAt: null, status: 'active', ...(name ? { name } : {}) },
       })
       await prisma.propertyOrganization.upsert({
         where: { propertyId_organizationId: { propertyId: restored.id, organizationId } },
         create: { propertyId: restored.id, organizationId, isPrimary: true },
         update: { isPrimary: true },
       })
-      return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, isActive: restored.isActive, isPrimary: true, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString(), name: restored.name ?? null }
+      return { id: restored.id, propertyId: restored.propertyId, isDefault: restored.isDefault, status: restored.status as PropertyStatus, isPrimary: true, lastSyncedAt: restored.lastSyncedAt?.toISOString() ?? null, createdAt: restored.createdAt.toISOString(), name: restored.name ?? null }
     }
     if (!conflict.deletedAt) {
       // Property is active and owned by another org — add this org as a secondary association
@@ -221,20 +225,20 @@ export async function addProperty(organizationId: number, propertyId: number): P
         create: { propertyId: conflict.id, organizationId, isPrimary: false },
         update: {},
       })
-      return { id: conflict.id, propertyId: conflict.propertyId, isDefault: false, isActive: conflict.isActive, isPrimary: false, lastSyncedAt: conflict.lastSyncedAt?.toISOString() ?? null, createdAt: conflict.createdAt.toISOString(), name: conflict.name ?? null }
+      return { id: conflict.id, propertyId: conflict.propertyId, isDefault: false, status: conflict.status as PropertyStatus, isPrimary: false, lastSyncedAt: conflict.lastSyncedAt?.toISOString() ?? null, createdAt: conflict.createdAt.toISOString(), name: conflict.name ?? null }
     }
     // Property was soft-deleted by another org — take primary ownership
     const name = conflict.name ?? await fetchPropertyName(propertyId)
     const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
     const reassigned = await prisma.property.update({
       where: { propertyId },
-      data: { organizationId, deletedAt: null, isActive: true, isDefault: count === 0, ...(name ? { name } : {}) },
+      data: { organizationId, deletedAt: null, status: 'active', isDefault: count === 0, ...(name ? { name } : {}) },
     })
     await prisma.$transaction([
       prisma.propertyOrganization.deleteMany({ where: { propertyId: reassigned.id } }),
       prisma.propertyOrganization.create({ data: { propertyId: reassigned.id, organizationId, isPrimary: true } }),
     ])
-    return { id: reassigned.id, propertyId: reassigned.propertyId, isDefault: reassigned.isDefault, isActive: reassigned.isActive, isPrimary: true, lastSyncedAt: reassigned.lastSyncedAt?.toISOString() ?? null, createdAt: reassigned.createdAt.toISOString(), name: reassigned.name ?? null }
+    return { id: reassigned.id, propertyId: reassigned.propertyId, isDefault: reassigned.isDefault, status: reassigned.status as PropertyStatus, isPrimary: true, lastSyncedAt: reassigned.lastSyncedAt?.toISOString() ?? null, createdAt: reassigned.createdAt.toISOString(), name: reassigned.name ?? null }
   }
 
   const count = await prisma.property.count({ where: { organizationId, deletedAt: null } })
@@ -246,7 +250,7 @@ export async function addProperty(organizationId: number, propertyId: number): P
   if (name) {
     await prisma.property.update({ where: { id: row.id }, data: { name } })
   }
-  return { id: row.id, propertyId: row.propertyId, isDefault: row.isDefault, isActive: row.isActive, isPrimary: true, lastSyncedAt: null, createdAt: row.createdAt.toISOString(), name: name ?? null }
+  return { id: row.id, propertyId: row.propertyId, isDefault: row.isDefault, status: row.status as PropertyStatus, isPrimary: true, lastSyncedAt: null, createdAt: row.createdAt.toISOString(), name: name ?? null }
 }
 
 export async function setDefaultProperty(organizationId: number, id: number): Promise<void> {
@@ -284,7 +288,7 @@ export async function removeProperty(organizationId: number, id: number): Promis
   if (prop.organizationId === organizationId) {
     // Primary owner removing — soft-delete the property and clear all associations
     await prisma.$transaction([
-      prisma.property.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } }),
+      prisma.property.update({ where: { id }, data: { deletedAt: new Date(), status: 'inactive' } }),
       prisma.propertyOrganization.deleteMany({ where: { propertyId: id } }),
     ])
   } else {
@@ -293,10 +297,10 @@ export async function removeProperty(organizationId: number, id: number): Promis
   }
 }
 
-export async function setPropertyActive(organizationId: number | null, id: number, active: boolean): Promise<void> {
+export async function setPropertyStatus(organizationId: number | null, id: number, status: 'active' | 'inactive'): Promise<void> {
   await prisma.property.update({
     where: { id, ...(organizationId !== null ? { organizationId } : {}) },
-    data: { isActive: active },
+    data: { status },
   })
 }
 
@@ -327,7 +331,7 @@ export async function listAllProperties(): Promise<PropertyRecordWithOrg[]> {
     id: r.id,
     propertyId: r.propertyId,
     isDefault: r.isDefault,
-    isActive: r.isActive,
+    status: r.status as PropertyStatus,
     isPrimary: true,
     lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
