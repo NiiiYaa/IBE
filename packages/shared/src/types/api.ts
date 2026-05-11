@@ -757,11 +757,13 @@ export interface PropertyOrgInfo {
   isPrimary: boolean
 }
 
+export type PropertyStatus = 'active' | 'inactive' | 'incomplete'
+
 export interface PropertyRecord {
   id: number
   propertyId: number
   isDefault: boolean
-  isActive: boolean
+  status: PropertyStatus
   lastSyncedAt: string | null
   createdAt: string
   name?: string | null
