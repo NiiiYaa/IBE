@@ -39,7 +39,7 @@ export async function configRoutes(fastify: FastifyInstance) {
     if (host.endsWith(`.${PLATFORM_HOST}`)) {
       const subdomain = host.slice(0, -(PLATFORM_HOST.length + 1))
       const property = await prisma.property.findFirst({
-        where: { subdomain, isActive: true, deletedAt: null },
+        where: { subdomain, status: 'active', deletedAt: null },
       })
       if (property) {
         return reply.send({ type: 'property', propertyId: property.propertyId, orgId: property.organizationId })

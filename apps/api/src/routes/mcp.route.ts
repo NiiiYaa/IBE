@@ -567,7 +567,7 @@ async function resolveDefaultProperty(scope: Awaited<ReturnType<typeof validateA
   if (!scope) return null
   if (scope.kind === 'property') return scope.propertyId
   const first = await prisma.property.findFirst({
-    where: { organizationId: scope.orgId, isActive: true },
+    where: { organizationId: scope.orgId, status: 'active' },
     orderBy: { propertyId: 'asc' },
     select: { propertyId: true },
   })
@@ -851,7 +851,7 @@ async function dispatchJsonRpc(
     if (orgId) {
       const [org, count] = await Promise.all([
         prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
-        prisma.property.count({ where: { organizationId: orgId, isActive: true } }),
+        prisma.property.count({ where: { organizationId: orgId, status: 'active' } }),
       ])
       if (org) {
         serverName = count > 1

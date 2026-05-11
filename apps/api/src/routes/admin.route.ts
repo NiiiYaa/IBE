@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getOrgSettings, updateOrgSettings, setPropertyMode, setShowCitySelector, setShowDemoProperty, setRateProvider } from '../services/org.service.js'
 import type { PropertyMode, SellModel } from '../services/org.service.js'
-import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyActive, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers, getPropertyOrgs, addOrgToProperty, removeOrgFromProperty, transferPrimaryOwnership, updatePropertyName } from '../services/property-registry.service.js'
+import { listProperties, listAllProperties, makeDemoRecord, addProperty, PropertyConflictError, setDefaultProperty, removeProperty, setPropertyStatus, checkPropertyCompleteness, setPropertyHGCredentials, getPropertyUsers, setPropertyUsers, getPropertyOrgs, addOrgToProperty, removeOrgFromProperty, transferPrimaryOwnership, updatePropertyName } from '../services/property-registry.service.js'
 import { runImport } from '../services/import.service.js'
 import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
@@ -170,11 +170,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true, enabled: !!enabled })
   })
 
-  fastify.put('/admin/properties/:id/active', async (request, reply) => {
+  fastify.put('/admin/properties/:id/status', async (request, reply) => {
     const id = parseInt((request.params as { id: string }).id, 10)
-    const { active } = request.body as { active: boolean }
-    await setPropertyActive(request.admin.organizationId, id, !!active)
-    return reply.send({ ok: true, active: !!active })
+    const { status } = request.body as { status: string }
+    if (status !== 'active' && status !== 'inactive') {
+      return reply.status(400).send({ error: 'Invalid status. Must be "active" or "inactive"' })
+    }
+    await setPropertyStatus(request.admin.organizationId, id, status as 'active' | 'inactive')
+    return reply.send({ ok: true, status })
   })
 
   // ── Currency ──────────────────────────────────────────────────────────────────
@@ -382,12 +385,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const orgId = request.admin.organizationId
 
     const where = isSuper
-      ? { deletedAt: null, name: null }
-      : { deletedAt: null, name: null, propertyOrganizations: { some: { organizationId: orgId! } } }
+      ? { deletedAt: null, OR: [{ name: null }, { status: 'incomplete' }] }
+      : {
+          deletedAt: null,
+          OR: [{ name: null }, { status: 'incomplete' }],
+          propertyOrganizations: { some: { organizationId: orgId! } },
+        }
 
     const rows = await prisma.property.findMany({
       where,
-      select: { propertyId: true, name: true },
+      select: { propertyId: true, name: true, status: true },
       orderBy: { propertyId: 'asc' },
     })
 
@@ -406,18 +413,33 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const errors: { propertyId: number; name: string | null }[] = []
 
     for (const row of rows) {
-      const { propertyId } = row
+      const { propertyId, status: currentStatus } = row
       try {
         const data = await fetchPropertyStatic(propertyId)
-        const name = data.name ?? null
-        if (name) {
-          await updatePropertyName(propertyId, name)
+        const complete = checkPropertyCompleteness(data)
+
+        if (complete) {
+          if (!row.name && data.name) await updatePropertyName(propertyId, data.name)
+          if (currentStatus === 'incomplete') {
+            await prisma.property.updateMany({
+              where: { propertyId, deletedAt: null },
+              data: { status: 'active' },
+            })
+          }
           filled++
         } else {
+          await prisma.property.updateMany({
+            where: { propertyId, deletedAt: null },
+            data: { status: 'incomplete' },
+          })
           failed++
           errors.push({ propertyId, name: row.name })
         }
       } catch {
+        await prisma.property.updateMany({
+          where: { propertyId, deletedAt: null },
+          data: { status: 'incomplete' },
+        })
         failed++
         errors.push({ propertyId, name: row.name })
       }
