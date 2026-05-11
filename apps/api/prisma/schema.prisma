@@ -436,7 +436,7 @@ model Property {
   organization   Organization @relation(fields: [organizationId], references: [id])
   propertyId     Int          @unique
   isDefault      Boolean      @default(false)
-  isActive       Boolean      @default(true)
+  status         String       @default("active")
   deletedAt      DateTime?
   lastSyncedAt   DateTime?
   createdAt      DateTime     @default(now())
