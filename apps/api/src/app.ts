@@ -100,9 +100,24 @@ export async function buildApp() {
   })
 
   await app.register(rateLimit, {
-    max: env.NODE_ENV !== 'production' ? 10000 : 500,
+    max: env.NODE_ENV !== 'production' ? 10000 : 2000,
     timeWindow: '1 minute',
     allowList: env.NODE_ENV !== 'production' ? ['127.0.0.1', '::1', '::ffff:127.0.0.1'] : [],
+    keyGenerator: (request: FastifyRequest) => {
+      // Key authenticated requests by user ID so each admin gets their own bucket.
+      // Falls back to IP for unauthenticated requests (login, public routes).
+      // Parse cookie header manually — cookie plugin hasn't run yet at this hook stage.
+      try {
+        const cookieHeader = request.headers.cookie ?? ''
+        const match = cookieHeader.match(/(?:^|;\s*)ibe_admin_token=([^;]+)/)
+        const token = match?.[1]
+        if (token) {
+          const payload = request.server.jwt.decode<{ adminId?: number }>(token)
+          if (payload?.adminId) return `admin:${payload.adminId}`
+        }
+      } catch { /* not authenticated */ }
+      return request.ip
+    },
     errorResponseBuilder: () => ({
       error: 'Too many requests',
       code: 'IBE.RATE_LIMIT',
