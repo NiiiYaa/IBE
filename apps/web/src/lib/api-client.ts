@@ -508,10 +508,10 @@ export const apiClient = {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/properties/${id}`, { method: 'DELETE' })
   },
 
-  setPropertyActive(id: number, active: boolean): Promise<{ ok: boolean; active: boolean }> {
-    return apiRequest<{ ok: boolean; active: boolean }>(`/api/v1/admin/properties/${id}/active`, {
+  setPropertyStatus(id: number, status: 'active' | 'inactive'): Promise<{ ok: boolean; status: string }> {
+    return apiRequest<{ ok: boolean; status: string }>(`/api/v1/admin/properties/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ active }),
+      body: JSON.stringify({ status }),
     })
   },
 
