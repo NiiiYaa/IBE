@@ -492,7 +492,7 @@ function PropertyRow({
   const isPrimary = record.isPrimary !== false
 
   const activeMutation = useMutation({
-    mutationFn: (active: boolean) => apiClient.setPropertyActive(record.id, active),
+    mutationFn: (status: 'active' | 'inactive') => apiClient.setPropertyStatus(record.id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-properties'] })
       void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
@@ -555,6 +555,11 @@ function PropertyRow({
                   Secondary
                 </span>
               )}
+              {record.status === 'incomplete' && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  Incomplete
+                </span>
+              )}
             </p>
           </div>
           {/* View / sync buttons */}
@@ -610,17 +615,17 @@ function PropertyRow({
 
             {isPrimary && (
               <button
-                onClick={() => activeMutation.mutate(!record.isActive)}
+                onClick={() => activeMutation.mutate(record.status === 'active' ? 'inactive' : 'active')}
                 disabled={activeMutation.isPending}
-                title={record.isActive ? 'Disable property' : 'Enable property'}
+                title={record.status === 'active' ? 'Disable property' : 'Enable property'}
                 className={[
                   'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
-                  record.isActive
+                  record.status === 'active'
                     ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
                     : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
                 ].join(' ')}
               >
-                {record.isActive ? 'Enabled' : 'Disabled'}
+                {record.status === 'active' ? 'Enabled' : 'Disabled'}
               </button>
             )}
 
@@ -936,7 +941,7 @@ function OrgCombobox({ orgs, value, onChange }: {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type FilterStatus = 'all' | 'active' | 'inactive'
+type FilterStatus = 'all' | 'active' | 'inactive' | 'incomplete'
 
 export default function PropertiesPage() {
   const qc = useQueryClient()
@@ -1053,8 +1058,9 @@ export default function PropertiesPage() {
   const canAddMore = !isSuper && (mode === 'multi' || realProperties.length === 0)
 
   const filteredProperties = properties.filter(p => {
-    if (filterStatus === 'active' && !p.isActive) return false
-    if (filterStatus === 'inactive' && p.isActive) return false
+    if (filterStatus === 'active' && p.status !== 'active') return false
+    if (filterStatus === 'inactive' && p.status !== 'inactive') return false
+    if (filterStatus === 'incomplete' && p.status !== 'incomplete') return false
     if (filterOrgId) {
       const inOrg = (p.orgId === filterOrgId) || (p.allOrgs?.some(o => o.orgId === filterOrgId) ?? false)
       if (!inOrg) return false
@@ -1273,6 +1279,7 @@ export default function PropertiesPage() {
               <option value="all">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="incomplete">Incomplete</option>
             </select>
           </div>
           {(filterText || filterOrgId !== null || filterStatus !== 'all') && (
