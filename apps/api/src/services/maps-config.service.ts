@@ -110,7 +110,7 @@ export async function getPublicMapsConfig(propertyId: number): Promise<PublicMap
 
 export async function getChainProperties(orgId: number): Promise<ChainPropertyMarker[]> {
   const props = await prisma.property.findMany({
-    where: { organizationId: orgId, isActive: true, deletedAt: null },
+    where: { organizationId: orgId, status: 'active', deletedAt: null },
     select: { propertyId: true },
   })
   const results = await Promise.allSettled(

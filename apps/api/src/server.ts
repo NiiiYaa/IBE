@@ -60,7 +60,7 @@ async function warmupStaticCache() {
   if (env.HYPERGUEST_MOCK === 'true') return
   try {
     const properties = await prisma.property.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: { status: 'active', deletedAt: null },
       select: { propertyId: true },
     })
     if (properties.length === 0) return

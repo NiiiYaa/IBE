@@ -88,7 +88,7 @@ export async function refreshProperty(propertyId: number, { force = false } = {}
 
 export async function findPropertiesDueForRefresh(): Promise<number[]> {
   const allProperties = await prisma.property.findMany({
-    where: { isActive: true, deletedAt: null },
+    where: { status: 'active', deletedAt: null },
     select: { propertyId: true },
   })
 
