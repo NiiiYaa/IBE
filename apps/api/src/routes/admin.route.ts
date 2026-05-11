@@ -6,6 +6,7 @@ import { runImport } from '../services/import.service.js'
 import { parseColumnFromBuffer } from '../utils/file-parser.js'
 import { getHGCredentials } from '../services/credentials.service.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
+import { logger } from '../utils/logger.js'
 import { env } from '../config/env.js'
 import { prisma } from '../db/client.js'
 import { listOrgNavItems, createOrgNavItem, updateOrgNavItem, deleteOrgNavItem } from '../services/org-nav.service.js'
@@ -435,7 +436,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
           failed++
           errors.push({ propertyId, name: row.name })
         }
-      } catch {
+      } catch (err) {
+        logger.warn({ propertyId, err }, '[Backfill] Failed to fetch HG data — marking incomplete')
         await prisma.property.updateMany({
           where: { propertyId, deletedAt: null },
           data: { status: 'incomplete' },
