@@ -83,15 +83,11 @@ export async function executeListProperties(args: Record<string, unknown>): Prom
     }
   }
 
-  let candidates = rows
-  if (query) {
-    const matched = rows.filter(r => r.name?.toLowerCase().includes(query))
-    // If DB names match (hotel name search), use only those — no city-scan needed
-    if (matched.length > 0) candidates = matched
-    // Otherwise it's likely a city query — scan all candidates via cache/API below
-  }
+  const candidates = rows
 
-  const isCityQuery = query && candidates === rows
+  // Always city-scan when a query is given — buildHotel matches on city, HG name, or DB name.
+  // Skipping the scan based on DB name matches breaks city searches for hotels named after their city.
+  const isCityQuery = !!query
 
   let hotels: ReturnType<typeof buildHotel>[]
 
