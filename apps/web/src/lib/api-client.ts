@@ -508,7 +508,7 @@ export const apiClient = {
     return apiRequest<{ ok: boolean }>(`/api/v1/admin/properties/${id}`, { method: 'DELETE' })
   },
 
-  setPropertyStatus(id: number, status: 'active' | 'inactive'): Promise<{ ok: boolean; status: string }> {
+  setPropertyStatus(id: number, status: 'active' | 'inactive' | 'incomplete'): Promise<{ ok: boolean; status: string }> {
     return apiRequest<{ ok: boolean; status: string }>(`/api/v1/admin/properties/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),

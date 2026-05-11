@@ -174,10 +174,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/properties/:id/status', async (request, reply) => {
     const id = parseInt((request.params as { id: string }).id, 10)
     const { status } = request.body as { status: string }
-    if (status !== 'active' && status !== 'inactive') {
-      return reply.status(400).send({ error: 'Invalid status. Must be "active" or "inactive"' })
+    if (!['active', 'inactive', 'incomplete'].includes(status)) {
+      return reply.status(400).send({ error: 'Invalid status. Must be "active", "inactive", or "incomplete"' })
     }
-    await setPropertyStatus(request.admin.organizationId, id, status as 'active' | 'inactive')
+    await setPropertyStatus(request.admin.organizationId, id, status as 'active' | 'inactive' | 'incomplete')
     return reply.send({ ok: true, status })
   })
 

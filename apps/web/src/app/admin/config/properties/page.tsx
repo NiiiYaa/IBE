@@ -492,7 +492,7 @@ function PropertyRow({
   const isPrimary = record.isPrimary !== false
 
   const activeMutation = useMutation({
-    mutationFn: (status: 'active' | 'inactive') => apiClient.setPropertyStatus(record.id, status),
+    mutationFn: (status: 'active' | 'inactive' | 'incomplete') => apiClient.setPropertyStatus(record.id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-properties'] })
       void qc.invalidateQueries({ queryKey: ['admin-super-properties'] })
@@ -615,17 +615,19 @@ function PropertyRow({
 
             {isPrimary && (
               <button
-                onClick={() => activeMutation.mutate(record.status === 'active' ? 'inactive' : 'active')}
+                onClick={() => activeMutation.mutate(record.status === 'active' ? 'inactive' : record.status === 'inactive' ? 'incomplete' : 'active')}
                 disabled={activeMutation.isPending}
-                title={record.status === 'active' ? 'Disable property' : 'Enable property'}
+                title={record.status === 'active' ? 'Click to deactivate' : record.status === 'inactive' ? 'Click to mark incomplete' : 'Click to activate'}
                 className={[
                   'h-7 rounded-lg border px-3 text-xs font-medium transition-colors disabled:opacity-50',
                   record.status === 'active'
                     ? 'border-[var(--color-success)]/40 bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                    : record.status === 'incomplete'
+                      ? 'border-amber-400/40 bg-amber-100/60 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
                 ].join(' ')}
               >
-                {record.status === 'active' ? 'Enabled' : 'Disabled'}
+                {record.status === 'active' ? 'Active' : record.status === 'incomplete' ? 'Incomplete' : 'Inactive'}
               </button>
             )}
 
@@ -1191,6 +1193,7 @@ export default function PropertiesPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={async () => {
+                  if (!window.confirm('Run backfill for all properties with missing data? This may take a while.')) return
                   setBackfillPending(true)
                   setBackfillProgress(null)
                   setBackfillDone(false)
@@ -1238,7 +1241,9 @@ export default function PropertiesPage() {
               {backfillProgress && (
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {backfillDone ? (
-                    <>Done: <span className="font-medium text-[var(--color-success)]">{backfillProgress.filled} filled</span>
+                    backfillProgress.total === 0
+                      ? <span className="text-[var(--color-text-muted)]">All properties are up to date — nothing to backfill.</span>
+                      : <>Done: <span className="font-medium text-[var(--color-success)]">{backfillProgress.filled} filled</span>
                     {backfillProgress.failed > 0 && (
                       <>
                         <span className="ml-1 text-[var(--color-error)]">· {backfillProgress.failed} failed</span>

@@ -297,7 +297,7 @@ export async function removeProperty(organizationId: number, id: number): Promis
   }
 }
 
-export async function setPropertyStatus(organizationId: number | null, id: number, status: 'active' | 'inactive'): Promise<void> {
+export async function setPropertyStatus(organizationId: number | null, id: number, status: 'active' | 'inactive' | 'incomplete'): Promise<void> {
   await prisma.property.update({
     where: { id, ...(organizationId !== null ? { organizationId } : {}) },
     data: { status },
