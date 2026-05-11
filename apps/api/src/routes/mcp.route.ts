@@ -595,9 +595,9 @@ async function handleToolCall(
 
   if (toolName === 'list_properties') {
     const baseWhere = orgId
-      ? { organizationId: orgId, isActive: true }
+      ? { organizationId: orgId, status: 'active' }
       : defaultPropertyId
-      ? { propertyId: defaultPropertyId, isActive: true }
+      ? { propertyId: defaultPropertyId, status: 'active' }
       : null
     if (!baseWhere) return mcpError('No property context available')
 
