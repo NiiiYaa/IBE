@@ -1565,7 +1565,7 @@ export const apiClient = {
 
   // ── MCP ──────────────────────────────────────────────────────────────────────
 
-  getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null }> {
+  getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null; oauthTokenExpiryDays: number | null; effectiveTokenExpiryDays: number | null; tokenExpiryInheritedFromSystem: boolean }> {
     const qs = orgId ? `?orgId=${orgId}` : ''
     return apiRequest(`/api/v1/admin/ai/mcp${qs}`)
   },
@@ -1582,12 +1582,20 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/ai/mcp/rotate', { method: 'POST', body: JSON.stringify(data) })
   },
 
-  getSystemMcpConfig(): Promise<{ enabled: boolean }> {
+  getSystemMcpConfig(): Promise<{ enabled: boolean; oauthTokenExpiryDays: number | null }> {
     return apiRequest('/api/v1/admin/ai/mcp/system')
   },
 
   updateSystemMcpConfig(enabled: boolean): Promise<{ enabled: boolean }> {
     return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PUT', body: JSON.stringify({ enabled }) })
+  },
+
+  updateSystemMcpTokenExpiry(oauthTokenExpiryDays: number | null): Promise<{ enabled: boolean; oauthTokenExpiryDays: number | null }> {
+    return apiRequest('/api/v1/admin/ai/mcp/system', { method: 'PATCH', body: JSON.stringify({ oauthTokenExpiryDays }) })
+  },
+
+  updateOrgMcpTokenExpiry(oauthTokenExpiryDays: number | null, orgId?: number): Promise<{ oauthTokenExpiryDays: number | null; effectiveTokenExpiryDays: number | null; tokenExpiryInheritedFromSystem: boolean }> {
+    return apiRequest('/api/v1/admin/ai/mcp', { method: 'PATCH', body: JSON.stringify({ oauthTokenExpiryDays, ...(orgId !== undefined ? { orgId } : {}) }) })
   },
 
   getMcpOAuthConfig(orgId?: number, propertyId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; mcpUrl: string; claude: { clientId: string; clientSecret: string } }> {
