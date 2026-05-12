@@ -477,7 +477,7 @@ function SystemMcpSection() {
             <div>
               <p className="text-sm font-medium text-[var(--color-text)]">OAuth Token Lifetime</p>
               <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                How long Claude.ai / ChatGPT tokens stay valid before re-authentication. Default is forever.
+                How long OAuth tokens stay valid before re-authentication is required. Default is forever.
               </p>
             </div>
             <select
@@ -684,7 +684,7 @@ export default function AdminMcpPage() {
                 <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                   {(mcpData as any)?.tokenExpiryInheritedFromSystem
                     ? `Inherited from system — ${expiryLabel((mcpData as any)?.effectiveTokenExpiryDays ?? null)}`
-                    : 'How long Claude.ai / ChatGPT tokens stay valid before re-authentication.'}
+                    : 'How long OAuth tokens stay valid before re-authentication is required.'}
                 </p>
               </div>
               <select
