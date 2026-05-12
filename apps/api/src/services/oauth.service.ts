@@ -51,16 +51,16 @@ export function getOAuthAudience(): string {
   return `${env.WEB_BASE_URL}/api/v1/mcp`
 }
 
-export async function signAccessToken(adminUserId: number, orgId: number): Promise<string> {
+export async function signAccessToken(adminUserId: number, orgId: number, expiryDays: number | null): Promise<string> {
   const { privateKey, kid } = await getKeyPair()
-  return new SignJWT({ org: orgId })
+  let builder = new SignJWT({ org: orgId })
     .setProtectedHeader({ alg: 'RS256', kid })
     .setSubject(`user:${adminUserId}`)
     .setIssuer(getOAuthIssuer())
     .setAudience(getOAuthAudience())
     .setIssuedAt()
-    .setExpirationTime('1h')
-    .sign(privateKey)
+  if (expiryDays !== null) builder = builder.setExpirationTime(`${expiryDays}d`)
+  return builder.sign(privateKey)
 }
 
 export async function validateMcpJwt(token: string): Promise<{ sub: string; org?: number } | null> {

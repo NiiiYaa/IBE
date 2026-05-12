@@ -16,6 +16,7 @@ import {
   registerClient,
   getClientBranding,
 } from '../services/oauth.service.js'
+import { getEffectiveMcpTokenExpiry } from '../services/mcp.service.js'
 
 // Short-lived nonces for super-admin org selection (60s TTL, single-use)
 const pendingNonces = new Map<string, { adminId: number; expiresAt: number }>()
@@ -404,13 +405,20 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'invalid_grant', error_description: 'client_id or redirect_uri mismatch' })
     }
 
-    const accessToken = await signAccessToken(entry.adminUserId, entry.orgId)
+    let expiryDays: number | null = null
+    try {
+      expiryDays = await getEffectiveMcpTokenExpiry(entry.orgId)
+    } catch {
+      logger.warn('[OAuth] Could not fetch token expiry config — defaulting to forever')
+    }
+
+    const accessToken = await signAccessToken(entry.adminUserId, entry.orgId, expiryDays)
     logger.info({ adminId: entry.adminUserId, orgId: entry.orgId, clientId }, '[OAuth] Access token issued')
 
     return reply.send({
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: 3600,
+      expires_in: expiryDays !== null ? expiryDays * 86400 : 2147483647,
       scope: 'openid',
       audience: getOAuthAudience(),
     })
