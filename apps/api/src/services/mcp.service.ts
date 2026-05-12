@@ -64,6 +64,16 @@ export async function setOrgMcpTokenExpiry(orgId: number, days: number | null): 
   return getOrgMcpTokenExpirySettings(orgId)
 }
 
+export async function revokeOrgTokens(orgId: number): Promise<{ tokensRevokedAt: string }> {
+  const now = new Date()
+  await prisma.orgMcpConfig.upsert({
+    where: { organizationId: orgId },
+    create: { organizationId: orgId, enabled: false, apiKey: randomUUID(), tokensRevokedAt: now },
+    update: { tokensRevokedAt: now },
+  })
+  return { tokensRevokedAt: now.toISOString() }
+}
+
 export async function getMcpConfig(scope: McpScope): Promise<McpConfigRecord | null> {
   if (scope.kind === 'org') {
     const row = await prisma.orgMcpConfig.findUnique({ where: { organizationId: scope.orgId } })

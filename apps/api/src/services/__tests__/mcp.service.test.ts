@@ -14,6 +14,7 @@ import {
   getEffectiveMcpTokenExpiry,
   setSystemMcpTokenExpiry,
   setOrgMcpTokenExpiry,
+  revokeOrgTokens,
 } from '../mcp.service.js'
 
 const mp = prisma as any
@@ -155,5 +156,24 @@ describe('setOrgMcpTokenExpiry', () => {
     expect(result.oauthTokenExpiryDays).toBeNull()
     expect(result.tokenExpiryInheritedFromSystem).toBe(true)
     expect(result.effectiveTokenExpiryDays).toBe(90)
+  })
+})
+
+describe('revokeOrgTokens', () => {
+  it('upserts tokensRevokedAt and returns ISO timestamp', async () => {
+    vi.useFakeTimers()
+    const now = new Date('2026-05-12T10:00:00.000Z')
+    vi.setSystemTime(now)
+    mp.orgMcpConfig.upsert.mockResolvedValue({})
+
+    const result = await revokeOrgTokens(42)
+
+    expect(mp.orgMcpConfig.upsert).toHaveBeenCalledWith({
+      where: { organizationId: 42 },
+      create: expect.objectContaining({ organizationId: 42, tokensRevokedAt: now }),
+      update: { tokensRevokedAt: now },
+    })
+    expect(result.tokensRevokedAt).toBe(now.toISOString())
+    vi.useRealTimers()
   })
 })
