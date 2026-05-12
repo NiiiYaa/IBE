@@ -1010,7 +1010,8 @@ model OrgMcpConfig {
   organization   Organization @relation(fields: [organizationId], references: [id])
   enabled        Boolean      @default(false)
   apiKey         String       @unique
-  oauthTokenExpiryDays Int?  // null = inherit from system
+  oauthTokenExpiryDays Int?       // null = inherit from system
+  tokensRevokedAt DateTime?      // null = never revoked; tokens with iat < this are rejected
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
