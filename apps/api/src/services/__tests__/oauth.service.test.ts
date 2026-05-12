@@ -29,6 +29,13 @@ describe('getOAuthScope — revocation check (org in JWT payload)', () => {
     expect(result).toBeNull()
   })
 
+  it('rejects token issued at exactly tokensRevokedAt', async () => {
+    mp.adminUser.findUnique.mockResolvedValue({ isActive: true })
+    mp.orgMcpConfig.findUnique.mockResolvedValue({ tokensRevokedAt: revokedAt })
+    const result = await getOAuthScope('user:1', revokedAtSec, 5)
+    expect(result).toBeNull()
+  })
+
   it('allows token issued after tokensRevokedAt', async () => {
     mp.adminUser.findUnique.mockResolvedValue({ isActive: true })
     mp.orgMcpConfig.findUnique.mockResolvedValue({ tokensRevokedAt: revokedAt })
