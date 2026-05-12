@@ -35,6 +35,8 @@ model SystemAmadeusConfig {
   clientSecret        String?  // AES-256-CBC encrypted
   enabled             Boolean  @default(false)
   enforceSystemCreds  Boolean  @default(false)  // if true, no org/hotel may use own credentials
+  tokenUrl            String   @default("")      // OAuth token endpoint — set by super admin
+  activitiesUrl       String   @default("")      // Activities search endpoint — set by super admin
   radiusKm            Int      @default(10)
   maxActivities       Int      @default(10)
   stripLabel          String   @default("Activities & Tours")
@@ -282,6 +284,8 @@ export interface AmadeusConfigResponse {
   credentialsLocked: boolean   // parent enforces its own credentials
   enabled: boolean
   enforceChildCreds: boolean   // this level locks credentials for levels below
+  tokenUrl: string             // system level only; empty string at org/property level
+  activitiesUrl: string        // system level only; empty string at org/property level
   radiusKm: number
   maxActivities: number
   stripLabel: string
@@ -298,6 +302,8 @@ export interface AmadeusConfigUpdate {
   enabled?: boolean
   enforceChildCreds?: boolean
   systemServiceDisabled?: boolean
+  tokenUrl?: string            // system level only
+  activitiesUrl?: string       // system level only
   radiusKm?: number
   maxActivities?: number
   stripLabel?: string

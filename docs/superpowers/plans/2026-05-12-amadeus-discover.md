@@ -49,6 +49,8 @@ export interface AmadeusConfigResponse {
   enforceChildCreds: boolean          // this level locks credentials for levels below
   systemServiceDisabled: boolean
   hasOwnConfig: boolean
+  tokenUrl: string                    // system level only; empty string at org/property level
+  activitiesUrl: string               // system level only; empty string at org/property level
   radiusKm: number
   maxActivities: number
   stripLabel: string
@@ -63,6 +65,8 @@ export interface AmadeusConfigUpdate {
   enabled?: boolean
   enforceChildCreds?: boolean
   systemServiceDisabled?: boolean
+  tokenUrl?: string                   // system level only
+  activitiesUrl?: string              // system level only
   radiusKm?: number
   maxActivities?: number
   stripLabel?: string
@@ -178,6 +182,8 @@ model SystemAmadeusConfig {
   clientSecret        String?  // AES-256-CBC encrypted
   enabled             Boolean  @default(false)
   enforceSystemCreds  Boolean  @default(false)
+  tokenUrl            String   @default("")
+  activitiesUrl       String   @default("")
   radiusKm            Int      @default(10)
   maxActivities       Int      @default(10)
   stripLabel          String   @default("Activities & Tours")
@@ -445,6 +451,8 @@ export async function getSystemAmadeusConfig(): Promise<AmadeusConfigResponse> {
     enforceChildCreds: row?.enforceSystemCreds ?? false,
     systemServiceDisabled: false,
     hasOwnConfig: !!row,
+    tokenUrl: row?.tokenUrl ?? '',
+    activitiesUrl: row?.activitiesUrl ?? '',
     radiusKm: row?.radiusKm ?? 10,
     maxActivities: row?.maxActivities ?? 10,
     stripLabel: row?.stripLabel ?? 'Activities & Tours',
@@ -466,6 +474,8 @@ export async function upsertSystemAmadeusConfig(data: AmadeusConfigUpdate): Prom
   if (data.stripMode !== undefined) update.stripMode = data.stripMode
   if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
   if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
+  if (data.tokenUrl !== undefined) update.tokenUrl = data.tokenUrl
+  if (data.activitiesUrl !== undefined) update.activitiesUrl = data.activitiesUrl
 
   const existing = await prisma.systemAmadeusConfig.findFirst()
   if (existing) {
@@ -491,6 +501,8 @@ export async function getOrgAmadeusConfig(orgId: number): Promise<AmadeusConfigR
     enforceChildCreds: row?.enforceOrgCreds ?? false,
     systemServiceDisabled: row?.systemServiceDisabled ?? false,
     hasOwnConfig: !!row,
+    tokenUrl: '',
+    activitiesUrl: '',
     radiusKm: row?.radiusKm ?? sysRow?.radiusKm ?? 10,
     maxActivities: row?.maxActivities ?? sysRow?.maxActivities ?? 10,
     stripLabel: row?.stripLabel ?? sysRow?.stripLabel ?? 'Activities & Tours',
@@ -541,6 +553,8 @@ export async function getPropertyAmadeusConfig(propertyId: number): Promise<Amad
     enforceChildCreds: false,
     systemServiceDisabled: row?.systemServiceDisabled ?? false,
     hasOwnConfig: !!row,
+    tokenUrl: '',
+    activitiesUrl: '',
     radiusKm: row?.radiusKm ?? orgRow?.radiusKm ?? sysRow?.radiusKm ?? 10,
     maxActivities: row?.maxActivities ?? orgRow?.maxActivities ?? sysRow?.maxActivities ?? 10,
     stripLabel: row?.stripLabel ?? orgRow?.stripLabel ?? sysRow?.stripLabel ?? 'Activities & Tours',
@@ -579,6 +593,8 @@ export async function upsertPropertyAmadeusConfig(propertyId: number, data: Amad
 export interface ResolvedAmadeusConfig {
   clientId: string
   clientSecret: string
+  tokenUrl: string
+  activitiesUrl: string
   radiusKm: number
   maxActivities: number
   stripLabel: string
@@ -627,6 +643,8 @@ export async function getResolvedAmadeusConfig(
   return {
     clientId: decryptApiKey(encClientId),
     clientSecret: decryptApiKey(encClientSecret),
+    tokenUrl: sysRow.tokenUrl,
+    activitiesUrl: sysRow.activitiesUrl,
     radiusKm: propRow?.radiusKm ?? orgRow?.radiusKm ?? sysRow.radiusKm,
     maxActivities: propRow?.maxActivities ?? orgRow?.maxActivities ?? sysRow.maxActivities,
     stripLabel: propRow?.stripLabel ?? orgRow?.stripLabel ?? sysRow.stripLabel,
@@ -638,17 +656,14 @@ export async function getResolvedAmadeusConfig(
 
 // ── OAuth token (client-credentials flow, Redis-cached) ───────────────────────
 
-// IMPORTANT: Confirm the exact token endpoint URL from Amadeus Discover docs / Postman collection
-// before deploying. The URL below is a placeholder — look for "auth", "token", or "oauth2" in the docs.
-const AMADEUS_TOKEN_URL = process.env.AMADEUS_TOKEN_URL ?? 'https://api.amadeus-discover.com/oauth2/token'
-
-export async function getAmadeusToken(clientId: string, clientSecret: string): Promise<string> {
-  const keyHash = crypto.createHash('sha256').update(clientId + clientSecret).digest('hex').slice(0, 16)
+export async function getAmadeusToken(tokenUrl: string, clientId: string, clientSecret: string): Promise<string> {
+  if (!tokenUrl) throw new Error('Amadeus token URL not configured. Set it in Admin → Events & Activities → Amadeus Discover.')
+  const keyHash = crypto.createHash('sha256').update(tokenUrl + clientId + clientSecret).digest('hex').slice(0, 16)
   const cacheKey = `amadeus:token:${keyHash}`
   const cached = await cacheGet<string>(cacheKey)
   if (cached) return cached
 
-  const res = await fetch(AMADEUS_TOKEN_URL, {
+  const res = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -770,7 +785,7 @@ export async function amadeusConfigRoutes(fastify: FastifyInstance) {
         cfg = await getResolvedAmadeusConfig(0, orgId)
       }
       if (!cfg) return reply.send({ ok: false, error: 'Amadeus not configured or disabled' })
-      await getAmadeusToken(cfg.clientId, cfg.clientSecret)
+      await getAmadeusToken(cfg.tokenUrl, cfg.clientId, cfg.clientSecret)
       return reply.send({ ok: true })
     } catch (err) {
       return reply.send({ ok: false, error: err instanceof Error ? err.message : String(err) })
@@ -806,10 +821,6 @@ import { getResolvedEventsConfig } from '../services/events-config.service.js'
 import { logger } from '../utils/logger.js'
 import type { AmadeusActivity, AmadeusPublicResponse, ActivitiesAndEventsResponse } from '@ibe/shared'
 
-// IMPORTANT: Confirm exact URL + params from Amadeus Discover docs / Postman collection
-const AMADEUS_ACTIVITIES_URL = process.env.AMADEUS_ACTIVITIES_URL
-  ?? 'https://api.amadeus-discover.com/v1/catalog/activities'
-
 interface RawAmadeusProduct {
   id: string
   name: string
@@ -825,13 +836,15 @@ interface RawAmadeusProduct {
 }
 
 async function fetchAmadeusActivities(
+  activitiesUrl: string,
   token: string,
   lat: number,
   lng: number,
   radiusKm: number,
   max: number,
 ): Promise<RawAmadeusProduct[]> {
-  const url = new URL(AMADEUS_ACTIVITIES_URL)
+  if (!activitiesUrl) throw new Error('Amadeus activities URL not configured.')
+  const url = new URL(activitiesUrl)
   url.searchParams.set('latitude', String(lat))
   url.searchParams.set('longitude', String(lng))
   url.searchParams.set('radius', String(radiusKm))
@@ -873,8 +886,8 @@ async function getAmadeusActivities(
   if (!lat || !lng) return { enabled: false }
 
   try {
-    const token = await getAmadeusToken(cfg.clientId, cfg.clientSecret)
-    const raw = await fetchAmadeusActivities(token, lat, lng, cfg.radiusKm, cfg.maxActivities)
+    const token = await getAmadeusToken(cfg.tokenUrl, cfg.clientId, cfg.clientSecret)
+    const raw = await fetchAmadeusActivities(cfg.activitiesUrl, token, lat, lng, cfg.radiusKm, cfg.maxActivities)
     return {
       enabled: true,
       radiusKm: cfg.radiusKm,
@@ -1119,10 +1132,6 @@ interface RawAmadeusProduct {
   booking?: { available: boolean }
 }
 
-// IMPORTANT: Keep in sync with AMADEUS_ACTIVITIES_URL in amadeus-public.route.ts
-const AMADEUS_ACTIVITIES_URL = process.env.AMADEUS_ACTIVITIES_URL
-  ?? 'https://api.amadeus-discover.com/v1/catalog/activities'
-
 export async function executeGetNearbyEvents(args: Record<string, unknown>): Promise<unknown> {
   const propertyId = args.propertyId as number
 
@@ -1204,8 +1213,8 @@ async function fetchAmadeusActivities(
   if (!cfg || !lat || !lng) return null
 
   try {
-    const token = await getAmadeusToken(cfg.clientId, cfg.clientSecret)
-    const url = new URL(AMADEUS_ACTIVITIES_URL)
+    const token = await getAmadeusToken(cfg.tokenUrl, cfg.clientId, cfg.clientSecret)
+    const url = new URL(cfg.activitiesUrl)
     url.searchParams.set('latitude', String(lat))
     url.searchParams.set('longitude', String(lng))
     url.searchParams.set('radius', String(cfg.radiusKm))
@@ -1380,6 +1389,8 @@ function AmadeusConfigForm({
 }) {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [tokenUrl, setTokenUrl] = useState(data.tokenUrl)
+  const [activitiesUrl, setActivitiesUrl] = useState(data.activitiesUrl)
   const [enabled, setEnabled] = useState(data.enabled)
   const [enforceChildCreds, setEnforceChildCreds] = useState(data.enforceChildCreds)
   const [radiusKm, setRadiusKm] = useState(data.radiusKm)
@@ -1392,6 +1403,8 @@ function AmadeusConfigForm({
 
   useEffect(() => {
     setEnabled(data.enabled)
+    setTokenUrl(data.tokenUrl)
+    setActivitiesUrl(data.activitiesUrl)
     setEnforceChildCreds(data.enforceChildCreds)
     setRadiusKm(data.radiusKm)
     setMaxActivities(data.maxActivities)
@@ -1413,6 +1426,7 @@ function AmadeusConfigForm({
 
   function buildUpdate(): AmadeusConfigUpdate {
     const u: AmadeusConfigUpdate = { enabled, stripLabel, stripMode }
+    if (isSystem) { u.tokenUrl = tokenUrl; u.activitiesUrl = activitiesUrl }
     if (!isSystem) u.stripDefaultFolded = stripDefaultFolded
     if (!isSystem) u.stripAutoFoldSecs = stripAutoFoldSecs
     if (clientId) u.clientId = clientId
@@ -1463,6 +1477,27 @@ function AmadeusConfigForm({
               {data.systemServiceDisabled ? 'Disabled by admin' : 'Active'}
             </span>
           )}
+        </div>
+      )}
+
+      {/* API endpoint URLs — system level only */}
+      {isSystem && (
+        <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">API Endpoints</p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Token URL</label>
+            <input type="text" value={tokenUrl} onChange={e => setTokenUrl(e.target.value)}
+              placeholder="https://…/oauth2/token"
+              className={inputCls} autoComplete="off" />
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">OAuth 2.0 token endpoint from Amadeus Discover Quick Connect docs.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Activities URL</label>
+            <input type="text" value={activitiesUrl} onChange={e => setActivitiesUrl(e.target.value)}
+              placeholder="https://…/v1/catalog/activities"
+              className={inputCls} autoComplete="off" />
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Activities search endpoint from Amadeus Discover Quick Connect docs.</p>
+          </div>
         </div>
       )}
 
@@ -1918,8 +1953,4 @@ git commit -m "feat: Amadeus Discover integration — Phase 1 complete (config, 
 
 ## Post-Implementation Note
 
-**Amadeus API URL must be confirmed before production deployment.** The placeholder URL `https://api.amadeus-discover.com/v1/catalog/activities` appears in two places:
-1. `apps/api/src/services/amadeus-config.service.ts` — `AMADEUS_TOKEN_URL`
-2. `apps/api/src/routes/amadeus-public.route.ts` and `apps/api/src/ai/tools/events.ts` — `AMADEUS_ACTIVITIES_URL`
-
-Both can be overridden via env vars (`AMADEUS_TOKEN_URL`, `AMADEUS_ACTIVITIES_URL`) without a code deploy. Review the Amadeus Discover Quick Connect Postman collection to get the correct URLs, then set them in Render env vars.
+**API endpoint URLs must be set before the feature goes live.** After deploying, navigate to Admin → Events & Activities → Amadeus Discover (system level) and enter the Token URL and Activities URL from the Amadeus Discover Quick Connect Postman collection. No code change or Render env var needed — the URLs are stored in the DB and served from `SystemAmadeusConfig`.
