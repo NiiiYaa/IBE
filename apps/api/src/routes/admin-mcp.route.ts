@@ -8,6 +8,7 @@ import {
   setSystemMcpTokenExpiry,
   getOrgMcpTokenExpirySettings,
   setOrgMcpTokenExpiry,
+  revokeOrgTokens,
 } from '../services/mcp.service.js'
 import type { McpScope } from '../services/mcp.service.js'
 import { getOAuthIssuer, getOAuthAudience, getOrCreateClaudeClient, rotateClientSecret } from '../services/oauth.service.js'
@@ -45,8 +46,15 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
     if (!scope) return reply.status(400).send({ error: 'No organization context' })
     const config = await getMcpConfig(scope)
     if (scope.kind === 'org') {
-      const expiry = await getOrgMcpTokenExpirySettings(scope.orgId)
-      return reply.send({ ...(config ?? { enabled: false, apiKey: null }), ...expiry })
+      const [expiry, orgCfg] = await Promise.all([
+        getOrgMcpTokenExpirySettings(scope.orgId),
+        prisma.orgMcpConfig.findUnique({ where: { organizationId: scope.orgId }, select: { tokensRevokedAt: true } }),
+      ])
+      return reply.send({
+        ...(config ?? { enabled: false, apiKey: null }),
+        ...expiry,
+        tokensRevokedAt: orgCfg?.tokensRevokedAt?.toISOString() ?? null,
+      })
     }
     return reply.send(config ?? { enabled: false, apiKey: null })
   })
@@ -161,5 +169,15 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
     if (!scope) return reply.status(400).send({ error: 'No organization context' })
     const config = await rotateApiKey(scope)
     return reply.send(config)
+  })
+
+  // POST /admin/ai/mcp/revoke-tokens — immediately invalidate all active OAuth tokens for an org
+  fastify.post('/admin/ai/mcp/revoke-tokens', async (request, reply) => {
+    const body = request.body as { orgId?: number }
+    const orgId = (request as any).admin.role === 'super'
+      ? (body.orgId ?? (request as any).admin.organizationId)
+      : (request as any).admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    return reply.send(await revokeOrgTokens(orgId))
   })
 }
