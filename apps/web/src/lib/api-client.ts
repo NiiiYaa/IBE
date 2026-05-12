@@ -1565,7 +1565,7 @@ export const apiClient = {
 
   // ── MCP ──────────────────────────────────────────────────────────────────────
 
-  getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null; oauthTokenExpiryDays: number | null; effectiveTokenExpiryDays: number | null; tokenExpiryInheritedFromSystem: boolean }> {
+  getOrgMcpConfig(orgId?: number): Promise<{ enabled: boolean; apiKey: string | null; oauthTokenExpiryDays: number | null; effectiveTokenExpiryDays: number | null; tokenExpiryInheritedFromSystem: boolean; tokensRevokedAt: string | null }> {
     const qs = orgId ? `?orgId=${orgId}` : ''
     return apiRequest(`/api/v1/admin/ai/mcp${qs}`)
   },
@@ -1596,6 +1596,10 @@ export const apiClient = {
 
   updateOrgMcpTokenExpiry(oauthTokenExpiryDays: number | null, orgId?: number): Promise<{ oauthTokenExpiryDays: number | null; effectiveTokenExpiryDays: number | null; tokenExpiryInheritedFromSystem: boolean }> {
     return apiRequest('/api/v1/admin/ai/mcp', { method: 'PATCH', body: JSON.stringify({ oauthTokenExpiryDays, ...(orgId !== undefined ? { orgId } : {}) }) })
+  },
+
+  revokeOrgTokens(orgId?: number): Promise<{ tokensRevokedAt: string }> {
+    return apiRequest('/api/v1/admin/ai/mcp/revoke-tokens', { method: 'POST', body: JSON.stringify({ ...(orgId !== undefined ? { orgId } : {}) }) })
   },
 
   getMcpOAuthConfig(orgId?: number, propertyId?: number): Promise<{ issuer: string; authorizeUrl: string; tokenUrl: string; jwksUrl: string; discoveryUrl: string; registerUrl: string; mcpUrl: string; claude: { clientId: string; clientSecret: string } }> {

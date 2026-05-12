@@ -545,6 +545,7 @@ export default function AdminMcpPage() {
   const [enableError, setEnableError] = useState<string | null>(null)
   const [channelModels, setChannelModels] = useState<AIChannelSettings['mcp']>([])
   const [tokenExpiry, setTokenExpiry] = useState<number | null>(null)
+  const [revokeConfirm, setRevokeConfirm] = useState(false)
 
   useEffect(() => {
     if (!mcpData) return
@@ -598,6 +599,14 @@ export default function AdminMcpPage() {
       apiClient.updateOrgMcpTokenExpiry(days, superOrgId),
     onSuccess: (res) => {
       setTokenExpiry(res.oauthTokenExpiryDays)
+      qc.invalidateQueries({ queryKey: mcpQKey })
+    },
+  })
+
+  const { mutate: revokeTokens, isPending: revoking } = useMutation({
+    mutationFn: () => apiClient.revokeOrgTokens(superOrgId),
+    onSuccess: () => {
+      setRevokeConfirm(false)
       qc.invalidateQueries({ queryKey: mcpQKey })
     },
   })
@@ -705,6 +714,41 @@ export default function AdminMcpPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+        )}
+
+        {!isPropertyLevel && (
+          <div className="border-t border-[var(--color-border)] pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">Revoke All Tokens</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                  {(mcpData as any)?.tokensRevokedAt
+                    ? `Last revoked ${new Date((mcpData as any).tokensRevokedAt).toLocaleString()}`
+                    : 'Immediately invalidates all active OAuth tokens. Connectors must re-authenticate.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (revokeConfirm) {
+                    revokeTokens()
+                  } else {
+                    setRevokeConfirm(true)
+                    setTimeout(() => setRevokeConfirm(false), 4000)
+                  }
+                }}
+                disabled={revoking}
+                className={[
+                  'shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50',
+                  revokeConfirm
+                    ? 'border-[var(--color-error)] bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90'
+                    : 'border-[var(--color-error)]/40 text-[var(--color-error)] hover:border-[var(--color-error)] hover:bg-red-50',
+                ].join(' ')}
+              >
+                {revoking ? 'Revoking…' : revokeConfirm ? 'Confirm Revoke' : 'Revoke All Tokens'}
+              </button>
             </div>
           </div>
         )}
