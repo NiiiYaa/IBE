@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { prisma } from '../db/client.js'
-import { encryptApiKey, maskApiKey, decryptApiKey } from './ai-config.service.js'
+import { encryptApiKey, decryptApiKey } from './ai-config.service.js'
 import { cacheGet, cacheSet } from '../utils/cache.js'
 import type { AmadeusConfigResponse, AmadeusConfigUpdate } from '@ibe/shared'
 
@@ -37,8 +37,8 @@ export async function getSystemAmadeusConfig(): Promise<AmadeusConfigResponse> {
 
 export async function upsertSystemAmadeusConfig(data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
   const update: Record<string, unknown> = {}
-  if (data.clientId) update.clientId = encryptApiKey(data.clientId)
-  if (data.clientSecret) update.clientSecret = encryptApiKey(data.clientSecret)
+  if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
+  if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.enforceChildCreds !== undefined) update.enforceChildCreds = data.enforceChildCreds
   if (data.radiusKm !== undefined) update.radiusKm = data.radiusKm
@@ -87,8 +87,8 @@ export async function getOrgAmadeusConfig(orgId: number): Promise<AmadeusConfigR
 
 export async function upsertOrgAmadeusConfig(orgId: number, data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
   const update: Record<string, unknown> = {}
-  if (data.clientId) update.clientId = encryptApiKey(data.clientId)
-  if (data.clientSecret) update.clientSecret = encryptApiKey(data.clientSecret)
+  if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
+  if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.enforceChildCreds !== undefined) update.enforceChildCreds = data.enforceChildCreds
   if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
@@ -139,8 +139,8 @@ export async function getPropertyAmadeusConfig(propertyId: number): Promise<Amad
 
 export async function upsertPropertyAmadeusConfig(propertyId: number, data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
   const update: Record<string, unknown> = {}
-  if (data.clientId) update.clientId = encryptApiKey(data.clientId)
-  if (data.clientSecret) update.clientSecret = encryptApiKey(data.clientSecret)
+  if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
+  if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
   // nullable overrides: null resets to inherited

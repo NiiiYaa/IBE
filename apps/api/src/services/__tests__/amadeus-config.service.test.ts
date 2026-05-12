@@ -21,8 +21,10 @@ vi.mock('../ai-config.service.js', () => ({
 }))
 
 import { prisma } from '../../db/client.js'
+import { cacheGet, cacheSet } from '../../utils/cache.js'
 import {
   getResolvedAmadeusConfig,
+  getAmadeusToken,
 } from '../amadeus-config.service.js'
 
 const mp = prisma as any
@@ -144,5 +146,61 @@ describe('getResolvedAmadeusConfig — credential resolution', () => {
     })
     const result = await getResolvedAmadeusConfig(42)
     expect(result?.radiusKm).toBe(5)
+  })
+
+  it('enforceChildCreds on org forces org creds even when property has own', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mp.propertyAmadeusConfig.findUnique.mockResolvedValue({
+      enabled: true, systemServiceDisabled: false,
+      clientId: 'enc:prop-id', clientSecret: 'enc:prop-secret',
+      radiusKm: null, maxActivities: null, stripLabel: null, stripMode: null,
+    })
+    mp.orgAmadeusConfig.findUnique.mockResolvedValue({
+      enabled: true, systemServiceDisabled: false, enforceChildCreds: true,
+      clientId: 'enc:org-id', clientSecret: 'enc:org-secret',
+      radiusKm: 10, maxActivities: 10, stripLabel: 'Activities & Tours',
+      stripMode: 'separate', stripDefaultFolded: false, stripAutoFoldSecs: 15,
+    })
+    mp.systemAmadeusConfig.findFirst.mockResolvedValue({
+      enabled: true, enforceChildCreds: false,
+      clientId: 'enc:sys-id', clientSecret: 'enc:sys-secret',
+      radiusKm: 10, maxActivities: 10, stripLabel: 'Activities & Tours',
+      stripMode: 'separate', stripDefaultFolded: false, stripAutoFoldSecs: 15,
+    })
+    const result = await getResolvedAmadeusConfig(42)
+    expect(result?.clientId).toBe('org-id')
+    expect(result?.clientSecret).toBe('org-secret')
+  })
+})
+
+describe('getAmadeusToken', () => {
+  const mockCache = cacheGet as ReturnType<typeof vi.fn>
+  const mockSet = cacheSet as ReturnType<typeof vi.fn>
+
+  it('returns cached token without fetching', async () => {
+    mockCache.mockResolvedValueOnce('cached-token')
+    const result = await getAmadeusToken('https://example.com/token', 'id', 'secret')
+    expect(result).toBe('cached-token')
+  })
+
+  it('fetches, caches, and returns token on cache miss', async () => {
+    mockCache.mockResolvedValueOnce(null)
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: 'new-token', expires_in: 3600 }),
+    }) as any
+    const result = await getAmadeusToken('https://example.com/token', 'id', 'secret')
+    expect(result).toBe('new-token')
+    expect(mockSet).toHaveBeenCalledWith(expect.stringMatching(/^amadeus:token:/), 'new-token', 3540)
+  })
+
+  it('throws when tokenUrl is empty', async () => {
+    await expect(getAmadeusToken('', 'id', 'secret')).rejects.toThrow('Amadeus token URL not configured')
+  })
+
+  it('throws when auth fails', async () => {
+    mockCache.mockResolvedValueOnce(null)
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 401 }) as any
+    await expect(getAmadeusToken('https://example.com/token', 'id', 'secret')).rejects.toThrow('Amadeus auth failed: 401')
   })
 })
