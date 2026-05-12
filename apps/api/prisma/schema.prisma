@@ -47,6 +47,7 @@ model Organization {
   orgMapsConfig               OrgMapsConfig?
   orgWeatherConfig            OrgWeatherConfig?
   orgEventsConfig             OrgEventsConfig?
+  orgAmadeusConfig            OrgAmadeusConfig?
   crossSellConfig             CrossSellConfig?
   crossSellProducts           CrossSellProduct[]
   propertyCrossSellConfigs    PropertyCrossSellConfig[]
@@ -454,6 +455,7 @@ model Property {
   propertyGroupConfig     PropertyGroupConfig?
   propertyOrganizations   PropertyOrganization[]
   propertyDataProviderConfig  PropertyDataProviderConfig?
+  propertyAmadeusConfig       PropertyAmadeusConfig?
   propertyScore               PropertyScore?
 
   @@index([organizationId])
@@ -1591,4 +1593,59 @@ model PropertyScore {
   errorMsg    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// ── Amadeus Discover ─────────────────────────────────────────────────────────
+
+model SystemAmadeusConfig {
+  id                  Int      @id @default(autoincrement())
+  clientId            String?  // AES-256-CBC encrypted
+  clientSecret        String?  // AES-256-CBC encrypted
+  enabled             Boolean  @default(false)
+  enforceSystemCreds  Boolean  @default(false)
+  tokenUrl            String   @default("")
+  activitiesUrl       String   @default("")
+  radiusKm            Int      @default(10)
+  maxActivities       Int      @default(10)
+  stripLabel          String   @default("Activities & Tours")
+  stripMode           String   @default("separate")
+  stripDefaultFolded  Boolean  @default(false)
+  stripAutoFoldSecs   Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model OrgAmadeusConfig {
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  clientId              String?      // AES-256-CBC encrypted; null = use system
+  clientSecret          String?      // AES-256-CBC encrypted
+  enabled               Boolean      @default(false)
+  enforceOrgCreds       Boolean      @default(false)
+  systemServiceDisabled Boolean      @default(false)
+  radiusKm              Int          @default(10)
+  maxActivities         Int          @default(10)
+  stripLabel            String       @default("Activities & Tours")
+  stripMode             String       @default("separate")
+  stripDefaultFolded    Boolean      @default(false)
+  stripAutoFoldSecs     Int          @default(15)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model PropertyAmadeusConfig {
+  id                    Int      @id @default(autoincrement())
+  propertyId            Int      @unique
+  property              Property @relation(fields: [propertyId], references: [propertyId])
+  clientId              String?  // AES-256-CBC encrypted; null = use org/system
+  clientSecret          String?  // AES-256-CBC encrypted
+  enabled               Boolean  @default(false)
+  systemServiceDisabled Boolean  @default(false)
+  radiusKm              Int?
+  maxActivities         Int?
+  stripLabel            String?
+  stripMode             String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
