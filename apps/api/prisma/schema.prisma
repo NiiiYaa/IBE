@@ -1602,7 +1602,7 @@ model SystemAmadeusConfig {
   clientId            String?  // AES-256-CBC encrypted
   clientSecret        String?  // AES-256-CBC encrypted
   enabled             Boolean  @default(false)
-  enforceSystemCreds  Boolean  @default(false)
+  enforceChildCreds   Boolean  @default(false)
   tokenUrl            String   @default("")
   activitiesUrl       String   @default("")
   radiusKm            Int      @default(10)
@@ -1622,7 +1622,7 @@ model OrgAmadeusConfig {
   clientId              String?      // AES-256-CBC encrypted; null = use system
   clientSecret          String?      // AES-256-CBC encrypted
   enabled               Boolean      @default(false)
-  enforceOrgCreds       Boolean      @default(false)
+  enforceChildCreds     Boolean      @default(false)
   systemServiceDisabled Boolean      @default(false)
   radiusKm              Int          @default(10)
   maxActivities         Int          @default(10)
