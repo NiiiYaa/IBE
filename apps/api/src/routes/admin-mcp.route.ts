@@ -55,6 +55,9 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
   fastify.patch('/admin/ai/mcp/system', async (request, reply) => {
     if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const { oauthTokenExpiryDays } = request.body as { oauthTokenExpiryDays: number | null }
+    if (oauthTokenExpiryDays !== null && (typeof oauthTokenExpiryDays !== 'number' || oauthTokenExpiryDays <= 0 || !Number.isInteger(oauthTokenExpiryDays))) {
+      return reply.status(400).send({ error: 'oauthTokenExpiryDays must be a positive integer or null' })
+    }
     return reply.send(await setSystemMcpTokenExpiry(oauthTokenExpiryDays))
   })
 
@@ -86,6 +89,9 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
   // PATCH /admin/ai/mcp — update org-level OAuth token expiry
   fastify.patch('/admin/ai/mcp', async (request, reply) => {
     const body = request.body as { oauthTokenExpiryDays: number | null; orgId?: number }
+    if (body.oauthTokenExpiryDays !== null && (typeof body.oauthTokenExpiryDays !== 'number' || body.oauthTokenExpiryDays <= 0 || !Number.isInteger(body.oauthTokenExpiryDays))) {
+      return reply.status(400).send({ error: 'oauthTokenExpiryDays must be a positive integer or null' })
+    }
     const orgId = (request as any).admin.role === 'super'
       ? (body.orgId ?? (request as any).admin.organizationId)
       : (request as any).admin.organizationId

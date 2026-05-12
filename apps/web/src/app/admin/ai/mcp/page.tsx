@@ -676,36 +676,38 @@ export default function AdminMcpPage() {
           <p className="text-xs text-[var(--color-text-muted)]">Enable the MCP server to generate an API key.</p>
         )}
 
-        <div className="border-t border-[var(--color-border)] pt-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-[var(--color-text)]">OAuth Token Lifetime</p>
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                {(mcpData as any)?.tokenExpiryInheritedFromSystem
-                  ? `Inherited from system — ${expiryLabel((mcpData as any)?.effectiveTokenExpiryDays ?? null)}`
-                  : 'How long Claude.ai / ChatGPT tokens stay valid before re-authentication.'}
-              </p>
+        {!isPropertyLevel && (
+          <div className="border-t border-[var(--color-border)] pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">OAuth Token Lifetime</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                  {(mcpData as any)?.tokenExpiryInheritedFromSystem
+                    ? `Inherited from system — ${expiryLabel((mcpData as any)?.effectiveTokenExpiryDays ?? null)}`
+                    : 'How long Claude.ai / ChatGPT tokens stay valid before re-authentication.'}
+                </p>
+              </div>
+              <select
+                value={String(tokenExpiry)}
+                onChange={e => {
+                  const val = e.target.value === 'null' ? null : Number(e.target.value)
+                  setTokenExpiry(val)
+                  updateTokenExpiry(val)
+                }}
+                disabled={savingExpiry}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50"
+              >
+                {TOKEN_EXPIRY_OPTIONS.map(o => (
+                  <option key={String(o.value)} value={String(o.value)}>
+                    {o.value === null && (mcpData as any)?.tokenExpiryInheritedFromSystem
+                      ? `Forever (system default)`
+                      : o.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              value={String(tokenExpiry)}
-              onChange={e => {
-                const val = e.target.value === 'null' ? null : Number(e.target.value)
-                setTokenExpiry(val)
-                updateTokenExpiry(val)
-              }}
-              disabled={savingExpiry}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50"
-            >
-              {TOKEN_EXPIRY_OPTIONS.map(o => (
-                <option key={String(o.value)} value={String(o.value)}>
-                  {o.value === null && (mcpData as any)?.tokenExpiryInheritedFromSystem
-                    ? `Forever (system default)`
-                    : o.label}
-                </option>
-              ))}
-            </select>
           </div>
-        </div>
+        )}
       </div>
 
       {/* AI Channels — MCP access */}
