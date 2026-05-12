@@ -8,9 +8,15 @@ export interface McpConfigRecord {
   apiKey: string
 }
 
-export async function getSystemMcpConfig(): Promise<{ enabled: boolean }> {
+export interface OrgMcpTokenExpirySettings {
+  oauthTokenExpiryDays: number | null
+  effectiveTokenExpiryDays: number | null
+  tokenExpiryInheritedFromSystem: boolean
+}
+
+export async function getSystemMcpConfig(): Promise<{ enabled: boolean; oauthTokenExpiryDays: number | null }> {
   const row = await prisma.systemMcpConfig.findFirst()
-  return { enabled: row?.enabled ?? true }
+  return { enabled: row?.enabled ?? true, oauthTokenExpiryDays: row?.oauthTokenExpiryDays ?? null }
 }
 
 export async function setSystemMcpEnabled(enabled: boolean): Promise<{ enabled: boolean }> {
@@ -19,6 +25,43 @@ export async function setSystemMcpEnabled(enabled: boolean): Promise<{ enabled: 
     ? await prisma.systemMcpConfig.update({ where: { id: existing.id }, data: { enabled } })
     : await prisma.systemMcpConfig.create({ data: { enabled } })
   return { enabled: row.enabled }
+}
+
+export async function setSystemMcpTokenExpiry(days: number | null): Promise<{ enabled: boolean; oauthTokenExpiryDays: number | null }> {
+  const existing = await prisma.systemMcpConfig.findFirst()
+  const row = existing
+    ? await prisma.systemMcpConfig.update({ where: { id: existing.id }, data: { oauthTokenExpiryDays: days } })
+    : await prisma.systemMcpConfig.create({ data: { enabled: true, oauthTokenExpiryDays: days } })
+  return { enabled: row.enabled, oauthTokenExpiryDays: row.oauthTokenExpiryDays }
+}
+
+export async function getOrgMcpTokenExpirySettings(orgId: number): Promise<OrgMcpTokenExpirySettings> {
+  const [org, sys] = await Promise.all([
+    prisma.orgMcpConfig.findUnique({ where: { organizationId: orgId }, select: { oauthTokenExpiryDays: true } }),
+    prisma.systemMcpConfig.findFirst({ select: { oauthTokenExpiryDays: true } }),
+  ])
+  const orgDays = org?.oauthTokenExpiryDays ?? null
+  const sysDays = sys?.oauthTokenExpiryDays ?? null
+  const inherited = orgDays === null
+  return {
+    oauthTokenExpiryDays: orgDays,
+    effectiveTokenExpiryDays: inherited ? sysDays : orgDays,
+    tokenExpiryInheritedFromSystem: inherited,
+  }
+}
+
+export async function getEffectiveMcpTokenExpiry(orgId: number): Promise<number | null> {
+  const settings = await getOrgMcpTokenExpirySettings(orgId)
+  return settings.effectiveTokenExpiryDays
+}
+
+export async function setOrgMcpTokenExpiry(orgId: number, days: number | null): Promise<OrgMcpTokenExpirySettings> {
+  await prisma.orgMcpConfig.upsert({
+    where: { organizationId: orgId },
+    create: { organizationId: orgId, enabled: false, apiKey: randomUUID(), oauthTokenExpiryDays: days },
+    update: { oauthTokenExpiryDays: days },
+  })
+  return getOrgMcpTokenExpirySettings(orgId)
 }
 
 export async function getMcpConfig(scope: McpScope): Promise<McpConfigRecord | null> {
@@ -73,7 +116,7 @@ export async function validateApiKey(apiKey: string): Promise<McpScope | null> {
     prisma.orgMcpConfig.findUnique({ where: { apiKey } }),
     prisma.propertyMcpConfig.findUnique({ where: { apiKey } }),
   ])
-  if (sys?.enabled === false) return null  // globally disabled
+  if (sys?.enabled === false) return null
   if (org?.enabled) return { kind: 'org', orgId: org.organizationId }
   if (prop?.enabled) return { kind: 'property', propertyId: prop.propertyId }
   return null
