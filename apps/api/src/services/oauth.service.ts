@@ -73,7 +73,7 @@ export async function validateMcpJwt(token: string): Promise<{ sub: string; org?
     })
     if (!payload.sub) return null
     const org = typeof payload['org'] === 'number' ? payload['org'] : undefined
-    const iat = typeof payload.iat === 'number' ? payload.iat : Math.floor(Date.now() / 1000)
+    const iat = typeof payload.iat === 'number' ? payload.iat : 0  // 0 = epoch; a missing iat is treated as maximally old, ensuring revocation applies
     return org !== undefined ? { sub: payload.sub, org, iat } : { sub: payload.sub, iat }
   } catch {
     return null
