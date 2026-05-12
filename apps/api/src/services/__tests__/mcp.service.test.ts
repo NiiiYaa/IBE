@@ -132,4 +132,28 @@ describe('setOrgMcpTokenExpiry', () => {
     expect(result.oauthTokenExpiryDays).toBe(90)
     expect(result.tokenExpiryInheritedFromSystem).toBe(false)
   })
+
+  it('calls upsert with correct create defaults', async () => {
+    mp.orgMcpConfig.upsert.mockResolvedValue({})
+    mp.orgMcpConfig.findUnique.mockResolvedValue({ oauthTokenExpiryDays: 30 })
+    mp.systemMcpConfig.findFirst.mockResolvedValue({ oauthTokenExpiryDays: null })
+    await setOrgMcpTokenExpiry(5, 30)
+    expect(mp.orgMcpConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: 5 },
+        update: { oauthTokenExpiryDays: 30 },
+        create: expect.objectContaining({ organizationId: 5, enabled: false, oauthTokenExpiryDays: 30 }),
+      })
+    )
+  })
+
+  it('clears override when days is null (inherits from system)', async () => {
+    mp.orgMcpConfig.upsert.mockResolvedValue({})
+    mp.orgMcpConfig.findUnique.mockResolvedValue({ oauthTokenExpiryDays: null })
+    mp.systemMcpConfig.findFirst.mockResolvedValue({ oauthTokenExpiryDays: 90 })
+    const result = await setOrgMcpTokenExpiry(1, null)
+    expect(result.oauthTokenExpiryDays).toBeNull()
+    expect(result.tokenExpiryInheritedFromSystem).toBe(true)
+    expect(result.effectiveTokenExpiryDays).toBe(90)
+  })
 })
