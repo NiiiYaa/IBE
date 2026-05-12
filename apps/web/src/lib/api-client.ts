@@ -96,6 +96,9 @@ import type {
   WeatherConfigUpdate,
   EventsConfigResponse,
   EventsConfigUpdate,
+  AmadeusConfigResponse,
+  AmadeusConfigUpdate,
+  ActivitiesAndEventsResponse,
   PropertyEmailSettingsResponse,
   UpdatePropertyEmailSettingsRequest,
   PropertyWhatsAppSettingsResponse,
@@ -1522,6 +1525,44 @@ export const apiClient = {
 
   testEventsConnection(orgId?: number): Promise<{ ok: boolean; error?: string }> {
     return apiRequest('/api/v1/admin/events/test', { method: 'POST', body: JSON.stringify({ orgId }) })
+  },
+
+  // ── Amadeus Discover ──────────────────────────────────────────────────────────
+
+  getSystemAmadeusConfig(): Promise<AmadeusConfigResponse> {
+    return apiRequest('/api/v1/admin/amadeus/config/system')
+  },
+
+  updateSystemAmadeusConfig(data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
+    return apiRequest('/api/v1/admin/amadeus/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getAmadeusConfig(orgId?: number): Promise<AmadeusConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/amadeus/config${qs}`)
+  },
+
+  updateAmadeusConfig(data: AmadeusConfigUpdate, orgId?: number): Promise<AmadeusConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/amadeus/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  getPropertyAmadeusConfig(propertyId: number): Promise<AmadeusConfigResponse> {
+    return apiRequest(`/api/v1/admin/amadeus/config/property/${propertyId}`)
+  },
+
+  updatePropertyAmadeusConfig(propertyId: number, data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
+    return apiRequest(`/api/v1/admin/amadeus/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  testAmadeusConnection(orgId?: number, propertyId?: number): Promise<{ ok: boolean; error?: string }> {
+    return apiRequest('/api/v1/admin/amadeus/test', { method: 'POST', body: JSON.stringify({ orgId, propertyId }) })
+  },
+
+  getActivitiesAndEvents(propertyId: number, orgId?: number): Promise<ActivitiesAndEventsResponse> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId) })
+    if (orgId) qs.set('orgId', String(orgId))
+    return apiRequest(`/api/v1/activities-and-events?${qs}`)
   },
 
   // ── Cross-Sell ───────────────────────────────────────────────────────────────
