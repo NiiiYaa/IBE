@@ -1,27 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useT, useLocale } from '@/context/translations'
-
-interface EventItem {
-  name: string
-  date: string | null
-  time: string | null
-  category: string | null
-  genre: string | null
-  venue: string | null
-  city: string | null
-  ticketUrl: string | null
-  thumb: string | null
-}
-
-interface EventsData {
-  enabled: boolean
-  radiusKm?: number
-  events?: EventItem[]
-  stripDefaultFolded?: boolean
-  stripAutoFoldSecs?: number
-}
+import { apiClient } from '@/lib/api-client'
+import type { ActivitiesAndEventsResponse, AmadeusActivity } from '@ibe/shared'
 
 function CategoryIcon({ category }: { category: string | null }) {
   const c = (category ?? '').toLowerCase()
@@ -64,6 +47,43 @@ function formatDate(dateStr: string | null, time: string | null, locale: string)
   return time ? `${datePart} · ${time}` : datePart
 }
 
+function ActivityCard({ activity }: { activity: AmadeusActivity }) {
+  return (
+    <a
+      href={activity.bookingUrl ?? '#'}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex min-w-[160px] max-w-[200px] flex-col gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-left transition hover:border-[var(--color-primary)]"
+    >
+      {activity.thumb && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={activity.thumb} alt={activity.name}
+          className="mb-1 h-24 w-full rounded object-cover" />
+      )}
+      <p className="text-xs font-semibold leading-tight text-[var(--color-text)] line-clamp-2">{activity.name}</p>
+      {activity.category && (
+        <p className="text-xs text-[var(--color-text-muted)]">{activity.category}</p>
+      )}
+      {activity.duration && (
+        <p className="text-xs text-[var(--color-text-muted)]">{activity.duration}</p>
+      )}
+      {activity.price != null && (
+        <p className="mt-auto text-xs font-semibold text-[var(--color-primary)]">
+          {activity.currency ? `${activity.currency} ` : ''}{activity.price}
+        </p>
+      )}
+      <span className={[
+        'mt-1 self-start rounded px-2 py-0.5 text-xs font-medium',
+        activity.bookable
+          ? 'bg-[var(--color-primary)] text-white'
+          : 'border border-[var(--color-border)] text-[var(--color-text)]',
+      ].join(' ')}>
+        {activity.bookable ? 'Book' : 'View'}
+      </span>
+    </a>
+  )
+}
+
 interface EventsStripProps {
   propertyId: number
   startDate: string
@@ -72,66 +92,57 @@ interface EventsStripProps {
   orgId?: number | null
 }
 
-export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = false, orgId }: EventsStripProps) {
-  const t = useT('events')
-  const locale = useLocale()
-  const [data, setData] = useState<EventsData | null>(null)
+function StripSection({
+  label,
+  icon,
+  hasItems,
+  stripDefaultFolded,
+  stripAutoFoldSecs,
+  onDismiss,
+  children,
+}: {
+  label: React.ReactNode
+  icon?: React.ReactNode
+  hasItems: boolean
+  stripDefaultFolded?: boolean
+  stripAutoFoldSecs?: number
+  onDismiss: () => void
+  children: React.ReactNode
+}) {
+  const [folded, setFolded] = useState(stripDefaultFolded ?? false)
   const [dismissed, setDismissed] = useState(false)
-  const [folded, setFolded] = useState(false)
 
   useEffect(() => {
-    if (!propertyId || !startDate || !endDate) return
-    setData(null)
-    setDismissed(false)
-    setFolded(false)
-    const qs = new URLSearchParams({ propertyId: String(propertyId), startDate, endDate })
-    if (orgId) qs.set('orgId', String(orgId))
-    fetch(`/api/v1/events?${qs.toString()}`)
-      .then(r => r.ok ? r.json() as Promise<EventsData> : null)
-      .then(d => { if (d) setData(d) })
-      .catch(() => {})
-  }, [propertyId, startDate, endDate, orgId])
-
-  useEffect(() => {
-    if (!data?.enabled) return
-    setFolded(data.stripDefaultFolded ?? false)
-    const secs = data.stripAutoFoldSecs ?? 15
+    setFolded(stripDefaultFolded ?? false)
+    const secs = stripAutoFoldSecs ?? 15
     if (secs === 0) return
-    const t = setTimeout(() => setFolded(true), secs * 1000)
-    return () => clearTimeout(t)
-  }, [data])
+    const timer = setTimeout(() => setFolded(true), secs * 1000)
+    return () => clearTimeout(timer)
+  }, [stripDefaultFolded, stripAutoFoldSecs])
 
-  if (!data || !data.enabled || dismissed) return null
-
-  const hasEvents = (data.events?.length ?? 0) > 0
+  if (dismissed) return null
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
       <div
-        className={['flex items-center justify-between px-3 py-1.5 select-none', hasEvents ? 'cursor-pointer' : ''].join(' ')}
-        onClick={() => hasEvents && setFolded(f => !f)}
+        className={['flex items-center justify-between px-3 py-1.5 select-none', hasItems ? 'cursor-pointer' : ''].join(' ')}
+        onClick={() => hasItems && setFolded(f => !f)}
       >
         <div className="flex items-center gap-2">
-          <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-          </svg>
-          <span className="text-xs font-medium text-[var(--color-text)]">{t('eventsNearby')}</span>
-          {hasEvents
-            ? <span className="text-[10px] text-[var(--color-text-muted)]">{t('withinKm', { count: String(data.radiusKm) })}</span>
-            : <span className="text-[10px] text-[var(--color-text-muted)]">{t('noEventsFound')}</span>
-          }
+          {icon}
+          <span className="text-xs font-medium text-[var(--color-text)]">{label}</span>
         </div>
         <div className="flex items-center gap-1">
           <svg
-            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', (!hasEvents || folded) ? '' : 'rotate-180'].join(' ')}
+            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', (!hasItems || folded) ? '' : 'rotate-180'].join(' ')}
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
-          <button onClick={e => { e.stopPropagation(); setDismissed(true) }}
+          <button onClick={e => { e.stopPropagation(); setDismissed(true); onDismiss() }}
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)] transition-colors"
-            aria-label={t('dismissEvents')}>
+            aria-label="Dismiss">
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -140,46 +151,186 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
       </div>
 
       {/* Cards */}
-      {hasEvents && !folded && (
-      <div className="flex overflow-x-auto px-2 py-1.5 gap-1.5 scrollbar-hide border-t border-[var(--color-border)]">
-        {data.events!.map((event, i) => (
-          <div key={i}
-            className="flex flex-col min-w-[148px] max-w-[156px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden flex-shrink-0 hover:border-[var(--color-primary)] transition-colors">
+      {hasItems && !folded && (
+        <div className="flex overflow-x-auto px-2 py-1.5 gap-1.5 scrollbar-hide border-t border-[var(--color-border)]">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
-            {/* Image or category band */}
-            {event.thumb ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={event.thumb} alt={event.name} className="h-12 w-full object-cover" />
-            ) : (
-              <div className={['h-6 flex items-center justify-center gap-1 px-2', categoryColor(event.category)].join(' ')}>
-                <CategoryIcon category={event.category} />
-                {event.category && (
-                  <span className="text-[9px] font-semibold uppercase tracking-wide truncate">{event.category}</span>
+export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = false, orgId }: EventsStripProps) {
+  const t = useT('events')
+  const locale = useLocale()
+  const [tmDismissed, setTmDismissed] = useState(false)
+  const [amDismissed, setAmDismissed] = useState(false)
+
+  const { data, isLoading } = useQuery<ActivitiesAndEventsResponse>({
+    queryKey: ['activities-and-events', propertyId, orgId],
+    queryFn: () => apiClient.getActivitiesAndEvents(propertyId, orgId ?? undefined),
+    enabled: !!propertyId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const tmEnabled = data?.ticketmaster?.enabled ?? false
+  const amEnabled = data?.amadeus?.enabled ?? false
+  const stripMode = data?.amadeus?.stripMode ?? 'separate'
+
+  if (!isLoading && !tmEnabled && !amEnabled) return null
+  if (!data) return null
+
+  const tmEvents = data.ticketmaster?.events ?? []
+  const amActivities = data.amadeus?.activities ?? []
+
+  const ticketIcon = (
+    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+    </svg>
+  )
+
+  // Merged mode: one strip with both events and activities interleaved by date
+  if (stripMode === 'merged' && (tmDismissed === false || amDismissed === false)) {
+    if (tmDismissed && amDismissed) return null
+
+    type MergedItem =
+      | { kind: 'event'; date: string | null; item: typeof tmEvents[number] }
+      | { kind: 'activity'; date: string | null; item: AmadeusActivity }
+
+    const mergedItems: MergedItem[] = [
+      ...(tmEnabled ? tmEvents.map(e => ({ kind: 'event' as const, date: e.date, item: e })) : []),
+      ...(amEnabled ? amActivities.map(a => ({ kind: 'activity' as const, date: null, item: a })) : []),
+    ].sort((a, b) => {
+      if (!a.date && !b.date) return 0
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return a.date.localeCompare(b.date)
+    })
+
+    const mergedLabel = data.amadeus?.stripLabel ?? t('eventsNearby')
+
+    return (
+      <StripSection
+        label={mergedLabel}
+        icon={ticketIcon}
+        hasItems={mergedItems.length > 0}
+        stripDefaultFolded={data.amadeus?.stripDefaultFolded}
+        stripAutoFoldSecs={data.amadeus?.stripAutoFoldSecs}
+        onDismiss={() => { setTmDismissed(true); setAmDismissed(true) }}
+      >
+        {mergedItems.map((item, i) => {
+          if (item.kind === 'event') {
+            const event = item.item
+            return (
+              <div key={`event-${i}`}
+                className="flex flex-col min-w-[148px] max-w-[156px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden flex-shrink-0 hover:border-[var(--color-primary)] transition-colors">
+                {event.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={event.thumb} alt={event.name} className="h-12 w-full object-cover" />
+                ) : (
+                  <div className={['h-6 flex items-center justify-center gap-1 px-2', categoryColor(event.category)].join(' ')}>
+                    <CategoryIcon category={event.category} />
+                    {event.category && (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide truncate">{event.category}</span>
+                    )}
+                  </div>
+                )}
+                <div className="px-1.5 py-1 flex flex-col gap-px">
+                  <p className="text-[10px] font-semibold text-[var(--color-text)] leading-snug line-clamp-2">{event.name}</p>
+                  {event.genre && event.genre !== 'Undefined' && (
+                    <p className="text-[9px] text-[var(--color-text-muted)]">{event.genre}</p>
+                  )}
+                  {event.date && (
+                    <p className="text-[9px] text-[var(--color-primary)] font-medium">{formatDate(event.date, event.time, locale)}</p>
+                  )}
+                  {event.venue && (
+                    <p className="text-[9px] text-[var(--color-text-muted)] truncate">{event.venue}</p>
+                  )}
+                  {showTicketLink && event.ticketUrl && (
+                    <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer"
+                      className="mt-0.5 text-[9px] font-semibold text-[var(--color-primary)] hover:underline">
+                      {t('getTickets')}
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          } else {
+            return <ActivityCard key={`activity-${i}`} activity={item.item} />
+          }
+        })}
+      </StripSection>
+    )
+  }
+
+  // Separate mode: one strip per provider
+  return (
+    <div className="flex flex-col gap-2">
+      {tmEnabled && !tmDismissed && (
+        <StripSection
+          label={
+            <>
+              <span>{t('eventsNearby')}</span>
+              {(data.ticketmaster?.events?.length ?? 0) === 0 && (
+                <span className="text-[10px] text-[var(--color-text-muted)]">{t('noEventsFound')}</span>
+              )}
+            </>
+          }
+          icon={ticketIcon}
+          hasItems={tmEvents.length > 0}
+          stripDefaultFolded={data.ticketmaster?.stripDefaultFolded}
+          stripAutoFoldSecs={data.ticketmaster?.stripAutoFoldSecs}
+          onDismiss={() => setTmDismissed(true)}
+        >
+          {tmEvents.map((event, i) => (
+            <div key={i}
+              className="flex flex-col min-w-[148px] max-w-[156px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden flex-shrink-0 hover:border-[var(--color-primary)] transition-colors">
+              {event.thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={event.thumb} alt={event.name} className="h-12 w-full object-cover" />
+              ) : (
+                <div className={['h-6 flex items-center justify-center gap-1 px-2', categoryColor(event.category)].join(' ')}>
+                  <CategoryIcon category={event.category} />
+                  {event.category && (
+                    <span className="text-[9px] font-semibold uppercase tracking-wide truncate">{event.category}</span>
+                  )}
+                </div>
+              )}
+              <div className="px-1.5 py-1 flex flex-col gap-px">
+                <p className="text-[10px] font-semibold text-[var(--color-text)] leading-snug line-clamp-2">{event.name}</p>
+                {event.genre && event.genre !== 'Undefined' && (
+                  <p className="text-[9px] text-[var(--color-text-muted)]">{event.genre}</p>
+                )}
+                {event.date && (
+                  <p className="text-[9px] text-[var(--color-primary)] font-medium">{formatDate(event.date, event.time, locale)}</p>
+                )}
+                {event.venue && (
+                  <p className="text-[9px] text-[var(--color-text-muted)] truncate">{event.venue}</p>
+                )}
+                {showTicketLink && event.ticketUrl && (
+                  <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer"
+                    className="mt-0.5 text-[9px] font-semibold text-[var(--color-primary)] hover:underline">
+                    {t('getTickets')}
+                  </a>
                 )}
               </div>
-            )}
-
-            <div className="px-1.5 py-1 flex flex-col gap-px">
-              <p className="text-[10px] font-semibold text-[var(--color-text)] leading-snug line-clamp-2">{event.name}</p>
-              {event.genre && event.genre !== 'Undefined' && (
-                <p className="text-[9px] text-[var(--color-text-muted)]">{event.genre}</p>
-              )}
-              {event.date && (
-                <p className="text-[9px] text-[var(--color-primary)] font-medium">{formatDate(event.date, event.time, locale)}</p>
-              )}
-              {event.venue && (
-                <p className="text-[9px] text-[var(--color-text-muted)] truncate">{event.venue}</p>
-              )}
-              {showTicketLink && event.ticketUrl && (
-                <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-0.5 text-[9px] font-semibold text-[var(--color-primary)] hover:underline">
-                  {t('getTickets')}
-                </a>
-              )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </StripSection>
+      )}
+
+      {amEnabled && !amDismissed && (
+        <StripSection
+          label={data.amadeus?.stripLabel ?? t('eventsNearby')}
+          hasItems={amActivities.length > 0}
+          stripDefaultFolded={data.amadeus?.stripDefaultFolded}
+          stripAutoFoldSecs={data.amadeus?.stripAutoFoldSecs}
+          onDismiss={() => setAmDismissed(true)}
+        >
+          {amActivities.map((activity, i) => (
+            <ActivityCard key={i} activity={activity} />
+          ))}
+        </StripSection>
       )}
     </div>
   )
