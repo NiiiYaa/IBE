@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import type { EventsConfigResponse, EventsConfigUpdate } from '@ibe/shared'
+import AmadeusConfigCard from './amadeus-card'
 
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -236,33 +237,46 @@ export default function EventsConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">Events</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">Events & Activities</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Configure the events service powered by Ticketmaster. Once an API key is set, the AI agent can answer
-          guest questions about concerts, sports, theatre, and other events near the hotel.
+          Configure event and activity providers. Ticketmaster surfaces concerts, sports, and shows. Amadeus Discover surfaces tours, experiences, and bookable activities.
         </p>
       </div>
 
-      {isSystemLevel ? (
-        <SystemEventsSection />
-      ) : (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-          {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
-          {isError && <p className="text-sm text-[var(--color-error)]">Failed to load. Please refresh.</p>}
-          {data && (
-            <EventsConfigForm
-              data={data}
-              onSave={u => saveMutation.mutate(u)}
-              saving={saveMutation.isPending}
-              isSuper={isSuper}
-              {...(orgId !== undefined ? { orgId } : {})}
-              onToggleSystemService={disabled => saveMutation.mutate({ systemServiceDisabled: disabled })}
-            />
-          )}
-          {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
-          {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
-        </div>
-      )}
+      {/* Ticketmaster */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Ticketmaster</h2>
+        {isSystemLevel ? (
+          <SystemEventsSection />
+        ) : (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
+            {isError && <p className="text-sm text-[var(--color-error)]">Failed to load. Please refresh.</p>}
+            {data && (
+              <EventsConfigForm
+                data={data}
+                onSave={u => saveMutation.mutate(u)}
+                saving={saveMutation.isPending}
+                isSuper={isSuper}
+                {...(orgId !== undefined ? { orgId } : {})}
+                onToggleSystemService={disabled => saveMutation.mutate({ systemServiceDisabled: disabled })}
+              />
+            )}
+            {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
+            {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Amadeus Discover */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus Discover</h2>
+        <AmadeusConfigCard
+          isSystemLevel={isSystemLevel}
+          orgId={orgId}
+          isSuper={isSuper}
+        />
+      </div>
     </div>
   )
 }
