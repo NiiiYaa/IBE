@@ -43,6 +43,19 @@ const PLATFORMS: { id: Platform; label: string }[] = [
   { id: 'n8n',      label: 'n8n' },
 ]
 
+const TOKEN_EXPIRY_OPTIONS: { label: string; value: number | null }[] = [
+  { label: 'Forever', value: null },
+  { label: '1 year', value: 365 },
+  { label: '90 days', value: 90 },
+  { label: '30 days', value: 30 },
+  { label: '7 days', value: 7 },
+  { label: '1 day', value: 1 },
+]
+
+function expiryLabel(days: number | null): string {
+  return TOKEN_EXPIRY_OPTIONS.find(o => o.value === days)?.label ?? `${days} days`
+}
+
 function mcpJsonSnippet(endpoint: string, apiKey: string) {
   return JSON.stringify(
     {
@@ -420,14 +433,19 @@ function SystemMcpSection() {
     queryKey: ['system-mcp-config'],
     queryFn: () => apiClient.getSystemMcpConfig(),
   })
-  const { mutate, isPending } = useMutation({
+  const { mutate: mutateEnabled, isPending: pendingEnabled } = useMutation({
     mutationFn: (enabled: boolean) => apiClient.updateSystemMcpConfig(enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['system-mcp-config'] }),
+  })
+  const { mutate: mutateExpiry, isPending: pendingExpiry } = useMutation({
+    mutationFn: (days: number | null) => apiClient.updateSystemMcpTokenExpiry(days),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['system-mcp-config'] }),
   })
 
   if (isLoading) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
 
   const enabled = data?.enabled ?? true
+  const tokenExpiry = data?.oauthTokenExpiryDays ?? null
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -438,7 +456,7 @@ function SystemMcpSection() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-[var(--color-text)]">MCP globally enabled</p>
@@ -446,13 +464,37 @@ function SystemMcpSection() {
               When off, all MCP connections are rejected regardless of org or property settings.
             </p>
           </div>
-          <Toggle checked={enabled} onChange={() => mutate(!enabled)} disabled={isPending} />
+          <Toggle checked={enabled} onChange={() => mutateEnabled(!enabled)} disabled={pendingEnabled} />
         </div>
         {!enabled && (
-          <p className="mt-4 rounded-lg border border-[var(--color-error)]/40 bg-red-50 px-4 py-2.5 text-xs text-[var(--color-error)]">
+          <p className="rounded-lg border border-[var(--color-error)]/40 bg-red-50 px-4 py-2.5 text-xs text-[var(--color-error)]">
             MCP is globally disabled. All API key connections will be rejected.
           </p>
         )}
+
+        <div className="border-t border-[var(--color-border)] pt-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">OAuth Token Lifetime</p>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                How long Claude.ai / ChatGPT tokens stay valid before re-authentication. Default is forever.
+              </p>
+            </div>
+            <select
+              value={String(tokenExpiry)}
+              onChange={e => {
+                const val = e.target.value === 'null' ? null : Number(e.target.value)
+                mutateExpiry(val)
+              }}
+              disabled={pendingExpiry}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50"
+            >
+              {TOKEN_EXPIRY_OPTIONS.map(o => (
+                <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -502,11 +544,13 @@ export default function AdminMcpPage() {
   const [platform, setPlatform] = useState<Platform>('claude')
   const [enableError, setEnableError] = useState<string | null>(null)
   const [channelModels, setChannelModels] = useState<AIChannelSettings['mcp']>([])
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(null)
 
   useEffect(() => {
     if (!mcpData) return
     setEnabled(mcpData.enabled)
     setApiKey(mcpData.apiKey)
+    if ('oauthTokenExpiryDays' in mcpData) setTokenExpiry((mcpData as any).oauthTokenExpiryDays)
   }, [mcpData])
 
   useEffect(() => {
@@ -547,6 +591,15 @@ export default function AdminMcpPage() {
   const { mutate: rotateClaudeSecret, isPending: rotatingClaude } = useMutation({
     mutationFn: () => apiClient.rotateClaudeClientSecret(superOrgId),
     onSuccess: () => { void refetchOAuth() },
+  })
+
+  const { mutate: updateTokenExpiry, isPending: savingExpiry } = useMutation({
+    mutationFn: (days: number | null) =>
+      apiClient.updateOrgMcpTokenExpiry(days, superOrgId),
+    onSuccess: (res) => {
+      setTokenExpiry(res.oauthTokenExpiryDays)
+      qc.invalidateQueries({ queryKey: mcpQKey })
+    },
   })
 
   const { mutate: updateChannels, isPending: channelsSaving } = useMutation({
@@ -622,6 +675,37 @@ export default function AdminMcpPage() {
         ) : (
           <p className="text-xs text-[var(--color-text-muted)]">Enable the MCP server to generate an API key.</p>
         )}
+
+        <div className="border-t border-[var(--color-border)] pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">OAuth Token Lifetime</p>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                {(mcpData as any)?.tokenExpiryInheritedFromSystem
+                  ? `Inherited from system — ${expiryLabel((mcpData as any)?.effectiveTokenExpiryDays ?? null)}`
+                  : 'How long Claude.ai / ChatGPT tokens stay valid before re-authentication.'}
+              </p>
+            </div>
+            <select
+              value={String(tokenExpiry)}
+              onChange={e => {
+                const val = e.target.value === 'null' ? null : Number(e.target.value)
+                setTokenExpiry(val)
+                updateTokenExpiry(val)
+              }}
+              disabled={savingExpiry}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50"
+            >
+              {TOKEN_EXPIRY_OPTIONS.map(o => (
+                <option key={String(o.value)} value={String(o.value)}>
+                  {o.value === null && (mcpData as any)?.tokenExpiryInheritedFromSystem
+                    ? `Forever (system default)`
+                    : o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* AI Channels — MCP access */}
