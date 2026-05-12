@@ -3,6 +3,7 @@ import type { CryptoKey } from 'jose'
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
+import { cacheGet, cacheSet } from '../utils/cache.js'
 import type { McpScope } from './mcp.service.js'
 
 // ── Key pair ──────────────────────────────────────────────────────────────────
@@ -80,6 +81,29 @@ export async function validateMcpJwt(token: string): Promise<{ sub: string; org?
   }
 }
 
+// Cache revocation timestamp per org for 60s to avoid a DB hit on every MCP request.
+// On revocation, mcp.service.ts calls cacheDel to invalidate immediately.
+async function getOrgRevokedAt(orgId: number): Promise<Date | null> {
+  const key = `mcp:revoked:${orgId}`
+  try {
+    const hit = await cacheGet<{ ts: string | null }>(key)
+    if (hit !== null) return hit.ts ? new Date(hit.ts) : null
+  } catch {
+    // cache miss on error — fall through to DB
+  }
+  const cfg = await prisma.orgMcpConfig.findUnique({
+    where: { organizationId: orgId },
+    select: { tokensRevokedAt: true },
+  })
+  const revokedAt = cfg?.tokensRevokedAt ?? null
+  try {
+    await cacheSet(key, { ts: revokedAt?.toISOString() ?? null }, 60)
+  } catch {
+    // cache write failure is non-fatal
+  }
+  return revokedAt
+}
+
 export async function getOAuthScope(sub: string, iat: number, org?: number): Promise<McpScope | null> {
   // If org is in the JWT payload, use it directly (handles super admins)
   if (org) {
@@ -91,11 +115,8 @@ export async function getOAuthScope(sub: string, iat: number, org?: number): Pro
     })
     if (!user?.isActive) return null
     try {
-      const cfg = await prisma.orgMcpConfig.findUnique({
-        where: { organizationId: org },
-        select: { tokensRevokedAt: true },
-      })
-      if (cfg?.tokensRevokedAt && iat <= cfg.tokensRevokedAt.getTime() / 1000) return null
+      const revokedAt = await getOrgRevokedAt(org)
+      if (revokedAt && iat <= revokedAt.getTime() / 1000) return null
     } catch {
       console.warn('[OAuth] Failed to check token revocation for org %d, allowing token', org)
     }
@@ -110,11 +131,8 @@ export async function getOAuthScope(sub: string, iat: number, org?: number): Pro
   })
   if (!user?.isActive || !user.organizationId) return null
   try {
-    const cfg = await prisma.orgMcpConfig.findUnique({
-      where: { organizationId: user.organizationId },
-      select: { tokensRevokedAt: true },
-    })
-    if (cfg?.tokensRevokedAt && iat <= cfg.tokensRevokedAt.getTime() / 1000) return null
+    const revokedAt = await getOrgRevokedAt(user.organizationId)
+    if (revokedAt && iat <= revokedAt.getTime() / 1000) return null
   } catch {
     console.warn('[OAuth] Failed to check token revocation for org %d, allowing token', user.organizationId)
   }

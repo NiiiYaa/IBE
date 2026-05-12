@@ -7,7 +7,12 @@ vi.mock('../../db/client.js', () => ({
   },
 }))
 
+vi.mock('../../utils/cache.js', () => ({
+  cacheDel: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { prisma } from '../../db/client.js'
+import { cacheDel } from '../../utils/cache.js'
 import {
   getSystemMcpConfig,
   getOrgMcpTokenExpirySettings,
@@ -173,6 +178,7 @@ describe('revokeOrgTokens', () => {
       create: expect.objectContaining({ organizationId: 42, tokensRevokedAt: now }),
       update: { tokensRevokedAt: now },
     })
+    expect(cacheDel).toHaveBeenCalledWith('mcp:revoked:42')
     expect(result.tokensRevokedAt).toBe(now.toISOString())
     vi.useRealTimers()
   })

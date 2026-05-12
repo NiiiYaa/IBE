@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
+import { cacheDel } from '../utils/cache.js'
 
 export type McpScope = { kind: 'org'; orgId: number } | { kind: 'property'; propertyId: number }
 
@@ -71,6 +72,11 @@ export async function revokeOrgTokens(orgId: number): Promise<{ tokensRevokedAt:
     create: { organizationId: orgId, enabled: false, apiKey: randomUUID(), tokensRevokedAt: now },
     update: { tokensRevokedAt: now },
   })
+  try {
+    await cacheDel(`mcp:revoked:${orgId}`)
+  } catch {
+    // non-fatal — cache will expire naturally within 60s
+  }
   return { tokensRevokedAt: now.toISOString() }
 }
 
