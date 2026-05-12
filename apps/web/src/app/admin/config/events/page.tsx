@@ -273,8 +273,8 @@ export default function EventsConfigPage() {
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus Discover</h2>
         <AmadeusConfigCard
           isSystemLevel={isSystemLevel}
-          orgId={orgId}
-          isSuper={isSuper}
+          {...(orgId !== undefined && { orgId })}
+          {...(isSuper !== undefined && { isSuper })}
         />
       </div>
     </div>

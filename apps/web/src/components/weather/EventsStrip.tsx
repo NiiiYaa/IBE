@@ -214,8 +214,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
         label={mergedLabel}
         icon={ticketIcon}
         hasItems={mergedItems.length > 0}
-        stripDefaultFolded={data.amadeus?.stripDefaultFolded}
-        stripAutoFoldSecs={data.amadeus?.stripAutoFoldSecs}
+        {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
+        {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}
         onDismiss={() => { setTmDismissed(true); setAmDismissed(true) }}
       >
         {mergedItems.map((item, i) => {
@@ -278,8 +278,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           }
           icon={ticketIcon}
           hasItems={tmEvents.length > 0}
-          stripDefaultFolded={data.ticketmaster?.stripDefaultFolded}
-          stripAutoFoldSecs={data.ticketmaster?.stripAutoFoldSecs}
+          {...(data.ticketmaster?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.ticketmaster.stripDefaultFolded })}
+          {...(data.ticketmaster?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.ticketmaster.stripAutoFoldSecs })}
           onDismiss={() => setTmDismissed(true)}
         >
           {tmEvents.map((event, i) => (
@@ -323,8 +323,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
         <StripSection
           label={data.amadeus?.stripLabel ?? t('eventsNearby')}
           hasItems={amActivities.length > 0}
-          stripDefaultFolded={data.amadeus?.stripDefaultFolded}
-          stripAutoFoldSecs={data.amadeus?.stripAutoFoldSecs}
+          {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
+          {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}
           onDismiss={() => setAmDismissed(true)}
         >
           {amActivities.map((activity, i) => (

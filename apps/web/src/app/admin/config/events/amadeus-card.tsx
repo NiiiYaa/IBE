@@ -350,7 +350,7 @@ export function OrgAmadeusCard({ orgId, isSuper }: { orgId: number; isSuper?: bo
       {isError && <p className="text-sm text-[var(--color-error)]">Failed to load.</p>}
       {data && (
         <AmadeusConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending}
-          isSuper={isSuper} orgId={orgId}
+          {...(isSuper !== undefined && { isSuper })} orgId={orgId}
           onToggleSystemService={disabled => saveMutation.mutate({ systemServiceDisabled: disabled })}
         />
       )}
@@ -369,5 +369,5 @@ export default function AmadeusConfigCard({ isSystemLevel, orgId, isSuper }: {
 }) {
   if (isSystemLevel) return <SystemAmadeusSection />
   if (!orgId) return null
-  return <OrgAmadeusCard orgId={orgId} isSuper={isSuper} />
+  return <OrgAmadeusCard orgId={orgId} {...(isSuper !== undefined && { isSuper })} />
 }
