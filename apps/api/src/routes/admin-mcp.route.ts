@@ -1,5 +1,14 @@
 import type { FastifyInstance } from 'fastify'
-import { getMcpConfig, upsertMcpConfig, rotateApiKey, getSystemMcpConfig, setSystemMcpEnabled } from '../services/mcp.service.js'
+import {
+  getMcpConfig,
+  upsertMcpConfig,
+  rotateApiKey,
+  getSystemMcpConfig,
+  setSystemMcpEnabled,
+  setSystemMcpTokenExpiry,
+  getOrgMcpTokenExpirySettings,
+  setOrgMcpTokenExpiry,
+} from '../services/mcp.service.js'
 import type { McpScope } from '../services/mcp.service.js'
 import { getOAuthIssuer, getOAuthAudience, getOrCreateClaudeClient, rotateClientSecret } from '../services/oauth.service.js'
 import { prisma } from '../db/client.js'
@@ -35,7 +44,18 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
     const scope = resolveScope(request as any, request.query as Record<string, string>)
     if (!scope) return reply.status(400).send({ error: 'No organization context' })
     const config = await getMcpConfig(scope)
+    if (scope.kind === 'org') {
+      const expiry = await getOrgMcpTokenExpirySettings(scope.orgId)
+      return reply.send({ ...(config ?? { enabled: false, apiKey: null }), ...expiry })
+    }
     return reply.send(config ?? { enabled: false, apiKey: null })
+  })
+
+  // PATCH /admin/ai/mcp/system — update system-level OAuth token expiry (super only)
+  fastify.patch('/admin/ai/mcp/system', async (request, reply) => {
+    if ((request as any).admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const { oauthTokenExpiryDays } = request.body as { oauthTokenExpiryDays: number | null }
+    return reply.send(await setSystemMcpTokenExpiry(oauthTokenExpiryDays))
   })
 
   // GET /admin/ai/mcp/property/:propertyId — property-level MCP config
@@ -61,6 +81,16 @@ export async function adminMcpRoutes(fastify: FastifyInstance) {
     if (!scope) return reply.status(400).send({ error: 'No organization context' })
     const config = await upsertMcpConfig(scope, body.enabled)
     return reply.send(config)
+  })
+
+  // PATCH /admin/ai/mcp — update org-level OAuth token expiry
+  fastify.patch('/admin/ai/mcp', async (request, reply) => {
+    const body = request.body as { oauthTokenExpiryDays: number | null; orgId?: number }
+    const orgId = (request as any).admin.role === 'super'
+      ? (body.orgId ?? (request as any).admin.organizationId)
+      : (request as any).admin.organizationId
+    if (!orgId) return reply.status(400).send({ error: 'No organization context' })
+    return reply.send(await setOrgMcpTokenExpiry(orgId, body.oauthTokenExpiryDays))
   })
 
   // GET /admin/ai/mcp/oauth/config — built-in OAuth server info + Claude.ai credentials
