@@ -95,7 +95,7 @@ export async function getOAuthScope(sub: string, iat: number, org?: number): Pro
         where: { organizationId: org },
         select: { tokensRevokedAt: true },
       })
-      if (cfg?.tokensRevokedAt && iat < cfg.tokensRevokedAt.getTime() / 1000) return null
+      if (cfg?.tokensRevokedAt && iat <= cfg.tokensRevokedAt.getTime() / 1000) return null
     } catch {
       console.warn('[OAuth] Failed to check token revocation for org %d, allowing token', org)
     }
@@ -114,7 +114,7 @@ export async function getOAuthScope(sub: string, iat: number, org?: number): Pro
       where: { organizationId: user.organizationId },
       select: { tokensRevokedAt: true },
     })
-    if (cfg?.tokensRevokedAt && iat < cfg.tokensRevokedAt.getTime() / 1000) return null
+    if (cfg?.tokensRevokedAt && iat <= cfg.tokensRevokedAt.getTime() / 1000) return null
   } catch {
     console.warn('[OAuth] Failed to check token revocation for org %d, allowing token', user.organizationId)
   }

@@ -64,3 +64,30 @@ describe('getOAuthScope — revocation check (org in JWT payload)', () => {
     expect(result).toBeNull()
   })
 })
+
+describe('getOAuthScope — revocation check (org from user DB lookup)', () => {
+  const revokedAt = new Date('2026-05-12T10:00:00.000Z')
+  const revokedAtSec = revokedAt.getTime() / 1000
+
+  it('rejects token issued before tokensRevokedAt (fallback path)', async () => {
+    mp.adminUser.findUnique.mockResolvedValue({ isActive: true, organizationId: 7 })
+    mp.orgMcpConfig.findUnique.mockResolvedValue({ tokensRevokedAt: revokedAt })
+    // No org arg → fallback path
+    const result = await getOAuthScope('user:1', revokedAtSec - 1)
+    expect(result).toBeNull()
+  })
+
+  it('allows token issued after tokensRevokedAt (fallback path)', async () => {
+    mp.adminUser.findUnique.mockResolvedValue({ isActive: true, organizationId: 7 })
+    mp.orgMcpConfig.findUnique.mockResolvedValue({ tokensRevokedAt: revokedAt })
+    const result = await getOAuthScope('user:1', revokedAtSec + 1)
+    expect(result).toEqual({ kind: 'org', orgId: 7 })
+  })
+
+  it('allows token (fail-open) when DB lookup throws (fallback path)', async () => {
+    mp.adminUser.findUnique.mockResolvedValue({ isActive: true, organizationId: 7 })
+    mp.orgMcpConfig.findUnique.mockRejectedValue(new Error('DB error'))
+    const result = await getOAuthScope('user:1', revokedAtSec + 1)
+    expect(result).toEqual({ kind: 'org', orgId: 7 })
+  })
+})
