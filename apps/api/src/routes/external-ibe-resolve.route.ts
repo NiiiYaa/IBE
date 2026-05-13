@@ -1,22 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import { getEffectiveExternalIBEConfig, buildExternalUrl } from '../services/external-ibe.service.js'
 import { resolveExternalBookingUrl } from '../services/external-ibe-scraper.service.js'
-import type { ExternalIBEResolveResponse } from '@ibe/shared'
+import type { ExternalIBEResolveRequest, ExternalIBEResolveResponse } from '@ibe/shared'
 
 export async function externalIBEResolveRoutes(fastify: FastifyInstance) {
-  fastify.post<{
-    Body: {
-      propertyId: number
-      checkIn: string
-      checkOut: string
-      adults?: number
-      roomName?: string
-      lowestPrice?: number
-    }
-  }>('/public/external-ibe/resolve', async (request, reply) => {
+  fastify.post<{ Body: ExternalIBEResolveRequest }>('/public/external-ibe/resolve', async (request, reply) => {
     const { propertyId, checkIn, checkOut, adults = 2, roomName, lowestPrice } = request.body
 
-    if (!propertyId || !checkIn || !checkOut) {
+    if (!propertyId || propertyId <= 0 || !checkIn || !checkOut) {
       return reply.status(400).send({ error: 'propertyId, checkIn, checkOut are required' })
     }
 
