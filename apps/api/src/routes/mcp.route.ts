@@ -109,6 +109,8 @@ const WIDGET_HTML = `<!DOCTYPE html>
       padding: 8px 18px;
       border-radius: 999px;
       text-decoration: none;
+      border: none;
+      cursor: pointer;
       transition: background .15s;
       white-space: nowrap;
     }
@@ -189,9 +191,9 @@ const WIDGET_HTML = `<!DOCTYPE html>
       return kept.length > 0 ? base + '?' + kept.join('&') : base
     }
 
-    function bookingUrl(room, rate, meta) {
+    function directBookingUrl(room, rate, meta) {
       var extCfg = meta.externalIBEConfig
-      if (extCfg && extCfg.bookingTemplate) {
+      if (extCfg && extCfg.bookingTemplate && !extCfg.needsSolutionId) {
         return buildExternalUrl(extCfg.bookingTemplate, {
           hotelId:         meta.propertyId,
           externalHotelId: extCfg.externalHotelId,
@@ -203,17 +205,52 @@ const WIDGET_HTML = `<!DOCTYPE html>
           ratePlanId:      rate.ratePlanId,
         })
       }
+      if (extCfg && extCfg.needsSolutionId) return null
       if (!meta.webBaseUrl || !meta.propertyId) return null
-      const p = new URLSearchParams({
-        hotelId:           String(meta.propertyId),
-        checkIn:           meta.checkIn  ?? '',
-        checkOut:          meta.checkOut ?? '',
+      var p = new URLSearchParams({
+        hotelId:            String(meta.propertyId),
+        checkIn:            meta.checkIn  ?? '',
+        checkOut:           meta.checkOut ?? '',
         'rooms[0][adults]': String(meta.adults ?? 2),
-        roomId:            String(room.roomId),
-        ratePlanId:        String(rate.ratePlanId),
-        searchId:          meta.searchId ?? '',
+        roomId:             String(room.roomId),
+        ratePlanId:         String(rate.ratePlanId),
+        searchId:           meta.searchId ?? '',
       })
       return meta.webBaseUrl + '/booking?' + p
+    }
+
+    function resolveAndOpen(btn, room, meta) {
+      var extCfg = meta.externalIBEConfig
+      if (!extCfg || !extCfg.resolveEndpoint) return
+      btn.disabled = true
+      btn.textContent = 'Searching...'
+      fetch(extCfg.resolveEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId:  meta.propertyId,
+          checkIn:     meta.checkIn,
+          checkOut:    meta.checkOut,
+          adults:      meta.adults ?? 2,
+          roomName:    room.roomName,
+          lowestPrice: room.lowestRate,
+        }),
+      })
+      .then(function(r) { return r.json() })
+      .then(function(data) { window.open(data.bookingUrl, '_blank', 'noopener,noreferrer') })
+      .catch(function() {
+        if (extCfg.searchTemplate) {
+          var fallback = buildExternalUrl(extCfg.searchTemplate, {
+            externalHotelId: extCfg.externalHotelId,
+            checkIn:  meta.checkIn  ?? '',
+            checkOut: meta.checkOut ?? '',
+            adults:   meta.adults ?? 2,
+            rooms:    1,
+          })
+          window.open(fallback, '_blank', 'noopener,noreferrer')
+        }
+      })
+      .finally(function() { btn.disabled = false; btn.textContent = 'Book now' })
     }
 
     function render(rooms, meta) {
@@ -222,23 +259,36 @@ const WIDGET_HTML = `<!DOCTYPE html>
         app.innerHTML = '<p class="status">No rooms available for your selection.</p>'
         return
       }
-
       const currency = meta.currency ?? 'USD'
+      const extCfg = meta.externalIBEConfig
 
       app.innerHTML = rooms.map(function(room) {
         const bestRate = room.rates && room.rates[0]
-        const url = bestRate ? bookingUrl(room, bestRate, meta) : null
+        const needsResolve = extCfg && extCfg.needsSolutionId
+        const directUrl = bestRate ? directBookingUrl(room, bestRate, meta) : null
         const low = room.availableCount <= 3
-        const availLabel = low
-          ? 'Only ' + room.availableCount + ' left'
-          : room.availableCount + ' available'
-
+        const availLabel = low ? 'Only ' + room.availableCount + ' left' : room.availableCount + ' available'
         const ratesHtml = (room.rates ?? []).slice(0, 3).map(function(r) {
           return '<div class="rate-row"><span class="rate-name">' + r.ratePlanName + (r.boardType ? ' &middot; ' + r.boardType : '') + '</span><span class="rate-amount">' + fmt(r.amount, currency) + '</span></div>'
         }).join('')
-
-        return '<div class="card"><div class="card-body"><div><p class="room-name">' + room.roomName + '</p><p class="room-meta"><span class="avail-badge' + (low ? ' low' : '') + '">' + availLabel + '</span></p></div><div class="rates">' + ratesHtml + '</div></div><div class="card-footer"><div class="lowest-price">From <strong>' + fmt(room.lowestRate, currency) + '</strong><br><span style="font-size:11px">per night</span></div>' + (url ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer" class="book-btn">Book now</a>' : '<span style="font-size:12px;color:#6b7280">Contact hotel</span>') + '</div></div>'
+        var btnHtml
+        if (bestRate && (directUrl || needsResolve)) {
+          btnHtml = needsResolve
+            ? '<button class="book-btn" data-room-idx="' + rooms.indexOf(room) + '">Book now</button>'
+            : '<a href="' + directUrl + '" target="_blank" rel="noopener noreferrer" class="book-btn">Book now</a>'
+        } else {
+          btnHtml = '<span style="font-size:12px;color:#6b7280">Contact hotel</span>'
+        }
+        return '<div class="card"><div class="card-body"><div><p class="room-name">' + room.roomName + '</p><p class="room-meta"><span class="avail-badge' + (low ? ' low' : '') + '">' + availLabel + '</span></p></div><div class="rates">' + ratesHtml + '</div></div><div class="card-footer"><div class="lowest-price">From <strong>' + fmt(room.lowestRate, currency) + '</strong><br><span style="font-size:11px">per night</span></div>' + btnHtml + '</div></div>'
       }).join('')
+
+      if (extCfg && extCfg.needsSolutionId) {
+        app.querySelectorAll('button.book-btn[data-room-idx]').forEach(function(btn) {
+          var idx = parseInt(btn.getAttribute('data-room-idx') ?? '0', 10)
+          var room = rooms[idx]
+          if (room) btn.addEventListener('click', function() { resolveAndOpen(btn, room, meta) })
+        })
+      }
     }
   <\/script>
 </body>
@@ -802,14 +852,23 @@ async function handleToolCall(
       const structuredContent = { searchId: results.searchId, rooms: summary, currency: results.currency }
 
       // Fetch external IBE config for the widget booking URL
-      let externalIBEConfig: { searchTemplate: string | null; bookingTemplate: string | null; externalHotelId: string | null } | null = null
+      let externalIBEConfig: {
+        searchTemplate:  string | null
+        bookingTemplate: string | null
+        externalHotelId: string | null
+        needsSolutionId: boolean
+        resolveEndpoint?: string
+      } | null = null
       try {
         const extConfig = await getEffectiveExternalIBEConfig(pid)
         if (extConfig?.widgetEnabled && extConfig.bookingTemplate) {
+          const needsSolutionId = extConfig.bookingTemplate.includes('{solutionId}')
           externalIBEConfig = {
             searchTemplate:  extConfig.searchTemplate,
             bookingTemplate: extConfig.bookingTemplate,
             externalHotelId: extConfig.externalHotelId,
+            needsSolutionId,
+            ...(needsSolutionId ? { resolveEndpoint: '/api/v1/public/external-ibe/resolve' } : {}),
           }
         }
       } catch (extErr) {
