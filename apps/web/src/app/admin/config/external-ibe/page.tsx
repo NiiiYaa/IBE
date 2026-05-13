@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
-import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse } from '@ibe/shared'
+import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse, ExternalIBEConfigUpdate } from '@ibe/shared'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -181,7 +181,7 @@ function FullTemplateUI({
   const [widgetEnabled, setWidgetEnabled] = useState(existing?.widgetEnabled ?? false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
-  const hasTemplates = !!(existing?.searchTemplate || existing?.bookingTemplate || searchResult || bookingResult)
+  const hasTemplates = !!(existing?.searchTemplate || existing?.bookingTemplate)
 
   const saveMutation = useMutation({
     mutationFn: () => apiClient.upsertExternalIBEConfig({
@@ -323,10 +323,16 @@ function SimplifiedHotelUI({
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const data: Record<string, unknown> = { mcpEnabled, affiliateEnabled, widgetEnabled }
-      if (detectedId) data['externalHotelId'] = detectedId
-      if (searchResult) { data['searchTemplate'] = searchResult.template; data['searchSampleUrls'] = advSearchUrls.split('\n').map(u => u.trim()).filter(Boolean) }
-      if (bookingResult) { data['bookingTemplate'] = bookingResult.template; data['bookingSampleUrls'] = advBookingUrls.split('\n').map(u => u.trim()).filter(Boolean) }
+      const data: ExternalIBEConfigUpdate = { mcpEnabled, affiliateEnabled, widgetEnabled }
+      if (detectedId) data.externalHotelId = detectedId
+      if (searchResult) {
+        data.searchTemplate = searchResult.template
+        data.searchSampleUrls = advSearchUrls.split('\n').map(u => u.trim()).filter(Boolean)
+      }
+      if (bookingResult) {
+        data.bookingTemplate = bookingResult.template
+        data.bookingSampleUrls = advBookingUrls.split('\n').map(u => u.trim()).filter(Boolean)
+      }
       return apiClient.upsertExternalIBEConfig(data, { propertyId })
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
@@ -475,6 +481,7 @@ export default function ExternalIBEPage() {
   const { propertyId: contextPropertyId, orgId: contextOrgId } = useAdminProperty()
   const qc = useQueryClient()
   const [savedBanner, setSavedBanner] = useState(false)
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isHotelLevel = contextPropertyId !== null
   const isSuper = admin?.role === 'super'
@@ -528,8 +535,9 @@ export default function ExternalIBEPage() {
   }
 
   function handleSaved() {
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
     setSavedBanner(true)
-    setTimeout(() => setSavedBanner(false), 3000)
+    bannerTimerRef.current = setTimeout(() => setSavedBanner(false), 3000)
   }
 
   function handleDeleted() {
@@ -551,7 +559,7 @@ export default function ExternalIBEPage() {
         </p>
       )}
 
-      {isHotelLevel && chainConfig && hotelConfig && (
+      {isHotelLevel && chainConfig && hotelHasOwnTemplates && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-800">Hotel-level override active</p>
         </div>
@@ -565,15 +573,17 @@ export default function ExternalIBEPage() {
 
       {showSimplified ? (
         <SimplifiedHotelUI
+          key={contextPropertyId!}
           chainConfig={chainConfig!}
           hotelExisting={hotelConfig}
           propertyId={contextPropertyId!}
-          orgId={orgScope?.orgId ?? admin.organizationId ?? 0}
+          orgId={orgScope?.orgId ?? admin.organizationId ?? chainConfig!.organizationId ?? 0}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />
       ) : (
         <FullTemplateUI
+          key={('propertyId' in scope ? scope.propertyId : null) ?? ('orgId' in scope ? scope.orgId : null) ?? 'chain'}
           existing={isHotelLevel ? hotelConfig : chainConfig}
           scope={scope}
           onSaved={handleSaved}
