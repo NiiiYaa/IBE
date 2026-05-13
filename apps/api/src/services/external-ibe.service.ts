@@ -227,7 +227,9 @@ Rules:
       return { error: response.error ?? 'No response from AI' }
     }
 
-    const parsed = JSON.parse(response.text) as ExternalIBEAnalyzeResponse
+    // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+    const jsonText = response.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    const parsed = JSON.parse(jsonText) as ExternalIBEAnalyzeResponse
     return parsed
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unexpected error during analysis' }
