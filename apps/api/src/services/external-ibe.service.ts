@@ -79,10 +79,9 @@ export async function upsertExternalIBEConfig(
     ? { propertyId: scope.propertyId }
     : { organizationId: scope.orgId }
 
-  const create = {
-    ...data,
-    ...(scope.propertyId !== undefined ? { propertyId: scope.propertyId } : { organizationId: scope.orgId }),
-  }
+  const create = scope.propertyId !== undefined
+    ? { ...data, propertyId: scope.propertyId }
+    : { ...data, organizationId: scope.orgId! }
 
   const row = await prisma.externalIBEConfig.upsert({
     where,
