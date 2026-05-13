@@ -60,6 +60,7 @@ model Organization {
   incentiveChainItemOverrides IncentiveChainItemOverride[]
   propertyOrganizations       PropertyOrganization[]
   orgDataProviderConfig       OrgDataProviderConfig?
+  externalIBEConfig           ExternalIBEConfig?
 }
 
 // roles: super | admin | observer | user
@@ -457,6 +458,7 @@ model Property {
   propertyDataProviderConfig  PropertyDataProviderConfig?
   propertyAmadeusConfig       PropertyAmadeusConfig?
   propertyScore               PropertyScore?
+  externalIBEConfig     ExternalIBEConfig?
 
   @@index([organizationId])
 }
@@ -1648,4 +1650,26 @@ model PropertyAmadeusConfig {
   stripMode             String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model ExternalIBEConfig {
+  id               Int           @id @default(autoincrement())
+  organizationId   Int?          @unique
+  propertyId       Int?          @unique
+
+  searchTemplate   String?
+  bookingTemplate  String?
+  searchSampleUrls  Json          @default("[]")
+  bookingSampleUrls Json          @default("[]")
+  externalHotelId  String?
+
+  mcpEnabled       Boolean       @default(false)
+  affiliateEnabled Boolean       @default(false)
+  widgetEnabled    Boolean       @default(false)
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+  property         Property?     @relation(fields: [propertyId], references: [propertyId])
 }
