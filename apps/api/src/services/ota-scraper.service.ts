@@ -1,6 +1,5 @@
 import { logger } from '../utils/logger.js'
 import { withStealthPage } from './playwright-browser.service.js'
-
 import type { Page } from 'playwright'
 
 // ── Strategy 1: JSON-LD / schema.org structured data ─────────────────────────

@@ -13,12 +13,15 @@ const BROWSER_ARGS = [
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
 const STEALTH_SCRIPT = `
+  // Mask webdriver flag
   Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  // Mask automation-related properties
   Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
   Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
   Object.defineProperty(navigator, 'permissions', {
     get: () => ({ query: () => Promise.resolve({ state: 'granted' }) })
   });
+  // Prevent chrome headless detection
   window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
 `
 
@@ -50,7 +53,9 @@ export async function withStealthPage<T>(
     await context.addInitScript(STEALTH_SCRIPT)
     const page = await context.newPage()
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: options?.navigationTimeout ?? 30000 })
-    await page.waitForLoadState('networkidle', { timeout: options?.idleTimeout ?? 15000 }).catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: options?.idleTimeout ?? 15000 }).catch(() => {
+      // networkidle can timeout on pages with constant polling — that's ok
+    })
     return await fn(page)
   } finally {
     await browser.close()
