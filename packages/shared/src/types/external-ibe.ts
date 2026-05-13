@@ -50,3 +50,17 @@ export interface EffectiveExternalIBEConfig {
   affiliateEnabled: boolean
   widgetEnabled: boolean
 }
+
+export interface ExternalIBEResolveRequest {
+  propertyId: number
+  checkIn: string
+  checkOut: string
+  adults?: number
+  roomName?: string // hint for room matching (widget passes displayed room name)
+  lowestPrice?: number // hint for price-based matching
+}
+
+export interface ExternalIBEResolveResponse {
+  bookingUrl: string
+  fallback: boolean // true when solutionId could not be resolved; URL is the search URL
+}
