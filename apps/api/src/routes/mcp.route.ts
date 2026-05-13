@@ -236,8 +236,14 @@ const WIDGET_HTML = `<!DOCTYPE html>
           lowestPrice: room.lowestRate,
         }),
       })
-      .then(function(r) { return r.json() })
-      .then(function(data) { window.open(data.bookingUrl, '_blank', 'noopener,noreferrer') })
+      .then(function(r) {
+        if (!r.ok) throw new Error('resolve failed')
+        return r.json()
+      })
+      .then(function(data) {
+        if (!data.bookingUrl) throw new Error('no bookingUrl')
+        window.open(data.bookingUrl, '_blank', 'noopener,noreferrer')
+      })
       .catch(function() {
         if (extCfg.searchTemplate) {
           var fallback = buildExternalUrl(extCfg.searchTemplate, {
@@ -261,10 +267,10 @@ const WIDGET_HTML = `<!DOCTYPE html>
       }
       const currency = meta.currency ?? 'USD'
       const extCfg = meta.externalIBEConfig
+      const needsResolve = extCfg && extCfg.needsSolutionId
 
-      app.innerHTML = rooms.map(function(room) {
+      app.innerHTML = rooms.map(function(room, idx) {
         const bestRate = room.rates && room.rates[0]
-        const needsResolve = extCfg && extCfg.needsSolutionId
         const directUrl = bestRate ? directBookingUrl(room, bestRate, meta) : null
         const low = room.availableCount <= 3
         const availLabel = low ? 'Only ' + room.availableCount + ' left' : room.availableCount + ' available'
@@ -274,7 +280,7 @@ const WIDGET_HTML = `<!DOCTYPE html>
         var btnHtml
         if (bestRate && (directUrl || needsResolve)) {
           btnHtml = needsResolve
-            ? '<button class="book-btn" data-room-idx="' + rooms.indexOf(room) + '">Book now</button>'
+            ? '<button class="book-btn" data-room-idx="' + idx + '">Book now</button>'
             : '<a href="' + directUrl + '" target="_blank" rel="noopener noreferrer" class="book-btn">Book now</a>'
         } else {
           btnHtml = '<span style="font-size:12px;color:#6b7280">Contact hotel</span>'
