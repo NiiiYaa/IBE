@@ -37,7 +37,7 @@ export interface ScrapeBookingOptions {
   checkOut: string
   adults: number
   roomName?: string
-  lowestPrice?: number
+  lowestPrice?: number // reserved for future price-based link ranking
 }
 
 export interface ScrapeBookingResult {
