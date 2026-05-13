@@ -24,6 +24,8 @@ model ExternalIBEConfig {
   searchSampleUrls   Json          @default("[]")  // string[]
   bookingSampleUrls  Json          @default("[]")  // string[]
 
+  externalHotelId    String?       // hotel-level only: the ID this property has in the external IBE
+
   mcpEnabled         Boolean       @default(false)
   affiliateEnabled   Boolean       @default(false)
   widgetEnabled      Boolean       @default(false)
@@ -40,7 +42,8 @@ model ExternalIBEConfig {
 
 | Placeholder | Meaning |
 |---|---|
-| `{hotelId}` | Property ID |
+| `{hotelId}` | Property ID (HyperGuest internal) |
+| `{externalHotelId}` | Property ID in the external IBE system (hotel-level only) |
 | `{checkIn}` | Arrival date (YYYY-MM-DD) |
 | `{checkOut}` | Departure date (YYYY-MM-DD) |
 | `{adults}` | Adult guest count |
@@ -50,17 +53,41 @@ model ExternalIBEConfig {
 | `{roomId}` | Room type ID (booking URL only) |
 | `{ratePlanId}` | Rate plan ID (booking URL only) |
 
+**`{externalHotelId}` semantics:** The external IBE assigns each property its own ID (e.g. `hotel=4521` in the URL). This ID is specific to each hotel and cannot be defined at chain level. Instead:
+- **Chain-level config** defines the URL template structure (e.g. `https://ext.com/book?hotel={externalHotelId}&from={checkIn}`) — the AI detects the hotel-ID slot and marks it `{externalHotelId}`.
+- **Hotel-level config** stores only `externalHotelId` — extracted by pasting one sample URL from that hotel's external IBE page. The hotel inherits the chain template and its `{externalHotelId}` is substituted at link-generation time.
+
 ---
 
 ## 2. Inheritance
 
-`getEffectiveExternalIBEConfig(propertyId)` — hotel level takes precedence over chain level.
+`getEffectiveExternalIBEConfig(propertyId)` — three scenarios:
 
 ```
-Hotel config exists? → use it
-Otherwise → look up property's organizationId → use chain config
-No chain config? → no external IBE (fall back to local IBE URL)
+Scenario A — standalone hotel (no org / org has no chain config):
+  Hotel config exists? → use it directly (hotel owns full templates + externalHotelId)
+  No hotel config? → no external IBE (fall back to local IBE URL)
+
+Scenario B — hotel within a chain (chain config exists):
+  Hotel config exists?
+    → merge: use chain templates (searchTemplate / bookingTemplate)
+             but substitute externalHotelId from hotel record
+    → if hotel has its own templates (full override), use those instead
+  No hotel config?
+    → use chain config as-is
+       (links with {externalHotelId} token will be unresolvable until hotel ID is set)
+  No chain config?
+    → no external IBE (fall back to local IBE URL)
 ```
+
+**Resolution priority for each field:**
+
+| Field | Source |
+|---|---|
+| `searchTemplate` | Hotel override if set, else chain (standalone hotel always owns this) |
+| `bookingTemplate` | Hotel override if set, else chain (standalone hotel always owns this) |
+| `externalHotelId` | Hotel record only (never inherited) |
+| `mcpEnabled` / `affiliateEnabled` / `widgetEnabled` | Hotel override if set, else chain |
 
 ---
 
@@ -73,12 +100,12 @@ No chain config? → no external IBE (fall back to local IBE URL)
 { urls: string[], type: 'search' | 'booking', orgId?: number, propertyId?: number }
 ```
 
-**Claude prompt:** The API sends the sample URLs with a structured prompt instructing Claude to identify which URL parameters correspond to the placeholder vocabulary and return a filled template string plus a mapping table. The prompt includes the full vocabulary list so Claude knows exactly which concepts to look for.
+**Claude prompt:** The API sends the sample URLs with a structured prompt instructing Claude to identify which URL parameters correspond to the placeholder vocabulary and return a filled template string plus a mapping table. The prompt includes the full vocabulary list so Claude knows exactly which concepts to look for. Claude is instructed to use `{externalHotelId}` (not `{hotelId}`) when it detects a hotel-identifier parameter that appears to be an external-system ID rather than a HyperGuest property ID.
 
 **Response:**
 ```ts
 {
-  template: string            // e.g. "https://ext.com/search?hotel={hotelId}&from={checkIn}"
+  template: string            // e.g. "https://ext.com/search?hotel={externalHotelId}&from={checkIn}"
   mapping: Array<{
     concept: string           // e.g. "hotelId"
     detectedParam: string     // e.g. "hotel"
@@ -102,7 +129,7 @@ The admin reviews this response before saving. The endpoint does **not** persist
 - Omits query parameters where the value is `null` or `undefined` (no `room=undefined` in output).
 - Handles both path-segment and query-parameter placeholders.
 
-**Resolver integration:** Each channel integration point calls `getEffectiveExternalIBEConfig(propertyId)`, checks the relevant channel flag (`mcpEnabled` / `affiliateEnabled` / `widgetEnabled`), and if true uses the appropriate template via `buildExternalUrl`. Falls back to the local IBE URL if unconfigured or channel flag is off.
+**Resolver integration:** Each channel integration point calls `getEffectiveExternalIBEConfig(propertyId)`, checks the relevant channel flag (`mcpEnabled` / `affiliateEnabled` / `widgetEnabled`), and if true uses the appropriate template via `buildExternalUrl`. The `params` map passed to `buildExternalUrl` always includes `externalHotelId` from the resolved config (may be `null` if the hotel hasn't set it yet — the token will be omitted from the output). Falls back to the local IBE URL if unconfigured or channel flag is off.
 
 **Integration points:**
 
@@ -119,14 +146,24 @@ The admin reviews this response before saving. The endpoint does **not** persist
 
 **Location:** Config → External IBE (new sidebar entry, visible at chain and hotel levels)
 
+**Three contexts, three layouts:**
+
+| Context | Who sees it | Layout |
+|---|---|---|
+| Chain admin | Org-level admin | Full template UI |
+| Standalone hotel | Hotel admin with no chain config | Full template UI (identical to chain) |
+| Chain-member hotel | Hotel admin whose chain has a config | Simplified: inherited templates + hotel ID extraction only |
+
 **Page structure:**
 
 ### Inheritance banner
-- At hotel level: if no hotel-level config exists, shows "Using chain configuration" in a muted banner.
-- If a hotel-level override exists, shows "Hotel-level override active" with a **Delete override** button that removes the hotel row and reverts to chain config.
-- At chain level: no banner.
+- At chain-member hotel level: if no hotel-level config exists, shows "Using chain configuration" in a muted banner.
+- If a hotel-level record exists, shows "Hotel-level override active" with a **Delete override** button that removes the hotel row and reverts to chain config.
+- At chain level or standalone hotel: no banner.
 
-### Search URL section
+### Full template UI (chain admin + standalone hotel)
+
+#### Search URL section
 - Textarea: "Paste one or more sample search page URLs (one per line)"
 - **Analyze** button — calls `/api/admin/external-ibe/analyze` with `type: 'search'`, shows spinner
 - Review panel (shown after analysis):
@@ -134,16 +171,44 @@ The admin reviews this response before saving. The endpoint does **not** persist
   - Rendered template string (read-only display)
   - Unmapped params listed as a notice: "The following params were not mapped and will be ignored: lang, source"
 
-### Booking URL section
+#### Booking URL section
 - Same structure as Search URL section with `type: 'booking'`
 
-### Channel toggles
+#### Channel toggles
 - Three independent on/off toggles: **MCP**, **Affiliate**, **Widget**
 - Disabled (greyed out) if neither template has been saved yet
 
-### Actions
-- **Save** — persists both templates + sample URLs + channel toggles in one call. Creates or updates the config at this scope (chain or hotel).
-- **Delete config** — removes the entire config row at this level with confirmation. At hotel level this reverts to chain config. At chain level this removes external IBE entirely.
+#### Actions
+- **Save** — persists both templates + sample URLs + channel toggles in one call. Creates or updates the config at this scope.
+- **Delete config** — removes the entire config row at this level with confirmation.
+
+---
+
+### Simplified hotel UI (chain-member hotel only)
+
+Shown only when a chain-level config already exists above this hotel. The hotel admin does not need to define templates — they only supply their external hotel ID.
+
+#### Inherited templates panel (read-only)
+- Shows the chain's search and booking template strings as non-editable text for reference.
+- Label: "Templates inherited from chain configuration"
+
+#### External Hotel ID section
+- Single-URL input: "Paste one sample URL from your external booking page"
+- **Extract ID** button — calls `/api/admin/external-ibe/analyze` with `type: 'search'` (or `'booking'`), single URL; the response mapping table highlights the `externalHotelId` concept
+- Review confirmation: shows detected `externalHotelId` value (e.g. `4521`) with label "Your external hotel ID"
+- Admin confirms and saves.
+
+#### Channel toggles (hotel-level override)
+- Same three toggles; if not overridden, inherit chain values.
+
+#### Actions
+- **Save** — persists `externalHotelId` + any channel overrides.
+- **Delete override** — reverts to pure chain config (same as inheritance banner button).
+
+---
+
+### Full template override (chain-member hotel)
+A chain-member hotel can optionally override the inherited templates entirely. This is surfaced as an "Advanced: override templates" expandable section at the bottom of the simplified hotel UI — it contains the same full template UI (search + booking URL analysis). When saved with custom templates, the hotel row behaves like a standalone config and the simplified hotel ID section is no longer shown.
 
 ---
 

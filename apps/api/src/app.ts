@@ -53,6 +53,7 @@ import { eventsPublicRoutes } from './routes/events-public.route.js'
 import { weatherConfigRoutes } from './routes/weather-config.route.js'
 import { eventsConfigRoutes } from './routes/events-config.route.js'
 import { amadeusConfigRoutes } from './routes/amadeus-config.route.js'
+import { externalIBERoutes } from './routes/external-ibe.route.js'
 import { amadeusPublicRoutes } from './routes/amadeus-public.route.js'
 import { crossSellAdminRoutes, crossSellPublicRoutes } from './routes/cross-sell.route.js'
 import { groupsAdminRoutes, groupsPublicRoutes } from './routes/groups.route.js'
@@ -231,6 +232,7 @@ export async function buildApp() {
     await adminApp.register(weatherConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(eventsConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(amadeusConfigRoutes, { prefix: '/api/v1' })
+    await adminApp.register(externalIBERoutes, { prefix: '/api/v1' })
     await adminApp.register(crossSellAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(groupsAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(translationsAdminRoutes, { prefix: '/api/v1' })
