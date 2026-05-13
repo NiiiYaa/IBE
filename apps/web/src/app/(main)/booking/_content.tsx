@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { decodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useHotelConfig } from '@/hooks/use-hotel-config'
@@ -10,6 +10,10 @@ import { BookingForm } from '@/components/booking/BookingForm'
 import { BookingSummary, type SelectedRoom } from '@/components/booking/BookingSummary'
 import Link from 'next/link'
 import { useT, useLocale } from '@/context/translations'
+import { useBookingCountdown } from '@/hooks/use-booking-countdown'
+import { SessionExpiredBanner } from '@/components/booking/SessionExpiredBanner'
+import { PriceChangeBanner, type PriceChange } from '@/components/booking/PriceChangeBanner'
+import { useState } from 'react'
 
 export function BookingContent() {
   const t = useT('booking')
@@ -20,9 +24,12 @@ export function BookingContent() {
   const affiliateId = rawParams.get('affiliateId') ?? readAffiliateCookie() ?? undefined
   const sourceOrg = useSourceOrg()
   const campaignId = rawParams.get('campaignId') ?? undefined
+  const router = useRouter()
+  const { timeLeftMs, isExpired, reset } = useBookingCountdown(`booking-countdown-${searchId}`)
+  const [priceChangesDismissed, setPriceChangesDismissed] = useState(false)
 
   const searchParams = decodeSearchParams(rawParams)
-  const { data: searchData, isLoading } = useSearch(searchParams)
+  const { data: searchData, isLoading, refetch } = useSearch(searchParams)
   const { data: hotelConfig } = useHotelConfig(searchParams?.hotelId ?? null)
   const onlinePaymentEnabled = hotelConfig?.onlinePaymentEnabled ?? true
 
@@ -93,6 +100,45 @@ export function BookingContent() {
     )
   }
 
+  // Detect price changes: compare URL price params to fresh search prices
+  const urlSinglePrice = Number(rawParams.get('price')) || null
+  const priceChanges: PriceChange[] = []
+
+  if (!priceChangesDismissed && selectedRooms.length > 0) {
+    if (isMulti) {
+      selectedRooms.forEach(({ room, rate }, i) => {
+        const urlPrice = Number(rawParams.get(`rooms[${i}][price]`)) || null
+        if (urlPrice !== null && Math.abs(urlPrice - rate.prices.sell.amount) > 0.009) {
+          priceChanges.push({
+            roomName: room.roomName,
+            oldAmount: urlPrice,
+            newAmount: rate.prices.sell.amount,
+            currency: rate.prices.sell.currency,
+          })
+        }
+      })
+    } else if (urlSinglePrice !== null) {
+      const { room, rate } = selectedRooms[0]!
+      if (Math.abs(urlSinglePrice - rate.prices.sell.amount) > 0.009) {
+        priceChanges.push({
+          roomName: room.roomName,
+          oldAmount: urlSinglePrice,
+          newAmount: rate.prices.sell.amount,
+          currency: rate.prices.sell.currency,
+        })
+      }
+    }
+  }
+
+  function handleRefresh() {
+    void refetch()
+    reset()
+  }
+
+  function handleBackToSearch() {
+    router.push(`/search?${rawParams.toString()}`)
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <Link
@@ -105,7 +151,22 @@ export function BookingContent() {
         {tCommon('backToResults')}
       </Link>
 
-      <h1 className="mb-6 text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
+      {priceChanges.length > 0 && (
+        <PriceChangeBanner
+          changes={priceChanges}
+          locale={locale}
+          onAccept={() => setPriceChangesDismissed(true)}
+          onBack={handleBackToSearch}
+        />
+      )}
+      {isExpired && (
+        <SessionExpiredBanner onRefresh={handleRefresh} onBack={handleBackToSearch} />
+      )}
+
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
+        {!isExpired && <CountdownDisplay timeLeftMs={timeLeftMs} />}
+      </div>
 
       {searchData.results.flatMap(r => r.remarks).map((remark, i) => {
         const ci = /check[\s-]?in\b.+?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i.exec(remark)
@@ -148,5 +209,39 @@ export function BookingContent() {
         </div>
       </div>
     </main>
+  )
+}
+
+function CountdownDisplay({ timeLeftMs }: { timeLeftMs: number }) {
+  const minutes = Math.floor(timeLeftMs / 60_000)
+  const seconds = Math.floor((timeLeftMs % 60_000) / 1000)
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+
+  const colorClass =
+    timeLeftMs <= 60_000
+      ? 'text-red-600'
+      : timeLeftMs <= 5 * 60_000
+      ? 'text-amber-600'
+      : 'text-[var(--color-text-muted)]'
+
+  const isSecondHalf = timeLeftMs <= 15 * 60_000
+
+  return (
+    <div className={`flex shrink-0 items-center gap-1.5 text-sm font-medium tabular-nums ${colorClass}`}>
+      <svg
+        className={`h-4 w-4 transition-transform duration-700 ${isSecondHalf ? 'rotate-180' : ''}`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4" />
+      </svg>
+      {mm}:{ss}
+    </div>
   )
 }
