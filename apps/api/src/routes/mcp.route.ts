@@ -940,12 +940,14 @@ async function handleToolCall(
         const needsSolutionId = extConfig.bookingTemplate.includes('{solutionId}')
 
         if (needsSolutionId && extConfig.searchTemplate) {
+          const guests = Array(adults).fill('A').join(',')
           const searchUrl = buildExternalUrl(extConfig.searchTemplate, {
             hotelId:         pid,
             externalHotelId: extConfig.externalHotelId,
             checkIn,
             checkOut,
             adults,
+            guests,
             rooms:           1,
             nationality:     null,
             currency:        null,

@@ -16,11 +16,13 @@ export async function externalIBEResolveRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'External IBE not configured for this property' })
     }
 
+    const guests = Array(adults).fill('A').join(',')
     const searchUrl = buildExternalUrl(extConfig.searchTemplate, {
       externalHotelId: extConfig.externalHotelId,
       checkIn,
       checkOut,
       adults,
+      guests,
       rooms: 1,
     })
 
