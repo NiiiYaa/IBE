@@ -36,6 +36,8 @@ export interface ScrapeBookingOptions {
   checkIn: string
   checkOut: string
   adults: number
+  children?: number
+  childrenAges?: number[]
   roomName?: string
   lowestPrice?: number // reserved for future price-based link ranking
 }
@@ -57,20 +59,26 @@ export interface ScrapeBookingResult {
  */
 export async function resolveExternalBookingUrl(opts: ScrapeBookingOptions): Promise<ScrapeBookingResult> {
   const { searchUrl, bookingTemplate, externalHotelId, checkIn, checkOut, adults } = opts
+  const childrenAges = opts.childrenAges ?? []
+  const children = opts.children ?? childrenAges.length
+  const guests = [...Array(adults).fill('A'), ...childrenAges.map(String)].join(',') || undefined
 
   const regex = deriveBookingLinkRegex(bookingTemplate)
 
   if (!regex) {
     return {
-      bookingUrl: buildExternalUrl(bookingTemplate, { externalHotelId, checkIn, checkOut, adults, rooms: 1 }),
+      bookingUrl: buildExternalUrl(bookingTemplate, { externalHotelId, checkIn, checkOut, adults, children, guests, rooms: 1 }),
       fallback: false,
     }
   }
 
   try {
     return await withStealthPage(searchUrl, async (page) => {
+      const typedPage = page as import('playwright').Page
       const regexSource = regex.source
-      const candidates = await (page as import('playwright').Page).$$eval(
+
+      // Strategy 1: look for anchor elements whose href matches the booking template pattern
+      const candidates = await typedPage.$$eval(
         'a[href]',
         (els, pattern) => {
           const re = new RegExp(pattern)
@@ -90,28 +98,65 @@ export async function resolveExternalBookingUrl(opts: ScrapeBookingOptions): Pro
         regexSource,
       ) as Array<{ href: string; cardText: string }>
 
-      if (candidates.length === 0) {
-        logger.info({ searchUrl }, '[ExternalIBE] no booking links matched — fallback')
-        return { bookingUrl: searchUrl, fallback: true }
+      if (candidates.length > 0) {
+        let best = candidates[0]!
+        if (opts.roomName) {
+          const nameLower = opts.roomName.toLowerCase()
+          const nameMatch = candidates.find(c => c.cardText.toLowerCase().includes(nameLower))
+          if (nameMatch) best = nameMatch
+        }
+        const match = regex.exec(best.href)
+        const solutionId = match?.[1]
+        if (solutionId) {
+          logger.info({ searchUrl, solutionId, cardText: best.cardText }, '[ExternalIBE] resolved solutionId via anchor')
+          return { bookingUrl: best.href, fallback: false, solutionId }
+        }
       }
 
-      let best = candidates[0]!
-      if (opts.roomName) {
-        const nameLower = opts.roomName.toLowerCase()
-        const nameMatch = candidates.find(c => c.cardText.toLowerCase().includes(nameLower))
-        if (nameMatch) best = nameMatch
+      // Strategy 2: IBE uses buttons — walk through the multi-step room-selection flow.
+      // Step 1: dismiss cookie/consent banners so they don't block subsequent clicks.
+      for (const cookieSel of ['button:has-text("Accept All")', 'button:has-text("Reject All")', 'button:has-text("Accept Cookies")']) {
+        const cookieBtn = await typedPage.$(cookieSel)
+        if (cookieBtn) { await cookieBtn.click().catch(() => {}); await typedPage.waitForTimeout(500); break }
       }
 
-      const match = regex.exec(best.href)
-      const solutionId = match?.[1]
-      if (!solutionId) return { bookingUrl: searchUrl, fallback: true }
+      // Step 2: click the first room-selection button.
+      let clicked = false
+      for (const sel of ['button:has-text("Select Room")', 'button:has-text("Book Now")', 'button:has-text("Book")', 'button:has-text("Reserve")', 'a:has-text("Select Room")', 'a:has-text("Book Now")']) {
+        const btn = await typedPage.$(sel)
+        if (btn) { await btn.click().catch(() => {}); clicked = true; break }
+      }
+      if (clicked) await typedPage.waitForTimeout(1500)
 
-      const bookingUrl = buildExternalUrl(bookingTemplate, {
-        externalHotelId, checkIn, checkOut, adults, rooms: 1, solutionId,
-      })
+      // Step 3: if a rate-selection step appeared, pick the first rate.
+      for (const sel of ['button:has-text("Choose Rate")', 'button:has-text("Select Rate")', 'button:has-text("Book this rate")', 'a:has-text("Choose Rate")']) {
+        const btn = await typedPage.$(sel)
+        if (btn) { await btn.click().catch(() => {}); await typedPage.waitForTimeout(1500); break }
+      }
 
-      logger.info({ searchUrl, solutionId, cardText: best.cardText }, '[ExternalIBE] resolved solutionId')
-      return { bookingUrl, fallback: false, solutionId }
+      // Step 4: click Continue/Proceed to trigger navigation to the solution URL.
+      for (const sel of ['button:has-text("Continue")', 'button:has-text("Proceed")', 'button:has-text("Next")', 'a:has-text("Continue")']) {
+        const btn = await typedPage.$(sel)
+        if (!btn) continue
+        try {
+          await Promise.all([
+            typedPage.waitForURL(u => regex.test(u.toString()), { timeout: 12000 }),
+            btn.click(),
+          ])
+          const newUrl = typedPage.url()
+          const match = regex.exec(newUrl)
+          const solutionId = match?.[1]
+          if (solutionId) {
+            logger.info({ searchUrl, solutionId }, '[ExternalIBE] resolved solutionId via button flow')
+            return { bookingUrl: newUrl, fallback: false, solutionId }
+          }
+        } catch {
+          // navigation didn't land on booking URL — continue
+        }
+      }
+
+      logger.info({ searchUrl }, '[ExternalIBE] no booking links matched — fallback')
+      return { bookingUrl: searchUrl, fallback: true }
     })
   } catch (err) {
     logger.warn({ err, searchUrl }, '[ExternalIBE] scrape failed — fallback to search URL')

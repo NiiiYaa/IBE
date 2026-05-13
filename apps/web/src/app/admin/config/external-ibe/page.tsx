@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
-import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse, ExternalIBEConfigUpdate } from '@ibe/shared'
+import { CalendarDropdown } from '@/components/search/CalendarDropdown'
+import { GuestsDropdown } from '@/components/search/GuestsDropdown'
+import type { GuestRoom } from '@/components/search/GuestsDropdown'
+import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse, ExternalIBEConfigUpdate, ExternalIBETestResponse, ExternalIBETestResultItem, ExternalIBETestStreamEvent } from '@ibe/shared'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -75,6 +78,7 @@ function AnalysisSection({
   urls: controlledUrls,
   onUrlsChange,
   highlightConcept,
+  actions,
 }: {
   label: string
   type: 'search' | 'booking'
@@ -86,6 +90,7 @@ function AnalysisSection({
   urls?: string
   onUrlsChange?: (v: string) => void
   highlightConcept?: string
+  actions?: React.ReactNode
 }) {
   const [internalUrls, setInternalUrls] = useState('')
   const urls = controlledUrls ?? internalUrls
@@ -113,14 +118,17 @@ function AnalysisSection({
         rows={singleUrl ? 2 : 4}
         className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
       />
-      <button
-        type="button"
-        disabled={!urls.trim() || analyzeMutation.isPending}
-        onClick={() => analyzeMutation.mutate()}
-        className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
-      >
-        {analyzeMutation.isPending ? 'Analyzing…' : singleUrl ? 'Extract ID' : 'Analyze'}
-      </button>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          disabled={!urls.trim() || analyzeMutation.isPending}
+          onClick={() => analyzeMutation.mutate()}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          {analyzeMutation.isPending ? 'Analyzing…' : singleUrl ? 'Extract ID' : 'Analyze'}
+        </button>
+        {actions}
+      </div>
       {error && <p className="text-sm text-error">{error}</p>}
       {result && (
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -160,6 +168,499 @@ function ChannelToggles({
   )
 }
 
+function defaultTestDates() {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  const now = new Date()
+  return {
+    checkIn:  fmt(new Date(now.getTime() + 30 * 86400000)),
+    checkOut: fmt(new Date(now.getTime() + 32 * 86400000)),
+  }
+}
+
+function fmtDuration(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
+
+function HttpBadge({ status, ok }: { status: number | null; ok: boolean }) {
+  if (status === null) return <span className="text-xs text-[var(--color-text-muted)]">—</span>
+  return (
+    <span className={`text-xs font-mono font-medium ${ok ? 'text-success' : 'text-error'}`}>
+      {status}
+    </span>
+  )
+}
+
+function StatusBadge({ item }: { item: ExternalIBETestResultItem }) {
+  if (item.error) return <span className="text-xs font-medium text-error">error</span>
+  if (item.bookingUrl?.includes('{')) return <span className="text-xs font-medium text-orange-500">unresolved</span>
+  if (item.fallback) return <span className="text-xs font-medium text-amber-600">fallback</span>
+  if (item.httpOk) return <span className="text-xs font-medium text-success">ok</span>
+  return <span className="text-xs font-medium text-amber-600">no-probe</span>
+}
+
+function ResultRow({ item }: { item: ExternalIBETestResultItem }) {
+  const shortUrl = (url: string | null) => {
+    if (!url) return null
+    try {
+      const u = new URL(url)
+      return u.hostname + u.pathname.slice(0, 40) + (u.pathname.length > 40 ? '…' : '')
+    } catch {
+      return url.slice(0, 50)
+    }
+  }
+
+  return (
+    <tr className="border-t border-[var(--color-border)] align-top">
+      <td className="py-2 pr-3 whitespace-nowrap text-xs font-medium text-[var(--color-text)]">{item.label}</td>
+      <td className="py-2 pr-3 max-w-[140px] truncate">
+        {item.searchUrl ? (
+          <a href={item.searchUrl} target="_blank" rel="noopener noreferrer"
+            className="font-mono text-xs text-[var(--color-text-muted)] hover:underline truncate block"
+            title={item.searchUrl}>
+            {shortUrl(item.searchUrl)}
+          </a>
+        ) : <span className="text-xs text-[var(--color-text-muted)]">—</span>}
+      </td>
+      <td className="py-2 pr-3 max-w-[180px]">
+        {item.bookingUrl ? (
+          <a href={item.bookingUrl} target="_blank" rel="noopener noreferrer"
+            className="font-mono text-xs text-[var(--color-primary)] hover:underline break-all"
+            title={item.bookingUrl}>
+            {shortUrl(item.bookingUrl)}
+          </a>
+        ) : (
+          <span className="font-mono text-xs text-error">{item.error ?? 'null'}</span>
+        )}
+      </td>
+      <td className="py-2 pr-3 whitespace-nowrap"><HttpBadge status={item.httpStatus} ok={item.httpOk} /></td>
+      <td className="py-2 pr-3 whitespace-nowrap"><StatusBadge item={item} /></td>
+      <td className="py-2 text-right whitespace-nowrap text-xs text-[var(--color-text-muted)]">{fmtDuration(item.durationMs)}</td>
+    </tr>
+  )
+}
+
+function ResultsTable({ items }: { items: ExternalIBETestResultItem[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="text-left text-xs text-[var(--color-text-muted)]">
+            <th className="pb-1 pr-3 font-medium">Scenario</th>
+            <th className="pb-1 pr-3 font-medium">Search URL</th>
+            <th className="pb-1 pr-3 font-medium">Booking URL</th>
+            <th className="pb-1 pr-3 font-medium">HTTP</th>
+            <th className="pb-1 pr-3 font-medium">Status</th>
+            <th className="pb-1 font-medium text-right">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => <ResultRow key={item.label} item={item} />)}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Combinations mode ─────────────────────────────────────────────────────────
+
+const COMBO_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function fmtComboDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}-${COMBO_MONTHS[parseInt(m!) - 1]}-${y}`
+}
+
+function buildCombinationLabels(): string[] {
+  const now = new Date()
+  const pad = (d: Date) => d.toISOString().slice(0, 10)
+  const combos = [
+    { offsetDays: 7,  nights: 2, adults: 2, childrenAges: [] as number[] },
+    { offsetDays: 7,  nights: 2, adults: 2, childrenAges: [10] },
+    { offsetDays: 15, nights: 3, adults: 1, childrenAges: [] as number[] },
+    { offsetDays: 15, nights: 3, adults: 2, childrenAges: [10] },
+    { offsetDays: 33, nights: 4, adults: 1, childrenAges: [] as number[] },
+    { offsetDays: 33, nights: 4, adults: 2, childrenAges: [] as number[] },
+  ]
+  return combos.map(c => {
+    const ci = pad(new Date(now.getTime() + c.offsetDays * 86400000))
+    const guestLabel = c.childrenAges.length > 0 ? `${c.adults}A+${c.childrenAges.length}C` : `${c.adults}A`
+    return `${fmtComboDate(ci)} (${c.nights}n) · ${guestLabel}`
+  })
+}
+
+function SpinnerRow({ label }: { label: string }) {
+  return (
+    <tr className="border-t border-[var(--color-border)] align-top">
+      <td className="py-2 pr-3 whitespace-nowrap text-xs font-medium text-[var(--color-text)]">{label}</td>
+      <td colSpan={5} className="py-2">
+        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+          <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          waiting…
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+function CombinationsMode({ scope }: { scope: { orgId?: number; propertyId?: number } }) {
+  const labels = buildCombinationLabels()
+  const [rows, setRows] = useState<(ExternalIBETestResultItem | null)[]>(Array(6).fill(null))
+  const [running, setRunning] = useState(false)
+  const [started, setStarted] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function runCombinations() {
+    setRows(Array(6).fill(null))
+    setDone(false)
+    setError(null)
+    setRunning(true)
+    setStarted(true)
+
+    try {
+      const stream = await apiClient.testExternalIBECombinations(scope)
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let idx = 0
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read()
+        if (streamDone) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()!
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let event: ExternalIBETestStreamEvent
+          try {
+            event = JSON.parse(line.slice(6)) as ExternalIBETestStreamEvent
+          } catch {
+            continue
+          }
+          if (event.type === 'result') {
+            const item = event.item
+            // Match by label first, fall back to insertion order
+            const byLabel = labels.findIndex(l => l === item.label)
+            const rowIdx = byLabel >= 0 ? byLabel : idx
+            setRows(prev => {
+              const next = [...prev]
+              next[rowIdx] = item
+              return next
+            })
+            idx++
+          } else if (event.type === 'done') {
+            setDone(true)
+          } else if (event.type === 'error') {
+            setError(event.message)
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Stream failed')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const completedCount = rows.filter(r => r !== null).length
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <p className="text-xs text-[var(--color-text-muted)] flex-1">
+          Runs 6 scenarios with full scraping — may take 1–2 minutes. Results stream in as each completes.
+        </p>
+        <button
+          type="button"
+          disabled={running}
+          onClick={() => { void runCombinations() }}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity whitespace-nowrap"
+        >
+          {running ? `Running… (${completedCount}/6)` : 'Run all'}
+        </button>
+      </div>
+
+      {error && <p className="text-sm text-error">{error}</p>}
+
+      {done && !error && (
+        <p className="text-xs text-success font-medium">All 6 scenarios complete.</p>
+      )}
+
+      {started && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-xs text-[var(--color-text-muted)]">
+                <th className="pb-1 pr-3 font-medium">Scenario</th>
+                <th className="pb-1 pr-3 font-medium">Search URL</th>
+                <th className="pb-1 pr-3 font-medium">Booking URL</th>
+                <th className="pb-1 pr-3 font-medium">HTTP</th>
+                <th className="pb-1 pr-3 font-medium">Status</th>
+                <th className="pb-1 font-medium text-right">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((item, i) =>
+                item !== null
+                  ? <ResultRow key={labels[i]} item={item} />
+                  : <SpinnerRow key={labels[i]} label={labels[i]!} />
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Custom mode ───────────────────────────────────────────────────────────────
+
+function CustomMode({
+  scope,
+  hasScraping,
+}: {
+  scope: { orgId?: number; propertyId?: number }
+  hasScraping: boolean
+}) {
+  const defaults = defaultTestDates()
+  const [checkIn,    setCheckIn]    = useState(defaults.checkIn)
+  const [checkOut,   setCheckOut]   = useState(defaults.checkOut)
+  const [rooms,      setRooms]      = useState<GuestRoom[]>([{ adults: 2, children: 0, infants: 0 }])
+  const [openPanel,  setOpenPanel]  = useState<'dates' | 'guests' | null>(null)
+  const [results,    setResults]    = useState<ExternalIBETestResponse | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!openPanel) return
+    function onMouseDown(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpenPanel(null)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [openPanel])
+
+  const r = rooms[0]!
+  const adults       = r.adults
+  const childrenAges = [...Array(r.children).fill(10), ...Array(r.infants).fill(1)]
+
+  const testMutation = useMutation({
+    mutationFn: () => apiClient.testExternalIBEConfig({ checkIn, checkOut, adults, childrenAges }, scope),
+    onSuccess: (data) => { setResults(data); setOpenPanel(null) },
+  })
+
+  const datesLabel = checkIn && checkOut
+    ? `${checkIn}  →  ${checkOut}`
+    : 'Select dates'
+
+  const guestParts = [`${adults} adult${adults !== 1 ? 's' : ''}`]
+  if (r.children > 0) guestParts.push(`${r.children} child${r.children !== 1 ? 'ren' : ''}`)
+  if (r.infants  > 0) guestParts.push(`${r.infants} infant${r.infants !== 1 ? 's' : ''}`)
+  const guestsLabel = guestParts.join(' · ')
+
+  const btnBase = 'flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] hover:border-[var(--color-primary)] transition-colors'
+
+  return (
+    <div className="space-y-4">
+      {hasScraping && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          Full 2-stage scraping required — may take 15–30 s.
+        </p>
+      )}
+
+      <div ref={containerRef} className="flex flex-wrap items-center gap-2">
+        {/* Date selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpenPanel(p => p === 'dates' ? null : 'dates')}
+            className={btnBase}
+          >
+            <svg className="h-4 w-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {datesLabel}
+          </button>
+          {openPanel === 'dates' && (
+            <div className="absolute top-full left-0 z-50 mt-1">
+              <CalendarDropdown
+                checkIn={checkIn}
+                checkOut={checkOut}
+                initialField="checkin"
+                onDatesChange={(ci, co) => { setCheckIn(ci); setCheckOut(co) }}
+                onClose={() => setOpenPanel(null)}
+                labelStart="Check-in"
+                labelEnd="Check-out"
+                labelDuration="Nights"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Guests selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpenPanel(p => p === 'guests' ? null : 'guests')}
+            className={btnBase}
+          >
+            <svg className="h-4 w-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {guestsLabel}
+          </button>
+          {openPanel === 'guests' && (
+            <div className="absolute top-full left-0 z-50 mt-1">
+              <GuestsDropdown rooms={rooms} onChange={setRooms} maxRooms={1} />
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          disabled={testMutation.isPending || !checkIn || !checkOut}
+          onClick={() => testMutation.mutate()}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          {testMutation.isPending ? 'Running…' : 'Run test'}
+        </button>
+      </div>
+
+      {testMutation.isError && (
+        <p className="text-sm text-error">
+          {testMutation.error instanceof Error ? testMutation.error.message : 'Test failed'}
+        </p>
+      )}
+
+      {results && <ResultsTable items={results.results} />}
+    </div>
+  )
+}
+
+// ── TestSection ───────────────────────────────────────────────────────────────
+
+function TestSection({
+  scope,
+  hasScraping,
+}: {
+  scope: { orgId?: number; propertyId?: number }
+  hasScraping: boolean
+}) {
+  const [activeTab, setActiveTab] = useState<'custom' | 'combinations'>('combinations')
+
+  const tabClass = (tab: 'custom' | 'combinations') =>
+    [
+      'px-3 py-1.5 text-sm font-medium border-b-2 transition-colors',
+      activeTab === tab
+        ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+        : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+    ].join(' ')
+
+  return (
+    <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Test</h3>
+        <div className="flex gap-0">
+          <button type="button" className={tabClass('combinations')} onClick={() => setActiveTab('combinations')}>Combinations</button>
+          <button type="button" className={tabClass('custom')} onClick={() => setActiveTab('custom')}>Custom</button>
+        </div>
+      </div>
+
+      {activeTab === 'custom' && <CustomMode scope={scope} hasScraping={hasScraping} />}
+      {activeTab === 'combinations' && <CombinationsMode scope={scope} />}
+    </section>
+  )
+}
+
+const SEARCH_SCENARIOS = [
+  { label: '2 adults, 3 nights',                 hint: 'e.g. adults=2 and a 3-night stay' },
+  { label: '1 adult, 5 nights',                  hint: 'e.g. adults=1 and a 5-night stay' },
+  { label: '2 adults, 2 children (ages 6 & 11)', hint: 'e.g. adults=2, children=2, ages 6 and 11' },
+]
+
+function SearchAnalysisSection({
+  orgId,
+  propertyId,
+  urls,
+  onUrlsChange,
+  result,
+  onResult,
+  actions,
+}: {
+  orgId?: number
+  propertyId?: number
+  urls: [string, string, string]
+  onUrlsChange: (v: [string, string, string]) => void
+  result: ExternalIBEAnalyzeResponse | null
+  onResult: (r: ExternalIBEAnalyzeResponse) => void
+  actions?: React.ReactNode
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const allFilled = urls.every(u => u.trim().length > 0)
+
+  const analyzeMutation = useMutation({
+    mutationFn: () => apiClient.analyzeExternalIBEUrls({
+      urls: urls.map(u => u.trim()),
+      scenarios: SEARCH_SCENARIOS.map(s => s.label),
+      type: 'search',
+      ...(orgId !== undefined ? { orgId } : {}),
+      ...(propertyId !== undefined ? { propertyId } : {}),
+    }),
+    onSuccess: r => { onResult(r); setError(null) },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Analysis failed'),
+  })
+
+  return (
+    <div className="space-y-4">
+      {SEARCH_SCENARIOS.map((scenario, i) => (
+        <div key={i} className="space-y-1">
+          <label className="block text-xs font-medium text-[var(--color-text-muted)]">
+            {scenario.label}
+          </label>
+          <input
+            type="text"
+            value={urls[i]}
+            onChange={e => {
+              const next = [...urls] as [string, string, string]
+              next[i] = e.target.value
+              onUrlsChange(next)
+            }}
+            placeholder={scenario.hint}
+            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none"
+          />
+        </div>
+      ))}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          disabled={!allFilled || analyzeMutation.isPending}
+          onClick={() => analyzeMutation.mutate()}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          {analyzeMutation.isPending ? 'Analyzing…' : 'Analyze'}
+        </button>
+        {actions}
+      </div>
+      {!allFilled && (
+        <p className="text-xs text-[var(--color-text-muted)]">Fill all 3 URLs to enable analysis</p>
+      )}
+
+      {error && <p className="text-sm text-error">{error}</p>}
+
+      {result && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <p className="text-xs font-medium text-[var(--color-text-muted)] mb-1">Generated template</p>
+          <p className="font-mono text-sm text-[var(--color-text)] break-all">{result.template}</p>
+          <MappingTable mapping={result.mapping} unmapped={result.unmapped} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FullTemplateUI({
   existing,
   scope,
@@ -174,23 +675,53 @@ function FullTemplateUI({
   const qc = useQueryClient()
   const [searchResult, setSearchResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
   const [bookingResult, setBookingResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
-  const [searchUrls, setSearchUrls] = useState('')
+  const [searchUrls, setSearchUrls] = useState<[string, string, string]>(['', '', ''])
   const [bookingUrls, setBookingUrls] = useState('')
   const [mcpEnabled, setMcpEnabled] = useState(existing?.mcpEnabled ?? false)
   const [affiliateEnabled, setAffiliateEnabled] = useState(existing?.affiliateEnabled ?? false)
   const [widgetEnabled, setWidgetEnabled] = useState(existing?.widgetEnabled ?? false)
+  const [deleteSearchConfirm, setDeleteSearchConfirm] = useState(false)
+  const [deleteBookingConfirm, setDeleteBookingConfirm] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const hasTemplates = !!(existing?.searchTemplate || existing?.bookingTemplate)
 
-  const saveMutation = useMutation({
-    mutationFn: () => apiClient.upsertExternalIBEConfig({
-      ...(searchResult ? { searchTemplate: searchResult.template, searchSampleUrls: searchUrls.split('\n').map(u => u.trim()).filter(Boolean) } : {}),
-      ...(bookingResult ? { bookingTemplate: bookingResult.template, bookingSampleUrls: bookingUrls.split('\n').map(u => u.trim()).filter(Boolean) } : {}),
-      mcpEnabled,
-      affiliateEnabled,
-      widgetEnabled,
-    }, scope),
+  const saveSearchMutation = useMutation({
+    mutationFn: () => {
+      const detectedId = searchResult!.mapping.find(m => m.concept === 'externalHotelId')?.exampleValue
+      return apiClient.upsertExternalIBEConfig({
+        searchTemplate: searchResult!.template,
+        searchSampleUrls: searchUrls.filter(u => u.trim()),
+        ...(detectedId ? { externalHotelId: detectedId } : {}),
+      }, scope)
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
+  })
+
+  const saveBookingMutation = useMutation({
+    mutationFn: () => {
+      const detectedId = bookingResult!.mapping.find(m => m.concept === 'externalHotelId')?.exampleValue
+      return apiClient.upsertExternalIBEConfig({
+        bookingTemplate: bookingResult!.template,
+        bookingSampleUrls: bookingUrls.split('\n').map(u => u.trim()).filter(Boolean),
+        ...(detectedId ? { externalHotelId: detectedId } : {}),
+      }, scope)
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
+  })
+
+  const clearSearchMutation = useMutation({
+    mutationFn: () => apiClient.upsertExternalIBEConfig({ searchTemplate: null, searchSampleUrls: [] }, scope),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); setDeleteSearchConfirm(false); onSaved() },
+  })
+
+  const clearBookingMutation = useMutation({
+    mutationFn: () => apiClient.upsertExternalIBEConfig({ bookingTemplate: null, bookingSampleUrls: [] }, scope),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); setDeleteBookingConfirm(false); onSaved() },
+  })
+
+  const saveTogglesMutation = useMutation({
+    mutationFn: () => apiClient.upsertExternalIBEConfig({ mcpEnabled, affiliateEnabled, widgetEnabled }, scope),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
   })
 
@@ -201,31 +732,69 @@ function FullTemplateUI({
 
   return (
     <div className="space-y-6">
-      {existing && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-1">
-          <p className="text-xs font-medium text-[var(--color-text-muted)]">Current search template</p>
-          <p className="font-mono text-sm text-[var(--color-text)] break-all">{existing.searchTemplate ?? '—'}</p>
-          <p className="text-xs font-medium text-[var(--color-text-muted)] mt-2">Current booking template</p>
-          <p className="font-mono text-sm text-[var(--color-text)] break-all">{existing.bookingTemplate ?? '—'}</p>
-        </div>
-      )}
-
       <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h3 className="text-sm font-semibold text-[var(--color-text)]">Search page URL</h3>
-        <AnalysisSection
-          label="Paste one or more sample search page URLs (one per line)"
-          type="search"
+        {existing && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
+            <p className="text-xs font-medium text-[var(--color-text-muted)]">Current search template</p>
+            {existing.searchTemplate
+              ? <p className="font-mono text-sm text-[var(--color-text)] break-all">{existing.searchTemplate}</p>
+              : <p className="text-sm text-[var(--color-text-muted)] italic">Not configured</p>}
+          </div>
+        )}
+        <SearchAnalysisSection
           {...(scope.orgId !== undefined ? { orgId: scope.orgId } : {})}
           {...(scope.propertyId !== undefined ? { propertyId: scope.propertyId } : {})}
-          result={searchResult}
-          onResult={setSearchResult}
           urls={searchUrls}
           onUrlsChange={setSearchUrls}
+          result={searchResult}
+          onResult={setSearchResult}
+          actions={<>
+            <button
+              type="button"
+              disabled={!searchResult || saveSearchMutation.isPending}
+              onClick={() => saveSearchMutation.mutate()}
+              className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+            >
+              {saveSearchMutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+            {existing?.searchTemplate && !deleteSearchConfirm && (
+              <button
+                type="button"
+                onClick={() => setDeleteSearchConfirm(true)}
+                className="rounded-lg border border-error/30 px-4 py-2 text-sm font-medium text-error hover:bg-error/5 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+            {deleteSearchConfirm && (
+              <>
+                <span className="text-sm text-[var(--color-text-muted)]">Clear search template?</span>
+                <button
+                  type="button"
+                  disabled={clearSearchMutation.isPending}
+                  onClick={() => clearSearchMutation.mutate()}
+                  className="rounded-lg bg-error px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {clearSearchMutation.isPending ? '…' : 'Yes'}
+                </button>
+                <button type="button" onClick={() => setDeleteSearchConfirm(false)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Cancel</button>
+              </>
+            )}
+          </>}
         />
       </section>
 
       <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h3 className="text-sm font-semibold text-[var(--color-text)]">Booking page URL</h3>
+        {existing && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
+            <p className="text-xs font-medium text-[var(--color-text-muted)]">Current booking template</p>
+            {existing.bookingTemplate
+              ? <p className="font-mono text-sm text-[var(--color-text)] break-all">{existing.bookingTemplate}</p>
+              : <p className="text-sm text-[var(--color-text-muted)] italic">Not configured</p>}
+          </div>
+        )}
         <AnalysisSection
           label="Paste one or more sample booking page URLs (one per line)"
           type="booking"
@@ -235,6 +804,39 @@ function FullTemplateUI({
           onResult={setBookingResult}
           urls={bookingUrls}
           onUrlsChange={setBookingUrls}
+          actions={<>
+            <button
+              type="button"
+              disabled={!bookingResult || saveBookingMutation.isPending}
+              onClick={() => saveBookingMutation.mutate()}
+              className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+            >
+              {saveBookingMutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+            {existing?.bookingTemplate && !deleteBookingConfirm && (
+              <button
+                type="button"
+                onClick={() => setDeleteBookingConfirm(true)}
+                className="rounded-lg border border-error/30 px-4 py-2 text-sm font-medium text-error hover:bg-error/5 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+            {deleteBookingConfirm && (
+              <>
+                <span className="text-sm text-[var(--color-text-muted)]">Clear booking template?</span>
+                <button
+                  type="button"
+                  disabled={clearBookingMutation.isPending}
+                  onClick={() => clearBookingMutation.mutate()}
+                  className="rounded-lg bg-error px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {clearBookingMutation.isPending ? '…' : 'Yes'}
+                </button>
+                <button type="button" onClick={() => setDeleteBookingConfirm(false)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Cancel</button>
+              </>
+            )}
+          </>}
         />
       </section>
 
@@ -251,43 +853,54 @@ function FullTemplateUI({
             else setWidgetEnabled(v)
           }}
         />
-      </section>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saveMutation.isPending}
-          onClick={() => saveMutation.mutate()}
-          className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
-          {saveMutation.isPending ? 'Saving…' : 'Save'}
-        </button>
-        {existing && !deleteConfirm && (
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setDeleteConfirm(true)}
-            className="rounded-lg border border-error/30 px-4 py-2 text-sm font-medium text-error hover:bg-error/5 transition-colors"
+            disabled={saveTogglesMutation.isPending}
+            onClick={() => saveTogglesMutation.mutate()}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
           >
-            Delete config
+            {saveTogglesMutation.isPending ? 'Saving…' : 'Save'}
           </button>
-        )}
-        {deleteConfirm && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-[var(--color-text-muted)]">Are you sure?</span>
+        </div>
+      </section>
+
+      {existing && (
+        <div className="flex items-center gap-3">
+          {!deleteConfirm && (
             <button
               type="button"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-              className="rounded-lg bg-error px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              onClick={() => setDeleteConfirm(true)}
+              className="rounded-lg border border-error/30 px-4 py-2 text-sm font-medium text-error hover:bg-error/5 transition-colors"
             >
-              {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+              Delete config
             </button>
-            <button type="button" onClick={() => setDeleteConfirm(false)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+          {deleteConfirm && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[var(--color-text-muted)]">Are you sure?</span>
+              <button
+                type="button"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+                className="rounded-lg bg-error px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button type="button" onClick={() => setDeleteConfirm(false)} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasTemplates && scope.propertyId !== undefined && (
+        <TestSection
+          scope={scope}
+          hasScraping={!!(existing?.bookingTemplate?.includes('{solutionId}') && existing?.searchTemplate)}
+        />
+      )}
     </div>
   )
 }
@@ -315,7 +928,7 @@ function SimplifiedHotelUI({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [searchResult, setSearchResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
   const [bookingResult, setBookingResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
-  const [advSearchUrls, setAdvSearchUrls] = useState('')
+  const [advSearchUrls, setAdvSearchUrls] = useState<[string, string, string]>(['', '', ''])
   const [advBookingUrls, setAdvBookingUrls] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
@@ -327,7 +940,7 @@ function SimplifiedHotelUI({
       if (detectedId) data.externalHotelId = detectedId
       if (searchResult) {
         data.searchTemplate = searchResult.template
-        data.searchSampleUrls = advSearchUrls.split('\n').map(u => u.trim()).filter(Boolean)
+        data.searchSampleUrls = advSearchUrls.filter(u => u.trim())
       }
       if (bookingResult) {
         data.bookingTemplate = bookingResult.template
@@ -447,18 +1060,32 @@ function SimplifiedHotelUI({
           <div className="mt-4 space-y-4">
             <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
               <h3 className="text-sm font-semibold text-[var(--color-text)]">Search page URL override</h3>
-              <AnalysisSection
-                label="Paste sample search page URLs"
-                type="search"
+              {(hotelExisting?.searchTemplate ?? chainConfig.searchTemplate) && (
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
+                  <p className="text-xs font-medium text-[var(--color-text-muted)]">
+                    Current search template{!hotelExisting?.searchTemplate ? ' (inherited from chain)' : ''}
+                  </p>
+                  <p className="font-mono text-sm text-[var(--color-text)] break-all">{hotelExisting?.searchTemplate ?? chainConfig.searchTemplate}</p>
+                </div>
+              )}
+              <SearchAnalysisSection
                 propertyId={propertyId}
-                result={searchResult}
-                onResult={setSearchResult}
                 urls={advSearchUrls}
                 onUrlsChange={setAdvSearchUrls}
+                result={searchResult}
+                onResult={setSearchResult}
               />
             </section>
             <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
               <h3 className="text-sm font-semibold text-[var(--color-text)]">Booking page URL override</h3>
+              {(hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate) && (
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
+                  <p className="text-xs font-medium text-[var(--color-text-muted)]">
+                    Current booking template{!hotelExisting?.bookingTemplate ? ' (inherited from chain)' : ''}
+                  </p>
+                  <p className="font-mono text-sm text-[var(--color-text)] break-all">{hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate}</p>
+                </div>
+              )}
               <AnalysisSection
                 label="Paste sample booking page URLs"
                 type="booking"
@@ -472,6 +1099,11 @@ function SimplifiedHotelUI({
           </div>
         )}
       </div>
+
+      <TestSection
+        scope={{ propertyId }}
+        hasScraping={!!((hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate)?.includes('{solutionId}') && (hotelExisting?.searchTemplate ?? chainConfig.searchTemplate))}
+      />
     </div>
   )
 }

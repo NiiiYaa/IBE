@@ -117,6 +117,8 @@ import type {
   ExternalIBEConfigUpdate,
   ExternalIBEAnalyzeRequest,
   ExternalIBEAnalyzeResponse,
+  ExternalIBETestResponse,
+  ExternalIBETestStreamEvent,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1887,6 +1889,31 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/external-ibe/analyze', {
       method: 'POST',
       body: JSON.stringify(req),
+    })
+  },
+
+  testExternalIBEConfig(
+    params: { checkIn: string; checkOut: string; adults?: number; childrenAges?: number[] },
+    scope: { orgId?: number; propertyId?: number },
+  ): Promise<ExternalIBETestResponse> {
+    const qs = scope.propertyId !== undefined
+      ? `?propertyId=${scope.propertyId}`
+      : scope.orgId !== undefined ? `?orgId=${scope.orgId}` : ''
+    return apiRequest(`/api/v1/admin/external-ibe/test${qs}`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  },
+
+  testExternalIBECombinations(scope: { orgId?: number; propertyId?: number }): Promise<ReadableStream<Uint8Array>> {
+    const qs = scope.propertyId !== undefined
+      ? `?propertyId=${scope.propertyId}`
+      : scope.orgId !== undefined ? `?orgId=${scope.orgId}` : ''
+    return fetch(`/api/v1/admin/external-ibe/test/combinations${qs}`, {
+      method: 'POST',
+    }).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.body!
     })
   },
 

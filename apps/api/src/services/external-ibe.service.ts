@@ -197,8 +197,8 @@ export async function analyzeExternalIBEUrls(
 Placeholder vocabulary:
 ${PLACEHOLDER_VOCABULARY.map(p => `- {${p}}`).join('\n')}
 
-Sample URLs:
-${req.urls.map((u, i) => `${i + 1}. ${u}`).join('\n')}
+Sample URLs${req.scenarios?.length ? ' (each captured under a different scenario to help identify guest/date parameters)' : ''}:
+${req.urls.map((u, i) => req.scenarios?.[i] ? `${i + 1}. [${req.scenarios[i]}]: ${u}` : `${i + 1}. ${u}`).join('\n')}
 
 Return a JSON object with exactly this structure:
 {
@@ -212,6 +212,7 @@ Return a JSON object with exactly this structure:
 Rules:
 - Use {externalHotelId} (not {hotelId}) when you detect a hotel identifier that belongs to the external booking system.
 - Use {solutionId} when you detect a UUID or opaque session token in the path or query that identifies a specific offer from a prior search (common in path segments like /solution/UUID or /offer/UUID).
+- When scenario labels are provided, use them to identify guest-count and stay-duration parameters: a parameter whose value changes between an adults=2 URL and an adults=1 URL maps to {adults}; a parameter whose value changes with nights maps to date parameters; a parameter that appears only in child-inclusive scenarios maps to {children} or the {guests} composite.
 - If a parameter appears in some URLs but not others, include it if it appears in the majority.
 - Keep parameters that have no matching concept as static literal values in the template (do not invent placeholder names outside the vocabulary above).
 - Return only the JSON object, no surrounding text.`

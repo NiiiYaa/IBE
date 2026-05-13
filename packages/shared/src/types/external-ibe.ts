@@ -27,6 +27,7 @@ export interface ExternalIBEConfigUpdate {
 
 export interface ExternalIBEAnalyzeRequest {
   urls: string[]
+  scenarios?: string[]   // human-readable description of each URL's scenario, parallel to urls[]
   type: 'search' | 'booking'
   orgId?: number
   propertyId?: number
@@ -50,6 +51,33 @@ export interface EffectiveExternalIBEConfig {
   affiliateEnabled: boolean
   widgetEnabled: boolean
 }
+
+export interface ExternalIBETestResultItem {
+  label: string
+  checkIn: string
+  checkOut: string
+  nights: number
+  adults: number
+  childrenAges: number[]
+  searchUrl: string | null
+  bookingUrl: string | null
+  fallback: boolean
+  httpStatus: number | null
+  httpOk: boolean
+  error?: string
+  durationMs: number
+}
+
+export interface ExternalIBETestResponse {
+  checkIn: string
+  checkOut: string
+  results: ExternalIBETestResultItem[]
+}
+
+export type ExternalIBETestStreamEvent =
+  | { type: 'result'; item: ExternalIBETestResultItem }
+  | { type: 'done' }
+  | { type: 'error'; message: string }
 
 export interface ExternalIBEResolveRequest {
   propertyId: number
