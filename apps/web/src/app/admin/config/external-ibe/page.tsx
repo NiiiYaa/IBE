@@ -57,7 +57,7 @@ function MappingTable({ mapping, unmapped, highlightConcept }: {
       </table>
       {unmapped.length > 0 && (
         <p className="text-xs text-[var(--color-text-muted)]">
-          Not mapped (will be ignored): {unmapped.join(', ')}
+          Static (kept as-is in every generated link): {unmapped.join(', ')}
         </p>
       )}
     </div>

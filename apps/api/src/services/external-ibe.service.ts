@@ -181,6 +181,7 @@ const PLACEHOLDER_VOCABULARY = [
   'currency — Currency code (e.g. USD)',
   'roomId — Room type ID (booking URLs only)',
   'ratePlanId — Rate plan ID (booking URLs only)',
+  'solutionId — Session-specific booking token from the external IBE search (booking URLs only; a UUID or opaque code generated per search session)',
 ]
 
 export async function analyzeExternalIBEUrls(
@@ -210,7 +211,9 @@ Return a JSON object with exactly this structure:
 
 Rules:
 - Use {externalHotelId} (not {hotelId}) when you detect a hotel identifier that belongs to the external booking system.
+- Use {solutionId} when you detect a UUID or opaque session token in the path or query that identifies a specific offer from a prior search (common in path segments like /solution/UUID or /offer/UUID).
 - If a parameter appears in some URLs but not others, include it if it appears in the majority.
+- Keep parameters that have no matching concept as static literal values in the template (do not invent placeholder names outside the vocabulary above).
 - Return only the JSON object, no surrounding text.`
 
   try {
