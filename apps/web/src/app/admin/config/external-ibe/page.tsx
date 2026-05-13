@@ -24,7 +24,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-function MappingTable({ mapping, unmapped }: { mapping: ExternalIBEAnalyzeResponse['mapping']; unmapped: string[] }) {
+function MappingTable({ mapping, unmapped, highlightConcept }: {
+  mapping: ExternalIBEAnalyzeResponse['mapping']
+  unmapped: string[]
+  highlightConcept?: string
+}) {
   return (
     <div className="mt-3 space-y-3">
       <table className="w-full text-sm border-collapse">
@@ -37,7 +41,13 @@ function MappingTable({ mapping, unmapped }: { mapping: ExternalIBEAnalyzeRespon
         </thead>
         <tbody>
           {mapping.map(m => (
-            <tr key={m.concept} className="border-t border-[var(--color-border)]">
+            <tr
+              key={m.concept}
+              className={[
+                'border-t border-[var(--color-border)]',
+                highlightConcept === m.concept ? 'bg-[var(--color-primary-light)]' : '',
+              ].join(' ')}
+            >
               <td className="py-1.5 pr-4 font-mono text-xs text-[var(--color-primary)]">{`{${m.concept}}`}</td>
               <td className="py-1.5 pr-4 font-mono text-xs text-[var(--color-text)]">{m.detectedParam}</td>
               <td className="py-1.5 font-mono text-xs text-[var(--color-text-muted)]">{m.exampleValue}</td>
@@ -62,6 +72,9 @@ function AnalysisSection({
   propertyId,
   result,
   onResult,
+  urls: controlledUrls,
+  onUrlsChange,
+  highlightConcept,
 }: {
   label: string
   type: 'search' | 'booking'
@@ -70,8 +83,13 @@ function AnalysisSection({
   propertyId?: number
   result: ExternalIBEAnalyzeResponse | null
   onResult: (r: ExternalIBEAnalyzeResponse) => void
+  urls?: string
+  onUrlsChange?: (v: string) => void
+  highlightConcept?: string
 }) {
-  const [urls, setUrls] = useState('')
+  const [internalUrls, setInternalUrls] = useState('')
+  const urls = controlledUrls ?? internalUrls
+  const setUrls = onUrlsChange ?? setInternalUrls
   const [error, setError] = useState<string | null>(null)
 
   const analyzeMutation = useMutation({
@@ -108,7 +126,7 @@ function AnalysisSection({
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <p className="text-xs font-medium text-[var(--color-text-muted)] mb-1">Generated template</p>
           <p className="font-mono text-sm text-[var(--color-text)] break-all">{result.template}</p>
-          <MappingTable mapping={result.mapping} unmapped={result.unmapped} />
+          <MappingTable mapping={result.mapping} unmapped={result.unmapped} {...(highlightConcept !== undefined ? { highlightConcept } : {})} />
         </div>
       )}
     </div>
@@ -156,6 +174,8 @@ function FullTemplateUI({
   const qc = useQueryClient()
   const [searchResult, setSearchResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
   const [bookingResult, setBookingResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
+  const [searchUrls, setSearchUrls] = useState('')
+  const [bookingUrls, setBookingUrls] = useState('')
   const [mcpEnabled, setMcpEnabled] = useState(existing?.mcpEnabled ?? false)
   const [affiliateEnabled, setAffiliateEnabled] = useState(existing?.affiliateEnabled ?? false)
   const [widgetEnabled, setWidgetEnabled] = useState(existing?.widgetEnabled ?? false)
@@ -165,8 +185,8 @@ function FullTemplateUI({
 
   const saveMutation = useMutation({
     mutationFn: () => apiClient.upsertExternalIBEConfig({
-      ...(searchResult ? { searchTemplate: searchResult.template, searchSampleUrls: [] } : {}),
-      ...(bookingResult ? { bookingTemplate: bookingResult.template, bookingSampleUrls: [] } : {}),
+      ...(searchResult ? { searchTemplate: searchResult.template, searchSampleUrls: searchUrls.split('\n').map(u => u.trim()).filter(Boolean) } : {}),
+      ...(bookingResult ? { bookingTemplate: bookingResult.template, bookingSampleUrls: bookingUrls.split('\n').map(u => u.trim()).filter(Boolean) } : {}),
       mcpEnabled,
       affiliateEnabled,
       widgetEnabled,
@@ -199,6 +219,8 @@ function FullTemplateUI({
           {...(scope.propertyId !== undefined ? { propertyId: scope.propertyId } : {})}
           result={searchResult}
           onResult={setSearchResult}
+          urls={searchUrls}
+          onUrlsChange={setSearchUrls}
         />
       </section>
 
@@ -211,6 +233,8 @@ function FullTemplateUI({
           {...(scope.propertyId !== undefined ? { propertyId: scope.propertyId } : {})}
           result={bookingResult}
           onResult={setBookingResult}
+          urls={bookingUrls}
+          onUrlsChange={setBookingUrls}
         />
       </section>
 
@@ -291,6 +315,8 @@ function SimplifiedHotelUI({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [searchResult, setSearchResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
   const [bookingResult, setBookingResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
+  const [advSearchUrls, setAdvSearchUrls] = useState('')
+  const [advBookingUrls, setAdvBookingUrls] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const detectedId = idResult?.mapping.find(m => m.concept === 'externalHotelId')?.exampleValue
@@ -299,8 +325,8 @@ function SimplifiedHotelUI({
     mutationFn: () => {
       const data: Record<string, unknown> = { mcpEnabled, affiliateEnabled, widgetEnabled }
       if (detectedId) data['externalHotelId'] = detectedId
-      if (searchResult) data['searchTemplate'] = searchResult.template
-      if (bookingResult) data['bookingTemplate'] = bookingResult.template
+      if (searchResult) { data['searchTemplate'] = searchResult.template; data['searchSampleUrls'] = advSearchUrls.split('\n').map(u => u.trim()).filter(Boolean) }
+      if (bookingResult) { data['bookingTemplate'] = bookingResult.template; data['bookingSampleUrls'] = advBookingUrls.split('\n').map(u => u.trim()).filter(Boolean) }
       return apiClient.upsertExternalIBEConfig(data, { propertyId })
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
@@ -340,6 +366,7 @@ function SimplifiedHotelUI({
           orgId={orgId}
           result={idResult}
           onResult={setIdResult}
+          highlightConcept="externalHotelId"
         />
         {detectedId && (
           <p className="text-sm text-[var(--color-text)]">
@@ -420,6 +447,8 @@ function SimplifiedHotelUI({
                 propertyId={propertyId}
                 result={searchResult}
                 onResult={setSearchResult}
+                urls={advSearchUrls}
+                onUrlsChange={setAdvSearchUrls}
               />
             </section>
             <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
@@ -430,6 +459,8 @@ function SimplifiedHotelUI({
                 propertyId={propertyId}
                 result={bookingResult}
                 onResult={setBookingResult}
+                urls={advBookingUrls}
+                onUrlsChange={setAdvBookingUrls}
               />
             </section>
           </div>
@@ -484,7 +515,8 @@ export default function ExternalIBEPage() {
   const chainConfig = orgQuery.data ?? null
   const hotelConfig = hotelQuery.data ?? null
 
-  const showSimplified = isHotelLevel && chainConfig !== null
+  const hotelHasOwnTemplates = !!(hotelConfig?.searchTemplate || hotelConfig?.bookingTemplate)
+  const showSimplified = isHotelLevel && chainConfig !== null && !hotelHasOwnTemplates
   const scope = isHotelLevel ? propertyScope! : orgScope!
 
   if (!scope) {
@@ -520,19 +552,8 @@ export default function ExternalIBEPage() {
       )}
 
       {isHotelLevel && chainConfig && hotelConfig && (
-        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-800">Hotel-level override active</p>
-          <button
-            type="button"
-            onClick={() => {
-              void apiClient.deleteExternalIBEConfig(scope).then(() => {
-                void qc.invalidateQueries({ queryKey: ['external-ibe'] })
-              })
-            }}
-            className="text-sm font-medium text-amber-700 hover:text-amber-900 underline"
-          >
-            Delete override
-          </button>
         </div>
       )}
 
