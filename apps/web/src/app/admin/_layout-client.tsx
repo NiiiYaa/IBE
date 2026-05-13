@@ -102,6 +102,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/config/domain', label: 'Domain', sellerOnly: true },
       { href: '/admin/config/offers', label: 'Offers', sellerOnly: true },
       { href: '/admin/config/models', label: 'Channels', sellerOnly: true },
+      { href: '/admin/config/external-ibe', label: 'External IBE', sellerOnly: true },
       { href: '/admin/config/pixels', label: 'Tracking & Analytics', sellerOnly: true },
       { href: '/admin/payments/gateway', label: 'Payment Gateway', minRole: 'admin', sellerOnly: true },
       { href: '/admin/communication/emails', label: 'Emails', sellerOnly: true },
