@@ -60,7 +60,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
       {!isSystem && onToggleSystemService !== undefined && (
         <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
           <div>
-            <p className="text-sm font-medium text-[var(--color-text)]">System Events service</p>
+            <p className="text-sm font-medium text-[var(--color-text)]">Ticketmaster Events service</p>
             <p className="text-xs text-[var(--color-text-muted)]">
               {data.systemServiceDisabled
                 ? 'Events service is disabled for this organisation by a super admin.'
