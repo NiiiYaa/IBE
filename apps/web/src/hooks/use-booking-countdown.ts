@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 const DURATION_MS = 30 * 60 * 1000
 
@@ -20,11 +20,10 @@ function readOrInitStartTime(storageKey: string): number {
 export function useBookingCountdown(storageKey: string) {
   const [startTime, setStartTime] = useState<number>(() => readOrInitStartTime(storageKey))
   const [now, setNow] = useState<number>(() => Date.now())
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    timerRef.current = setInterval(() => setNow(Date.now()), 1000)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
   }, [])
 
   const reset = useCallback(() => {
