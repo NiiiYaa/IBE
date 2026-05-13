@@ -8,16 +8,16 @@ import type { AmadeusActivity, AmadeusPublicResponse, ActivitiesAndEventsRespons
 
 interface RawAmadeusProduct {
   id: string
-  name: string
+  title: string
   shortDescription?: string
-  productType?: string
-  pictures?: Array<{ url: string }>
-  price?: { amount: number; currencyCode: string }
+  thumbnailImage?: string
+  galleryImages?: Array<{ url: string }>
+  minPrice?: number
+  priceCurrency?: string
   duration?: string
-  bookingLink?: string
-  // bookable flag name TBD from actual API response — adjust field name after confirming docs
-  isBookable?: boolean
-  booking?: { available: boolean }
+  onlineBookable?: boolean
+  bookingUrl?: string
+  taxonomies?: Array<{ name?: string }>
 }
 
 async function fetchAmadeusActivities(
@@ -30,10 +30,10 @@ async function fetchAmadeusActivities(
 ): Promise<RawAmadeusProduct[]> {
   if (!activitiesUrl) throw new Error('Amadeus activities URL not configured.')
   const url = new URL(activitiesUrl)
-  url.searchParams.set('latitude', String(lat))
-  url.searchParams.set('longitude', String(lng))
+  url.searchParams.set('lat', String(lat))
+  url.searchParams.set('lon', String(lng))
   url.searchParams.set('radius', String(radiusKm))
-  url.searchParams.set('limit', String(max))
+  url.searchParams.set('maxRecommendations', String(Math.min(max, 10)))
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
@@ -44,17 +44,20 @@ async function fetchAmadeusActivities(
 }
 
 function normaliseActivity(raw: RawAmadeusProduct): AmadeusActivity {
+  const thumb = (raw.thumbnailImage?.startsWith('http') ? raw.thumbnailImage : null)
+    ?? raw.galleryImages?.[0]?.url
+    ?? null
   return {
     id: raw.id,
-    name: raw.name,
+    name: raw.title,
     description: raw.shortDescription ?? null,
-    category: raw.productType ?? null,
-    thumb: raw.pictures?.[0]?.url ?? null,
-    price: raw.price?.amount ?? null,
-    currency: raw.price?.currencyCode ?? null,
+    category: raw.taxonomies?.[0]?.name ?? null,
+    thumb,
+    price: raw.minPrice ?? null,
+    currency: raw.priceCurrency ?? null,
     duration: raw.duration ?? null,
-    bookable: raw.isBookable ?? raw.booking?.available ?? false,
-    bookingUrl: raw.bookingLink ?? null,
+    bookable: raw.onlineBookable ?? false,
+    bookingUrl: raw.bookingUrl ?? null,
   }
 }
 

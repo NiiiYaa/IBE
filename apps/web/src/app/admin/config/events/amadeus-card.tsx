@@ -217,10 +217,10 @@ function AmadeusConfigForm({
       {/* Max activities */}
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-          Max Activities to Return
+          Max Activities to Return <span className="font-normal normal-case opacity-60">(API max: 10)</span>
         </label>
         <div className="flex items-center gap-3">
-          <input type="range" min={1} max={50} step={1} value={maxActivities}
+          <input type="range" min={1} max={10} step={1} value={maxActivities}
             onChange={e => setMaxActivities(Number(e.target.value))}
             className="flex-1 accent-[var(--color-primary)]" />
           <span className="w-14 text-center text-sm font-semibold tabular-nums text-[var(--color-text)]">
