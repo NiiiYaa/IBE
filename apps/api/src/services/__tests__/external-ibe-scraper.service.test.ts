@@ -41,4 +41,12 @@ describe('deriveBookingLinkRegex', () => {
     const match = regex.exec('https://ext.com/my-session-token?hotel=99')
     expect(match?.[1]).toBe('my-session-token')
   })
+
+  it('replaces other tokens in the prefix with non-capturing wildcard', () => {
+    const regex = deriveBookingLinkRegex(
+      'https://ext.com/{externalHotelId}/solution/{solutionId}/guest',
+    )!
+    const match = regex.exec('https://ext.com/4521/solution/uuid-aaa/guest')
+    expect(match?.[1]).toBe('uuid-aaa')
+  })
 })

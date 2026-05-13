@@ -20,5 +20,5 @@ export function deriveBookingLinkRegex(bookingTemplate: string): RegExp | null {
     .replace(/\\\{solutionId\\\}/g, '([^/?&#]+)')
     .replace(/\\\{[^}\\]+\\\}/g, '[^/?&#]*')
 
-  return new RegExp(pattern)
+  return new RegExp('^' + pattern)
 }
