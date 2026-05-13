@@ -173,7 +173,35 @@ const WIDGET_HTML = `<!DOCTYPE html>
       }
     }
 
+    function buildExternalUrl(template, params) {
+      var result = template
+      for (var key in params) {
+        var val = params[key]
+        if (val !== null && val !== undefined) {
+          result = result.split('{' + key + '}').join(String(val))
+        }
+      }
+      var qIdx = result.indexOf('?')
+      if (qIdx === -1) return result
+      var base = result.slice(0, qIdx)
+      var kept = result.slice(qIdx + 1).split('&').filter(function(pair) { return !/\{[^}]+\}/.test(pair) })
+      return kept.length > 0 ? base + '?' + kept.join('&') : base
+    }
+
     function bookingUrl(room, rate, meta) {
+      var extCfg = meta.externalIBEConfig
+      if (extCfg && extCfg.bookingTemplate) {
+        return buildExternalUrl(extCfg.bookingTemplate, {
+          hotelId:         meta.propertyId,
+          externalHotelId: extCfg.externalHotelId,
+          checkIn:         meta.checkIn  ?? '',
+          checkOut:        meta.checkOut ?? '',
+          adults:          meta.adults ?? 2,
+          rooms:           1,
+          roomId:          room.roomId,
+          ratePlanId:      rate.ratePlanId,
+        })
+      }
       if (!meta.webBaseUrl || !meta.propertyId) return null
       const p = new URLSearchParams({
         hotelId:           String(meta.propertyId),
@@ -771,6 +799,22 @@ async function handleToolCall(
         })),
       }))
       const structuredContent = { searchId: results.searchId, rooms: summary, currency: results.currency }
+
+      // Fetch external IBE config for the widget booking URL
+      let externalIBEConfig: { searchTemplate: string | null; bookingTemplate: string | null; externalHotelId: string | null } | null = null
+      try {
+        const extConfig = await getEffectiveExternalIBEConfig(pid)
+        if (extConfig?.widgetEnabled && extConfig.bookingTemplate) {
+          externalIBEConfig = {
+            searchTemplate:  extConfig.searchTemplate,
+            bookingTemplate: extConfig.bookingTemplate,
+            externalHotelId: extConfig.externalHotelId,
+          }
+        }
+      } catch (extErr) {
+        logger.warn({ extErr, pid }, '[MCP] getEffectiveExternalIBEConfig failed — widget will use local IBE URL')
+      }
+
       return {
         content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
         structuredContent,
@@ -782,6 +826,7 @@ async function handleToolCall(
           checkOut,
           adults,
           webBaseUrl: env.WEB_BASE_URL,
+          ...(externalIBEConfig ? { externalIBEConfig } : {}),
         },
       }
     } catch (err) {
