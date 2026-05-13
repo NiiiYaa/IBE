@@ -115,6 +115,8 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
     qs.set('roomId', String(room.roomId))
     qs.set('ratePlanId', String(rate.ratePlanId))
     qs.set('searchId', data.searchId)
+    qs.set('price', String(rate.prices.sell.amount))
+    qs.set('priceCurrency', rate.prices.sell.currency)
     router.push(`/booking?${qs.toString()}`)
   }
 
@@ -125,6 +127,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
     cartItems.forEach((item, i) => {
       qs.set(`rooms[${i}][roomId]`, String(item.room.roomId))
       qs.set(`rooms[${i}][ratePlanId]`, String(item.rate.ratePlanId))
+      qs.set(`rooms[${i}][price]`, String(item.rate.prices.sell.amount))
     })
     router.push(`/booking?${qs.toString()}`)
   }
