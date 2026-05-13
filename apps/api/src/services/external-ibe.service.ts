@@ -7,6 +7,7 @@ import type {
   ExternalIBEAnalyzeResponse,
 } from '@ibe/shared'
 import { resolveAIConfig } from './ai-config.service.js'
+import { getProviderAdapter } from '../ai/adapters/index.js'
 
 // ── buildExternalUrl ──────────────────────────────────────────────────────
 
@@ -187,9 +188,10 @@ export async function analyzeExternalIBEUrls(
 ): Promise<ExternalIBEAnalyzeResponse | { error: string }> {
   const aiConfig = await resolveAIConfig(req.propertyId, req.orgId)
   if (!aiConfig) return { error: 'AI not configured for this scope' }
-  if (aiConfig.provider !== 'anthropic') return { error: 'AI analysis requires Anthropic to be configured' }
 
-  const prompt = `You are a URL structure analyzer. Given these sample ${req.type} page URLs from an external hotel booking engine, identify which URL parameters correspond to the placeholder concepts below.
+  const systemPrompt = `You are a URL structure analyzer. Given sample URLs from an external hotel booking engine, identify which URL parameters correspond to the placeholder concepts listed. Return only a JSON object, no surrounding text.`
+
+  const userPrompt = `Analyze these sample ${req.type} page URLs and identify which parameters correspond to the placeholder vocabulary.
 
 Placeholder vocabulary:
 ${PLACEHOLDER_VOCABULARY.map(p => `- {${p}}`).join('\n')}
@@ -212,33 +214,20 @@ Rules:
 - Return only the JSON object, no surrounding text.`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': aiConfig.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+    const adapter = getProviderAdapter(aiConfig.provider)
+    const response = await adapter.call(
+      [{ role: 'user', content: userPrompt }],
+      [],
+      systemPrompt,
+      aiConfig.apiKey,
+      aiConfig.model,
+    )
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      return { error: `Anthropic API error: ${res.status} ${text.slice(0, 200)}` }
+    if (response.stopReason === 'error' || !response.text) {
+      return { error: response.error ?? 'No response from AI' }
     }
 
-    const data = await res.json() as {
-      content: Array<{ type: string; text?: string }>
-    }
-
-    const textBlock = data.content.find(b => b.type === 'text')
-    if (!textBlock?.text) return { error: 'No response from AI' }
-
-    const parsed = JSON.parse(textBlock.text) as ExternalIBEAnalyzeResponse
+    const parsed = JSON.parse(response.text) as ExternalIBEAnalyzeResponse
     return parsed
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unexpected error during analysis' }

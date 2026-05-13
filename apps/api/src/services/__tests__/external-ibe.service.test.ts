@@ -187,11 +187,13 @@ vi.mock('../ai-config.service.js', () => ({
   resolveAIConfig: vi.fn(),
 }))
 
+const mockAdapterCall = vi.fn()
+vi.mock('../../ai/adapters/index.js', () => ({
+  getProviderAdapter: vi.fn(() => ({ call: mockAdapterCall })),
+}))
+
 import { resolveAIConfig } from '../ai-config.service.js'
 import { analyzeExternalIBEUrls } from '../external-ibe.service.js'
-
-const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
 
 describe('analyzeExternalIBEUrls', () => {
   it('returns error when no AI config is available', async () => {
@@ -203,20 +205,9 @@ describe('analyzeExternalIBEUrls', () => {
     expect(result).toEqual({ error: 'AI not configured for this scope' })
   })
 
-  it('returns error when provider is not anthropic', async () => {
+  it('returns parsed template and mapping on success with any provider', async () => {
     (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
-      provider: 'openai', apiKey: 'sk-test', model: 'gpt-4',
-    })
-    const result = await analyzeExternalIBEUrls({
-      urls: ['https://ext.com/book?hotel=123&from=2024-06-01'],
-      type: 'booking',
-    })
-    expect(result).toEqual({ error: 'AI analysis requires Anthropic to be configured' })
-  })
-
-  it('returns parsed template and mapping on success', async () => {
-    (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
-      provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6',
+      provider: 'openai', apiKey: 'sk-test', model: 'gpt-4o',
     })
 
     const aiResponse = {
@@ -228,12 +219,10 @@ describe('analyzeExternalIBEUrls', () => {
       unmapped: [],
     }
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        content: [{ type: 'text', text: JSON.stringify(aiResponse) }],
-        stop_reason: 'end_turn',
-      }),
+    mockAdapterCall.mockResolvedValue({
+      text: JSON.stringify(aiResponse),
+      toolCalls: [],
+      stopReason: 'end',
     })
 
     const result = await analyzeExternalIBEUrls({
@@ -242,5 +231,18 @@ describe('analyzeExternalIBEUrls', () => {
     })
 
     expect(result).toEqual(aiResponse)
+  })
+
+  it('returns error when adapter reports error', async () => {
+    (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-haiku-4-5-20251001',
+    })
+    mockAdapterCall.mockResolvedValue({ text: null, toolCalls: [], stopReason: 'error', error: 'API key invalid' })
+
+    const result = await analyzeExternalIBEUrls({
+      urls: ['https://ext.com/book?hotel=123&from=2024-06-01'],
+      type: 'booking',
+    })
+    expect(result).toEqual({ error: 'API key invalid' })
   })
 })
