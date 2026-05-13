@@ -458,7 +458,7 @@ model Property {
   propertyDataProviderConfig  PropertyDataProviderConfig?
   propertyAmadeusConfig       PropertyAmadeusConfig?
   propertyScore               PropertyScore?
-  externalIBEConfig     ExternalIBEConfig?
+  externalIBEConfig           ExternalIBEConfig?
 
   @@index([organizationId])
 }
@@ -1652,6 +1652,8 @@ model PropertyAmadeusConfig {
   updatedAt             DateTime @updatedAt
 }
 
+// ── External IBE ──────────────────────────────────────────────────────────────
+
 model ExternalIBEConfig {
   id               Int           @id @default(autoincrement())
   organizationId   Int?          @unique
@@ -1659,8 +1661,8 @@ model ExternalIBEConfig {
 
   searchTemplate   String?
   bookingTemplate  String?
-  searchSampleUrls  Json          @default("[]")
-  bookingSampleUrls Json          @default("[]")
+  searchSampleUrls  Json          @default("[]")  // string[] of sample search URLs
+  bookingSampleUrls Json          @default("[]")  // string[] of sample booking URLs
   externalHotelId  String?
 
   mcpEnabled       Boolean       @default(false)
@@ -1671,5 +1673,5 @@ model ExternalIBEConfig {
   updatedAt        DateTime      @updatedAt
 
   organization     Organization? @relation(fields: [organizationId], references: [id])
-  property         Property?     @relation(fields: [propertyId], references: [propertyId])
+  property         Property?     @relation(fields: [propertyId], references: [propertyId], map: "ExternalIBEConfig_propertyId_fkey")
 }
