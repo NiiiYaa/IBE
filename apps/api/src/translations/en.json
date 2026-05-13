@@ -168,6 +168,7 @@
   },
   "booking": {
     "completeYourBooking": "Complete your booking",
+    "offerExpiresIn": "Offer expires in:",
     "firstName": "First name",
     "lastName": "Last name",
     "email": "Email",

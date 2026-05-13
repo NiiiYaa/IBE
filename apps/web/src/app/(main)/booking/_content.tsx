@@ -167,7 +167,7 @@ export function BookingContent() {
 
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-[var(--color-text)]">{t('completeYourBooking')}</h1>
-        {!isExpired && <CountdownDisplay timeLeftMs={timeLeftMs} />}
+        {!isExpired && <CountdownDisplay timeLeftMs={timeLeftMs} label={t('offerExpiresIn')} />}
       </div>
 
       {searchData.results.flatMap(r => r.remarks).map((remark, i) => {
@@ -214,7 +214,7 @@ export function BookingContent() {
   )
 }
 
-function CountdownDisplay({ timeLeftMs }: { timeLeftMs: number }) {
+function CountdownDisplay({ timeLeftMs, label }: { timeLeftMs: number; label: string }) {
   const minutes = Math.floor(timeLeftMs / 60_000)
   const seconds = Math.floor((timeLeftMs % 60_000) / 1000)
   const mm = String(minutes).padStart(2, '0')
@@ -227,21 +227,31 @@ function CountdownDisplay({ timeLeftMs }: { timeLeftMs: number }) {
       ? 'text-amber-600'
       : 'text-[var(--color-text-muted)]'
 
-  const isSecondHalf = timeLeftMs <= 15 * 60_000
-
   return (
     <div className={`flex shrink-0 items-center gap-1.5 text-sm font-medium tabular-nums ${colorClass}`}>
+      <style>{`
+        @keyframes hourglass-flip {
+          0%   { transform: rotate(0deg); }
+          40%  { transform: rotate(0deg); }
+          50%  { transform: rotate(180deg); }
+          90%  { transform: rotate(180deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+      <span className="font-normal">{label}</span>
       <svg
-        className={`h-4 w-4 transition-transform duration-700 ${isSecondHalf ? 'rotate-180' : ''}`}
+        style={{ animation: 'hourglass-flip 10s ease-in-out infinite' }}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={1.75}
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
+        className="h-[1.1rem] w-[1.1rem]"
       >
-        <path d="M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4" />
+        <path d="M5 22h14M5 2h14M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" />
       </svg>
       {mm}:{ss}
     </div>
