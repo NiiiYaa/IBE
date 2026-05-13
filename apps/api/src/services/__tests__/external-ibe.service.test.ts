@@ -182,3 +182,65 @@ describe('getExternalIBEConfig', () => {
     expect(result?.searchSampleUrls).toEqual([])
   })
 })
+
+vi.mock('../ai-config.service.js', () => ({
+  resolveAIConfig: vi.fn(),
+}))
+
+import { resolveAIConfig } from '../ai-config.service.js'
+import { analyzeExternalIBEUrls } from '../external-ibe.service.js'
+
+const mockFetch = vi.fn()
+vi.stubGlobal('fetch', mockFetch)
+
+describe('analyzeExternalIBEUrls', () => {
+  it('returns error when no AI config is available', async () => {
+    (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    const result = await analyzeExternalIBEUrls({
+      urls: ['https://ext.com/book?hotel=123&from=2024-06-01'],
+      type: 'booking',
+    })
+    expect(result).toEqual({ error: 'AI not configured for this scope' })
+  })
+
+  it('returns error when provider is not anthropic', async () => {
+    (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      provider: 'openai', apiKey: 'sk-test', model: 'gpt-4',
+    })
+    const result = await analyzeExternalIBEUrls({
+      urls: ['https://ext.com/book?hotel=123&from=2024-06-01'],
+      type: 'booking',
+    })
+    expect(result).toEqual({ error: 'AI analysis requires Anthropic to be configured' })
+  })
+
+  it('returns parsed template and mapping on success', async () => {
+    (resolveAIConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6',
+    })
+
+    const aiResponse = {
+      template: 'https://ext.com/book?hotel={externalHotelId}&from={checkIn}',
+      mapping: [
+        { concept: 'externalHotelId', detectedParam: 'hotel', exampleValue: '123' },
+        { concept: 'checkIn', detectedParam: 'from', exampleValue: '2024-06-01' },
+      ],
+      unmapped: [],
+    }
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [{ type: 'text', text: JSON.stringify(aiResponse) }],
+        stop_reason: 'end_turn',
+      }),
+    })
+
+    const result = await analyzeExternalIBEUrls({
+      urls: ['https://ext.com/book?hotel=123&from=2024-06-01'],
+      type: 'booking',
+    })
+
+    expect(result).toEqual(aiResponse)
+  })
+})
