@@ -39,8 +39,8 @@ async function fetchAmadeusActivities(
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error(`Amadeus activities fetch failed: ${res.status}`)
-  const data = await res.json() as { data?: RawAmadeusProduct[] }
-  return data.data ?? []
+  const raw = await res.json()
+  return (Array.isArray(raw) ? raw : (raw as { data?: RawAmadeusProduct[] }).data ?? []) as RawAmadeusProduct[]
 }
 
 function normaliseActivity(raw: RawAmadeusProduct): AmadeusActivity {
