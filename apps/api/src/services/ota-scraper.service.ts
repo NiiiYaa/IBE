@@ -1,7 +1,7 @@
-import { chromium } from 'playwright'
 import { logger } from '../utils/logger.js'
+import { withStealthPage } from './playwright-browser.service.js'
 
-type Page = import('playwright').Page
+import type { Page } from 'playwright'
 
 // ── Strategy 1: JSON-LD / schema.org structured data ─────────────────────────
 // Most OTAs embed machine-readable price data — this is the most stable signal.
@@ -171,21 +171,6 @@ function pickLowest(texts: string[]): number | null {
   return prices.length > 0 ? Math.min(...prices) : null
 }
 
-// ── Stealth init script ───────────────────────────────────────────────────────
-
-const STEALTH_SCRIPT = `
-  // Mask webdriver flag
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  // Mask automation-related properties
-  Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-  Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-  Object.defineProperty(navigator, 'permissions', {
-    get: () => ({ query: () => Promise.resolve({ state: 'granted' }) })
-  });
-  // Prevent chrome headless detection
-  window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
-`
-
 // ── Main scrape function ──────────────────────────────────────────────────────
 
 export interface ScrapeResult {
@@ -197,68 +182,33 @@ export async function scrapeOtaPrice(url: string): Promise<ScrapeResult> {
   const hostname = new URL(url).hostname.replace(/^www\./, '')
   const extractor = Object.entries(EXTRACTORS).find(([key]) => hostname.includes(key))?.[1]
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--window-size=1280,900',
-    ],
-  })
-
   try {
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 900 },
-      locale: 'en-US',
-      extraHTTPHeaders: {
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-      },
+    return await withStealthPage(url, async (page) => {
+      // Detect currency
+      const currency = await page.$eval(
+        'meta[name="currency"], meta[itemprop="priceCurrency"]',
+        el => el.getAttribute('content') ?? '',
+      ).catch(() => '')
+
+      const pageTitle = await page.title().catch(() => '')
+      logger.debug({ url, pageTitle }, '[PriceComparison] Page loaded')
+
+      // Strategy cascade: JSON-LD → OTA-specific CSS → full-page text scan
+      let price: number | null = await extractJsonLdPrice(page)
+
+      if (price === null && extractor) {
+        price = await extractor(page)
+      }
+
+      if (price === null) {
+        price = await extractByTextScan(page)
+      }
+
+      logger.info({ url, price, currency: currency || 'USD', pageTitle }, '[PriceComparison] Scraped OTA price')
+      return { price, currency: currency || 'USD' }
     })
-
-    await context.addInitScript(STEALTH_SCRIPT)
-
-    const page = await context.newPage()
-
-    // Navigate and wait for network to settle (prices are typically XHR-loaded)
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
-      // networkidle can timeout on pages with constant polling — that's ok
-    })
-
-    // Detect currency
-    const currency = await page.$eval(
-      'meta[name="currency"], meta[itemprop="priceCurrency"]',
-      el => el.getAttribute('content') ?? '',
-    ).catch(() => '')
-
-    const pageTitle = await page.title().catch(() => '')
-    logger.debug({ url, pageTitle }, '[PriceComparison] Page loaded')
-
-    // Strategy cascade: JSON-LD → OTA-specific CSS → full-page text scan
-    let price: number | null = await extractJsonLdPrice(page)
-
-    if (price === null && extractor) {
-      price = await extractor(page)
-    }
-
-    if (price === null) {
-      price = await extractByTextScan(page)
-    }
-
-    logger.info({ url, price, currency: currency || 'USD', pageTitle }, '[PriceComparison] Scraped OTA price')
-    return { price, currency: currency || 'USD' }
   } catch (err) {
     logger.warn({ url, err }, '[PriceComparison] Scrape failed')
     return { price: null, currency: 'USD' }
-  } finally {
-    await browser.close()
   }
 }
