@@ -113,6 +113,10 @@ import type {
   OrgDataProviderConfig,
   PropertyDataProviderConfig,
   DataProviderAdminResponse,
+  ExternalIBEConfigRow,
+  ExternalIBEConfigUpdate,
+  ExternalIBEAnalyzeRequest,
+  ExternalIBEAnalyzeResponse,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1848,6 +1852,42 @@ export const apiClient = {
 
   testDataProviderConnection(): Promise<{ success: boolean; error?: string }> {
     return apiRequest('/api/v1/admin/data-provider/test-connection', { method: 'POST' })
+  },
+
+  // ── External IBE ───────────────────────────────────────────────────────────
+
+  getExternalIBEConfig(scope: { orgId?: number; propertyId?: number }): Promise<ExternalIBEConfigRow | null> {
+    const qs = scope.propertyId !== undefined
+      ? `?propertyId=${scope.propertyId}`
+      : scope.orgId !== undefined ? `?orgId=${scope.orgId}` : ''
+    return apiRequest(`/api/v1/admin/external-ibe${qs}`)
+  },
+
+  upsertExternalIBEConfig(
+    data: ExternalIBEConfigUpdate,
+    scope: { orgId?: number; propertyId?: number },
+  ): Promise<ExternalIBEConfigRow> {
+    const qs = scope.propertyId !== undefined
+      ? `?propertyId=${scope.propertyId}`
+      : scope.orgId !== undefined ? `?orgId=${scope.orgId}` : ''
+    return apiRequest(`/api/v1/admin/external-ibe${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  deleteExternalIBEConfig(scope: { orgId?: number; propertyId?: number }): Promise<void> {
+    const qs = scope.propertyId !== undefined
+      ? `?propertyId=${scope.propertyId}`
+      : scope.orgId !== undefined ? `?orgId=${scope.orgId}` : ''
+    return apiRequest(`/api/v1/admin/external-ibe${qs}`, { method: 'DELETE' })
+  },
+
+  analyzeExternalIBEUrls(req: ExternalIBEAnalyzeRequest): Promise<ExternalIBEAnalyzeResponse> {
+    return apiRequest('/api/v1/admin/external-ibe/analyze', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
   },
 
   // ── Affiliate Portal ───────────────────────────────────────────────────────
