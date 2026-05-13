@@ -101,13 +101,15 @@ export function BookingContent() {
   }
 
   // Detect price changes: compare URL price params to fresh search prices
-  const urlSinglePrice = Number(rawParams.get('price')) || null
+  const rawPrice = rawParams.get('price')
+  const urlSinglePrice = rawPrice !== null ? Number(rawPrice) : null
   const priceChanges: PriceChange[] = []
 
   if (!priceChangesDismissed && selectedRooms.length > 0) {
     if (isMulti) {
       selectedRooms.forEach(({ room, rate }, i) => {
-        const urlPrice = Number(rawParams.get(`rooms[${i}][price]`)) || null
+        const rawRoomPrice = rawParams.get(`rooms[${i}][price]`)
+        const urlPrice = rawRoomPrice !== null ? Number(rawRoomPrice) : null
         if (urlPrice !== null && Math.abs(urlPrice - rate.prices.sell.amount) > 0.009) {
           priceChanges.push({
             roomName: room.roomName,
@@ -151,7 +153,7 @@ export function BookingContent() {
         {tCommon('backToResults')}
       </Link>
 
-      {priceChanges.length > 0 && (
+      {!isExpired && priceChanges.length > 0 && (
         <PriceChangeBanner
           changes={priceChanges}
           locale={locale}
