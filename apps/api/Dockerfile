@@ -1,13 +1,15 @@
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
-RUN apk add --no-cache openssl
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
+# Install Chromium + all system deps for Playwright (OTA scraper + external IBE scraper)
+RUN cd /repo/apps/api && npx playwright install --with-deps chromium
 RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
 RUN cd /repo/apps/api && npx tsc --noEmitOnError false || true
 RUN cp -r /repo/apps/api/src/translations /repo/apps/api/dist/translations

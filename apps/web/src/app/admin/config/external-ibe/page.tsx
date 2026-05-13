@@ -9,6 +9,7 @@ import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { GuestsDropdown } from '@/components/search/GuestsDropdown'
 import type { GuestRoom } from '@/components/search/GuestsDropdown'
 import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse, ExternalIBEConfigUpdate, ExternalIBETestResponse, ExternalIBETestResultItem, ExternalIBETestStreamEvent } from '@ibe/shared'
+import { detectKnownIBE, type KnownIBEDetection } from '@ibe/shared'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -683,6 +684,15 @@ function FullTemplateUI({
   const [deleteSearchConfirm, setDeleteSearchConfirm] = useState(false)
   const [deleteBookingConfirm, setDeleteBookingConfirm] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [knownIBE, setKnownIBE] = useState<KnownIBEDetection | null>(null)
+  const [ibeApplied, setIbeApplied] = useState(false)
+
+  useEffect(() => {
+    const firstUrl = searchUrls.find(u => u.trim()) ?? bookingUrls.split('\n').find(u => u.trim())
+    const detection = firstUrl ? detectKnownIBE(firstUrl) : null
+    setKnownIBE(detection)
+    if (!detection) setIbeApplied(false)
+  }, [searchUrls, bookingUrls])
 
   const hasTemplates = !!(existing?.searchTemplate || existing?.bookingTemplate)
 
@@ -734,6 +744,34 @@ function FullTemplateUI({
     <div className="space-y-6">
       <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h3 className="text-sm font-semibold text-[var(--color-text)]">Search page URL</h3>
+        {knownIBE && !ibeApplied && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 px-4 py-2.5">
+            <span className="text-sm text-[var(--color-text)]">
+              Recognized: <strong>{knownIBE.name}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const mapping = [{ concept: 'externalHotelId', detectedParam: 'hotel ID', exampleValue: knownIBE.externalHotelId }]
+                setSearchResult({ template: knownIBE.searchTemplate, mapping, unmapped: [] })
+                setBookingResult({ template: knownIBE.bookingTemplate, mapping, unmapped: [] })
+                setIbeApplied(true)
+              }}
+              className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            >
+              Apply templates
+            </button>
+            <span className="text-xs text-[var(--color-text-muted)]">Pre-fills search + booking templates</span>
+          </div>
+        )}
+        {knownIBE && ibeApplied && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-success">Templates pre-filled for {knownIBE.name}. Review and click Save.</p>
+            {knownIBE.noScraping && (
+              <p className="text-xs text-amber-600">Note: {knownIBE.name} uses bot protection — automated scraping is blocked. The booking template links to the search page; guests select their room there.</p>
+            )}
+          </div>
+        )}
         {existing && (
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
             <p className="text-xs font-medium text-[var(--color-text-muted)]">Current search template</p>
@@ -922,6 +960,7 @@ function SimplifiedHotelUI({
 }) {
   const qc = useQueryClient()
   const [idResult, setIdResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
+  const [hotelIdUrl, setHotelIdUrl] = useState('')
   const [mcpEnabled, setMcpEnabled] = useState(hotelExisting?.mcpEnabled ?? chainConfig.mcpEnabled)
   const [affiliateEnabled, setAffiliateEnabled] = useState(hotelExisting?.affiliateEnabled ?? chainConfig.affiliateEnabled)
   const [widgetEnabled, setWidgetEnabled] = useState(hotelExisting?.widgetEnabled ?? chainConfig.widgetEnabled)
@@ -931,6 +970,21 @@ function SimplifiedHotelUI({
   const [advSearchUrls, setAdvSearchUrls] = useState<[string, string, string]>(['', '', ''])
   const [advBookingUrls, setAdvBookingUrls] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [recognizedIBE, setRecognizedIBE] = useState<string | null>(null)
+
+  useEffect(() => {
+    const detection = detectKnownIBE(hotelIdUrl)
+    if (detection) {
+      setIdResult({
+        template: detection.searchTemplate,
+        mapping: [{ concept: 'externalHotelId', detectedParam: 'hotel ID', exampleValue: detection.externalHotelId }],
+        unmapped: [],
+      })
+      setRecognizedIBE(detection.name)
+    } else {
+      setRecognizedIBE(null)
+    }
+  }, [hotelIdUrl])
 
   const detectedId = idResult?.mapping.find(m => m.concept === 'externalHotelId')?.exampleValue
 
@@ -984,12 +1038,15 @@ function SimplifiedHotelUI({
           propertyId={propertyId}
           orgId={orgId}
           result={idResult}
-          onResult={setIdResult}
+          onResult={(r) => { setIdResult(r); setRecognizedIBE(null) }}
+          urls={hotelIdUrl}
+          onUrlsChange={setHotelIdUrl}
           highlightConcept="externalHotelId"
         />
         {detectedId && (
           <p className="text-sm text-[var(--color-text)]">
             Your external hotel ID: <span className="font-mono font-medium text-[var(--color-primary)]">{detectedId}</span>
+            {recognizedIBE && <span className="ml-2 text-xs text-[var(--color-text-muted)]">(auto-detected from {recognizedIBE})</span>}
           </p>
         )}
       </section>

@@ -121,27 +121,49 @@ export async function resolveExternalBookingUrl(opts: ScrapeBookingOptions): Pro
       }
 
       // Step 2: click the first room-selection button.
-      let clicked = false
-      for (const sel of ['button:has-text("Select Room")', 'button:has-text("Book Now")', 'button:has-text("Book")', 'button:has-text("Reserve")', 'a:has-text("Select Room")', 'a:has-text("Book Now")']) {
+      // Uses JS evaluate click to bypass pointer-event overlays (e.g. SimpleBooking.it).
+      // If the click directly navigates to the solution URL, return immediately.
+      let step2Clicked = false
+      for (const sel of ['button:has-text("Select Room")', 'button:has-text("Reserve")', 'button:has-text("Book Now")', 'a:has-text("Select Room")', 'a:has-text("Book Now")', 'button:has-text("Select")']) {
         const btn = await typedPage.$(sel)
-        if (btn) { await btn.click().catch(() => {}); clicked = true; break }
+        if (!btn) continue
+        try {
+          await Promise.all([
+            typedPage.waitForURL(u => regex.test(u.toString()), { timeout: 4000 }),
+            typedPage.evaluate((node) => (node as HTMLElement).click(), btn),
+          ])
+          const directUrl = typedPage.url()
+          const directMatch = regex.exec(directUrl)
+          const directSid = directMatch?.[1]
+          if (directSid) {
+            logger.info({ searchUrl, solutionId: directSid }, '[ExternalIBE] resolved solutionId via direct room button')
+            return { bookingUrl: directUrl, fallback: false, solutionId: directSid }
+          }
+        } catch {
+          // didn't navigate directly — fall through to multi-step flow
+        }
+        step2Clicked = true
+        break
       }
-      if (clicked) await typedPage.waitForTimeout(1500)
+      if (step2Clicked) await typedPage.waitForTimeout(1500)
 
       // Step 3: if a rate-selection step appeared, pick the first rate.
       for (const sel of ['button:has-text("Choose Rate")', 'button:has-text("Select Rate")', 'button:has-text("Book this rate")', 'a:has-text("Choose Rate")']) {
         const btn = await typedPage.$(sel)
-        if (btn) { await btn.click().catch(() => {}); await typedPage.waitForTimeout(1500); break }
+        if (!btn) continue
+        await typedPage.evaluate((node) => (node as HTMLElement).click(), btn).catch(() => {})
+        await typedPage.waitForTimeout(1500)
+        break
       }
 
-      // Step 4: click Continue/Proceed to trigger navigation to the solution URL.
-      for (const sel of ['button:has-text("Continue")', 'button:has-text("Proceed")', 'button:has-text("Next")', 'a:has-text("Continue")']) {
+      // Step 4: click Continue/Proceed/Book to trigger navigation to the solution URL.
+      for (const sel of ['button:has-text("Continue")', 'button:has-text("Proceed")', 'button:has-text("Next")', 'button:has-text("Book")', 'a:has-text("Continue")']) {
         const btn = await typedPage.$(sel)
         if (!btn) continue
         try {
           await Promise.all([
             typedPage.waitForURL(u => regex.test(u.toString()), { timeout: 12000 }),
-            btn.click(),
+            typedPage.evaluate((node) => (node as HTMLElement).click(), btn),
           ])
           const newUrl = typedPage.url()
           const match = regex.exec(newUrl)
