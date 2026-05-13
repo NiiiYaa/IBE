@@ -7,6 +7,7 @@ import { fetchPropertyStatic, fetchHotelList } from '../adapters/hyperguest/stat
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
+import { getEffectiveExternalIBEConfig, buildExternalUrl } from '../services/external-ibe.service.js'
 
 const WIDGET_URI            = 'hotel://widget/room-results'
 const PROPERTY_LIST_URI     = 'hotel://widget/property-list'
@@ -820,16 +821,41 @@ async function handleToolCall(
     const ratePlanId = args['ratePlanId'] as number | undefined
     const searchId   = args['searchId']   as string | undefined
 
-    const params = new URLSearchParams({
-      hotelId: String(pid), checkIn, checkOut,
-      'rooms[0][adults]': String(adults),
-      ...(children > 0 ? { 'rooms[0][children]': String(children) } : {}),
-    })
-    if (roomId)     params.set('roomId',     String(roomId))
-    if (ratePlanId) params.set('ratePlanId', String(ratePlanId))
-    if (searchId)   params.set('searchId',   searchId)
+    // Try external IBE first
+    let url: string | null = null
+    try {
+      const extConfig = await getEffectiveExternalIBEConfig(pid)
+      if (extConfig?.mcpEnabled && extConfig.bookingTemplate) {
+        url = buildExternalUrl(extConfig.bookingTemplate, {
+          hotelId:         pid,
+          externalHotelId: extConfig.externalHotelId,
+          checkIn:         checkIn,
+          checkOut:        checkOut,
+          adults:          adults,
+          rooms:           1,
+          nationality:     null,
+          currency:        null,
+          roomId:          roomId ?? null,
+          ratePlanId:      ratePlanId ?? null,
+        })
+      }
+    } catch (err) {
+      logger.warn({ err, pid }, '[MCP] getEffectiveExternalIBEConfig failed — falling back to local IBE URL')
+    }
 
-    const url = `${env.WEB_BASE_URL}/booking?${params.toString()}`
+    // Fall back to local IBE URL
+    if (!url) {
+      const params = new URLSearchParams({
+        hotelId: String(pid), checkIn, checkOut,
+        'rooms[0][adults]': String(adults),
+        ...(children > 0 ? { 'rooms[0][children]': String(children) } : {}),
+      })
+      if (roomId)     params.set('roomId',     String(roomId))
+      if (ratePlanId) params.set('ratePlanId', String(ratePlanId))
+      if (searchId)   params.set('searchId',   searchId)
+      url = `${env.WEB_BASE_URL}/booking?${params.toString()}`
+    }
+
     return mcpResult(JSON.stringify({ bookingUrl: url, message: 'Direct the guest to this URL to complete the booking.' }))
   }
 
