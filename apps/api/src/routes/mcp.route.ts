@@ -8,6 +8,7 @@ import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
 import { getEffectiveExternalIBEConfig, buildExternalUrl } from '../services/external-ibe.service.js'
+import { resolveExternalBookingUrl } from '../services/external-ibe-scraper.service.js'
 
 const WIDGET_URI            = 'hotel://widget/room-results'
 const PROPERTY_LIST_URI     = 'hotel://widget/property-list'
@@ -871,18 +872,42 @@ async function handleToolCall(
     try {
       const extConfig = await getEffectiveExternalIBEConfig(pid)
       if (extConfig?.mcpEnabled && extConfig.bookingTemplate) {
-        url = buildExternalUrl(extConfig.bookingTemplate, {
-          hotelId:         pid,
-          externalHotelId: extConfig.externalHotelId,
-          checkIn:         checkIn,
-          checkOut:        checkOut,
-          adults:          adults,
-          rooms:           1,
-          nationality:     null,
-          currency:        null,
-          roomId:          roomId ?? null,
-          ratePlanId:      ratePlanId ?? null,
-        })
+        const needsSolutionId = extConfig.bookingTemplate.includes('{solutionId}')
+
+        if (needsSolutionId && extConfig.searchTemplate) {
+          const searchUrl = buildExternalUrl(extConfig.searchTemplate, {
+            hotelId:         pid,
+            externalHotelId: extConfig.externalHotelId,
+            checkIn,
+            checkOut,
+            adults,
+            rooms:           1,
+            nationality:     null,
+            currency:        null,
+          })
+          const resolved = await resolveExternalBookingUrl({
+            searchUrl,
+            bookingTemplate: extConfig.bookingTemplate,
+            externalHotelId: extConfig.externalHotelId,
+            checkIn,
+            checkOut,
+            adults,
+          })
+          url = resolved.bookingUrl
+        } else {
+          url = buildExternalUrl(extConfig.bookingTemplate, {
+            hotelId:         pid,
+            externalHotelId: extConfig.externalHotelId,
+            checkIn,
+            checkOut,
+            adults,
+            rooms:           1,
+            nationality:     null,
+            currency:        null,
+            roomId:          roomId ?? null,
+            ratePlanId:      ratePlanId ?? null,
+          })
+        }
       }
     } catch (err) {
       logger.warn({ err, pid }, '[MCP] getEffectiveExternalIBEConfig failed — falling back to local IBE URL')
