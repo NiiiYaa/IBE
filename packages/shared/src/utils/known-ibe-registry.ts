@@ -141,6 +141,113 @@ const registry: KnownIBEEntry[] = [
     },
     noScraping: true,
   },
+  {
+    // WebHotelier (reserve-online.net) — Greek/Mediterranean hotel booking SaaS.
+    // Each hotel gets a subdomain on reserve-online.net; the subdomain IS the hotel identifier.
+    // Uses `nights` (duration) instead of a checkout date. noScraping: CloudFront WAF blocks headless browsers.
+    name: 'WebHotelier',
+    domainPattern: /^https?:\/\/[^.]+\.reserve-online\.net\//,
+    extractHotelId(url) {
+      return new URL(url).hostname.split('.')[0] ?? null
+    },
+    searchTemplate: 'https://{externalHotelId}.reserve-online.net/?checkin={checkIn}&nights={nights}&rooms=1&adults={adults}&children=0&infants=0',
+    bookingTemplate: 'https://{externalHotelId}.reserve-online.net/?checkin={checkIn}&nights={nights}&rooms=1&adults={adults}&children=0&infants=0',
+    noScraping: true,
+  },
+  {
+    // Hotels of Mykonos — Greek island hotel booking portal (hotelsofmykonos.com).
+    // Hundreds of hotels, each with a unique subdomain; the subdomain prefix is the hotel identifier.
+    // `clirder` = rooms count. Date format: YYYY-MM-DD. noScraping: headless browsers get 410.
+    name: 'Hotels of Mykonos',
+    domainPattern: /^https?:\/\/[^.]+\.hotelsofmykonos\.com\//,
+    extractHotelId(url) {
+      return new URL(url).hostname.split('.')[0] ?? null
+    },
+    searchTemplate: 'https://{externalHotelId}.hotelsofmykonos.com/en/?from={checkIn}&to={checkOut}&adults={adults}&children=0&clirder=1#rooms',
+    bookingTemplate: 'https://{externalHotelId}.hotelsofmykonos.com/en/?from={checkIn}&to={checkOut}&adults={adults}&children=0&clirder=1#rooms',
+    noScraping: true,
+  },
+  {
+    // Zenith Hotels (Malaysia) — custom ASP.NET system used across 4 Zenith properties.
+    // Each property is a sub-path on thezenithhotel.com; the path prefix IS the hotel identifier.
+    // Dates: DD/MM/YYYY (URL-encoded slashes). noScraping: session-based checkout after room selection.
+    name: 'Zenith Hotels (MY)',
+    domainPattern: /^https?:\/\/www\.thezenithhotel\.com\//,
+    extractHotelId(url) {
+      return new URL(url).pathname.match(/^(\/[^?#]*\/)AvailabilitySearchRoom\.aspx/)?.[1] ?? null
+    },
+    searchTemplate(url) {
+      const origin = new URL(url).origin
+      return `${origin}{externalHotelId}AvailabilitySearchRoom.aspx?checkindate={checkInDMY}&checkoutdate={checkOutDMY}&adults={adults}&rooms=1`
+    },
+    bookingTemplate(url) {
+      const origin = new URL(url).origin
+      return `${origin}{externalHotelId}AvailabilitySearchRoom.aspx?checkindate={checkInDMY}&checkoutdate={checkOutDMY}&adults={adults}&rooms=1`
+    },
+    noScraping: true,
+  },
+  {
+    // Lighthouse Commerce — UK/Europe IBE, always served from their canonical bookingengine.mylighthouse.com.
+    // Hotel identifier is a slug in the URL path. No explicit adults param.
+    // Date format: YYYY-M-D (non-zero-padded); {checkIn} (YYYY-MM-DD) is accepted.
+    // noScraping: Cloudflare Turnstile managed challenge blocks all automated access.
+    name: 'Lighthouse',
+    domainPattern: /^https?:\/\/bookingengine\.mylighthouse\.com\//,
+    extractHotelId(url) {
+      return new URL(url).pathname.split('/').filter(Boolean)[0] ?? null
+    },
+    searchTemplate: 'https://bookingengine.mylighthouse.com/{externalHotelId}/Rooms/Select?Arrival={checkIn}&Departure={checkOut}&Room=&Rate=&Package=&DiscountCode=',
+    bookingTemplate: 'https://bookingengine.mylighthouse.com/{externalHotelId}/Rooms/Select?Arrival={checkIn}&Departure={checkOut}&Room=&Rate=&Package=&DiscountCode=',
+    noScraping: true,
+  },
+  {
+    // TravelClick (Amadeus Hospitality iHotelier) — always white-labeled on the hotel's own domain.
+    // Detected by datein+dateout+languageid query params with a numeric hotel code in the URL path.
+    // Dates are MM/DD/YYYY. noScraping: AngularJS app requires a live browser session.
+    name: 'TravelClick',
+    paramFingerprint(p, url) {
+      const path = new URL(url).pathname
+      return p.has('datein') && p.has('dateout') && p.has('languageid') && /\/\d+\/?$/.test(path)
+    },
+    extractHotelId(url) {
+      return new URL(url).pathname.match(/\/(\d+)\/?$/)?.[1] ?? null
+    },
+    searchTemplate(url) {
+      return `${new URL(url).origin}/{externalHotelId}?languageid=1&datein={checkInMDY}&dateout={checkOutMDY}&adults={adults}#/guestsandrooms`
+    },
+    bookingTemplate(url) {
+      return `${new URL(url).origin}/{externalHotelId}?languageid=1&datein={checkInMDY}&dateout={checkOutMDY}&adults={adults}#/guestsandrooms`
+    },
+    noScraping: true,
+  },
+  {
+    // Hotetec — Spanish IBE, always white-labeled on the hotel's own domain.
+    // The page embeds scripts from hotel.new.hotetec.com. The hotel ID is the numeric
+    // `bookingEngine` query param (hardcoded in the page's inline script).
+    // The `availability` param is a JSON object; we URL-encode it to avoid the cleanup
+    // step stripping it (literal `{` chars confuse the unreplaced-token filter).
+    // noScraping: React app requires a live browser session (checkCustomerWebSessionId) to render.
+    name: 'Hotetec',
+    paramFingerprint(p) {
+      const be = p.get('bookingEngine')
+      return be !== null && /^\d+$/.test(be)
+    },
+    extractHotelId(_url, p) {
+      return p.get('bookingEngine')
+    },
+    searchTemplate(url) {
+      const u = new URL(url)
+      const base = u.origin + u.pathname
+      // %7B = { %22 = " %3A = : %2C = , %7D = }
+      return `${base}?availability=%7B%22dateFrom%22%3A%22{checkIn}%22%2C%22dateTo%22%3A%22{checkOut}%22%2C%22execute%22%3Atrue%7D&bookingEngine={externalHotelId}`
+    },
+    bookingTemplate(url) {
+      const u = new URL(url)
+      const base = u.origin + u.pathname
+      return `${base}?availability=%7B%22dateFrom%22%3A%22{checkIn}%22%2C%22dateTo%22%3A%22{checkOut}%22%2C%22execute%22%3Atrue%7D&bookingEngine={externalHotelId}`
+    },
+    noScraping: true,
+  },
 ]
 
 export function detectKnownIBE(url: string): KnownIBEDetection | null {

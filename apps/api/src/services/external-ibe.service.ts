@@ -20,12 +20,25 @@ export function buildExternalUrl(
   if (typeof params.checkIn === 'string' && params.checkIn) {
     enriched.checkInMs = new Date(params.checkIn + 'T00:00:00').getTime()
     const [cy, cm, cd] = params.checkIn.split('-')
-    if (cy && cm && cd) enriched.checkInMDY = `${cm}/${cd}/${cy}`
+    if (cy && cm && cd) {
+      enriched.checkInMDY = `${cm}/${cd}/${cy}`
+      enriched.checkInDMY = `${cd}/${cm}/${cy}`
+    }
   }
   if (typeof params.checkOut === 'string' && params.checkOut) {
     enriched.checkOutMs = new Date(params.checkOut + 'T00:00:00').getTime()
     const [cy, cm, cd] = params.checkOut.split('-')
-    if (cy && cm && cd) enriched.checkOutMDY = `${cm}/${cd}/${cy}`
+    if (cy && cm && cd) {
+      enriched.checkOutMDY = `${cm}/${cd}/${cy}`
+      enriched.checkOutDMY = `${cd}/${cm}/${cy}`
+    }
+    if (typeof params.checkIn === 'string' && params.checkIn) {
+      const nights = Math.round(
+        (new Date(params.checkOut + 'T00:00:00').getTime() - new Date(params.checkIn + 'T00:00:00').getTime()) /
+          86400000,
+      )
+      if (nights > 0) enriched.nights = nights
+    }
   }
   let result = template
   for (const [key, val] of Object.entries(enriched)) {
@@ -257,6 +270,9 @@ const PLACEHOLDER_VOCABULARY = [
   'checkOutMs — Departure date as Unix milliseconds (use when the IBE expects epoch timestamps instead of YYYY-MM-DD)',
   'checkInMDY — Arrival date in MM/DD/YYYY format (use when the IBE expects US-style date format)',
   'checkOutMDY — Departure date in MM/DD/YYYY format (use when the IBE expects US-style date format)',
+  'checkInDMY — Arrival date in DD/MM/YYYY format (use when the IBE expects European/Asian date format)',
+  'checkOutDMY — Departure date in DD/MM/YYYY format (use when the IBE expects European/Asian date format)',
+  'nights — Number of nights (checkOut minus checkIn in days; use when the IBE takes duration instead of checkout date)',
   'adults — Adult guest count',
   'rooms — Room count',
   'nationality — Guest nationality (ISO 2-letter code)',
