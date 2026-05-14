@@ -91,37 +91,15 @@ const registry: KnownIBEEntry[] = [
   },
   {
     // BookSecure — used across European hotel groups on book-secure.com.
-    // Booking step only changes s=results → s=validate-collect with the same params (no solutionId).
-    // stid, cluster, and hname are per-hotel constants captured at detection time.
+    // Booking step only changes s=results → s=validate-collect (same params, no solutionId).
+    // stid/cluster/hname params in real URLs are tracking noise — not required.
     name: 'BookSecure',
     domainPattern: /^https?:\/\/(?:www\.)?book-secure\.com\//,
     extractHotelId(_url, p) {
       return p.get('property')
     },
-    searchTemplate(url) {
-      const origin = new URL(url).origin
-      const p = safeParams(url)
-      const stid = p?.get('stid') ? `&stid=${p.get('stid')}` : ''
-      const cluster = p?.get('cluster')
-      const clusterStr = cluster
-        ? `&Clusternames=${cluster}&connectName=${cluster}&cname=${cluster}&cluster=${cluster}`
-        : ''
-      const hname = p?.get('hname')
-      const hnameStr = hname ? `&Hotelnames=${hname}&hname=${hname}` : ''
-      return `${origin}/index.php?s=results&property={externalHotelId}&arrival={checkIn}&departure={checkOut}&adults1={adults}&children1=0&locale=en_GB&currency={currency}${stid}${clusterStr}${hnameStr}`
-    },
-    bookingTemplate(url) {
-      const origin = new URL(url).origin
-      const p = safeParams(url)
-      const stid = p?.get('stid') ? `&stid=${p.get('stid')}` : ''
-      const cluster = p?.get('cluster')
-      const clusterStr = cluster
-        ? `&Clusternames=${cluster}&connectName=${cluster}&cname=${cluster}&cluster=${cluster}`
-        : ''
-      const hname = p?.get('hname')
-      const hnameStr = hname ? `&Hotelnames=${hname}&hname=${hname}` : ''
-      return `${origin}/index.php?s=results&property={externalHotelId}&arrival={checkIn}&departure={checkOut}&adults1={adults}&children1=0&locale=en_GB&currency={currency}${stid}${clusterStr}${hnameStr}`
-    },
+    searchTemplate: 'https://www.book-secure.com/index.php?s=results&property={externalHotelId}&arrival={checkIn}&departure={checkOut}&adults1={adults}&children1=0&locale=en_GB&currency={currency}',
+    bookingTemplate: 'https://www.book-secure.com/index.php?s=results&property={externalHotelId}&arrival={checkIn}&departure={checkOut}&adults1={adults}&children1=0&locale=en_GB&currency={currency}',
     noScraping: true,
   },
   {
