@@ -5,6 +5,7 @@ import type {
   EffectiveExternalIBEConfig,
   ExternalIBEAnalyzeRequest,
   ExternalIBEAnalyzeResponse,
+  ExternalIBEBulkMapResponse,
 } from '@ibe/shared'
 import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
@@ -43,6 +44,9 @@ function toRow(row: {
   mcpEnabled: boolean
   affiliateEnabled: boolean
   widgetEnabled: boolean
+  mcpSkip2Step: boolean
+  affiliateSkip2Step: boolean
+  widgetSkip2Step: boolean
   createdAt: Date
   updatedAt: Date
 }): ExternalIBEConfigRow {
@@ -58,6 +62,9 @@ function toRow(row: {
     mcpEnabled: row.mcpEnabled,
     affiliateEnabled: row.affiliateEnabled,
     widgetEnabled: row.widgetEnabled,
+    mcpSkip2Step: row.mcpSkip2Step,
+    affiliateSkip2Step: row.affiliateSkip2Step,
+    widgetSkip2Step: row.widgetSkip2Step,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -104,6 +111,54 @@ export async function deleteExternalIBEConfig(
   await prisma.externalIBEConfig.delete({ where })
 }
 
+// ── Bulk mapping ──────────────────────────────────────────────────────────
+
+export async function bulkMapExternalHotelIds(
+  orgId: number,
+  mappings: { propertyId: number; externalHotelId: string }[],
+): Promise<ExternalIBEBulkMapResponse> {
+  const orgProperties = await prisma.property.findMany({
+    where: { organizationId: orgId },
+    select: { propertyId: true, name: true },
+  })
+  const orgPropertyIds = new Set(orgProperties.map(p => p.propertyId))
+
+  const errors: { propertyId: number; message: string }[] = []
+  let updated = 0
+
+  for (const { propertyId, externalHotelId } of mappings) {
+    if (!orgPropertyIds.has(propertyId)) {
+      errors.push({ propertyId, message: 'Property not found in this organisation' })
+      continue
+    }
+    try {
+      const where = { propertyId }
+      await prisma.externalIBEConfig.upsert({
+        where,
+        create: { propertyId, externalHotelId },
+        update: { externalHotelId },
+      })
+      updated++
+    } catch (e) {
+      errors.push({ propertyId, message: e instanceof Error ? e.message : 'Failed to save' })
+    }
+  }
+
+  const configs = await prisma.externalIBEConfig.findMany({
+    where: { propertyId: { in: Array.from(orgPropertyIds) } },
+    select: { propertyId: true, externalHotelId: true },
+  })
+  const configMap = new Map(configs.map(c => [c.propertyId, c.externalHotelId]))
+
+  const erroredIds = new Set(errors.map(e => e.propertyId))
+
+  const stillMissing = orgProperties
+    .filter(p => !configMap.get(p.propertyId) && !erroredIds.has(p.propertyId))
+    .map(p => ({ propertyId: p.propertyId, name: p.name }))
+
+  return { updated, errors, stillMissing }
+}
+
 // ── Resolver ──────────────────────────────────────────────────────────────
 
 export async function getEffectiveExternalIBEConfig(
@@ -130,10 +185,13 @@ export async function getEffectiveExternalIBEConfig(
       mcpEnabled: hotelRow.mcpEnabled,
       affiliateEnabled: hotelRow.affiliateEnabled,
       widgetEnabled: hotelRow.widgetEnabled,
+      mcpSkip2Step: hotelRow.mcpSkip2Step,
+      affiliateSkip2Step: hotelRow.affiliateSkip2Step,
+      widgetSkip2Step: hotelRow.widgetSkip2Step,
     }
   }
 
-  // Chain-member hotel with no hotel row → use chain as-is
+  // Chain-member hotel with no hotel row → inherit everything from chain
   if (!hotelRow) {
     return {
       searchTemplate: chainRow.searchTemplate,
@@ -142,6 +200,9 @@ export async function getEffectiveExternalIBEConfig(
       mcpEnabled: chainRow.mcpEnabled,
       affiliateEnabled: chainRow.affiliateEnabled,
       widgetEnabled: chainRow.widgetEnabled,
+      mcpSkip2Step: chainRow.mcpSkip2Step,
+      affiliateSkip2Step: chainRow.affiliateSkip2Step,
+      widgetSkip2Step: chainRow.widgetSkip2Step,
     }
   }
 
@@ -154,10 +215,13 @@ export async function getEffectiveExternalIBEConfig(
       mcpEnabled: hotelRow.mcpEnabled,
       affiliateEnabled: hotelRow.affiliateEnabled,
       widgetEnabled: hotelRow.widgetEnabled,
+      mcpSkip2Step: hotelRow.mcpSkip2Step,
+      affiliateSkip2Step: hotelRow.affiliateSkip2Step,
+      widgetSkip2Step: hotelRow.widgetSkip2Step,
     }
   }
 
-  // Hotel only has externalHotelId → merge with chain templates
+  // Hotel only has externalHotelId → merge: templates from chain, toggles from hotel
   return {
     searchTemplate: chainRow.searchTemplate,
     bookingTemplate: chainRow.bookingTemplate,
@@ -165,6 +229,9 @@ export async function getEffectiveExternalIBEConfig(
     mcpEnabled: hotelRow.mcpEnabled,
     affiliateEnabled: hotelRow.affiliateEnabled,
     widgetEnabled: hotelRow.widgetEnabled,
+    mcpSkip2Step: hotelRow.mcpSkip2Step,
+    affiliateSkip2Step: hotelRow.affiliateSkip2Step,
+    widgetSkip2Step: hotelRow.widgetSkip2Step,
   }
 }
 

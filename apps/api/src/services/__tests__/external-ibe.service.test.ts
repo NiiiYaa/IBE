@@ -4,11 +4,13 @@ vi.mock('../../db/client.js', () => ({
   prisma: {
     externalIBEConfig: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       upsert: vi.fn(),
       delete: vi.fn(),
     },
     property: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }))
@@ -18,6 +20,7 @@ import {
   buildExternalUrl,
   getEffectiveExternalIBEConfig,
   getExternalIBEConfig,
+  bulkMapExternalHotelIds,
 } from '../external-ibe.service.js'
 
 const mp = prisma as any
@@ -180,6 +183,79 @@ describe('getExternalIBEConfig', () => {
     const result = await getExternalIBEConfig({ orgId: 1 })
     expect(result?.searchTemplate).toBe('https://ext.com/search')
     expect(result?.searchSampleUrls).toEqual([])
+  })
+})
+
+// ── bulkMapExternalHotelIds ───────────────────────────────────────────────
+
+describe('bulkMapExternalHotelIds', () => {
+  const orgProperties = [
+    { propertyId: 10, name: 'Hotel Alpha' },
+    { propertyId: 11, name: 'Hotel Beta' },
+    { propertyId: 12, name: 'Hotel Gamma' },
+  ]
+
+  beforeEach(() => {
+    mp.property.findMany.mockResolvedValue(orgProperties)
+    mp.externalIBEConfig.upsert.mockResolvedValue({ id: 1, propertyId: 10, externalHotelId: 'ext-10' })
+    mp.externalIBEConfig.findMany.mockResolvedValue([])
+  })
+
+  it('upserts valid mappings and returns updated count', async () => {
+    mp.externalIBEConfig.findMany.mockResolvedValue([
+      { propertyId: 10, externalHotelId: 'ext-10' },
+      { propertyId: 11, externalHotelId: 'ext-11' },
+    ])
+
+    const result = await bulkMapExternalHotelIds(1, [
+      { propertyId: 10, externalHotelId: 'ext-10' },
+      { propertyId: 11, externalHotelId: 'ext-11' },
+    ])
+
+    expect(result.updated).toBe(2)
+    expect(result.errors).toHaveLength(0)
+    expect(result.stillMissing).toEqual([{ propertyId: 12, name: 'Hotel Gamma' }])
+  })
+
+  it('returns error for property not in org', async () => {
+    const result = await bulkMapExternalHotelIds(1, [
+      { propertyId: 99, externalHotelId: 'ext-99' },
+    ])
+
+    expect(result.updated).toBe(0)
+    expect(result.errors).toEqual([
+      { propertyId: 99, message: 'Property not found in this organisation' },
+    ])
+    expect(mp.externalIBEConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  it('collects db error and continues remaining mappings', async () => {
+    mp.externalIBEConfig.upsert
+      .mockRejectedValueOnce(new Error('DB timeout'))
+      .mockResolvedValueOnce({ id: 2, propertyId: 11, externalHotelId: 'ext-11' })
+
+    mp.externalIBEConfig.findMany.mockResolvedValue([
+      { propertyId: 11, externalHotelId: 'ext-11' },
+    ])
+
+    const result = await bulkMapExternalHotelIds(1, [
+      { propertyId: 10, externalHotelId: 'ext-10' },
+      { propertyId: 11, externalHotelId: 'ext-11' },
+    ])
+
+    expect(result.updated).toBe(1)
+    expect(result.errors).toEqual([{ propertyId: 10, message: 'DB timeout' }])
+    expect(result.stillMissing).toEqual([{ propertyId: 12, name: 'Hotel Gamma' }])
+  })
+
+  it('reports all properties as still missing when no configs exist', async () => {
+    mp.externalIBEConfig.findMany.mockResolvedValue([])
+
+    const result = await bulkMapExternalHotelIds(1, [])
+
+    expect(result.updated).toBe(0)
+    expect(result.errors).toHaveLength(0)
+    expect(result.stillMissing).toHaveLength(3)
   })
 })
 
