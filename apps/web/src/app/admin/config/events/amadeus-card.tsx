@@ -48,6 +48,7 @@ function AmadeusConfigForm({
   const [stripMode, setStripMode] = useState<'merged' | 'separate'>(data.stripMode)
   const [stripDefaultFolded, setStripDefaultFolded] = useState(data.stripDefaultFolded)
   const [stripAutoFoldSecs, setStripAutoFoldSecs] = useState(data.stripAutoFoldSecs)
+  const [showBookButton, setShowBookButton] = useState(data.showBookButton)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
 
   useEffect(() => {
@@ -61,6 +62,7 @@ function AmadeusConfigForm({
     setStripMode(data.stripMode)
     setStripDefaultFolded(data.stripDefaultFolded)
     setStripAutoFoldSecs(data.stripAutoFoldSecs)
+    setShowBookButton(data.showBookButton)
     setTestResult(null)
   }, [data])
 
@@ -74,7 +76,7 @@ function AmadeusConfigForm({
   const credsLocked = data.credentialsLocked
 
   function buildUpdate(): AmadeusConfigUpdate {
-    const u: AmadeusConfigUpdate = { enabled, stripLabel, stripMode }
+    const u: AmadeusConfigUpdate = { enabled, stripLabel, stripMode, showBookButton }
     if (isSystem) { u.tokenUrl = tokenUrl; u.activitiesUrl = activitiesUrl }
     if (!isSystem) u.stripDefaultFolded = stripDefaultFolded
     if (!isSystem) u.stripAutoFoldSecs = stripAutoFoldSecs
@@ -260,6 +262,10 @@ function AmadeusConfigForm({
       {!propertyId && (
         <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Strip display behaviour</p>
+          <div className="flex items-center gap-3">
+            <Toggle checked={showBookButton} onChange={setShowBookButton} />
+            <span className="text-sm text-[var(--color-text)]">Show &ldquo;Book&rdquo; button on cards</span>
+          </div>
           <div className="flex items-center gap-3">
             <Toggle checked={stripDefaultFolded} onChange={setStripDefaultFolded} />
             <span className="text-sm text-[var(--color-text)]">Start collapsed by default</span>

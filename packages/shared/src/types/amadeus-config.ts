@@ -14,6 +14,7 @@ export interface AmadeusConfigResponse {
   stripMode: 'merged' | 'separate'
   stripDefaultFolded: boolean
   stripAutoFoldSecs: number
+  showBookButton: boolean
 }
 
 export interface AmadeusConfigUpdate {
@@ -30,6 +31,7 @@ export interface AmadeusConfigUpdate {
   stripMode?: 'merged' | 'separate'
   stripDefaultFolded?: boolean
   stripAutoFoldSecs?: number
+  showBookButton?: boolean
   // property-level nullable overrides (null = reset to inherited)
   radiusKmOverride?: number | null
   maxActivitiesOverride?: number | null
@@ -58,6 +60,7 @@ export interface AmadeusPublicResponse {
   stripMode?: 'merged' | 'separate'
   stripDefaultFolded?: boolean
   stripAutoFoldSecs?: number
+  showBookButton?: boolean
 }
 
 export interface ActivitiesAndEventsResponse {
@@ -76,6 +79,7 @@ export interface ActivitiesAndEventsResponse {
     }>
     stripDefaultFolded?: boolean
     stripAutoFoldSecs?: number
+    showBookButton?: boolean
   }
   amadeus: AmadeusPublicResponse
 }

@@ -35,6 +35,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
   const [maxEvents, setMaxEvents] = useState(data.maxEvents)
   const [stripDefaultFolded, setStripDefaultFolded] = useState(data.stripDefaultFolded)
   const [stripAutoFoldSecs, setStripAutoFoldSecs] = useState(data.stripAutoFoldSecs)
+  const [showBookButton, setShowBookButton] = useState(data.showBookButton)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
 
   useEffect(() => {
@@ -43,6 +44,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
     setMaxEvents(data.maxEvents)
     setStripDefaultFolded(data.stripDefaultFolded)
     setStripAutoFoldSecs(data.stripAutoFoldSecs)
+    setShowBookButton(data.showBookButton)
     setTestResult(null)
   }, [data])
 
@@ -149,6 +151,10 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
       <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Strip display behaviour</p>
         <div className="flex items-center gap-3">
+          <Toggle checked={showBookButton} onChange={setShowBookButton} />
+          <span className="text-sm text-[var(--color-text)]">Show &ldquo;Get Tickets&rdquo; button on cards</span>
+        </div>
+        <div className="flex items-center gap-3">
           <Toggle checked={stripDefaultFolded} onChange={setStripDefaultFolded} />
           <span className="text-sm text-[var(--color-text)]">Start collapsed by default</span>
         </div>
@@ -170,7 +176,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
       </div>
 
       <div className="flex flex-wrap items-center gap-3 pt-1">
-        <button type="button" disabled={saving} onClick={() => onSave({ enabled, radiusKm, maxEvents, stripDefaultFolded, stripAutoFoldSecs, ...(apiKey ? { apiKey } : {}) })}
+        <button type="button" disabled={saving} onClick={() => onSave({ enabled, radiusKm, maxEvents, stripDefaultFolded, stripAutoFoldSecs, showBookButton, ...(apiKey ? { apiKey } : {}) })}
           className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>

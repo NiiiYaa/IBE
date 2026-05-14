@@ -1209,6 +1209,7 @@ model SystemEventsConfig {
   maxEvents          Int      @default(10)
   stripDefaultFolded Boolean  @default(false)
   stripAutoFoldSecs  Int      @default(15)
+  showBookButton     Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -1224,6 +1225,7 @@ model OrgEventsConfig {
   systemServiceDisabled Boolean      @default(false)
   stripDefaultFolded    Boolean      @default(false)
   stripAutoFoldSecs     Int          @default(15)
+  showBookButton        Boolean      @default(true)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }
@@ -1613,6 +1615,7 @@ model SystemAmadeusConfig {
   stripMode           String   @default("separate")
   stripDefaultFolded  Boolean  @default(false)
   stripAutoFoldSecs   Int      @default(15)
+  showBookButton      Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -1632,6 +1635,7 @@ model OrgAmadeusConfig {
   stripMode             String       @default("separate")
   stripDefaultFolded    Boolean      @default(false)
   stripAutoFoldSecs     Int          @default(15)
+  showBookButton        Boolean      @default(true)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }

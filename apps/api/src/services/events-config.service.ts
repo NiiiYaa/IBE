@@ -10,6 +10,7 @@ function rowToResponse(row: {
   systemServiceDisabled?: boolean
   stripDefaultFolded?: boolean
   stripAutoFoldSecs?: number
+  showBookButton?: boolean
 } | null, hasOwnConfig = false): EventsConfigResponse {
   return {
     apiKeySet: !!row?.apiKey,
@@ -21,6 +22,7 @@ function rowToResponse(row: {
     hasOwnConfig,
     stripDefaultFolded: row?.stripDefaultFolded ?? false,
     stripAutoFoldSecs: row?.stripAutoFoldSecs ?? 15,
+    showBookButton: row?.showBookButton ?? true,
   }
 }
 
@@ -37,6 +39,7 @@ export async function upsertSystemEventsConfig(data: EventsConfigUpdate): Promis
   if (data.maxEvents !== undefined) update.maxEvents = data.maxEvents
   if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
   if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
+  if (data.showBookButton !== undefined) update.showBookButton = data.showBookButton
 
   const existing = await prisma.systemEventsConfig.findFirst()
   const row = existing
@@ -59,6 +62,7 @@ export async function upsertEventsConfig(orgId: number, data: EventsConfigUpdate
   if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
   if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
   if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
+  if (data.showBookButton !== undefined) update.showBookButton = data.showBookButton
 
   const row = await prisma.orgEventsConfig.upsert({
     where: { organizationId: orgId },
@@ -75,6 +79,7 @@ export interface ResolvedEventsConfig {
   maxEvents: number
   stripDefaultFolded: boolean
   stripAutoFoldSecs: number
+  showBookButton: boolean
 }
 
 export async function getResolvedEventsConfig(propertyId: number, fallbackOrgId?: number): Promise<ResolvedEventsConfig> {
@@ -86,7 +91,7 @@ export async function getResolvedEventsConfig(propertyId: number, fallbackOrgId?
   ])
 
   if (!orgRow?.apiKey && orgRow?.systemServiceDisabled) {
-    return { apiKey: null, enabled: false, radiusKm: 10, maxEvents: 10, stripDefaultFolded: false, stripAutoFoldSecs: 15 }
+    return { apiKey: null, enabled: false, radiusKm: 10, maxEvents: 10, stripDefaultFolded: false, stripAutoFoldSecs: 15, showBookButton: true }
   }
 
   const hasOwnKey = !!orgRow?.apiKey
@@ -99,5 +104,6 @@ export async function getResolvedEventsConfig(propertyId: number, fallbackOrgId?
     maxEvents: resolved?.maxEvents ?? 10,
     stripDefaultFolded: foldRow?.stripDefaultFolded ?? false,
     stripAutoFoldSecs: foldRow?.stripAutoFoldSecs ?? 15,
+    showBookButton: foldRow?.showBookButton ?? true,
   }
 }

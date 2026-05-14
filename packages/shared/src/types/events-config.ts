@@ -8,6 +8,7 @@ export interface EventsConfigResponse {
   hasOwnConfig: boolean
   stripDefaultFolded: boolean
   stripAutoFoldSecs: number
+  showBookButton: boolean
 }
 
 export interface EventsConfigUpdate {
@@ -18,4 +19,5 @@ export interface EventsConfigUpdate {
   systemServiceDisabled?: boolean
   stripDefaultFolded?: boolean
   stripAutoFoldSecs?: number
+  showBookButton?: boolean
 }

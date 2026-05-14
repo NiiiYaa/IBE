@@ -84,6 +84,7 @@ async function getAmadeusActivities(
       stripMode: cfg.stripMode,
       stripDefaultFolded: cfg.stripDefaultFolded,
       stripAutoFoldSecs: cfg.stripAutoFoldSecs,
+      showBookButton: cfg.showBookButton,
     }
   } catch (err) {
     logger.warn({ propertyId, err }, '[Amadeus] activities fetch failed')
@@ -207,6 +208,7 @@ async function fetchTicketmaster(
       events,
       stripDefaultFolded: cfg.stripDefaultFolded,
       stripAutoFoldSecs: cfg.stripAutoFoldSecs,
+      showBookButton: cfg.showBookButton,
     }
   } catch {
     return { enabled: false }

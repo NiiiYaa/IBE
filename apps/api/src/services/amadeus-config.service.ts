@@ -32,6 +32,7 @@ export async function getSystemAmadeusConfig(): Promise<AmadeusConfigResponse> {
     stripMode: (row?.stripMode ?? 'separate') as 'merged' | 'separate',
     stripDefaultFolded: row?.stripDefaultFolded ?? false,
     stripAutoFoldSecs: row?.stripAutoFoldSecs ?? 15,
+    showBookButton: row?.showBookButton ?? true,
   }
 }
 
@@ -47,6 +48,7 @@ export async function upsertSystemAmadeusConfig(data: AmadeusConfigUpdate): Prom
   if (data.stripMode !== undefined) update.stripMode = data.stripMode
   if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
   if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
+  if (data.showBookButton !== undefined) update.showBookButton = data.showBookButton
   if (data.tokenUrl !== undefined) update.tokenUrl = data.tokenUrl
   if (data.activitiesUrl !== undefined) update.activitiesUrl = data.activitiesUrl
 
@@ -82,6 +84,7 @@ export async function getOrgAmadeusConfig(orgId: number): Promise<AmadeusConfigR
     stripMode: ((row?.stripMode ?? sysRow?.stripMode ?? 'separate')) as 'merged' | 'separate',
     stripDefaultFolded: row?.stripDefaultFolded ?? sysRow?.stripDefaultFolded ?? false,
     stripAutoFoldSecs: row?.stripAutoFoldSecs ?? sysRow?.stripAutoFoldSecs ?? 15,
+    showBookButton: row?.showBookButton ?? sysRow?.showBookButton ?? true,
   }
 }
 
@@ -98,6 +101,7 @@ export async function upsertOrgAmadeusConfig(orgId: number, data: AmadeusConfigU
   if (data.stripMode !== undefined) update.stripMode = data.stripMode
   if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
   if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
+  if (data.showBookButton !== undefined) update.showBookButton = data.showBookButton
 
   await prisma.orgAmadeusConfig.upsert({
     where: { organizationId: orgId },
@@ -134,6 +138,7 @@ export async function getPropertyAmadeusConfig(propertyId: number): Promise<Amad
     stripMode: ((row?.stripMode ?? orgRow?.stripMode ?? sysRow?.stripMode ?? 'separate')) as 'merged' | 'separate',
     stripDefaultFolded: orgRow?.stripDefaultFolded ?? sysRow?.stripDefaultFolded ?? false,
     stripAutoFoldSecs: orgRow?.stripAutoFoldSecs ?? sysRow?.stripAutoFoldSecs ?? 15,
+    showBookButton: orgRow?.showBookButton ?? sysRow?.showBookButton ?? true,
   }
 }
 
@@ -174,6 +179,7 @@ export interface ResolvedAmadeusConfig {
   stripMode: 'merged' | 'separate'
   stripDefaultFolded: boolean
   stripAutoFoldSecs: number
+  showBookButton: boolean
 }
 
 export async function getResolvedAmadeusConfig(
@@ -224,6 +230,7 @@ export async function getResolvedAmadeusConfig(
     stripMode: ((propRow?.stripMode ?? orgRow?.stripMode ?? sysRow.stripMode)) as 'merged' | 'separate',
     stripDefaultFolded: orgRow?.stripDefaultFolded ?? sysRow.stripDefaultFolded,
     stripAutoFoldSecs: orgRow?.stripAutoFoldSecs ?? sysRow.stripAutoFoldSecs,
+    showBookButton: orgRow?.showBookButton ?? sysRow.showBookButton,
   }
 }
 
