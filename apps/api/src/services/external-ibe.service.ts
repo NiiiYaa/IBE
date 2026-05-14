@@ -153,7 +153,7 @@ export async function bulkMapExternalHotelIds(
   const erroredIds = new Set(errors.map(e => e.propertyId))
 
   const stillMissing = orgProperties
-    .filter(p => !configMap.get(p.propertyId) && !erroredIds.has(p.propertyId))
+    .filter(p => !configMap.has(p.propertyId) && !erroredIds.has(p.propertyId))
     .map(p => ({ propertyId: p.propertyId, name: p.name }))
 
   return { updated, errors, stillMissing }
