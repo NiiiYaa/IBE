@@ -63,6 +63,16 @@ describe('buildExternalUrl', () => {
       {},
     )).toBe('https://ext.com/{externalHotelId}/book')
   })
+
+  it('auto-derives checkInMs and checkOutMs from YYYY-MM-DD checkIn/checkOut', () => {
+    const result = buildExternalUrl(
+      'https://ext.com/book?checkin={checkInMs}&checkout={checkOutMs}&hotel={externalHotelId}',
+      { externalHotelId: '42', checkIn: '2024-06-01', checkOut: '2024-06-08' },
+    )
+    const expectedCheckInMs = new Date('2024-06-01T00:00:00').getTime()
+    const expectedCheckOutMs = new Date('2024-06-08T00:00:00').getTime()
+    expect(result).toBe(`https://ext.com/book?checkin=${expectedCheckInMs}&checkout=${expectedCheckOutMs}&hotel=42`)
+  })
 })
 
 // ── getEffectiveExternalIBEConfig ─────────────────────────────────────────

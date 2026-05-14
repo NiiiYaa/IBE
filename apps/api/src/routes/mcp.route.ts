@@ -177,9 +177,16 @@ const WIDGET_HTML = `<!DOCTYPE html>
     }
 
     function buildExternalUrl(template, params) {
+      var enriched = Object.assign({}, params)
+      if (typeof params.checkIn === 'string' && params.checkIn) {
+        enriched.checkInMs = new Date(params.checkIn + 'T00:00:00').getTime()
+      }
+      if (typeof params.checkOut === 'string' && params.checkOut) {
+        enriched.checkOutMs = new Date(params.checkOut + 'T00:00:00').getTime()
+      }
       var result = template
-      for (var key in params) {
-        var val = params[key]
+      for (var key in enriched) {
+        var val = enriched[key]
         if (val !== null && val !== undefined) {
           result = result.split('{' + key + '}').join(String(val))
         }

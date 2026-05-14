@@ -16,8 +16,15 @@ export function buildExternalUrl(
   template: string,
   params: Record<string, string | number | null | undefined>,
 ): string {
+  const enriched: Record<string, string | number | null | undefined> = { ...params }
+  if (typeof params.checkIn === 'string' && params.checkIn) {
+    enriched.checkInMs = new Date(params.checkIn + 'T00:00:00').getTime()
+  }
+  if (typeof params.checkOut === 'string' && params.checkOut) {
+    enriched.checkOutMs = new Date(params.checkOut + 'T00:00:00').getTime()
+  }
   let result = template
-  for (const [key, val] of Object.entries(params)) {
+  for (const [key, val] of Object.entries(enriched)) {
     if (val !== null && val !== undefined) {
       result = result.replaceAll(`{${key}}`, String(val))
     }
@@ -242,6 +249,8 @@ const PLACEHOLDER_VOCABULARY = [
   'hotelId — HyperGuest internal property ID',
   'checkIn — Arrival date (YYYY-MM-DD)',
   'checkOut — Departure date (YYYY-MM-DD)',
+  'checkInMs — Arrival date as Unix milliseconds (use when the IBE expects epoch timestamps instead of YYYY-MM-DD)',
+  'checkOutMs — Departure date as Unix milliseconds (use when the IBE expects epoch timestamps instead of YYYY-MM-DD)',
   'adults — Adult guest count',
   'rooms — Room count',
   'nationality — Guest nationality (ISO 2-letter code)',

@@ -63,6 +63,33 @@ const registry: KnownIBEEntry[] = [
     bookingTemplate: 'https://direct-book.com/properties/{externalHotelId}/book?locale=en&checkInDate={checkIn}&checkOutDate={checkOut}&items[0][adults]={adults}&items[0][children]=0&items[0][infants]=0&items[0][rateId]={solutionId}&currency={currency}&trackPage=yes&selected=0&step=step1',
   },
   {
+    // BookingExpert — Italian IBE, also white-labeled on custom domains.
+    // Detected by param fingerprint (layout+winding+isnewsearch+step path) so it works on any domain.
+    // Guest-type ID varies per hotel (embedded in guesttypes[0][ID] param) — captured at detection time.
+    // Dates are Unix ms timestamps. Booking requires server-side session after room selection → noScraping.
+    name: 'BookingExpert',
+    domainPattern: /^https?:\/\/be\.bookingexpert\.it\//,
+    paramFingerprint(p, url) {
+      return p.has('layout') && p.has('winding') && p.has('isnewsearch') && /\/book\/simple\/step\d/.test(url)
+    },
+    extractHotelId(_url, p) {
+      return p.get('layout')
+    },
+    searchTemplate(url) {
+      const origin = new URL(url).origin
+      const guestTypeId = url.match(/guesttypes\[0\]\[(\d+)\]/)?.[1] ?? ''
+      const guestParam = guestTypeId ? `guesttypes[0][${guestTypeId}]={adults}&` : ''
+      return `${origin}/book/simple/step2?checkin={checkInMs}&checkout={checkOutMs}&${guestParam}layout={externalHotelId}&lang=en&currency={currency}&beginsearch=1&isnewsearch=1`
+    },
+    bookingTemplate(url) {
+      const origin = new URL(url).origin
+      const guestTypeId = url.match(/guesttypes\[0\]\[(\d+)\]/)?.[1] ?? ''
+      const guestParam = guestTypeId ? `guesttypes[0][${guestTypeId}]={adults}&` : ''
+      return `${origin}/book/simple/step2?checkin={checkInMs}&checkout={checkOutMs}&${guestParam}layout={externalHotelId}&lang=en&currency={currency}&beginsearch=1&isnewsearch=1`
+    },
+    noScraping: true,
+  },
+  {
     // Sabre SynXis — heavily white-labeled; detected by param fingerprint regardless of domain.
     // sbe_rc is SynXis-specific (base64 UUID session token).
     // For search pages without sbe_rc: chain+hotel+arrive+depart together are unique to SynXis.
