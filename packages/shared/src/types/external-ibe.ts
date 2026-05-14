@@ -10,6 +10,9 @@ export interface ExternalIBEConfigRow {
   mcpEnabled: boolean
   affiliateEnabled: boolean
   widgetEnabled: boolean
+  mcpSkip2Step: boolean
+  affiliateSkip2Step: boolean
+  widgetSkip2Step: boolean
   createdAt: string
   updatedAt: string
 }
@@ -23,6 +26,9 @@ export interface ExternalIBEConfigUpdate {
   mcpEnabled?: boolean
   affiliateEnabled?: boolean
   widgetEnabled?: boolean
+  mcpSkip2Step?: boolean
+  affiliateSkip2Step?: boolean
+  widgetSkip2Step?: boolean
 }
 
 export interface ExternalIBEAnalyzeRequest {
@@ -50,6 +56,9 @@ export interface EffectiveExternalIBEConfig {
   mcpEnabled: boolean
   affiliateEnabled: boolean
   widgetEnabled: boolean
+  mcpSkip2Step: boolean
+  affiliateSkip2Step: boolean
+  widgetSkip2Step: boolean
 }
 
 export interface ExternalIBETestResultItem {
@@ -91,4 +100,15 @@ export interface ExternalIBEResolveRequest {
 export interface ExternalIBEResolveResponse {
   bookingUrl: string
   fallback: boolean // true when solutionId could not be resolved; URL is the search URL
+}
+
+export interface ExternalIBEBulkMapRequest {
+  orgId: number
+  mappings: { propertyId: number; externalHotelId: string }[]
+}
+
+export interface ExternalIBEBulkMapResponse {
+  updated: number
+  errors: { propertyId: number; message: string }[]
+  stillMissing: { propertyId: number; name: string }[]
 }
