@@ -585,7 +585,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'search_availability',
-    description: 'Search for available rooms at a hotel for given dates and guests. For chain connections you must supply propertyId (use list_properties to discover IDs). After calling this, present all rooms and rates to the user and wait for them to select a specific room before proceeding.',
+    description: 'Search for available rooms at a hotel for given dates and guests. For chain connections you must supply propertyId (use list_properties to discover IDs). STOP after calling this — present all rooms and rates to the user, then explicitly ask which room and rate they want. Do NOT call create_booking_link until the user has answered.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -622,7 +622,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'create_booking_link',
-    description: 'Generate a direct booking URL for the guest to complete payment on the hotel website. Only call this AFTER the user has explicitly selected a specific room type and rate plan from the search_availability results. Never call this speculatively, alongside search_availability, or before the user makes a selection.',
+    description: 'Generate a direct booking URL for the guest to complete payment on the hotel website. ONLY call this after the user has explicitly named which room they want to book. roomId and ratePlanId MUST come from the user\'s selection — never infer or assume them from search results. Never call this in the same turn as search_availability.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -867,7 +867,12 @@ async function handleToolCall(
           boardType: r.boardLabel,
         })),
       }))
-      const structuredContent = { searchId: results.searchId, rooms: summary, currency: results.currency }
+      const structuredContent = {
+        searchId: results.searchId,
+        rooms: summary,
+        currency: results.currency,
+        _nextStep: 'Present these room options to the user. Ask which room and rate they want to book. Do NOT call create_booking_link until the user explicitly selects a room.',
+      }
 
       // Fetch external IBE config for the widget booking URL
       let externalIBEConfig: {
