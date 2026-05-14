@@ -585,7 +585,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'search_availability',
-    description: 'Search for available rooms at a hotel for given dates and guests. For chain connections you must supply propertyId (use list_properties to discover IDs).',
+    description: 'Search for available rooms at a hotel for given dates and guests. For chain connections you must supply propertyId (use list_properties to discover IDs). After calling this, present all rooms and rates to the user and wait for them to select a specific room before proceeding.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -622,7 +622,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'create_booking_link',
-    description: 'Generate a direct booking URL for the guest to complete payment on the hotel website.',
+    description: 'Generate a direct booking URL for the guest to complete payment on the hotel website. Only call this AFTER the user has explicitly selected a specific room type and rate plan from the search_availability results. Never call this speculatively, alongside search_availability, or before the user makes a selection.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -631,8 +631,9 @@ const MCP_TOOLS = [
         checkOut:   { type: 'string',  description: 'Check-out date (YYYY-MM-DD)' },
         adults:     { type: 'integer', description: 'Number of adults', default: 2 },
         children:   { type: 'integer', description: 'Number of children', default: 0 },
-        roomId:     { type: 'integer', description: 'Room ID to pre-select (optional)' },
-        ratePlanId: { type: 'integer', description: 'Rate plan ID to pre-select (optional)' },
+        roomId:     { type: 'integer', description: 'Room ID to pre-select — from search_availability results' },
+        ratePlanId: { type: 'integer', description: 'Rate plan ID to pre-select — from search_availability results' },
+        roomName:   { type: 'string',  description: 'Room name as returned by search_availability — used to match the correct offer on 2-stage external booking engines' },
         searchId:   { type: 'string',  description: 'Search ID from search_availability (optional)' },
       },
       required: ['propertyId', 'checkIn', 'checkOut'],
@@ -941,6 +942,7 @@ async function handleToolCall(
     const children   = (args['children']   as number | undefined) ?? 0
     const roomId     = args['roomId']     as number | undefined
     const ratePlanId = args['ratePlanId'] as number | undefined
+    const roomName   = args['roomName']   as string | undefined
     const searchId   = args['searchId']   as string | undefined
 
     // Try external IBE first
@@ -950,7 +952,7 @@ async function handleToolCall(
       if (extConfig?.mcpEnabled && extConfig.bookingTemplate) {
         const needsSolutionId = extConfig.bookingTemplate.includes('{solutionId}')
 
-        if (needsSolutionId && extConfig.searchTemplate) {
+        if (needsSolutionId && extConfig.searchTemplate && !extConfig.mcpSkip2Step) {
           const guests = Array(adults).fill('A').join(',')
           const searchUrl = buildExternalUrl(extConfig.searchTemplate, {
             hotelId:         pid,
@@ -970,8 +972,21 @@ async function handleToolCall(
             checkIn,
             checkOut,
             adults,
+            ...(roomName ? { roomName } : {}),
           })
           url = resolved.bookingUrl
+        } else if (needsSolutionId && extConfig.searchTemplate && extConfig.mcpSkip2Step) {
+          url = buildExternalUrl(extConfig.searchTemplate, {
+            hotelId:         pid,
+            externalHotelId: extConfig.externalHotelId,
+            checkIn,
+            checkOut,
+            adults,
+            guests:          Array(adults).fill('A').join(','),
+            rooms:           1,
+            nationality:     null,
+            currency:        null,
+          })
         } else {
           url = buildExternalUrl(extConfig.bookingTemplate, {
             hotelId:         pid,
