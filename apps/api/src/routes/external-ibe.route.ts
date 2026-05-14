@@ -7,9 +7,10 @@ import {
   analyzeExternalIBEUrls,
   getEffectiveExternalIBEConfig,
   buildExternalUrl,
+  bulkMapExternalHotelIds,
 } from '../services/external-ibe.service.js'
 import { resolveExternalBookingUrl } from '../services/external-ibe-scraper.service.js'
-import type { ExternalIBEConfigUpdate, ExternalIBEAnalyzeRequest, ExternalIBETestResultItem } from '@ibe/shared'
+import type { ExternalIBEConfigUpdate, ExternalIBEAnalyzeRequest, ExternalIBETestResultItem, ExternalIBEBulkMapRequest } from '@ibe/shared'
 
 function parseScope(
   query: Record<string, string>,
@@ -174,6 +175,21 @@ export async function externalIBERoutes(fastify: FastifyInstance) {
     } catch {
       return reply.status(404).send({ error: 'Config not found' })
     }
+  })
+
+  fastify.post('/admin/external-ibe/bulk-map', async (request, reply) => {
+    const { orgId, mappings } = request.body as ExternalIBEBulkMapRequest
+
+    if (!orgId || !Array.isArray(mappings)) {
+      return reply.status(400).send({ error: 'orgId and mappings are required' })
+    }
+
+    const admin = request.admin
+    if (admin.role !== 'super' && admin.organizationId !== orgId) {
+      return reply.status(403).send({ error: 'Forbidden' })
+    }
+
+    return reply.send(await bulkMapExternalHotelIds(orgId, mappings))
   })
 
   // ── POST /admin/external-ibe/test ─────────────────────────────────────────
