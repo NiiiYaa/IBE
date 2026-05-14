@@ -90,28 +90,15 @@ const registry: KnownIBEEntry[] = [
     noScraping: true,
   },
   {
-    // Falkensteiner — chain's own website. Hotel slug is in the URL path.
-    // ratePlanId and theme_code may vary per hotel → captured at detection time.
-    // Checkout URL has no params (server session) → noScraping. Dates are MM/DD/YYYY.
+    // Falkensteiner — chain's own website. Hotel slug is the path segment before /book/.
+    // ratePlanId is a pre-filter (not required). Dates are MM/DD/YYYY. noScraping (session-based checkout).
     name: 'Falkensteiner',
     domainPattern: /^https?:\/\/(?:www\.)?falkensteiner\.com\//,
     extractHotelId(url) {
       return url.match(/\/en\/([^/]+)\/book\//)?.[1] ?? null
     },
-    searchTemplate(url) {
-      const p = safeParams(url)
-      const ratePlanId = p?.get('ratePlanId') ?? ''
-      const themeCode = p?.get('theme_code') ?? '000000'
-      const ratePlan = ratePlanId ? `&ratePlanId=${ratePlanId}` : ''
-      return `https://www.falkensteiner.com/en/{externalHotelId}/book/accommodations?adults={adults}&children=0&children2=0&currency={currency}&dateIn={checkInMDY}&dateOut={checkOutMDY}&domain=search.falkensteiner.com&languageId=1&portal=FHG${ratePlan}&rooms=1&theme_code=${themeCode}`
-    },
-    bookingTemplate(url) {
-      const p = safeParams(url)
-      const ratePlanId = p?.get('ratePlanId') ?? ''
-      const themeCode = p?.get('theme_code') ?? '000000'
-      const ratePlan = ratePlanId ? `&ratePlanId=${ratePlanId}` : ''
-      return `https://www.falkensteiner.com/en/{externalHotelId}/book/accommodations?adults={adults}&children=0&children2=0&currency={currency}&dateIn={checkInMDY}&dateOut={checkOutMDY}&domain=search.falkensteiner.com&languageId=1&portal=FHG${ratePlan}&rooms=1&theme_code=${themeCode}`
-    },
+    searchTemplate: 'https://www.falkensteiner.com/en/{externalHotelId}/book/accommodations?adults={adults}&children=0&children2=0&currency={currency}&dateIn={checkInMDY}&dateOut={checkOutMDY}&domain=search.falkensteiner.com&languageId=1&portal=FHG&rooms=1&theme_code=000000',
+    bookingTemplate: 'https://www.falkensteiner.com/en/{externalHotelId}/book/accommodations?adults={adults}&children=0&children2=0&currency={currency}&dateIn={checkInMDY}&dateOut={checkOutMDY}&domain=search.falkensteiner.com&languageId=1&portal=FHG&rooms=1&theme_code=000000',
     noScraping: true,
   },
   {
