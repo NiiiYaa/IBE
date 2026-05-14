@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import { ZohoForm } from '../hyperguest-landing/ZohoForm'
 
 interface Feature {
   id: string
@@ -317,6 +318,7 @@ function GreenCheck() {
 }
 
 export function PricingCalculator() {
+  const [formOpen, setFormOpen] = useState(false)
   const [type, setType] = useState<'independent' | 'chain'>('independent')
   const [hotelCount, setHotelCount] = useState(1)
   const [overTwoHundred, setOverTwoHundred] = useState(false)
@@ -326,6 +328,17 @@ export function PricingCalculator() {
   const [engagement, setEngagement] = useState<Engagement>('monthly')
   const [currency, setCurrency] = useState<Currency>('USD')
   const [model, setModel] = useState<'fix' | 'percent' | 'hybrid'>('fix')
+
+  useEffect(() => {
+    if (!formOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setFormOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [formOpen])
+
+  useEffect(() => {
+    document.body.style.overflow = formOpen ? 'hidden' : ''
+  }, [formOpen])
 
   const sym = CURRENCY_SYMBOLS[currency]
 
@@ -621,10 +634,10 @@ export function PricingCalculator() {
                     )}
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
-                    <button className="bg-blue-500 text-white text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-blue-600 transition-colors">
+                    <button onClick={() => setFormOpen(true)} className="bg-blue-500 text-white text-sm font-semibold px-6 py-2.5 rounded-xl hover:bg-blue-600 transition-colors">
                       Get started
                     </button>
-                    <button className="text-gray-600 text-sm font-medium px-6 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+                    <button onClick={() => setFormOpen(true)} className="text-gray-600 text-sm font-medium px-6 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
                       Contact sales
                     </button>
                   </div>
@@ -692,6 +705,36 @@ export function PricingCalculator() {
       <footer className="mt-auto border-t border-gray-100 bg-white px-6 py-8 text-center text-xs text-gray-400">
         © {new Date().getFullYear()} HyperGuest. All rights reserved.
       </footer>
+
+      <div
+        className={[
+          'fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200',
+          formOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
+        ].join(' ')}
+        aria-hidden={!formOpen}
+        onClick={() => setFormOpen(false)}
+      >
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Get in touch</h2>
+            <button
+              type="button"
+              onClick={() => setFormOpen(false)}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Close"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <ZohoForm />
+        </div>
+      </div>
     </div>
   )
 }
