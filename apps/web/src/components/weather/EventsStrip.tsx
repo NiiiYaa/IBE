@@ -244,44 +244,46 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
     </svg>
   )
 
-  // Merged mode: one strip with both events and activities interleaved by date
+  const activityIcon = (
+    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" strokeWidth={2} />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
+    </svg>
+  )
+
+  // Merged mode: one strip alternating TM / Amadeus cards
   if (stripMode === 'merged' && (tmDismissed === false || amDismissed === false)) {
     if (tmDismissed && amDismissed) return null
 
     type MergedItem =
-      | { kind: 'event'; date: string | null; item: typeof tmEvents[number] }
-      | { kind: 'activity'; date: string | null; item: AmadeusActivity }
+      | { kind: 'event'; item: typeof tmEvents[number] }
+      | { kind: 'activity'; item: AmadeusActivity }
 
-    const mergedItems: MergedItem[] = [
-      ...(tmEnabled ? tmEvents.map(e => ({ kind: 'event' as const, date: e.date, item: e })) : []),
-      ...(amEnabled ? amActivities.map(a => ({ kind: 'activity' as const, date: null, item: a })) : []),
-    ].sort((a, b) => {
-      if (!a.date && !b.date) return 0
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return a.date.localeCompare(b.date)
-    })
+    const tmItems = tmEnabled ? tmEvents.map(e => ({ kind: 'event' as const, item: e })) : []
+    const amItems = amEnabled ? amActivities.map(a => ({ kind: 'activity' as const, item: a })) : []
+    const maxLen = Math.max(tmItems.length, amItems.length)
+    const mergedItems: MergedItem[] = []
+    for (let i = 0; i < maxLen; i++) {
+      if (i < tmItems.length) mergedItems.push(tmItems[i]!)
+      if (i < amItems.length) mergedItems.push(amItems[i]!)
+    }
 
-    const mergedLabel = data.amadeus?.stripLabel ?? t('eventsNearby')
+    const mergedLabel = data.amadeus?.stripLabel ?? t('activitiesAndTours')
 
     return (
       <StripSection
         label={mergedLabel}
-        icon={ticketIcon}
+        icon={activityIcon}
         hasItems={mergedItems.length > 0}
         {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
         {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}
         onDismiss={() => { setTmDismissed(true); setAmDismissed(true) }}
       >
-        {mergedItems.map((item, i) => {
-          if (item.kind === 'event') {
-            return (
-              <TicketmasterEventCard key={`event-${i}`} event={item.item} locale={locale} showBookButton={tmShowBook} />
-            )
-          } else {
-            return <ActivityCard key={`activity-${i}`} activity={item.item} showBookButton={amShowBook} />
-          }
-        })}
+        {mergedItems.map((item, i) =>
+          item.kind === 'event'
+            ? <TicketmasterEventCard key={`event-${i}`} event={item.item} locale={locale} showBookButton={tmShowBook} />
+            : <ActivityCard key={`activity-${i}`} activity={item.item} showBookButton={amShowBook} />
+        )}
       </StripSection>
     )
   }
@@ -313,7 +315,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
 
       {amEnabled && !amDismissed && (
         <StripSection
-          label={data.amadeus?.stripLabel ?? t('eventsNearby')}
+          label={data.amadeus?.stripLabel ?? t('activitiesAndTours')}
+          icon={activityIcon}
           hasItems={amActivities.length > 0}
           {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
           {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}

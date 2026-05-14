@@ -476,6 +476,7 @@
   },
   "events": {
     "eventsNearby": "Events nearby during your stay",
+    "activitiesAndTours": "Activities & Tours",
     "withinKm": "within {count} km",
     "noEventsFound": "No events found for these dates",
     "getTickets": "Get tickets →",
