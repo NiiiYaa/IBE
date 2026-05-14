@@ -1665,9 +1665,12 @@ model ExternalIBEConfig {
   bookingSampleUrls Json          @default("[]")  // string[] of sample booking URLs
   externalHotelId  String?
 
-  mcpEnabled       Boolean       @default(false)
-  affiliateEnabled Boolean       @default(false)
-  widgetEnabled    Boolean       @default(false)
+  mcpEnabled          Boolean       @default(false)
+  affiliateEnabled    Boolean       @default(false)
+  widgetEnabled       Boolean       @default(false)
+  mcpSkip2Step        Boolean       @default(false)
+  affiliateSkip2Step  Boolean       @default(false)
+  widgetSkip2Step     Boolean       @default(false)
 
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
