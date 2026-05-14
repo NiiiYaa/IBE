@@ -10,6 +10,7 @@ import { GuestsDropdown } from '@/components/search/GuestsDropdown'
 import type { GuestRoom } from '@/components/search/GuestsDropdown'
 import type { ExternalIBEConfigRow, ExternalIBEAnalyzeResponse, ExternalIBEConfigUpdate, ExternalIBETestResponse, ExternalIBETestResultItem, ExternalIBETestStreamEvent } from '@ibe/shared'
 import { detectKnownIBE, type KnownIBEDetection } from '@ibe/shared'
+import * as XLSX from 'xlsx'
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -142,28 +143,46 @@ function AnalysisSection({
   )
 }
 
+type ChannelKey = 'mcpEnabled' | 'affiliateEnabled' | 'widgetEnabled' | 'mcpSkip2Step' | 'affiliateSkip2Step' | 'widgetSkip2Step'
+
 function ChannelToggles({
-  mcp, affiliate, widget, disabled,
+  mcp, affiliate, widget, disabled, hasScraping,
+  mcpSkip2Step, affiliateSkip2Step, widgetSkip2Step,
   onChange,
 }: {
   mcp: boolean; affiliate: boolean; widget: boolean
+  mcpSkip2Step: boolean; affiliateSkip2Step: boolean; widgetSkip2Step: boolean
   disabled: boolean
-  onChange: (key: 'mcpEnabled' | 'affiliateEnabled' | 'widgetEnabled', v: boolean) => void
+  hasScraping: boolean
+  onChange: (key: ChannelKey, v: boolean) => void
 }) {
+  const channels = [
+    { enabledKey: 'mcpEnabled' as const, skip2StepKey: 'mcpSkip2Step' as const, label: 'MCP', enabled: mcp, skip2Step: mcpSkip2Step },
+    { enabledKey: 'affiliateEnabled' as const, skip2StepKey: 'affiliateSkip2Step' as const, label: 'Affiliate', enabled: affiliate, skip2Step: affiliateSkip2Step },
+    { enabledKey: 'widgetEnabled' as const, skip2StepKey: 'widgetSkip2Step' as const, label: 'Widget', enabled: widget, skip2Step: widgetSkip2Step },
+  ]
+
   return (
-    <div className="space-y-3">
-      {([
-        ['mcpEnabled', 'MCP', mcp],
-        ['affiliateEnabled', 'Affiliate', affiliate],
-        ['widgetEnabled', 'Widget', widget],
-      ] as const).map(([key, lbl, val]) => (
-        <div key={key} className="flex items-center justify-between">
-          <span className={`text-sm ${disabled ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}>{lbl}</span>
-          <Toggle checked={val} onChange={v => !disabled && onChange(key, v)} />
+    <div>
+      {channels.map((ch, i) => (
+        <div key={ch.enabledKey}>
+          {i > 0 && <div className="border-t border-[var(--color-border)] my-3" />}
+          <div className="flex items-center justify-between">
+            <span className={`text-sm ${disabled ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]'}`}>{ch.label}</span>
+            <Toggle checked={ch.enabled} onChange={v => !disabled && onChange(ch.enabledKey, v)} />
+          </div>
+          {hasScraping && (
+            <div className="flex items-center justify-between mt-2">
+              <span className={`text-xs ${disabled ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)]'}`}>
+                {ch.skip2Step ? 'Search URL only (skip scraping)' : '2-step (search → scrape → book)'}
+              </span>
+              <Toggle checked={!ch.skip2Step} onChange={v => !disabled && onChange(ch.skip2StepKey, !v)} />
+            </div>
+          )}
         </div>
       ))}
       {disabled && (
-        <p className="text-xs text-[var(--color-text-muted)]">Save at least one template to enable channel toggles.</p>
+        <p className="text-xs text-[var(--color-text-muted)] mt-3">Save at least one template to enable channel toggles.</p>
       )}
     </div>
   )
@@ -576,9 +595,9 @@ function TestSection({
 }
 
 const SEARCH_SCENARIOS = [
-  { label: '2 adults, 3 nights',                 hint: 'e.g. adults=2 and a 3-night stay' },
-  { label: '1 adult, 5 nights',                  hint: 'e.g. adults=1 and a 5-night stay' },
-  { label: '2 adults, 2 children (ages 6 & 11)', hint: 'e.g. adults=2, children=2, ages 6 and 11' },
+  { label: '2 adults, 3 nights',                          hint: 'e.g. adults=2 and a 3-night stay',                              tip: undefined },
+  { label: '1 adult, 5 nights',                           hint: 'e.g. adults=1 and a 5-night stay',                              tip: 'If possible, change the language in the IBE before copying this URL' },
+  { label: '2 adults, 2 children (ages 6 & 11), 1 night', hint: 'e.g. adults=2, children=2, ages 6 and 11, 1-night stay',       tip: 'If possible, change the currency in the IBE before copying this URL' },
 ]
 
 function SearchAnalysisSection({
@@ -620,6 +639,9 @@ function SearchAnalysisSection({
           <label className="block text-xs font-medium text-[var(--color-text-muted)]">
             {scenario.label}
           </label>
+          {scenario.tip && (
+            <p className="text-xs text-[var(--color-text-muted)] italic">{scenario.tip}</p>
+          )}
           <input
             type="text"
             value={urls[i]}
@@ -662,6 +684,153 @@ function SearchAnalysisSection({
   )
 }
 
+function BulkMappingUpload({ orgId }: { orgId: number }) {
+  const [result, setResult] = useState<{
+    updated: number
+    errors: { propertyId: number; message: string }[]
+    stillMissing: { propertyId: number; name: string }[]
+  } | null>(null)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function parseExcel(file: File): Promise<{ propertyId: number; externalHotelId: string }[]> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target!.result as ArrayBuffer)
+          const workbook = XLSX.read(data, { type: 'array' })
+          const sheet = workbook.Sheets[workbook.SheetNames[0]!]!
+          const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+
+          if (rows.length === 0) { reject(new Error('File is empty')); return }
+
+          const sampleRow = rows[0]!
+          const keys = Object.keys(sampleRow)
+          const propKey = keys.find(k => k.toLowerCase().replace(/\s+/g, ' ').trim() === 'property id')
+          const extKey  = keys.find(k => k.toLowerCase().replace(/\s+/g, ' ').trim() === 'external ibe id')
+
+          if (!propKey) { reject(new Error('Missing required column: Property ID')); return }
+          if (!extKey)  { reject(new Error('Missing required column: External IBE ID')); return }
+
+          const mappings: { propertyId: number; externalHotelId: string }[] = []
+          const errors: string[] = []
+
+          rows.forEach((row, i) => {
+            const rawId = row[propKey]
+            const rawExt = String(row[extKey] ?? '').trim()
+            if (!rawExt) return
+            const propertyId = parseInt(String(rawId), 10)
+            if (isNaN(propertyId) || propertyId <= 0) {
+              errors.push(`Row ${i + 2}: Property ID "${rawId}" is not a valid number`)
+              return
+            }
+            mappings.push({ propertyId, externalHotelId: rawExt })
+          })
+
+          if (errors.length > 0) { reject(new Error(errors.join('\n'))); return }
+          resolve(mappings)
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error('Failed to parse file'))
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setParseError(null)
+    setResult(null)
+    setLoading(true)
+
+    try {
+      const mappings = await parseExcel(file)
+      const res = await apiClient.bulkMapExternalIBE({ orgId, mappings })
+      setResult(res)
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : 'Failed to process file')
+    } finally {
+      setLoading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <h3 className="text-sm font-semibold text-[var(--color-text)]">Bulk Hotel ID Mapping</h3>
+      <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+        Upload an Excel file (.xlsx or .xls) with a header row containing at minimum two columns:{' '}
+        <strong className="text-[var(--color-text)]">Property ID</strong> (HyperGuest numeric property ID) and{' '}
+        <strong className="text-[var(--color-text)]">External IBE ID</strong>. A Hotel Name column is accepted but ignored.
+        Each data row maps one hotel. Blank External IBE ID rows are skipped.
+      </p>
+      <div>
+        <label className={[
+          'inline-flex items-center gap-2 cursor-pointer rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-bg)] transition-colors',
+          loading ? 'opacity-50 pointer-events-none' : '',
+        ].join(' ')}>
+          <svg className="h-4 w-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          {loading ? 'Uploading…' : 'Choose file'}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="sr-only"
+            onChange={handleFile}
+            disabled={loading}
+          />
+        </label>
+      </div>
+
+      {parseError && (
+        <div className="rounded-lg border border-error/30 bg-error/5 px-4 py-3">
+          <p className="text-xs font-medium text-error whitespace-pre-line">{parseError}</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-success">Updated {result.updated} hotel{result.updated !== 1 ? 's' : ''}</p>
+
+          {result.errors.length > 0 && (
+            <div className="rounded-lg border border-error/30 bg-error/5 px-4 py-3 space-y-1">
+              <p className="text-xs font-semibold text-error mb-1">Errors</p>
+              {result.errors.map(e => (
+                <p key={e.propertyId} className="text-xs text-error">
+                  Property {e.propertyId}: {e.message}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {result.stillMissing.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+              <p className="text-xs font-semibold text-amber-800 mb-1">
+                Still missing External IBE ID ({result.stillMissing.length})
+              </p>
+              {result.stillMissing.map(h => (
+                <p key={h.propertyId} className="text-xs text-amber-700">
+                  {h.name} <span className="font-mono text-amber-600">(#{h.propertyId})</span>
+                </p>
+              ))}
+            </div>
+          )}
+
+          {result.stillMissing.length === 0 && result.errors.length === 0 && (
+            <p className="text-xs text-success">All hotels in the chain have an External IBE ID.</p>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function FullTemplateUI({
   existing,
   scope,
@@ -681,6 +850,9 @@ function FullTemplateUI({
   const [mcpEnabled, setMcpEnabled] = useState(existing?.mcpEnabled ?? false)
   const [affiliateEnabled, setAffiliateEnabled] = useState(existing?.affiliateEnabled ?? false)
   const [widgetEnabled, setWidgetEnabled] = useState(existing?.widgetEnabled ?? false)
+  const [mcpSkip2Step, setMcpSkip2Step] = useState(existing?.mcpSkip2Step ?? false)
+  const [affiliateSkip2Step, setAffiliateSkip2Step] = useState(existing?.affiliateSkip2Step ?? false)
+  const [widgetSkip2Step, setWidgetSkip2Step] = useState(existing?.widgetSkip2Step ?? false)
   const [deleteSearchConfirm, setDeleteSearchConfirm] = useState(false)
   const [deleteBookingConfirm, setDeleteBookingConfirm] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -731,7 +903,7 @@ function FullTemplateUI({
   })
 
   const saveTogglesMutation = useMutation({
-    mutationFn: () => apiClient.upsertExternalIBEConfig({ mcpEnabled, affiliateEnabled, widgetEnabled }, scope),
+    mutationFn: () => apiClient.upsertExternalIBEConfig({ mcpEnabled, affiliateEnabled, widgetEnabled, mcpSkip2Step, affiliateSkip2Step, widgetSkip2Step }, scope),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
   })
 
@@ -879,16 +1051,23 @@ function FullTemplateUI({
       </section>
 
       <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--color-text)]">Channel toggles</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Channels</h3>
         <ChannelToggles
           mcp={mcpEnabled}
           affiliate={affiliateEnabled}
           widget={widgetEnabled}
+          mcpSkip2Step={mcpSkip2Step}
+          affiliateSkip2Step={affiliateSkip2Step}
+          widgetSkip2Step={widgetSkip2Step}
           disabled={!hasTemplates}
+          hasScraping={!!(existing?.bookingTemplate?.includes('{solutionId}') && existing?.searchTemplate)}
           onChange={(k, v) => {
             if (k === 'mcpEnabled') setMcpEnabled(v)
             else if (k === 'affiliateEnabled') setAffiliateEnabled(v)
-            else setWidgetEnabled(v)
+            else if (k === 'widgetEnabled') setWidgetEnabled(v)
+            else if (k === 'mcpSkip2Step') setMcpSkip2Step(v)
+            else if (k === 'affiliateSkip2Step') setAffiliateSkip2Step(v)
+            else setWidgetSkip2Step(v)
           }}
         />
         <div className="flex items-center gap-3">
@@ -939,6 +1118,10 @@ function FullTemplateUI({
           hasScraping={!!(existing?.bookingTemplate?.includes('{solutionId}') && existing?.searchTemplate)}
         />
       )}
+
+      {scope.orgId !== undefined && scope.propertyId === undefined && (
+        <BulkMappingUpload orgId={scope.orgId} />
+      )}
     </div>
   )
 }
@@ -964,11 +1147,9 @@ function SimplifiedHotelUI({
   const [mcpEnabled, setMcpEnabled] = useState(hotelExisting?.mcpEnabled ?? chainConfig.mcpEnabled)
   const [affiliateEnabled, setAffiliateEnabled] = useState(hotelExisting?.affiliateEnabled ?? chainConfig.affiliateEnabled)
   const [widgetEnabled, setWidgetEnabled] = useState(hotelExisting?.widgetEnabled ?? chainConfig.widgetEnabled)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [searchResult, setSearchResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
-  const [bookingResult, setBookingResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
-  const [advSearchUrls, setAdvSearchUrls] = useState<[string, string, string]>(['', '', ''])
-  const [advBookingUrls, setAdvBookingUrls] = useState('')
+  const [mcpSkip2Step, setMcpSkip2Step] = useState(hotelExisting?.mcpSkip2Step ?? chainConfig.mcpSkip2Step)
+  const [affiliateSkip2Step, setAffiliateSkip2Step] = useState(hotelExisting?.affiliateSkip2Step ?? chainConfig.affiliateSkip2Step)
+  const [widgetSkip2Step, setWidgetSkip2Step] = useState(hotelExisting?.widgetSkip2Step ?? chainConfig.widgetSkip2Step)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [recognizedIBE, setRecognizedIBE] = useState<string | null>(null)
 
@@ -990,16 +1171,8 @@ function SimplifiedHotelUI({
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const data: ExternalIBEConfigUpdate = { mcpEnabled, affiliateEnabled, widgetEnabled }
+      const data: ExternalIBEConfigUpdate = { mcpEnabled, affiliateEnabled, widgetEnabled, mcpSkip2Step, affiliateSkip2Step, widgetSkip2Step }
       if (detectedId) data.externalHotelId = detectedId
-      if (searchResult) {
-        data.searchTemplate = searchResult.template
-        data.searchSampleUrls = advSearchUrls.filter(u => u.trim())
-      }
-      if (bookingResult) {
-        data.bookingTemplate = bookingResult.template
-        data.bookingSampleUrls = advBookingUrls.split('\n').map(u => u.trim()).filter(Boolean)
-      }
       return apiClient.upsertExternalIBEConfig(data, { propertyId })
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['external-ibe'] }); onSaved() },
@@ -1032,8 +1205,8 @@ function SimplifiedHotelUI({
           </p>
         )}
         <AnalysisSection
-          label="Paste one sample URL from your external booking page to extract this hotel's ID"
-          type="booking"
+          label="Paste one sample search URL from this hotel's external booking page to extract its ID"
+          type="search"
           singleUrl
           propertyId={propertyId}
           orgId={orgId}
@@ -1045,23 +1218,30 @@ function SimplifiedHotelUI({
         />
         {detectedId && (
           <p className="text-sm text-[var(--color-text)]">
-            Your external hotel ID: <span className="font-mono font-medium text-[var(--color-primary)]">{detectedId}</span>
+            Extracted hotel ID: <span className="font-mono font-medium text-[var(--color-primary)]">{detectedId}</span>
             {recognizedIBE && <span className="ml-2 text-xs text-[var(--color-text-muted)]">(auto-detected from {recognizedIBE})</span>}
           </p>
         )}
       </section>
 
       <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <h3 className="text-sm font-semibold text-[var(--color-text)]">Channel toggles</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Channels</h3>
         <ChannelToggles
           mcp={mcpEnabled}
           affiliate={affiliateEnabled}
           widget={widgetEnabled}
+          mcpSkip2Step={mcpSkip2Step}
+          affiliateSkip2Step={affiliateSkip2Step}
+          widgetSkip2Step={widgetSkip2Step}
           disabled={false}
+          hasScraping={!!((hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate)?.includes('{solutionId}') && (hotelExisting?.searchTemplate ?? chainConfig.searchTemplate))}
           onChange={(k, v) => {
             if (k === 'mcpEnabled') setMcpEnabled(v)
             else if (k === 'affiliateEnabled') setAffiliateEnabled(v)
-            else setWidgetEnabled(v)
+            else if (k === 'widgetEnabled') setWidgetEnabled(v)
+            else if (k === 'mcpSkip2Step') setMcpSkip2Step(v)
+            else if (k === 'affiliateSkip2Step') setAffiliateSkip2Step(v)
+            else setWidgetSkip2Step(v)
           }}
         />
       </section>
@@ -1102,61 +1282,6 @@ function SimplifiedHotelUI({
         )}
       </div>
 
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(v => !v)}
-          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] flex items-center gap-1"
-        >
-          <svg className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          Advanced: override templates
-        </button>
-        {showAdvanced && (
-          <div className="mt-4 space-y-4">
-            <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-              <h3 className="text-sm font-semibold text-[var(--color-text)]">Search page URL override</h3>
-              {(hotelExisting?.searchTemplate ?? chainConfig.searchTemplate) && (
-                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
-                  <p className="text-xs font-medium text-[var(--color-text-muted)]">
-                    Current search template{!hotelExisting?.searchTemplate ? ' (inherited from chain)' : ''}
-                  </p>
-                  <p className="font-mono text-sm text-[var(--color-text)] break-all">{hotelExisting?.searchTemplate ?? chainConfig.searchTemplate}</p>
-                </div>
-              )}
-              <SearchAnalysisSection
-                propertyId={propertyId}
-                urls={advSearchUrls}
-                onUrlsChange={setAdvSearchUrls}
-                result={searchResult}
-                onResult={setSearchResult}
-              />
-            </section>
-            <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-              <h3 className="text-sm font-semibold text-[var(--color-text)]">Booking page URL override</h3>
-              {(hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate) && (
-                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 space-y-1">
-                  <p className="text-xs font-medium text-[var(--color-text-muted)]">
-                    Current booking template{!hotelExisting?.bookingTemplate ? ' (inherited from chain)' : ''}
-                  </p>
-                  <p className="font-mono text-sm text-[var(--color-text)] break-all">{hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate}</p>
-                </div>
-              )}
-              <AnalysisSection
-                label="Paste sample booking page URLs"
-                type="booking"
-                propertyId={propertyId}
-                result={bookingResult}
-                onResult={setBookingResult}
-                urls={advBookingUrls}
-                onUrlsChange={setAdvBookingUrls}
-              />
-            </section>
-          </div>
-        )}
-      </div>
-
       <TestSection
         scope={{ propertyId }}
         hasScraping={!!((hotelExisting?.bookingTemplate ?? chainConfig.bookingTemplate)?.includes('{solutionId}') && (hotelExisting?.searchTemplate ?? chainConfig.searchTemplate))}
@@ -1170,6 +1295,7 @@ export default function ExternalIBEPage() {
   const { propertyId: contextPropertyId, orgId: contextOrgId } = useAdminProperty()
   const qc = useQueryClient()
   const [savedBanner, setSavedBanner] = useState(false)
+  const [useCustom, setUseCustom] = useState(false)
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isHotelLevel = contextPropertyId !== null
@@ -1212,7 +1338,8 @@ export default function ExternalIBEPage() {
   const hotelConfig = hotelQuery.data ?? null
 
   const hotelHasOwnTemplates = !!(hotelConfig?.searchTemplate || hotelConfig?.bookingTemplate)
-  const showSimplified = isHotelLevel && chainConfig !== null && !hotelHasOwnTemplates
+  const canInherit = isHotelLevel && chainConfig !== null && !hotelHasOwnTemplates
+  const showSimplified = canInherit && !useCustom
   const scope = isHotelLevel ? propertyScope! : orgScope!
 
   if (!scope) {
@@ -1254,10 +1381,11 @@ export default function ExternalIBEPage() {
         </div>
       )}
 
-      {isHotelLevel && chainConfig && !hotelConfig && (
-        <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          Using chain configuration
-        </p>
+      {canInherit && (
+        <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+          <span className="text-sm text-[var(--color-text)]">Use custom booking engine</span>
+          <Toggle checked={useCustom} onChange={setUseCustom} />
+        </div>
       )}
 
       {showSimplified ? (
