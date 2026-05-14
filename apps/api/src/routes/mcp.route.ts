@@ -180,9 +180,13 @@ const WIDGET_HTML = `<!DOCTYPE html>
       var enriched = Object.assign({}, params)
       if (typeof params.checkIn === 'string' && params.checkIn) {
         enriched.checkInMs = new Date(params.checkIn + 'T00:00:00').getTime()
+        var ciParts = params.checkIn.split('-')
+        if (ciParts.length === 3) enriched.checkInMDY = ciParts[1] + '/' + ciParts[2] + '/' + ciParts[0]
       }
       if (typeof params.checkOut === 'string' && params.checkOut) {
         enriched.checkOutMs = new Date(params.checkOut + 'T00:00:00').getTime()
+        var coParts = params.checkOut.split('-')
+        if (coParts.length === 3) enriched.checkOutMDY = coParts[1] + '/' + coParts[2] + '/' + coParts[0]
       }
       var result = template
       for (var key in enriched) {

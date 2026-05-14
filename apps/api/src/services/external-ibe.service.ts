@@ -19,9 +19,13 @@ export function buildExternalUrl(
   const enriched: Record<string, string | number | null | undefined> = { ...params }
   if (typeof params.checkIn === 'string' && params.checkIn) {
     enriched.checkInMs = new Date(params.checkIn + 'T00:00:00').getTime()
+    const [cy, cm, cd] = params.checkIn.split('-')
+    if (cy && cm && cd) enriched.checkInMDY = `${cm}/${cd}/${cy}`
   }
   if (typeof params.checkOut === 'string' && params.checkOut) {
     enriched.checkOutMs = new Date(params.checkOut + 'T00:00:00').getTime()
+    const [cy, cm, cd] = params.checkOut.split('-')
+    if (cy && cm && cd) enriched.checkOutMDY = `${cm}/${cd}/${cy}`
   }
   let result = template
   for (const [key, val] of Object.entries(enriched)) {
@@ -251,6 +255,8 @@ const PLACEHOLDER_VOCABULARY = [
   'checkOut — Departure date (YYYY-MM-DD)',
   'checkInMs — Arrival date as Unix milliseconds (use when the IBE expects epoch timestamps instead of YYYY-MM-DD)',
   'checkOutMs — Departure date as Unix milliseconds (use when the IBE expects epoch timestamps instead of YYYY-MM-DD)',
+  'checkInMDY — Arrival date in MM/DD/YYYY format (use when the IBE expects US-style date format)',
+  'checkOutMDY — Departure date in MM/DD/YYYY format (use when the IBE expects US-style date format)',
   'adults — Adult guest count',
   'rooms — Room count',
   'nationality — Guest nationality (ISO 2-letter code)',
