@@ -119,6 +119,8 @@ import type {
   ExternalIBEAnalyzeResponse,
   ExternalIBETestResponse,
   ExternalIBETestStreamEvent,
+  ExternalIBEBulkMapRequest,
+  ExternalIBEBulkMapResponse,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -1914,6 +1916,13 @@ export const apiClient = {
     }).then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       return r.body!
+    })
+  },
+
+  bulkMapExternalIBE(req: ExternalIBEBulkMapRequest): Promise<ExternalIBEBulkMapResponse> {
+    return apiRequest<ExternalIBEBulkMapResponse>('/api/v1/admin/external-ibe/bulk-map', {
+      method: 'POST',
+      body: JSON.stringify(req),
     })
   },
 
