@@ -7,10 +7,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export interface AirportEntry { code: string; name: string; lat: number; lng: number }
 
+let _bundled: AirportEntry[] | undefined
 function getBundledDataset(): AirportEntry[] {
-  return JSON.parse(
+  return (_bundled ??= JSON.parse(
     readFileSync(resolve(__dirname, '../data/iata-cities.json'), 'utf8')
-  ) as AirportEntry[]
+  ) as AirportEntry[])
 }
 
 function toRad(deg: number) { return deg * Math.PI / 180 }

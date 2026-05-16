@@ -23,6 +23,8 @@ for (const line of text.split('\n')) {
   const type = parts[12] ?? ''
   if (type !== 'airport') continue
   if (!iata || iata === '\\N' || iata.length !== 3 || isNaN(lat) || isNaN(lng)) continue
+  if (name === 'All Airports') continue
+  if (!/^[A-Z]{3}$/.test(iata)) continue
   if (seen.has(iata)) continue
   seen.add(iata)
   entries.push({ code: iata, name, lat, lng })
