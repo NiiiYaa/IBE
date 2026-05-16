@@ -76,6 +76,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/design/footer', label: 'Footers' },
       { href: '/admin/design/currency', label: 'Currencies' },
       { href: '/admin/design/language', label: 'Languages' },
+      { href: '/admin/design/airports', label: 'Nearest Airports', sellerOnly: true },
     ],
   },
   {
