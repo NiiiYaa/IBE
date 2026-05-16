@@ -276,6 +276,7 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
   const [amDismissed, setAmDismissed] = useState(false)
   const [activeTmChip, setActiveTmChip] = useState('All')
   const [activeAmChip, setActiveAmChip] = useState('All')
+  const [activeMergedChip, setActiveMergedChip] = useState('All')
 
   const { data, isLoading } = useQuery<ActivitiesAndEventsResponse>({
     queryKey: ['activities-and-events', propertyId, orgId],
@@ -337,6 +338,15 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
       if (i < amItems.length) mergedItems.push(amItems[i]!)
     }
 
+    const mergedChips = computeMergedChips(amActivities, tmEvents)
+
+    const filteredMergedItems = activeMergedChip === 'All'
+      ? mergedItems
+      : mergedItems.filter(item => {
+          if (item.kind === 'activity') return item.item.category === activeMergedChip
+          return item.item.category === activeMergedChip || item.item.genre === activeMergedChip
+        })
+
     const mergedLabel = data.amadeus?.stripLabel ?? t('activitiesAndTours')
 
     return (
@@ -347,11 +357,14 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
         {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
         {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}
         onDismiss={() => { setTmDismissed(true); setAmDismissed(true) }}
+        chips={mergedChips}
+        activeChip={activeMergedChip}
+        onChipChange={setActiveMergedChip}
       >
-        {mergedItems.map((item, i) =>
+        {filteredMergedItems.map(item =>
           item.kind === 'event'
-            ? <TicketmasterEventCard key={`event-${i}`} event={item.item} locale={locale} showBookButton={tmShowBook} />
-            : <ActivityCard key={`activity-${i}`} activity={item.item} showBookButton={amShowBook} />
+            ? <TicketmasterEventCard key={item.item.name} event={item.item} locale={locale} showBookButton={tmShowBook} />
+            : <ActivityCard key={item.item.id} activity={item.item} showBookButton={amShowBook} />
         )}
       </StripSection>
     )
