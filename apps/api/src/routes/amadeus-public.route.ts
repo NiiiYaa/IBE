@@ -9,7 +9,7 @@ import type { AmadeusActivity, AmadeusPublicResponse, ActivitiesAndEventsRespons
 interface RawAmadeusProduct {
   id: string
   title: string
-  shortDescription?: string
+  description?: string
   thumbnailImage?: string
   galleryImages?: Array<{ url: string }>
   minPrice?: number
@@ -17,7 +17,7 @@ interface RawAmadeusProduct {
   duration?: string
   onlineBookable?: boolean
   bookingUrl?: string
-  taxonomies?: Array<{ name?: string }>
+  taxonomies?: Array<Array<{ name: string; family: string; level: number }>>
 }
 
 async function fetchAmadeusActivities(
@@ -47,11 +47,17 @@ function normaliseActivity(raw: RawAmadeusProduct): AmadeusActivity {
   const thumb = (raw.thumbnailImage?.startsWith('http') ? raw.thumbnailImage : null)
     ?? raw.galleryImages?.[0]?.url
     ?? null
+  const category = raw.taxonomies
+    ?.flatMap(g => g)
+    .find(t => t.family === 'activities' && t.level === 1)?.name ?? null
+  const description = raw.description
+    ? raw.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150) || null
+    : null
   return {
     id: raw.id,
     name: raw.title,
-    description: raw.shortDescription ?? null,
-    category: raw.taxonomies?.[0]?.name ?? null,
+    description,
+    category,
     thumb,
     price: raw.minPrice ?? null,
     currency: raw.priceCurrency ?? null,
