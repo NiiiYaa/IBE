@@ -111,7 +111,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/config/maps', label: 'Maps', sellerOnly: true },
       { href: '/admin/config/data-provider', label: 'Data Provider', sellerOnly: true },
       { href: '/admin/config/weather', label: 'Weather', sellerOnly: true },
-      { href: '/admin/config/events', label: 'Events', sellerOnly: true },
+      { href: '/admin/config/events', label: 'Activities', sellerOnly: true },
       { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],
   },

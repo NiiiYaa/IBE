@@ -222,6 +222,14 @@ function SystemEventsSection() {
   )
 }
 
+type Tab = 'amadeus-discover' | 'amadeus-wl' | 'ticketmaster'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'amadeus-discover', label: 'Amadeus Discover' },
+  { id: 'amadeus-wl', label: 'Amadeus WL (Activities Booking)' },
+  { id: 'ticketmaster', label: 'Ticketmaster' },
+]
+
 export default function EventsConfigPage() {
   const { admin } = useAdminAuth()
   const { orgId: contextOrgId } = useAdminProperty()
@@ -229,6 +237,7 @@ export default function EventsConfigPage() {
   const isSuper = admin?.role === 'super'
   const isSystemLevel = isSuper && contextOrgId === null
   const orgId = isSuper ? (contextOrgId ?? undefined) : (admin?.organizationId ?? undefined)
+  const [activeTab, setActiveTab] = useState<Tab>('amadeus-discover')
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['events-config', orgId],
@@ -244,16 +253,50 @@ export default function EventsConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">Events & Activities</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">Activities</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Configure event and activity providers. Ticketmaster surfaces concerts, sports, and shows. Amadeus Discover surfaces tours, experiences, and bookable activities.
+          Configure activity providers. Amadeus Discover and Amadeus WL surface tours and bookable experiences. Ticketmaster surfaces concerts, sports, and shows.
         </p>
       </div>
 
-      {/* Ticketmaster */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Ticketmaster</h2>
-        {isSystemLevel ? (
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-[var(--color-border)]">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={[
+              'px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === tab.id
+                ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab panels */}
+      {activeTab === 'amadeus-discover' && (
+        <AmadeusConfigCard
+          isSystemLevel={isSystemLevel}
+          {...(orgId !== undefined && { orgId })}
+          {...(isSuper !== undefined && { isSuper })}
+        />
+      )}
+
+      {activeTab === 'amadeus-wl' && (
+        <AmadeusWLCard
+          isSystemLevel={isSystemLevel}
+          {...(orgId !== undefined && { orgId })}
+          {...(isSuper !== undefined && { isSuper })}
+        />
+      )}
+
+      {activeTab === 'ticketmaster' && (
+        isSystemLevel ? (
           <SystemEventsSection />
         ) : (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
@@ -272,28 +315,8 @@ export default function EventsConfigPage() {
             {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
             {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
           </div>
-        )}
-      </div>
-
-      {/* Amadeus Discover */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus Discover</h2>
-        <AmadeusConfigCard
-          isSystemLevel={isSystemLevel}
-          {...(orgId !== undefined && { orgId })}
-          {...(isSuper !== undefined && { isSuper })}
-        />
-      </div>
-
-      {/* Amadeus WL */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus WL (Activities Booking)</h2>
-        <AmadeusWLCard
-          isSystemLevel={isSystemLevel}
-          {...(orgId !== undefined && { orgId })}
-          {...(isSuper !== undefined && { isSuper })}
-        />
-      </div>
+        )
+      )}
     </div>
   )
 }
