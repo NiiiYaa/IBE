@@ -54,11 +54,15 @@ function AirportConfigForm({ data, onSave, saving, isSystem }: {
   const [enabled, setEnabled] = useState(data.enabled)
   const [radiusKm, setRadiusKm] = useState(data.radiusKm)
   const [maxCount, setMaxCount] = useState(data.maxCount)
+  const [stripDefaultFolded, setStripDefaultFolded] = useState(data.stripDefaultFolded)
+  const [stripAutoFoldSecs, setStripAutoFoldSecs] = useState(data.stripAutoFoldSecs)
 
   useEffect(() => {
     setEnabled(data.enabled)
     setRadiusKm(data.radiusKm)
     setMaxCount(data.maxCount)
+    setStripDefaultFolded(data.stripDefaultFolded)
+    setStripAutoFoldSecs(data.stripAutoFoldSecs)
   }, [data])
 
   return (
@@ -106,9 +110,34 @@ function AirportConfigForm({ data, onSave, saving, isSystem }: {
         <p className="mt-1 text-xs text-[var(--color-text-muted)]">Maximum airports to display per property. Default: 3.</p>
       </div>
 
+      <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Strip display behaviour</p>
+        {!isSystem && (
+          <p className="text-xs text-[var(--color-text-muted)]">Configured at system level.</p>
+        )}
+        <div className={['flex items-center gap-3', !isSystem ? 'pointer-events-none opacity-50' : ''].join(' ')}>
+          <Toggle checked={stripDefaultFolded} onChange={setStripDefaultFolded} />
+          <span className="text-sm text-[var(--color-text)]">Start collapsed by default</span>
+        </div>
+        <div className={!isSystem ? 'pointer-events-none opacity-50' : ''}>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+            Auto-collapse after <span className="font-normal normal-case opacity-60">seconds (0 = never)</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <input type="range" min={0} max={120} step={1}
+              value={stripAutoFoldSecs}
+              onChange={e => setStripAutoFoldSecs(Number(e.target.value))}
+              className="flex-1 accent-[var(--color-primary)]" />
+            <span className="w-14 text-center text-sm font-semibold tabular-nums text-[var(--color-text)]">
+              {stripAutoFoldSecs === 0 ? 'Never' : `${stripAutoFoldSecs}s`}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center gap-3 pt-1">
         <button type="button" disabled={saving}
-          onClick={() => onSave({ enabled, radiusKm, maxCount })}
+          onClick={() => onSave({ enabled, radiusKm, maxCount, ...(isSystem && { stripDefaultFolded, stripAutoFoldSecs }) })}
           className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -198,7 +227,7 @@ export default function AirportConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">Nearest Airports</h1>
+        <h1 className="text-xl font-semibold text-[var(--color-text)]">Airports</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Show the nearest airports and their distances on hotel pages. Uses the OpenFlights dataset.
           Settings inherit from system → organisation → property.

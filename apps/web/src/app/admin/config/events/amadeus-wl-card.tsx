@@ -22,11 +22,13 @@ function WLConfigForm({
   onSave,
   saving,
   isSuper,
+  isSystemTier,
 }: {
   data: WLConfigResponse
   onSave: (u: WLConfigUpdate) => void
   saving: boolean
   isSuper?: boolean
+  isSystemTier?: boolean
 }) {
   const [channelUuid, setChannelUuid] = useState('')
   const [enabled, setEnabled] = useState(data.enabled)
@@ -81,7 +83,9 @@ function WLConfigForm({
           <div>
             <p className="text-sm font-medium text-[var(--color-text)]">Lock UUID for levels below</p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              Hotels in this chain cannot use their own UUID.
+              {isSystemTier
+                ? 'All chains and hotels will use the system UUID.'
+                : 'Hotels in this chain cannot use their own UUID.'}
             </p>
           </div>
         </div>
@@ -127,7 +131,7 @@ function SystemWLSection() {
       {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
       {isError && <p className="text-sm text-[var(--color-error)]">Failed to load.</p>}
       {data && (
-        <WLConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending} isSuper />
+        <WLConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending} isSuper isSystemTier />
       )}
       {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
       {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
