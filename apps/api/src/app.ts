@@ -57,6 +57,7 @@ import { externalIBERoutes } from './routes/external-ibe.route.js'
 import { externalIBEResolveRoutes } from './routes/external-ibe-resolve.route.js'
 import { amadeusPublicRoutes } from './routes/amadeus-public.route.js'
 import { wlAdminRoutes, wlPublicRoutes } from './routes/wl-config.route.js'
+import { airportAdminRoutes, airportPublicRoutes } from './routes/airport-config.route.js'
 import { crossSellAdminRoutes, crossSellPublicRoutes } from './routes/cross-sell.route.js'
 import { groupsAdminRoutes, groupsPublicRoutes } from './routes/groups.route.js'
 import { translationsPublicRoutes, translationsAdminRoutes } from './routes/translations.route.js'
@@ -189,6 +190,7 @@ export async function buildApp() {
   await app.register(eventsPublicRoutes, { prefix: '/api/v1' })
   await app.register(amadeusPublicRoutes, { prefix: '/api/v1' })
   await app.register(wlPublicRoutes, { prefix: '/api/v1' })
+  await app.register(airportPublicRoutes, { prefix: '/api/v1' })
   await app.register(externalIBEResolveRoutes, { prefix: '/api/v1' })
   await app.register(crossSellPublicRoutes, { prefix: '/api/v1' })
   await app.register(groupsPublicRoutes, { prefix: '/api/v1' })
@@ -237,6 +239,7 @@ export async function buildApp() {
     await adminApp.register(eventsConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(amadeusConfigRoutes, { prefix: '/api/v1' })
     await adminApp.register(wlAdminRoutes, { prefix: '/api/v1' })
+    await adminApp.register(airportAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(externalIBERoutes, { prefix: '/api/v1' })
     await adminApp.register(crossSellAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(groupsAdminRoutes, { prefix: '/api/v1' })
