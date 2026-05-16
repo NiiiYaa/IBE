@@ -102,6 +102,8 @@ import type {
   WLConfigUpdate,
   ResolvedWLConfig,
   NearestAirportsResponse,
+  AirportConfigResponse,
+  AirportConfigUpdate,
   ActivitiesAndEventsResponse,
   PropertyEmailSettingsResponse,
   UpdatePropertyEmailSettingsRequest,
@@ -1582,7 +1584,7 @@ export const apiClient = {
   },
 
   refreshAirportDataset(): Promise<{ count: number; updatedAt: string }> {
-    return apiRequest('/api/v1/admin/wl/config/system/refresh-airports', { method: 'POST' })
+    return apiRequest('/api/v1/admin/airport/config/system/refresh-dataset', { method: 'POST' })
   },
 
   getOrgWLConfig(orgId?: number): Promise<WLConfigResponse> {
@@ -1611,6 +1613,32 @@ export const apiClient = {
 
   getNearestAirports(propertyId: number): Promise<NearestAirportsResponse> {
     return apiRequest(`/api/v1/airports/nearest?propertyId=${propertyId}`)
+  },
+
+  getSystemAirportConfig(): Promise<AirportConfigResponse> {
+    return apiRequest('/api/v1/admin/airport/config/system')
+  },
+
+  updateSystemAirportConfig(data: AirportConfigUpdate): Promise<AirportConfigResponse> {
+    return apiRequest('/api/v1/admin/airport/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getOrgAirportConfig(orgId?: number): Promise<AirportConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/airport/config/org${qs}`)
+  },
+
+  updateOrgAirportConfig(data: AirportConfigUpdate, orgId?: number): Promise<AirportConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/airport/config/org', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  getPropertyAirportConfig(propertyId: number): Promise<AirportConfigResponse> {
+    return apiRequest(`/api/v1/admin/airport/config/property/${propertyId}`)
+  },
+
+  updatePropertyAirportConfig(propertyId: number, data: AirportConfigUpdate): Promise<AirportConfigResponse> {
+    return apiRequest(`/api/v1/admin/airport/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
   },
 
   getActivitiesAndEvents(propertyId: number, orgId?: number): Promise<ActivitiesAndEventsResponse> {
