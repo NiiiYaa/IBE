@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useT } from '@/context/translations'
@@ -15,6 +15,7 @@ export function NearestAirports({ propertyId }: Props) {
   const [folded, setFolded] = useState(false)
   const [radiusKm, setRadiusKm] = useState<number | null>(null)
   const [debouncedRadius, setDebouncedRadius] = useState<number | null>(null)
+  const autoFoldInit = useRef(false)
 
   const { data } = useQuery({
     queryKey: ['nearest-airports', propertyId, debouncedRadius],
@@ -29,9 +30,10 @@ export function NearestAirports({ propertyId }: Props) {
     setDebouncedRadius(data.radiusKm)
   }, [data, radiusKm])
 
-  // Auto-fold timer
+  // Auto-fold timer — runs only on first load, not on slider re-queries
   useEffect(() => {
-    if (!data) return
+    if (!data || autoFoldInit.current) return
+    autoFoldInit.current = true
     setFolded(data.stripDefaultFolded ?? false)
     const secs = data.stripAutoFoldSecs ?? 0
     if (secs === 0) return
