@@ -47,9 +47,10 @@ function normaliseActivity(raw: RawAmadeusProduct): AmadeusActivity {
   const thumb = (raw.thumbnailImage?.startsWith('http') ? raw.thumbnailImage : null)
     ?? raw.galleryImages?.[0]?.url
     ?? null
-  const category = raw.taxonomies
+  const categoryName = raw.taxonomies
     ?.flatMap(g => g)
     .find(t => t.family === 'activities' && t.level === 1)?.name ?? null
+  const category = categoryName === 'No Category' ? null : categoryName
   const description = raw.description
     ? raw.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150) || null
     : null
