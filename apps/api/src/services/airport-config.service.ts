@@ -47,7 +47,7 @@ export async function upsertSystemAirportConfig(data: AirportConfigUpdate): Prom
   const existing = await prisma.systemAirportConfig.findFirst()
   const row = existing
     ? await prisma.systemAirportConfig.update({ where: { id: existing.id }, data: update })
-    : await prisma.systemAirportConfig.create({ data: { ...update } })
+    : await prisma.systemAirportConfig.create({ data: update as never })
   return sysToResponse(row)
 }
 
