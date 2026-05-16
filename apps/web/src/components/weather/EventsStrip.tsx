@@ -379,8 +379,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           activeChip={activeTmChip}
           onChipChange={setActiveTmChip}
         >
-          {filteredTmEvents.map((event, i) => (
-            <TicketmasterEventCard key={i} event={event} locale={locale} showBookButton={tmShowBook} />
+          {filteredTmEvents.map(event => (
+            <TicketmasterEventCard key={event.name} event={event} locale={locale} showBookButton={tmShowBook} />
           ))}
         </StripSection>
       )}
@@ -397,8 +397,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           activeChip={activeAmChip}
           onChipChange={setActiveAmChip}
         >
-          {filteredAmActivities.map((activity, i) => (
-            <ActivityCard key={i} activity={activity} showBookButton={amShowBook} />
+          {filteredAmActivities.map(activity => (
+            <ActivityCard key={activity.id} activity={activity} showBookButton={amShowBook} />
           ))}
         </StripSection>
       )}
