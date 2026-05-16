@@ -94,16 +94,15 @@ export async function getResolvedEventsConfig(propertyId: number, fallbackOrgId?
     return { apiKey: null, enabled: false, radiusKm: 10, maxEvents: 10, stripDefaultFolded: false, stripAutoFoldSecs: 15, showBookButton: true }
   }
 
-  const hasOwnKey = !!orgRow?.apiKey
-  const resolved = hasOwnKey ? orgRow : (sysRow ?? orgRow)
-  const foldRow = orgRow ?? sysRow
+  const keyRow = orgRow?.apiKey ? orgRow : (sysRow ?? orgRow)
+  const settingsRow = orgRow ?? sysRow
   return {
-    apiKey: resolved?.apiKey ? decryptApiKey(resolved.apiKey) : null,
-    enabled: resolved?.enabled ?? false,
-    radiusKm: resolved?.radiusKm ?? 10,
-    maxEvents: resolved?.maxEvents ?? 10,
-    stripDefaultFolded: foldRow?.stripDefaultFolded ?? false,
-    stripAutoFoldSecs: foldRow?.stripAutoFoldSecs ?? 15,
-    showBookButton: foldRow?.showBookButton ?? true,
+    apiKey: keyRow?.apiKey ? decryptApiKey(keyRow.apiKey) : null,
+    enabled: settingsRow?.enabled ?? false,
+    radiusKm: settingsRow?.radiusKm ?? 10,
+    maxEvents: settingsRow?.maxEvents ?? 10,
+    stripDefaultFolded: settingsRow?.stripDefaultFolded ?? false,
+    stripAutoFoldSecs: settingsRow?.stripAutoFoldSecs ?? 15,
+    showBookButton: settingsRow?.showBookButton ?? true,
   }
 }

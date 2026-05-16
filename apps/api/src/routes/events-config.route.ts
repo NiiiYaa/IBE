@@ -52,7 +52,7 @@ export async function eventsConfigRoutes(fastify: FastifyInstance) {
       }
       if (!orgId) return reply.status(400).send({ error: 'No organization context' })
       const prop = await prisma.property.findFirst({ where: { organizationId: orgId }, select: { propertyId: true } })
-      const cfg = await getResolvedEventsConfig(prop?.propertyId ?? 0)
+      const cfg = await getResolvedEventsConfig(prop?.propertyId ?? 0, orgId)
       if (!cfg.apiKey) return reply.send({ ok: false, error: 'No Ticketmaster API key configured' })
       const res = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${cfg.apiKey}&size=1`)
       return reply.send(res.ok || res.status === 400 ? { ok: true } : { ok: false, error: `Ticketmaster returned ${res.status}` })
