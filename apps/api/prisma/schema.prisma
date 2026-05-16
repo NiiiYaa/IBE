@@ -1694,6 +1694,8 @@ model SystemAirportConfig {
   enabled                 Boolean   @default(false)
   radiusKm                Int       @default(100)
   maxCount                Int       @default(3)
+  stripDefaultFolded      Boolean   @default(false)
+  stripAutoFoldSecs       Int       @default(0)
   airportDataset          Json?     // AirportEntry[] refreshed from OpenFlights
   airportDatasetUpdatedAt DateTime?
   createdAt               DateTime  @default(now())

@@ -14,6 +14,19 @@ function getBundledDataset(): AirportEntry[] {
   ) as AirportEntry[])
 }
 
+const MILITARY_KEYWORDS = [
+  'air force base', 'air force station', ' afb', 'air base',
+  'naval air', ' nas ', 'rnas ', 'navy base',
+  'army airfield', 'army air field', 'army aviation',
+  'military', 'joint base', 'air national guard', 'air reserve base',
+  'raf ', ' mcas', ' naf ', ' aaf ', 'usaf',
+]
+
+function isMilitary(name: string): boolean {
+  const n = name.toLowerCase()
+  return MILITARY_KEYWORDS.some(k => n.includes(k))
+}
+
 function toRad(deg: number) { return deg * Math.PI / 180 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -35,9 +48,10 @@ export function findNearestAirports(
   const results: NearestAirport[] = []
 
   for (const a of airports) {
+    if (isMilitary(a.name)) continue
     const d = haversineKm(lat, lng, a.lat, a.lng)
     if (d <= maxKm) {
-      results.push({ code: a.code, name: a.name, distanceKm: Math.round(d) })
+      results.push({ code: a.code, name: a.name, distanceKm: Math.round(d), lat: a.lat, lng: a.lng })
     }
   }
 

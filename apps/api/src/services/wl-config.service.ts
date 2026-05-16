@@ -105,9 +105,7 @@ export async function upsertPropertyWLConfig(propertyId: number, data: WLConfigU
 }
 
 export async function getResolvedWLConfig(propertyId: number, fallbackOrgId?: number): Promise<ResolvedWLConfig> {
-  const [prop] = await Promise.all([
-    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
-  ])
+  const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
   const orgId = prop?.organizationId ?? fallbackOrgId
 
   const [sysRow, orgRow, propRow] = await Promise.all([

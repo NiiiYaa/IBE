@@ -1,19 +1,23 @@
 import { prisma } from '../db/client.js'
 import { findNearestAirports, type AirportEntry } from '../utils/iata-lookup.js'
+import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 import type {
   AirportConfigResponse, AirportConfigUpdate, ResolvedAirportConfig, NearestAirportsResponse
 } from '@ibe/shared'
 
-const SYS_DEFAULTS = { enabled: false, radiusKm: 100, maxCount: 3 }
+const SYS_DEFAULTS = { enabled: false, radiusKm: 100, maxCount: 3, stripDefaultFolded: false, stripAutoFoldSecs: 0 }
 
 function sysToResponse(row: {
   enabled: boolean; radiusKm: number; maxCount: number;
+  stripDefaultFolded: boolean; stripAutoFoldSecs: number;
   airportDatasetUpdatedAt: Date | null
 } | null): AirportConfigResponse {
   return {
     enabled: row?.enabled ?? SYS_DEFAULTS.enabled,
     radiusKm: row?.radiusKm ?? SYS_DEFAULTS.radiusKm,
     maxCount: row?.maxCount ?? SYS_DEFAULTS.maxCount,
+    stripDefaultFolded: row?.stripDefaultFolded ?? SYS_DEFAULTS.stripDefaultFolded,
+    stripAutoFoldSecs: row?.stripAutoFoldSecs ?? SYS_DEFAULTS.stripAutoFoldSecs,
     hasOwnConfig: !!row,
     datasetUpdatedAt: row?.airportDatasetUpdatedAt?.toISOString() ?? null,
   }
@@ -28,6 +32,8 @@ function childToResponse(
     enabled: row?.enabled ?? parent.enabled,
     radiusKm: row?.radiusKm ?? parent.radiusKm,
     maxCount: row?.maxCount ?? parent.maxCount,
+    stripDefaultFolded: parent.stripDefaultFolded,
+    stripAutoFoldSecs: parent.stripAutoFoldSecs,
     hasOwnConfig: hasOwn,
     datasetUpdatedAt: null,
   }
@@ -43,6 +49,8 @@ export async function upsertSystemAirportConfig(data: AirportConfigUpdate): Prom
   if (data.enabled !== undefined && data.enabled !== null) update.enabled = data.enabled
   if (data.radiusKm !== undefined && data.radiusKm !== null) update.radiusKm = data.radiusKm
   if (data.maxCount !== undefined && data.maxCount !== null) update.maxCount = data.maxCount
+  if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
+  if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
 
   const existing = await prisma.systemAirportConfig.findFirst()
   const row = existing
@@ -174,39 +182,33 @@ async function getSystemDataset(): Promise<AirportEntry[] | undefined> {
 }
 
 export async function getNearestAirports(propertyId: number): Promise<NearestAirportsResponse> {
-  const [resolved, dpConfig] = await Promise.all([
+  const [resolved, property, sysRow] = await Promise.all([
     getResolvedAirportConfig(propertyId),
-    prisma.propertyDataProviderConfig.findUnique({
-      where: { propertyId },
-      select: { lat: true, lng: true },
-    }),
+    fetchPropertyStatic(propertyId).catch(() => null),
+    prisma.systemAirportConfig.findFirst({ select: { stripDefaultFolded: true, stripAutoFoldSecs: true } }),
   ])
 
-  if (!resolved.enabled || !dpConfig?.lat || !dpConfig?.lng) return { airports: [] }
+  const stripDefaultFolded = sysRow?.stripDefaultFolded ?? SYS_DEFAULTS.stripDefaultFolded
+  const stripAutoFoldSecs = sysRow?.stripAutoFoldSecs ?? SYS_DEFAULTS.stripAutoFoldSecs
+
+  const lat = property?.coordinates?.latitude
+  const lng = property?.coordinates?.longitude
+  if (!resolved.enabled || !lat || !lng) return { airports: [], stripDefaultFolded, stripAutoFoldSecs }
 
   const dataset = await getSystemDataset()
-  const airports = findNearestAirports(
-    Number(dpConfig.lat), Number(dpConfig.lng),
-    resolved.radiusKm, resolved.maxCount,
-    dataset
-  )
-  return { airports }
+  const airports = findNearestAirports(lat, lng, resolved.radiusKm, resolved.maxCount, dataset)
+  return { airports, stripDefaultFolded, stripAutoFoldSecs }
 }
 
 // Used by WL service to get iataCode for URL building — does NOT check airport display enabled.
 export async function getNearestAirportCode(propertyId: number): Promise<string | null> {
-  const dpConfig = await prisma.propertyDataProviderConfig.findUnique({
-    where: { propertyId },
-    select: { lat: true, lng: true },
-  })
-  if (!dpConfig?.lat || !dpConfig?.lng) return null
+  const property = await fetchPropertyStatic(propertyId).catch(() => null)
+  const lat = property?.coordinates?.latitude
+  const lng = property?.coordinates?.longitude
+  if (!lat || !lng) return null
 
   const resolved = await getResolvedAirportConfig(propertyId)
   const dataset = await getSystemDataset()
-  const nearest = findNearestAirports(
-    Number(dpConfig.lat), Number(dpConfig.lng),
-    resolved.radiusKm, resolved.maxCount,
-    dataset
-  )
+  const nearest = findNearestAirports(lat, lng, resolved.radiusKm, resolved.maxCount, dataset)
   return nearest[0]?.code ?? null
 }
