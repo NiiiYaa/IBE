@@ -98,6 +98,10 @@ import type {
   EventsConfigUpdate,
   AmadeusConfigResponse,
   AmadeusConfigUpdate,
+  WLConfigResponse,
+  WLConfigUpdate,
+  ResolvedWLConfig,
+  NearestAirportsResponse,
   ActivitiesAndEventsResponse,
   PropertyEmailSettingsResponse,
   UpdatePropertyEmailSettingsRequest,
@@ -1565,6 +1569,48 @@ export const apiClient = {
 
   testAmadeusConnection(orgId?: number, propertyId?: number): Promise<{ ok: boolean; error?: string }> {
     return apiRequest('/api/v1/admin/amadeus/test', { method: 'POST', body: JSON.stringify({ orgId, propertyId }) })
+  },
+
+  // ── Amadeus WL ───────────────────────────────────────────────────────────
+
+  getSystemWLConfig(): Promise<WLConfigResponse> {
+    return apiRequest('/api/v1/admin/wl/config/system')
+  },
+
+  updateSystemWLConfig(data: WLConfigUpdate): Promise<WLConfigResponse> {
+    return apiRequest('/api/v1/admin/wl/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  refreshAirportDataset(): Promise<{ count: number; updatedAt: string }> {
+    return apiRequest('/api/v1/admin/wl/config/system/refresh-airports', { method: 'POST' })
+  },
+
+  getOrgWLConfig(orgId?: number): Promise<WLConfigResponse> {
+    const qs = orgId ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/wl/config${qs}`)
+  },
+
+  updateOrgWLConfig(data: WLConfigUpdate, orgId?: number): Promise<WLConfigResponse> {
+    const body = orgId ? { ...data, orgId } : data
+    return apiRequest('/api/v1/admin/wl/config', { method: 'PUT', body: JSON.stringify(body) })
+  },
+
+  getPropertyWLConfig(propertyId: number): Promise<WLConfigResponse> {
+    return apiRequest(`/api/v1/admin/wl/config/property/${propertyId}`)
+  },
+
+  updatePropertyWLConfig(propertyId: number, data: WLConfigUpdate): Promise<WLConfigResponse> {
+    return apiRequest(`/api/v1/admin/wl/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getResolvedWLConfig(propertyId: number, orgId?: number): Promise<ResolvedWLConfig> {
+    const qs = new URLSearchParams({ propertyId: String(propertyId) })
+    if (orgId) qs.set('orgId', String(orgId))
+    return apiRequest(`/api/v1/wl/config?${qs}`)
+  },
+
+  getNearestAirports(propertyId: number): Promise<NearestAirportsResponse> {
+    return apiRequest(`/api/v1/airports/nearest?propertyId=${propertyId}`)
   },
 
   getActivitiesAndEvents(propertyId: number, orgId?: number): Promise<ActivitiesAndEventsResponse> {
