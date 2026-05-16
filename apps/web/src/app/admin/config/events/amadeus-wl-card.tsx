@@ -17,70 +17,25 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
   )
 }
 
-function AirportDatasetSection({ data }: { data: WLConfigResponse }) {
-  const qc = useQueryClient()
-  const refreshMutation = useMutation({
-    mutationFn: () => apiClient.refreshAirportDataset(),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['wl-config-system'] }) },
-  })
-
-  return (
-    <div className="mt-6 border-t border-[var(--color-border)] pt-5 space-y-4">
-      <div>
-        <p className="text-sm font-medium text-[var(--color-text)] mb-1">Airport Dataset</p>
-        <p className="text-xs text-[var(--color-text-muted)] mb-3">
-          {data.airportDatasetUpdatedAt
-            ? `Last refreshed: ${new Date(data.airportDatasetUpdatedAt).toLocaleString()}`
-            : 'Using bundled dataset (never refreshed from OpenFlights).'}
-        </p>
-        <button
-          type="button"
-          disabled={refreshMutation.isPending}
-          onClick={() => refreshMutation.mutate()}
-          className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40"
-        >
-          {refreshMutation.isPending ? 'Refreshing…' : 'Refresh Dataset'}
-        </button>
-        {refreshMutation.isSuccess && (
-          <p className="mt-2 text-xs text-[var(--color-success)]">
-            Dataset refreshed — {refreshMutation.data.count} airports loaded.
-          </p>
-        )}
-        {refreshMutation.isError && (
-          <p className="mt-2 text-xs text-[var(--color-error)]">Refresh failed.</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function WLConfigForm({
   data,
   onSave,
   saving,
-  isSystem,
   isSuper,
 }: {
   data: WLConfigResponse
   onSave: (u: WLConfigUpdate) => void
   saving: boolean
-  isSystem?: boolean
   isSuper?: boolean
 }) {
   const [channelUuid, setChannelUuid] = useState('')
   const [enabled, setEnabled] = useState(data.enabled)
   const [enforceChildCreds, setEnforceChildCreds] = useState(data.enforceChildCreds)
-  const [radiusKm, setRadiusKm] = useState(data.airportRadiusKm || 100)
-  const [maxCount, setMaxCount] = useState(data.airportMaxCount || 3)
 
   useEffect(() => {
     setEnabled(data.enabled)
     setEnforceChildCreds(data.enforceChildCreds)
-    if (isSystem) {
-      setRadiusKm(data.airportRadiusKm || 100)
-      setMaxCount(data.airportMaxCount || 3)
-    }
-  }, [data, isSystem])
+  }, [data])
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
 
@@ -88,16 +43,12 @@ function WLConfigForm({
     const u: WLConfigUpdate = { enabled }
     if (channelUuid) u.channelUuid = channelUuid
     if (isSuper) u.enforceChildCreds = enforceChildCreds
-    if (isSystem) {
-      u.airportRadiusKm = radiusKm
-      u.airportMaxCount = maxCount
-    }
     return u
   }
 
   return (
     <div className="space-y-5">
-      {!data.hasOwnConfig && !isSystem && (
+      {!data.hasOwnConfig && (
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
           <p className="text-sm text-[var(--color-text-muted)]">Using inherited Channel UUID from parent level.</p>
         </div>
@@ -130,9 +81,7 @@ function WLConfigForm({
           <div>
             <p className="text-sm font-medium text-[var(--color-text)]">Lock UUID for levels below</p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {isSystem
-                ? 'All chains and hotels will use the system UUID.'
-                : 'Hotels in this chain cannot use their own UUID.'}
+              Hotels in this chain cannot use their own UUID.
             </p>
           </div>
         </div>
@@ -144,44 +93,6 @@ function WLConfigForm({
           {enabled ? 'Amadeus WL enabled' : 'Amadeus WL disabled'}
         </span>
       </div>
-
-      {isSystem && (
-        <>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-              Search radius <span className="font-normal normal-case opacity-60">km around the hotel</span>
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range" min={1} max={300} value={radiusKm}
-                onChange={e => setRadiusKm(Number(e.target.value))}
-                className="flex-1 accent-[var(--color-primary)]"
-              />
-              <span className="w-14 text-center text-sm font-semibold tabular-nums text-[var(--color-text)]">
-                {radiusKm} km
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Show airports within this distance. Default: 100 km.</p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-              Max airports shown
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range" min={1} max={5} value={maxCount}
-                onChange={e => setMaxCount(Number(e.target.value))}
-                className="flex-1 accent-[var(--color-primary)]"
-              />
-              <span className="w-14 text-center text-sm font-semibold tabular-nums text-[var(--color-text)]">
-                {maxCount}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">Maximum airports to display per property. Default: 3.</p>
-          </div>
-        </>
-      )}
 
       <div className="flex items-center gap-3 pt-1">
         <button
@@ -216,10 +127,7 @@ function SystemWLSection() {
       {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
       {isError && <p className="text-sm text-[var(--color-error)]">Failed to load.</p>}
       {data && (
-        <>
-          <WLConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending} isSystem isSuper />
-          <AirportDatasetSection data={data} />
-        </>
+        <WLConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending} isSuper />
       )}
       {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
       {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
