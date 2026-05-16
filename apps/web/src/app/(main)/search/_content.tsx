@@ -28,6 +28,7 @@ import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
 import { useSetAffiliateCookie } from '@/hooks/use-affiliate-cookie'
 import { NearestAirports } from '@/components/hotel/NearestAirports'
+import { AmadeusWLButton } from '@/components/amadeus/AmadeusWLButton'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -219,6 +220,15 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
           startDate={searchParams.checkIn}
           endDate={searchParams.checkOut}
           {...(orgId != null ? { orgId } : {})}
+        />
+      )}
+
+      {searchParams.hotelId > 0 && (
+        <AmadeusWLButton
+          propertyId={searchParams.hotelId}
+          {...(orgId != null ? { orgId } : {})}
+          currency={displayCurrency}
+          label={t('exploreActivities')}
         />
       )}
 

@@ -103,7 +103,9 @@
     "addRoomsToBook": "Add rooms to book",
     "canAddMoreRoom": "You can add 1 more room",
     "canAddMoreRooms": "You can add up to {count} more rooms",
-    "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}."
+    "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}.",
+    "exploreActivities": "Explore Activities & Tours →",
+    "nearestAirports": "Nearest airports"
   },
   "properties": {
     "bookNow": "Book now",
@@ -468,7 +470,8 @@
     "addToMyStay": "Add to my stay →",
     "skipConfirmation": "No thanks, skip to confirmation →",
     "getTickets": "Get tickets →",
-    "includesTax": "Includes {pct}% tax"
+    "includesTax": "Includes {pct}% tax",
+    "exploreActivities": "Explore Activities & Tours →"
   },
   "weather": {
     "weatherForecast": "Weather forecast",

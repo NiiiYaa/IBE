@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import type { CrossSellProduct, PublicCrossellResponse, AmadeusActivity, ActivitiesAndEventsResponse } from '@ibe/shared'
 import { useT, useLocale } from '@/context/translations'
+import { AmadeusWLButton } from '@/components/amadeus/AmadeusWLButton'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
 
@@ -291,6 +292,16 @@ export default function CrossSellPage({ params }: PageProps) {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Amadeus WL CTA */}
+      {propertyId > 0 && (
+        <div className="mb-8">
+          <AmadeusWLButton
+            propertyId={propertyId}
+            label={t('exploreActivities')}
+          />
+        </div>
       )}
 
       {/* Skip */}
