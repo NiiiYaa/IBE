@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
-import type { CrossSellProduct, PublicCrossellResponse } from '@ibe/shared'
+import type { CrossSellProduct, PublicCrossellResponse, AmadeusActivity, ActivitiesAndEventsResponse } from '@ibe/shared'
 import { useT, useLocale } from '@/context/translations'
 
 const PROPERTY_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_HOTEL_ID || 0)
@@ -17,6 +17,46 @@ function fmtCurrency(amount: number, currency: string, locale: string) {
 function calcItemTotal(product: CrossSellProduct, nights: number): number {
   const gross = product.price * (1 + product.tax / 100)
   return product.pricingModel === 'per_night' ? gross * nights : gross
+}
+
+function AmadeusActivityCard({ activity, showBookButton }: { activity: AmadeusActivity; showBookButton: boolean }) {
+  const t = useT('crossSell')
+  return (
+    <a
+      href={showBookButton && activity.bookingUrl ? activity.bookingUrl : '#'}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden hover:border-[var(--color-primary)] hover:shadow-md transition-all"
+    >
+      {activity.thumb ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={activity.thumb} alt={activity.name} className="h-28 w-full object-cover" />
+      ) : (
+        <div className="h-10 flex items-center justify-center bg-[var(--color-background)]">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+            {activity.category ?? 'Activity'}
+          </span>
+        </div>
+      )}
+      <div className="px-3 py-2.5 flex flex-col gap-1 flex-1">
+        <p className="text-sm font-semibold text-[var(--color-text)] line-clamp-2 leading-snug">{activity.name}</p>
+        {activity.description && (
+          <p className="text-xs text-[var(--color-text-muted)] line-clamp-2">{activity.description}</p>
+        )}
+        {activity.duration && (
+          <p className="text-xs text-[var(--color-text-muted)]">{activity.duration}</p>
+        )}
+        {activity.price != null && activity.currency && (
+          <p className="text-xs font-medium text-[var(--color-primary)]">
+            {new Intl.NumberFormat(undefined, { style: 'currency', currency: activity.currency }).format(activity.price)}
+          </p>
+        )}
+        {showBookButton && activity.bookingUrl && (
+          <span className="mt-auto pt-1.5 text-xs font-semibold text-[var(--color-primary)]">{t('bookNow')}</span>
+        )}
+      </div>
+    </a>
+  )
 }
 
 // Reuses the same visual style as EventsStrip cards but larger and with a ticket link
@@ -99,9 +139,9 @@ export default function CrossSellPage({ params }: PageProps) {
   })
 
   // Fetch events from public events endpoint for external products
-  const { data: eventsData } = useQuery<{ enabled: boolean; events?: Array<{ name: string; date: string | null; time: string | null; category: string | null; genre: string | null; venue: string | null; ticketUrl: string | null; thumb: string | null }> }>({
-    queryKey: ['events-public', propertyId],
-    queryFn: () => fetch(`/api/v1/events?propertyId=${propertyId}`).then(r => r.ok ? r.json() : { enabled: false }),
+  const { data: combinedData } = useQuery<ActivitiesAndEventsResponse>({
+    queryKey: ['activities-and-events', propertyId],
+    queryFn: () => apiClient.getActivitiesAndEvents(propertyId),
     enabled: propertyId > 0,
   })
 
@@ -112,7 +152,9 @@ export default function CrossSellPage({ params }: PageProps) {
   })
 
   const activeProducts = data?.products ?? []
-  const externalEvents = (data?.showExternalEvents && eventsData?.enabled) ? (eventsData.events ?? []) : []
+  const externalEvents = (data?.showExternalEvents && combinedData?.ticketmaster?.enabled) ? (combinedData.ticketmaster.events ?? []) : []
+  const amActivities = combinedData?.amadeus?.enabled ? (combinedData.amadeus.activities ?? []) : []
+  const amShowBook = combinedData?.amadeus?.showBookButton ?? true
 
   const total = activeProducts
     .filter(p => selected.has(p.id))
@@ -120,7 +162,7 @@ export default function CrossSellPage({ params }: PageProps) {
 
   const currency = activeProducts.find(p => selected.has(p.id))?.currency ?? 'USD'
 
-  const hasContent = activeProducts.length > 0 || externalEvents.length > 0
+  const hasContent = activeProducts.length > 0 || externalEvents.length > 0 || amActivities.length > 0
 
   if (!data?.enabled && !isLoading) {
     router.replace(`/booking/confirmation/${params.bookingId}`)
@@ -232,6 +274,18 @@ export default function CrossSellPage({ params }: PageProps) {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {externalEvents.slice(0, 6).map((event, i) => (
               <EventCard key={i} event={event} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Amadeus activities */}
+      {amActivities.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{t('activitiesAndTours')}</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {amActivities.slice(0, 6).map(activity => (
+              <AmadeusActivityCard key={activity.id} activity={activity} showBookButton={amShowBook} />
             ))}
           </div>
         </section>
