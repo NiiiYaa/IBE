@@ -180,10 +180,6 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         )
       })()}
 
-      {searchParams.hotelId > 0 && (
-        <NearestAirports propertyId={searchParams.hotelId} />
-      )}
-
       {searchParams.hotelId > 0 && (hotelConfig?.priceComparisonEnabled ?? true) && (
         <PriceComparisonBar
           checkin={searchParams.checkIn}
@@ -203,6 +199,10 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <IncentiveWidget incentive={incentive.roomBanner} />
         </div>
+      )}
+
+      {searchParams.hotelId > 0 && (
+        <NearestAirports propertyId={searchParams.hotelId} />
       )}
 
       {searchParams.hotelId > 0 && (

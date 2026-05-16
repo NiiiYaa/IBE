@@ -159,12 +159,20 @@ interface WeatherStripProps {
   orgId?: number | null
 }
 
+function convertTemp(value: number, from: 'celsius' | 'fahrenheit', to: 'celsius' | 'fahrenheit'): number {
+  if (from === to) return value
+  return from === 'celsius'
+    ? Math.round(value * 9 / 5 + 32)
+    : Math.round((value - 32) * 5 / 9)
+}
+
 export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherStripProps) {
   const t = useT('weather')
   const locale = useLocale()
   const [data, setData] = useState<WeatherData | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
+  const [displayUnit, setDisplayUnit] = useState<'celsius' | 'fahrenheit'>('celsius')
 
   useEffect(() => {
     if (!propertyId || !startDate || !endDate) return
@@ -175,7 +183,7 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
     if (orgId) qs.set('orgId', String(orgId))
     fetch(`/api/v1/weather?${qs.toString()}`)
       .then(r => r.ok ? r.json() as Promise<WeatherData> : null)
-      .then(d => { if (d) setData(d) })
+      .then(d => { if (d) { setData(d); setDisplayUnit(d.units ?? 'celsius') } })
       .catch(() => {})
   }, [propertyId, startDate, endDate])
 
@@ -191,6 +199,8 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
   if (!data || !data.enabled || dismissed || !data.forecast?.length) return null
 
   const isHistorical = data.source === 'historical'
+  const serverUnit = data.units ?? 'celsius'
+  const unitLabel = displayUnit === 'celsius' ? '°C' : '°F'
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
@@ -206,13 +216,22 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
           <span className="text-xs font-medium text-[var(--color-text)]">
             {isHistorical ? t('historicalWeather') : t('weatherForecast')}
           </span>
+          {/* °C / °F toggle */}
+          <button
+            onClick={e => { e.stopPropagation(); setDisplayUnit(u => u === 'celsius' ? 'fahrenheit' : 'celsius') }}
+            className="flex items-center rounded border border-[var(--color-border)] text-[10px] font-semibold overflow-hidden leading-none"
+            aria-label="Toggle temperature unit"
+          >
+            <span className={['px-1.5 py-0.5 transition-colors', displayUnit === 'celsius' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'].join(' ')}>°C</span>
+            <span className={['px-1.5 py-0.5 transition-colors', displayUnit === 'fahrenheit' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'].join(' ')}>°F</span>
+          </button>
           {isHistorical && (
             <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-700">
               {t('basedOnLastYear')}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <svg
             className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -244,8 +263,8 @@ export function WeatherStrip({ propertyId, startDate, endDate, orgId }: WeatherS
               </span>
               <WeatherIcon code={day.weatherCode} size={22} />
               <div className="flex items-baseline gap-0.5 leading-none">
-                <span className="text-[10px] font-semibold text-[var(--color-text)]">{day.tempMax}{data.unitLabel}</span>
-                <span className="text-[9px] text-[var(--color-text-muted)]">{day.tempMin}{data.unitLabel}</span>
+                <span className="text-[10px] font-semibold text-[var(--color-text)]">{convertTemp(day.tempMax, serverUnit, displayUnit)}{unitLabel}</span>
+                <span className="text-[9px] text-[var(--color-text-muted)]">{convertTemp(day.tempMin, serverUnit, displayUnit)}{unitLabel}</span>
               </div>
               {day.precipitation > 0 && (
                 <span className="text-[8px] text-blue-500 leading-none">{day.precipitation}mm</span>

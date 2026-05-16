@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { HeaderMapData } from '@/components/layout/Header'
-import type { PoiCategory } from '@ibe/shared'
+import type { PoiCategory, NearestAirport } from '@ibe/shared'
 
 // ── Hotel pin icon ────────────────────────────────────────────────────────────
 
@@ -36,6 +36,14 @@ function makeSisterHotelIcon(primary = '#4f46e5') {
     iconAnchor: [11, 30],
     popupAnchor: [0, -32],
   })
+}
+
+function makeAirportIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+    <circle cx="12" cy="12" r="11" fill="white" stroke="#0f509e" stroke-width="1.5"/>
+    <path d="M13.5 5.5c-.55 0-1 .45-1 1v3.25L7 12.5v1.5l5.5-1.5V16l-1.5 1v1l2.5-.75L16 18v-1l-1.5-1v-3.5L20 14v-1.5l-5.5-2.75V6.5c0-.55-.45-1-1-1z" fill="#0f509e"/>
+  </svg>`
+  return L.divIcon({ className: '', html: svg, iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -14] })
 }
 
 function makePoiIcon(color: string) {
@@ -168,6 +176,7 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
   const [mapsConfig, setMapsConfig] = useState<PublicMapsConfig | null>(null)
   const [chainProps, setChainProps] = useState<ChainProperty[]>([])
   const [poi, setPoi] = useState<PoiNode[]>([])
+  const [airports, setAirports] = useState<NearestAirport[]>([])
   const [loading, setLoading] = useState(true)
 
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#4f46e5'
@@ -185,13 +194,15 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
           const [cfgRes, chainRes] = await Promise.all(fetches)
           const cfg: PublicMapsConfig = cfgRes.ok ? await cfgRes.json() : { provider: 'osm', poiRadius: 1000, poiCategories: ['restaurants', 'attractions', 'transport', 'shopping'] }
           setMapsConfig(cfg)
-          const [poiData, sisterProps] = await Promise.all([
+          const [poiData, sisterProps, airportRes] = await Promise.all([
             fetchPoi(data.lat, data.lng, cfg.poiRadius, cfg.poiCategories as PoiCategory[]),
             chainRes?.ok ? chainRes.json() as Promise<ChainProperty[]> : Promise.resolve([]),
+            fetch(`/api/v1/airports/nearest?propertyId=${data.propertyId}`).catch(() => null),
           ])
           setPoi(poiData)
-          // Sister hotels = all chain properties except the current one
           setChainProps((sisterProps as ChainProperty[]).filter(p => p.id !== data.propertyId))
+          const airportData = airportRes?.ok ? await airportRes.json() as { airports: NearestAirport[] } : null
+          setAirports(airportData?.airports ?? [])
         } else {
           const [propsRes, cfgRes] = await Promise.all([
             fetch(`/api/v1/maps/chain?orgId=${data.orgId}`),
@@ -301,6 +312,16 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
                       </Popup>
                     </Marker>
                   ))}
+                  {airports.map(a => (
+                    <Marker key={a.code} position={[a.lat, a.lng]} icon={makeAirportIcon()}>
+                      <Popup>
+                        <div>
+                          <p className="font-medium">{a.code} — {a.name}</p>
+                          <p className="text-xs text-gray-500">{a.distanceKm} km away</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
                 </>
               )}
 
@@ -325,15 +346,20 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
           )}
         </div>
 
-        {/* Legend (hotel mode only, when POI present) */}
-        {data.mode === 'hotel' && presentCategories.length > 0 && (
+        {/* Legend (hotel mode only) */}
+        {data.mode === 'hotel' && (presentCategories.length > 0 || airports.length > 0) && (
           <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] px-5 py-2.5">
+            {airports.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <svg className="h-3 w-3 shrink-0" fill="none" stroke="#0f509e" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+                </svg>
+                <span className="text-xs text-[var(--color-text-muted)]">Airports</span>
+              </div>
+            )}
             {presentCategories.map(cat => (
               <div key={cat} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ background: POI_COLORS[cat] }}
-                />
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: POI_COLORS[cat] }} />
                 <span className="text-xs text-[var(--color-text-muted)]">{POI_LABELS[cat]}</span>
               </div>
             ))}
