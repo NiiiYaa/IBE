@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useT, useLocale } from '@/context/translations'
 import { apiClient } from '@/lib/api-client'
@@ -148,7 +148,7 @@ interface EventsStripProps {
 function computeAmChips(activities: AmadeusActivity[]): string[] {
   const set = new Set<string>()
   for (const a of activities) {
-    if (a.category) set.add(a.category)
+    if (a.category && a.category !== 'No Category') set.add(a.category)
   }
   return ['All', ...Array.from(set).sort()]
 }
@@ -199,6 +199,7 @@ function StripSection({
 }) {
   const [folded, setFolded] = useState(stripDefaultFolded ?? false)
   const [dismissed, setDismissed] = useState(false)
+  const chipsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setFolded(stripDefaultFolded ?? false)
@@ -214,14 +215,55 @@ function StripSection({
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
       <div
-        className={['flex items-center justify-between px-3 py-1.5 select-none', hasItems ? 'cursor-pointer' : ''].join(' ')}
+        className={['flex items-center gap-2 px-3 py-1.5 select-none', hasItems ? 'cursor-pointer' : ''].join(' ')}
         onClick={() => hasItems && setFolded(f => !f)}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {icon}
           <span className="text-xs font-medium text-[var(--color-text)]">{label}</span>
         </div>
-        <div className="flex items-center gap-1">
+        {chips && chips.length > 1 && (
+          <div className="flex flex-1 items-center gap-0.5 min-w-0" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => chipsRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+              className="shrink-0 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1 text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+              aria-label="Scroll chips left"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div ref={chipsRef} className="flex flex-1 overflow-x-hidden gap-1.5">
+              {chips.map(chip => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => onChipChange?.(chip)}
+                  className={[
+                    'rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors',
+                    chip === (activeChip ?? 'All')
+                      ? 'bg-[var(--color-primary)] text-white'
+                      : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                  ].join(' ')}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => chipsRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+              className="shrink-0 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1 text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+              aria-label="Scroll chips right"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           <svg
             className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', (!hasItems || folded) ? '' : 'rotate-180'].join(' ')}
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -237,27 +279,6 @@ function StripSection({
           </button>
         </div>
       </div>
-
-      {/* Chip row */}
-      {!folded && chips && chips.length > 1 && (
-        <div className="flex overflow-x-auto gap-1.5 px-3 py-1.5 scrollbar-hide border-t border-[var(--color-border)]">
-          {chips.map(chip => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => onChipChange?.(chip)}
-              className={[
-                'rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors',
-                chip === (activeChip ?? 'All')
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-              ].join(' ')}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Cards */}
       {hasItems && !folded && (
