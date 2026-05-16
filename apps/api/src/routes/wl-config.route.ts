@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import type { WLConfigUpdate } from '@ibe/shared'
 import {
-  getSystemWLConfig, upsertSystemWLConfig, refreshAirportDataset,
+  getSystemWLConfig, upsertSystemWLConfig,
   getOrgWLConfig, upsertOrgWLConfig,
   getPropertyWLConfig, upsertPropertyWLConfig,
-  getResolvedWLConfig, getNearestAirports,
+  getResolvedWLConfig,
 } from '../services/wl-config.service.js'
 
 export async function wlAdminRoutes(fastify: FastifyInstance) {
@@ -17,17 +17,6 @@ export async function wlAdminRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/wl/config/system', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     return reply.send(await upsertSystemWLConfig(request.body as WLConfigUpdate))
-  })
-
-  fastify.post('/admin/wl/config/system/refresh-airports', async (request, reply) => {
-    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
-    try {
-      const result = await refreshAirportDataset()
-      return reply.send(result)
-    } catch (err) {
-      request.log.error(err)
-      return reply.status(500).send({ error: 'Failed to refresh airport dataset' })
-    }
   })
 
   // ── Org ───────────────────────────────────────────────────────────────────
@@ -74,12 +63,5 @@ export async function wlPublicRoutes(fastify: FastifyInstance) {
     if (!propertyId || isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
     const fallbackOrgId = qs.orgId ? parseInt(qs.orgId, 10) : undefined
     return reply.send(await getResolvedWLConfig(propertyId, fallbackOrgId))
-  })
-
-  fastify.get('/airports/nearest', async (request, reply) => {
-    const qs = request.query as Record<string, string>
-    const propertyId = qs.propertyId ? parseInt(qs.propertyId, 10) : null
-    if (!propertyId || isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
-    return reply.send(await getNearestAirports(propertyId))
   })
 }
