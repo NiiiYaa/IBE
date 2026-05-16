@@ -9,21 +9,37 @@ interface Props {
   propertyId: number
 }
 
+const storageKey = (propertyId: number) => `nearest-airports-radius-${propertyId}`
+
 export function NearestAirports({ propertyId }: Props) {
   const t = useT('search')
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
   const [radiusKm, setRadiusKm] = useState<number | null>(null)
   const [debouncedRadius, setDebouncedRadius] = useState<number | null>(null)
+  const [hydrated, setHydrated] = useState(false)
   const autoFoldInit = useRef(false)
+
+  // Read persisted radius from localStorage before firing the first query
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey(propertyId))
+    if (saved) {
+      const parsed = parseInt(saved, 10)
+      if (!isNaN(parsed)) {
+        setRadiusKm(parsed)
+        setDebouncedRadius(parsed)
+      }
+    }
+    setHydrated(true)
+  }, [propertyId])
 
   const { data } = useQuery({
     queryKey: ['nearest-airports', propertyId, debouncedRadius],
     queryFn: () => apiClient.getNearestAirports(propertyId, debouncedRadius ?? undefined),
-    enabled: propertyId > 0,
+    enabled: propertyId > 0 && hydrated,
   })
 
-  // Initialise slider from first response
+  // Initialise slider from first response (only when no saved radius)
   useEffect(() => {
     if (!data || radiusKm !== null) return
     setRadiusKm(data.radiusKm)
@@ -41,17 +57,19 @@ export function NearestAirports({ propertyId }: Props) {
     return () => clearTimeout(timer)
   }, [data])
 
-  // Debounce slider → re-query
+  // Debounce slider → re-query + persist
   useEffect(() => {
     if (radiusKm === null) return
-    const timer = setTimeout(() => setDebouncedRadius(radiusKm), 400)
+    const timer = setTimeout(() => {
+      setDebouncedRadius(radiusKm)
+      localStorage.setItem(storageKey(propertyId), String(radiusKm))
+    }, 400)
     return () => clearTimeout(timer)
-  }, [radiusKm])
+  }, [radiusKm, propertyId])
 
   const airports = data?.airports ?? []
-  if (airports.length === 0 && !data) return null   // nothing loaded yet
+  if (airports.length === 0 && !data) return null
   if (dismissed) return null
-  // Keep strip visible even if slider returns 0 airports (was previously showing)
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
