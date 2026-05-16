@@ -1571,7 +1571,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/amadeus/test', { method: 'POST', body: JSON.stringify({ orgId, propertyId }) })
   },
 
-  // ── Amadeus WL ───────────────────────────────────────────────────────────
+  // ── WL Config ────────────────────────────────────────────────────────────
 
   getSystemWLConfig(): Promise<WLConfigResponse> {
     return apiRequest('/api/v1/admin/wl/config/system')

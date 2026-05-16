@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import type { WLConfigUpdate } from '@ibe/shared'
 import {
   getSystemWLConfig, upsertSystemWLConfig, refreshAirportDataset,
   getOrgWLConfig, upsertOrgWLConfig,
@@ -15,7 +16,7 @@ export async function wlAdminRoutes(fastify: FastifyInstance) {
 
   fastify.put('/admin/wl/config/system', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
-    return reply.send(await upsertSystemWLConfig(request.body as Record<string, unknown>))
+    return reply.send(await upsertSystemWLConfig(request.body as WLConfigUpdate))
   })
 
   fastify.post('/admin/wl/config/system/refresh-airports', async (request, reply) => {
@@ -49,7 +50,7 @@ export async function wlAdminRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Only super admins can set enforceChildCreds' })
     if (body.systemServiceDisabled !== undefined && request.admin.role !== 'super')
       return reply.status(403).send({ error: 'Only super admins can set systemServiceDisabled' })
-    return reply.send(await upsertOrgWLConfig(orgId, body))
+    return reply.send(await upsertOrgWLConfig(orgId, body as WLConfigUpdate))
   })
 
   // ── Property ──────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ export async function wlAdminRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/wl/config/property/:propertyId', async (request, reply) => {
     const propertyId = parseInt((request.params as Record<string, string | undefined>).propertyId ?? '', 10)
     if (isNaN(propertyId)) return reply.status(400).send({ error: 'Invalid propertyId' })
-    return reply.send(await upsertPropertyWLConfig(propertyId, request.body as Record<string, unknown>))
+    return reply.send(await upsertPropertyWLConfig(propertyId, request.body as WLConfigUpdate))
   })
 }
 
