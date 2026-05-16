@@ -7,6 +7,7 @@ import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import type { EventsConfigResponse, EventsConfigUpdate } from '@ibe/shared'
 import AmadeusConfigCard from './amadeus-card'
+import AmadeusWLCard from './amadeus-wl-card'
 
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -278,6 +279,16 @@ export default function EventsConfigPage() {
       <div>
         <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus Discover</h2>
         <AmadeusConfigCard
+          isSystemLevel={isSystemLevel}
+          {...(orgId !== undefined && { orgId })}
+          {...(isSuper !== undefined && { isSuper })}
+        />
+      </div>
+
+      {/* Amadeus WL */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Amadeus WL (Activities Booking)</h2>
+        <AmadeusWLCard
           isSystemLevel={isSystemLevel}
           {...(orgId !== undefined && { orgId })}
           {...(isSuper !== undefined && { isSuper })}
