@@ -117,6 +117,7 @@ export default function CrossSellPage({ params }: PageProps) {
   const [nights, setNights] = useState(1)
   const [propertyId, setPropertyId] = useState(PROPERTY_ID)
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [sessionReady, setSessionReady] = useState(false)
 
   useEffect(() => {
     try {
@@ -130,6 +131,7 @@ export default function CrossSellPage({ params }: PageProps) {
         if (conf.propertyId) setPropertyId(conf.propertyId)
       }
     } catch {}
+    setSessionReady(true)
   }, [params.bookingId])
 
   const { data, isLoading } = useQuery<PublicCrossellResponse>({
@@ -164,7 +166,7 @@ export default function CrossSellPage({ params }: PageProps) {
 
   const hasContent = activeProducts.length > 0 || externalEvents.length > 0 || amActivities.length > 0
 
-  if (!data?.enabled && !isLoading) {
+  if (sessionReady && !isLoading && !data?.enabled) {
     router.replace(`/booking/confirmation/${params.bookingId}`)
     return null
   }
