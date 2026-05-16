@@ -1611,8 +1611,9 @@ export const apiClient = {
     return apiRequest(`/api/v1/wl/config?${qs}`)
   },
 
-  getNearestAirports(propertyId: number): Promise<NearestAirportsResponse> {
-    return apiRequest(`/api/v1/airports/nearest?propertyId=${propertyId}`)
+  getNearestAirports(propertyId: number, radiusKm?: number): Promise<NearestAirportsResponse> {
+    const qs = radiusKm !== undefined ? `&radiusKm=${radiusKm}` : ''
+    return apiRequest(`/api/v1/airports/nearest?propertyId=${propertyId}${qs}`)
   },
 
   getSystemAirportConfig(): Promise<AirportConfigResponse> {
