@@ -274,6 +274,8 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
   const locale = useLocale()
   const [tmDismissed, setTmDismissed] = useState(false)
   const [amDismissed, setAmDismissed] = useState(false)
+  const [activeTmChip, setActiveTmChip] = useState('All')
+  const [activeAmChip, setActiveAmChip] = useState('All')
 
   const { data, isLoading } = useQuery<ActivitiesAndEventsResponse>({
     queryKey: ['activities-and-events', propertyId, orgId],
@@ -293,6 +295,17 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
   const amActivities = data.amadeus?.activities ?? []
   const tmShowBook = data.ticketmaster?.showBookButton ?? true
   const amShowBook = data.amadeus?.showBookButton ?? true
+
+  const tmChips = computeTmChips(tmEvents)
+  const amChips = computeAmChips(amActivities)
+
+  const filteredTmEvents = activeTmChip === 'All'
+    ? tmEvents
+    : tmEvents.filter(e => e.category === activeTmChip || e.genre === activeTmChip)
+
+  const filteredAmActivities = activeAmChip === 'All'
+    ? amActivities
+    : amActivities.filter(a => a.category === activeAmChip)
 
   const ticketIcon = (
     <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,8 +375,11 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           {...(data.ticketmaster?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.ticketmaster.stripDefaultFolded })}
           {...(data.ticketmaster?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.ticketmaster.stripAutoFoldSecs })}
           onDismiss={() => setTmDismissed(true)}
+          chips={tmChips}
+          activeChip={activeTmChip}
+          onChipChange={setActiveTmChip}
         >
-          {tmEvents.map((event, i) => (
+          {filteredTmEvents.map((event, i) => (
             <TicketmasterEventCard key={i} event={event} locale={locale} showBookButton={tmShowBook} />
           ))}
         </StripSection>
@@ -377,8 +393,11 @@ export function EventsStrip({ propertyId, startDate, endDate, showTicketLink = f
           {...(data.amadeus?.stripDefaultFolded !== undefined && { stripDefaultFolded: data.amadeus.stripDefaultFolded })}
           {...(data.amadeus?.stripAutoFoldSecs !== undefined && { stripAutoFoldSecs: data.amadeus.stripAutoFoldSecs })}
           onDismiss={() => setAmDismissed(true)}
+          chips={amChips}
+          activeChip={activeAmChip}
+          onChipChange={setActiveAmChip}
         >
-          {amActivities.map((activity, i) => (
+          {filteredAmActivities.map((activity, i) => (
             <ActivityCard key={i} activity={activity} showBookButton={amShowBook} />
           ))}
         </StripSection>
