@@ -27,6 +27,7 @@ import type { CartItem } from '@/components/search/RoomCartPanel'
 import type { RoomOption, RateOption, RoomDetail } from '@ibe/shared'
 import { nightsBetween, formatCurrency } from '@ibe/shared'
 import { useSetAffiliateCookie } from '@/hooks/use-affiliate-cookie'
+import { NearestAirports } from '@/components/hotel/NearestAirports'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -177,6 +178,10 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
           />
         )
       })()}
+
+      {searchParams.hotelId > 0 && (
+        <NearestAirports propertyId={searchParams.hotelId} />
+      )}
 
       {searchParams.hotelId > 0 && (hotelConfig?.priceComparisonEnabled ?? true) && (
         <PriceComparisonBar

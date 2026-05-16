@@ -5,6 +5,7 @@ import Image from 'next/image'
 import type { PropertyFacility } from '@ibe/shared'
 import { facilityIcon } from '@/lib/facility-icon'
 import { useT } from '@/context/translations'
+import { NearestAirports } from '@/components/hotel/NearestAirports'
 
 interface PropertyDetailModalProps {
   id: number
@@ -99,6 +100,9 @@ export function PropertyDetailModal({
                 {[city, address].filter(Boolean).join(', ')}
               </p>
             )}
+            <div className="mt-1.5">
+              <NearestAirports propertyId={id} />
+            </div>
           </div>
 
           {description && (
