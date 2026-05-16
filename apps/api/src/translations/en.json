@@ -458,6 +458,8 @@
     "addExtras": "Add extras to your booking #{id}",
     "addToYourStay": "Add to your stay",
     "eventsNearHotel": "Events near the hotel",
+    "activitiesAndTours": "Activities & Tours",
+    "bookNow": "Book now",
     "loadingOffers": "Loading offers…",
     "noExtrasAvailable": "No extras available at this time.",
     "perNight": "{amount} × {nights} nights = {total}",
