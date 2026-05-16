@@ -48,6 +48,7 @@ model Organization {
   orgWeatherConfig            OrgWeatherConfig?
   orgEventsConfig             OrgEventsConfig?
   orgAmadeusConfig            OrgAmadeusConfig?
+  orgWLConfig                 OrgWLConfig?
   crossSellConfig             CrossSellConfig?
   crossSellProducts           CrossSellProduct[]
   propertyCrossSellConfigs    PropertyCrossSellConfig[]
@@ -457,6 +458,7 @@ model Property {
   propertyOrganizations   PropertyOrganization[]
   propertyDataProviderConfig  PropertyDataProviderConfig?
   propertyAmadeusConfig       PropertyAmadeusConfig?
+  propertyWLConfig            PropertyWLConfig?
   propertyScore               PropertyScore?
   externalIBEConfig           ExternalIBEConfig?
 
@@ -1681,4 +1683,41 @@ model ExternalIBEConfig {
 
   organization     Organization? @relation(fields: [organizationId], references: [id])
   property         Property?     @relation(fields: [propertyId], references: [propertyId], map: "ExternalIBEConfig_propertyId_fkey")
+}
+
+// ── Amadeus White Label ───────────────────────────────────────────────────────
+
+model SystemWLConfig {
+  id                       Int       @id @default(autoincrement())
+  channelUuid              String?   // AES-256-CBC encrypted
+  enabled                  Boolean   @default(false)
+  enforceChildCreds        Boolean   @default(false)
+  airportDataset           Json?     // AirportEntry[] refreshed from OpenFlights
+  airportDatasetUpdatedAt  DateTime?
+  airportRadiusKm          Int       @default(100)
+  airportMaxCount          Int       @default(3)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+}
+
+model OrgWLConfig {
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  channelUuid           String?      // AES-256-CBC encrypted; null = inherit from system
+  enabled               Boolean      @default(false)
+  enforceChildCreds     Boolean      @default(false)
+  systemServiceDisabled Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model PropertyWLConfig {
+  id          Int      @id @default(autoincrement())
+  propertyId  Int      @unique
+  property    Property @relation(fields: [propertyId], references: [propertyId])
+  channelUuid String?  // AES-256-CBC encrypted; null = inherit from org/system
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
