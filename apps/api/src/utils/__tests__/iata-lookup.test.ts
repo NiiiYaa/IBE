@@ -57,7 +57,7 @@ describe('findNearestAirports', () => {
   it('returns results sorted by distance ascending', () => {
     const results = findNearestAirports(LONDON_LAT, LONDON_LNG, 150, 10, LONDON_AIRPORTS)
     for (let i = 1; i < results.length; i++) {
-      expect(results[i].distanceKm).toBeGreaterThanOrEqual(results[i - 1].distanceKm)
+      expect(results[i]!.distanceKm).toBeGreaterThanOrEqual(results[i - 1]!.distanceKm)
     }
   })
 
@@ -72,6 +72,6 @@ describe('findNearestAirports', () => {
     ]
     const results = findNearestAirports(LONDON_LAT, LONDON_LNG, 10, 10, custom)
     expect(results).toHaveLength(1)
-    expect(results[0].code).toBe('TST')
+    expect(results[0]!.code).toBe('TST')
   })
 })
