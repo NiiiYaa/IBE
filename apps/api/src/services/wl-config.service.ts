@@ -82,7 +82,7 @@ export async function upsertSystemWLConfig(data: WLConfigUpdate): Promise<WLConf
 
 export async function refreshAirportDataset(): Promise<{ count: number; updatedAt: string }> {
   const url = 'https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports-extended.dat'
-  const res = await fetch(url)
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
   if (!res.ok) throw new Error(`Failed to fetch airports: ${res.status}`)
   const text = await res.text()
 
@@ -103,6 +103,8 @@ export async function refreshAirportDataset(): Promise<{ count: number; updatedA
     seen.add(iata)
     entries.push({ code: iata, name, lat, lng })
   }
+
+  if (entries.length < 1000) throw new Error(`Unexpectedly small airport dataset: ${entries.length} entries`)
 
   const now = new Date()
   const existing = await prisma.systemWLConfig.findFirst()
@@ -180,16 +182,11 @@ async function getSystemDataset(): Promise<{ dataset: AirportEntry[] | undefined
 }
 
 export async function getResolvedWLConfig(propertyId: number, fallbackOrgId?: number): Promise<ResolvedWLConfig> {
-  const prop = await prisma.property.findUnique({
-    where: { propertyId },
-    select: { organizationId: true },
-  })
+  const [prop, dpConfig] = await Promise.all([
+    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
+    prisma.propertyDataProviderConfig.findUnique({ where: { propertyId }, select: { lat: true, lng: true } }),
+  ])
   const orgId = prop?.organizationId ?? fallbackOrgId
-
-  const dpConfig = await prisma.propertyDataProviderConfig.findUnique({
-    where: { propertyId },
-    select: { lat: true, lng: true },
-  })
 
   const [sysRow, orgRow, propRow] = await Promise.all([
     prisma.systemWLConfig.findFirst(),
@@ -221,7 +218,7 @@ export async function getResolvedWLConfig(propertyId: number, fallbackOrgId?: nu
   let iataCode: string | null = null
   if (channelUuid && enabled && dpConfig?.lat && dpConfig?.lng) {
     const { dataset, radiusKm, maxCount } = await getSystemDataset()
-    const nearest = findNearestAirports(dpConfig.lat, dpConfig.lng, radiusKm, maxCount, dataset)
+    const nearest = findNearestAirports(Number(dpConfig.lat), Number(dpConfig.lng), radiusKm, maxCount, dataset)
     iataCode = nearest[0]?.code ?? null
   }
 
