@@ -49,6 +49,7 @@ model Organization {
   orgEventsConfig             OrgEventsConfig?
   orgAmadeusConfig            OrgAmadeusConfig?
   orgWLConfig                 OrgWLConfig?
+  orgAirportConfig            OrgAirportConfig?
   crossSellConfig             CrossSellConfig?
   crossSellProducts           CrossSellProduct[]
   propertyCrossSellConfigs    PropertyCrossSellConfig[]
@@ -459,6 +460,7 @@ model Property {
   propertyDataProviderConfig  PropertyDataProviderConfig?
   propertyAmadeusConfig       PropertyAmadeusConfig?
   propertyWLConfig            PropertyWLConfig?
+  propertyAirportConfig       PropertyAirportConfig?
   propertyScore               PropertyScore?
   externalIBEConfig           ExternalIBEConfig?
 
@@ -1685,6 +1687,41 @@ model ExternalIBEConfig {
   property         Property?     @relation(fields: [propertyId], references: [propertyId], map: "ExternalIBEConfig_propertyId_fkey")
 }
 
+// ── Airport Display ────────────────────────────────────────────────────────────
+
+model SystemAirportConfig {
+  id                      Int       @id @default(autoincrement())
+  enabled                 Boolean   @default(false)
+  radiusKm                Int       @default(100)
+  maxCount                Int       @default(3)
+  airportDataset          Json?     // AirportEntry[] refreshed from OpenFlights
+  airportDatasetUpdatedAt DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model OrgAirportConfig {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  enabled        Boolean?     // null = inherit from system
+  radiusKm       Int?         // null = inherit from system
+  maxCount       Int?         // null = inherit from system
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PropertyAirportConfig {
+  id         Int      @id @default(autoincrement())
+  propertyId Int      @unique
+  property   Property @relation(fields: [propertyId], references: [propertyId])
+  enabled    Boolean? // null = inherit from org → system
+  radiusKm   Int?     // null = inherit from org → system
+  maxCount   Int?     // null = inherit from org → system
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 // ── Amadeus White Label ───────────────────────────────────────────────────────
 
 model SystemWLConfig {
@@ -1692,10 +1729,6 @@ model SystemWLConfig {
   channelUuid              String?   // AES-256-CBC encrypted
   enabled                  Boolean   @default(false)
   enforceChildCreds        Boolean   @default(false)
-  airportDataset           Json?     // AirportEntry[] refreshed from OpenFlights
-  airportDatasetUpdatedAt  DateTime?
-  airportRadiusKm          Int       @default(100)
-  airportMaxCount          Int       @default(3)
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 }
