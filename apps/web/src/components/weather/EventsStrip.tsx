@@ -145,6 +145,35 @@ interface EventsStripProps {
   orgId?: number | null
 }
 
+function computeAmChips(activities: AmadeusActivity[]): string[] {
+  const set = new Set<string>()
+  for (const a of activities) {
+    if (a.category) set.add(a.category)
+  }
+  return ['All', ...Array.from(set).sort()]
+}
+
+function computeTmChips(events: TmEvent[]): string[] {
+  const set = new Set<string>()
+  for (const e of events) {
+    if (e.category) set.add(e.category)
+    if (e.genre && e.genre !== 'Undefined') set.add(e.genre)
+  }
+  return ['All', ...Array.from(set).sort()]
+}
+
+function computeMergedChips(activities: AmadeusActivity[], events: TmEvent[]): string[] {
+  const set = new Set<string>()
+  for (const a of activities) {
+    if (a.category) set.add(a.category)
+  }
+  for (const e of events) {
+    if (e.category) set.add(e.category)
+    if (e.genre && e.genre !== 'Undefined') set.add(e.genre)
+  }
+  return ['All', ...Array.from(set).sort()]
+}
+
 function StripSection({
   label,
   icon,
@@ -152,6 +181,9 @@ function StripSection({
   stripDefaultFolded,
   stripAutoFoldSecs,
   onDismiss,
+  chips,
+  activeChip,
+  onChipChange,
   children,
 }: {
   label: React.ReactNode
@@ -160,6 +192,9 @@ function StripSection({
   stripDefaultFolded?: boolean
   stripAutoFoldSecs?: number
   onDismiss: () => void
+  chips?: string[]
+  activeChip?: string
+  onChipChange?: (chip: string) => void
   children: React.ReactNode
 }) {
   const [folded, setFolded] = useState(stripDefaultFolded ?? false)
@@ -202,6 +237,27 @@ function StripSection({
           </button>
         </div>
       </div>
+
+      {/* Chip row */}
+      {!folded && chips && chips.length > 1 && (
+        <div className="flex overflow-x-auto gap-1.5 px-3 py-1.5 scrollbar-hide border-t border-[var(--color-border)]">
+          {chips.map(chip => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => onChipChange?.(chip)}
+              className={[
+                'rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors',
+                chip === (activeChip ?? 'All')
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+              ].join(' ')}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Cards */}
       {hasItems && !folded && (
