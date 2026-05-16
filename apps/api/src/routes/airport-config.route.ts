@@ -67,6 +67,10 @@ export async function airportPublicRoutes(fastify: FastifyInstance) {
     const qs = request.query as Record<string, string>
     const propertyId = qs.propertyId ? parseInt(qs.propertyId, 10) : null
     if (!propertyId || isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
-    return reply.send(await getNearestAirports(propertyId))
+    const rawRadius = qs.radiusKm ? parseInt(qs.radiusKm, 10) : undefined
+    const radiusKmOverride = rawRadius !== undefined && !isNaN(rawRadius)
+      ? Math.min(300, Math.max(1, rawRadius))
+      : undefined
+    return reply.send(await getNearestAirports(propertyId, radiusKmOverride))
   })
 }

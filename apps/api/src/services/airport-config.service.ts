@@ -181,7 +181,7 @@ async function getSystemDataset(): Promise<AirportEntry[] | undefined> {
   return row?.airportDataset ? (row.airportDataset as unknown as AirportEntry[]) : undefined
 }
 
-export async function getNearestAirports(propertyId: number): Promise<NearestAirportsResponse> {
+export async function getNearestAirports(propertyId: number, radiusKmOverride?: number): Promise<NearestAirportsResponse> {
   const [resolved, property, sysRow] = await Promise.all([
     getResolvedAirportConfig(propertyId),
     fetchPropertyStatic(propertyId).catch(() => null),
@@ -193,11 +193,14 @@ export async function getNearestAirports(propertyId: number): Promise<NearestAir
 
   const lat = property?.coordinates?.latitude
   const lng = property?.coordinates?.longitude
-  if (!resolved.enabled || !lat || !lng) return { airports: [], stripDefaultFolded, stripAutoFoldSecs }
+  if (!resolved.enabled || !lat || !lng) return { airports: [], radiusKm: radiusKmOverride ?? resolved.radiusKm, stripDefaultFolded, stripAutoFoldSecs }
+
+  const radiusKm = radiusKmOverride ?? resolved.radiusKm
+  const maxCount = radiusKmOverride !== undefined ? 20 : resolved.maxCount
 
   const dataset = await getSystemDataset()
-  const airports = findNearestAirports(lat, lng, resolved.radiusKm, resolved.maxCount, dataset)
-  return { airports, stripDefaultFolded, stripAutoFoldSecs }
+  const airports = findNearestAirports(lat, lng, radiusKm, maxCount, dataset)
+  return { airports, radiusKm, stripDefaultFolded, stripAutoFoldSecs }
 }
 
 // Used by WL service to get iataCode for URL building — does NOT check airport display enabled.

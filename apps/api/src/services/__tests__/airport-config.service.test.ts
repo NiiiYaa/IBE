@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('../../adapters/hyperguest/static.js', () => ({
+  fetchPropertyStatic: vi.fn().mockResolvedValue({
+    coordinates: { latitude: 51.5074, longitude: -0.1278 },
+  }),
+}))
+
+vi.mock('../../utils/iata-lookup.js', () => ({
+  findNearestAirports: vi.fn().mockReturnValue([]),
+}))
+
 vi.mock('../../db/client.js', () => ({
   prisma: {
     systemAirportConfig: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
@@ -11,6 +21,7 @@ vi.mock('../../db/client.js', () => ({
 }))
 
 import { prisma } from '../../db/client.js'
+import { findNearestAirports } from '../../utils/iata-lookup.js'
 import {
   getResolvedAirportConfig,
   getNearestAirports,
@@ -114,6 +125,55 @@ describe('getNearestAirports', () => {
     mp.propertyDataProviderConfig.findUnique.mockResolvedValue(null)
 
     const result = await getNearestAirports(42)
+    expect(result.airports).toEqual([])
+  })
+})
+
+describe('getNearestAirports — radiusKmOverride', () => {
+  beforeEach(() => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mp.systemAirportConfig.findFirst.mockResolvedValue({
+      ...SYS_ROW,
+      stripDefaultFolded: false,
+      stripAutoFoldSecs: 0,
+      airportDataset: null,
+    })
+    mp.orgAirportConfig.findUnique.mockResolvedValue(null)
+    mp.propertyAirportConfig.findUnique.mockResolvedValue(null)
+  })
+
+  it('uses system radiusKm and maxCount when no override', async () => {
+    const result = await getNearestAirports(42)
+    expect(result.radiusKm).toBe(100)
+    expect(findNearestAirports).toHaveBeenCalledWith(
+      expect.any(Number), expect.any(Number), 100, 3, undefined
+    )
+  })
+
+  it('uses override radiusKm and caps maxCount at 20', async () => {
+    const result = await getNearestAirports(42, 250)
+    expect(result.radiusKm).toBe(250)
+    expect(findNearestAirports).toHaveBeenCalledWith(
+      expect.any(Number), expect.any(Number), 250, 20, undefined
+    )
+  })
+
+  it('returns override radiusKm in response even when 0 airports found', async () => {
+    const result = await getNearestAirports(42, 50)
+    expect(result.radiusKm).toBe(50)
+    expect(result.airports).toEqual([])
+  })
+
+  it('returns override radiusKm in early-return when feature disabled', async () => {
+    mp.systemAirportConfig.findFirst.mockResolvedValue({
+      ...SYS_ROW,
+      enabled: false,
+      stripDefaultFolded: false,
+      stripAutoFoldSecs: 0,
+      airportDataset: null,
+    })
+    const result = await getNearestAirports(42, 150)
+    expect(result.radiusKm).toBe(150)
     expect(result.airports).toEqual([])
   })
 })

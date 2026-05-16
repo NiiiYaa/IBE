@@ -8,6 +8,7 @@ export interface NearestAirport {
 
 export interface NearestAirportsResponse {
   airports: NearestAirport[]
+  radiusKm: number
   stripDefaultFolded: boolean
   stripAutoFoldSecs: number
 }
