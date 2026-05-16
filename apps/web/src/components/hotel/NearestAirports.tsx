@@ -13,13 +13,23 @@ export function NearestAirports({ propertyId }: Props) {
   const t = useT('search')
   const [dismissed, setDismissed] = useState(false)
   const [folded, setFolded] = useState(false)
+  const [radiusKm, setRadiusKm] = useState<number | null>(null)
+  const [debouncedRadius, setDebouncedRadius] = useState<number | null>(null)
 
   const { data } = useQuery({
-    queryKey: ['nearest-airports', propertyId],
-    queryFn: () => apiClient.getNearestAirports(propertyId),
+    queryKey: ['nearest-airports', propertyId, debouncedRadius],
+    queryFn: () => apiClient.getNearestAirports(propertyId, debouncedRadius ?? undefined),
     enabled: propertyId > 0,
   })
 
+  // Initialise slider from first response
+  useEffect(() => {
+    if (!data || radiusKm !== null) return
+    setRadiusKm(data.radiusKm)
+    setDebouncedRadius(data.radiusKm)
+  }, [data, radiusKm])
+
+  // Auto-fold timer
   useEffect(() => {
     if (!data) return
     setFolded(data.stripDefaultFolded ?? false)
@@ -29,23 +39,54 @@ export function NearestAirports({ propertyId }: Props) {
     return () => clearTimeout(timer)
   }, [data])
 
+  // Debounce slider → re-query
+  useEffect(() => {
+    if (radiusKm === null) return
+    const timer = setTimeout(() => setDebouncedRadius(radiusKm), 400)
+    return () => clearTimeout(timer)
+  }, [radiusKm])
+
   const airports = data?.airports ?? []
-  if (airports.length === 0 || dismissed) return null
+  if (airports.length === 0 && !data) return null   // nothing loaded yet
+  if (dismissed) return null
+  // Keep strip visible even if slider returns 0 airports (was previously showing)
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-1.5 cursor-pointer select-none"
+        className="flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none"
         onClick={() => setFolded(f => !f)}
       >
-        <div className="flex items-center gap-2">
-          <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-          </svg>
-          <span className="text-xs font-medium text-[var(--color-text)]">{t('nearestAirports')}</span>
-        </div>
-        <div className="flex items-center gap-1">
+        {/* Icon + label */}
+        <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+        </svg>
+        <span className="text-xs font-medium text-[var(--color-text)] shrink-0">{t('nearestAirports')}</span>
+
+        {/* Slider — shown only after first load */}
+        {radiusKm !== null && (
+          <div
+            className="flex items-center gap-1.5 flex-1 min-w-0"
+            onClick={e => e.stopPropagation()}
+          >
+            <input
+              type="range"
+              min={10}
+              max={300}
+              step={10}
+              value={radiusKm}
+              onChange={e => setRadiusKm(Number(e.target.value))}
+              className="w-full h-1 accent-[var(--color-primary)] cursor-pointer"
+            />
+            <span className="text-xs text-[var(--color-text-muted)] shrink-0 tabular-nums w-14 text-right">
+              {radiusKm} km
+            </span>
+          </div>
+        )}
+
+        {/* Chevron + dismiss */}
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           <svg
             className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -66,15 +107,23 @@ export function NearestAirports({ propertyId }: Props) {
 
       {/* Airport list */}
       {!folded && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-2 border-t border-[var(--color-border)]">
-          {airports.map(a => (
-            <div key={a.code} className="flex items-center gap-1.5 text-xs">
-              <span className="font-semibold text-[var(--color-text)]">{a.code}</span>
-              <span className="text-[var(--color-text-muted)]">{a.name}</span>
-              <span className="text-[var(--color-text-muted)]">·</span>
-              <span className="text-[var(--color-text-muted)]">{a.distanceKm} km</span>
+        <div className="border-t border-[var(--color-border)]">
+          {airports.length > 0 ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-2">
+              {airports.map(a => (
+                <div key={a.code} className="flex items-center gap-1.5 text-xs">
+                  <span className="font-semibold text-[var(--color-text)]">{a.code}</span>
+                  <span className="text-[var(--color-text-muted)]">{a.name}</span>
+                  <span className="text-[var(--color-text-muted)]">·</span>
+                  <span className="text-[var(--color-text-muted)]">{a.distanceKm} km</span>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">
+              No airports found within {radiusKm ?? 0} km.
+            </p>
+          )}
         </div>
       )}
     </div>
