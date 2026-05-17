@@ -15,12 +15,12 @@ export interface NearestAirportsResponse {
 
 export interface AirportConfigResponse {
   enabled: boolean
-  radiusKm: number           // effective value (system default if not overridden)
-  maxCount: number           // effective value
+  radiusKm: number
+  maxCount: number
   hasOwnConfig: boolean
-  datasetUpdatedAt: string | null  // system tier only; null at org/property
-  stripDefaultFolded: boolean      // system tier only
-  stripAutoFoldSecs: number        // system tier only; 0 = never
+  datasetUpdatedAt: string | null  // non-null at system tier only
+  stripDefaultFolded: boolean
+  stripAutoFoldSecs: number
 }
 
 export interface AirportConfigUpdate {
@@ -35,4 +35,6 @@ export interface ResolvedAirportConfig {
   enabled: boolean
   radiusKm: number
   maxCount: number
+  stripDefaultFolded: boolean
+  stripAutoFoldSecs: number
 }
