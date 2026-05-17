@@ -32,6 +32,7 @@ beforeEach(() => { vi.clearAllMocks() })
 
 const SYS_ROW = {
   enabled: true, radiusKm: 100, maxCount: 3,
+  stripDefaultFolded: false, stripAutoFoldSecs: 0,
   airportDataset: null, airportDatasetUpdatedAt: null,
 }
 
@@ -43,7 +44,7 @@ describe('getResolvedAirportConfig — system only', () => {
     mp.propertyAirportConfig.findUnique.mockResolvedValue(null)
 
     const result = await getResolvedAirportConfig(42)
-    expect(result).toEqual({ enabled: true, radiusKm: 100, maxCount: 3 })
+    expect(result).toEqual({ enabled: true, radiusKm: 100, maxCount: 3, stripDefaultFolded: false, stripAutoFoldSecs: 0 })
   })
 
   it('returns disabled when system disabled', async () => {
@@ -102,6 +103,38 @@ describe('getResolvedAirportConfig — property override', () => {
     const result = await getResolvedAirportConfig(42)
     expect(result.maxCount).toBe(1)
     expect(result.radiusKm).toBe(200) // org overrides system; property inherits org
+  })
+})
+
+describe('getResolvedAirportConfig — strip settings inheritance', () => {
+  it('inherits system strip settings when org and property have null', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mp.systemAirportConfig.findFirst.mockResolvedValue({ ...SYS_ROW, stripDefaultFolded: true, stripAutoFoldSecs: 30 })
+    mp.orgAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: null, stripAutoFoldSecs: null })
+    mp.propertyAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: null, stripAutoFoldSecs: null })
+    const result = await getResolvedAirportConfig(42)
+    expect(result.stripDefaultFolded).toBe(true)
+    expect(result.stripAutoFoldSecs).toBe(30)
+  })
+
+  it('org stripDefaultFolded overrides system', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mp.systemAirportConfig.findFirst.mockResolvedValue({ ...SYS_ROW, stripDefaultFolded: false, stripAutoFoldSecs: 0 })
+    mp.orgAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: true, stripAutoFoldSecs: null })
+    mp.propertyAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: null, stripAutoFoldSecs: null })
+    const result = await getResolvedAirportConfig(42)
+    expect(result.stripDefaultFolded).toBe(true)
+    expect(result.stripAutoFoldSecs).toBe(0)  // falls through to system
+  })
+
+  it('property stripAutoFoldSecs overrides org; property inherits org stripDefaultFolded', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mp.systemAirportConfig.findFirst.mockResolvedValue({ ...SYS_ROW, stripDefaultFolded: false, stripAutoFoldSecs: 0 })
+    mp.orgAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: true, stripAutoFoldSecs: null })
+    mp.propertyAirportConfig.findUnique.mockResolvedValue({ enabled: null, radiusKm: null, maxCount: null, stripDefaultFolded: null, stripAutoFoldSecs: 60 })
+    const result = await getResolvedAirportConfig(42)
+    expect(result.stripDefaultFolded).toBe(true)  // from org
+    expect(result.stripAutoFoldSecs).toBe(60)     // from property
   })
 })
 
