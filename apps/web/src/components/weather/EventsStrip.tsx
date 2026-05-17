@@ -214,10 +214,7 @@ function StripSection({
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
-      <div
-        className={['flex items-center gap-2 px-3 py-1.5 select-none', hasItems ? 'cursor-pointer' : ''].join(' ')}
-        onClick={() => hasItems && setFolded(f => !f)}
-      >
+      <div className="flex items-center gap-2 px-3 py-1.5 select-none">
         <div className="flex items-center gap-2 shrink-0">
           {icon}
           <span className="text-xs font-medium text-[var(--color-text)]">{label}</span>
@@ -239,7 +236,7 @@ function StripSection({
                 <button
                   key={chip}
                   type="button"
-                  onClick={() => onChipChange?.(chip)}
+                  onClick={() => { setFolded(false); onChipChange?.(chip) }}
                   className={[
                     'rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors',
                     chip === (activeChip ?? 'All')
@@ -264,12 +261,21 @@ function StripSection({
           </div>
         )}
         <div className="flex items-center gap-1 shrink-0 ml-auto">
-          <svg
-            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', (!hasItems || folded) ? '' : 'rotate-180'].join(' ')}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          {hasItems && (
+            <button
+              type="button"
+              onClick={() => setFolded(f => !f)}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1 text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+              aria-label={folded ? 'Expand' : 'Collapse'}
+            >
+              <svg
+                className={['h-4 w-4 transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
           <button onClick={e => { e.stopPropagation(); setDismissed(true); onDismiss() }}
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)] transition-colors"
             aria-label="Dismiss">

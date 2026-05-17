@@ -75,8 +75,7 @@ export function NearestAirports({ propertyId }: Props) {
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none"
-        onClick={() => setFolded(f => !f)}
+        className="flex items-center gap-2 px-3 py-1.5 select-none"
       >
         {/* Icon + label */}
         <svg className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" fill="currentColor" viewBox="0 0 24 24">
@@ -96,7 +95,7 @@ export function NearestAirports({ propertyId }: Props) {
               max={300}
               step={10}
               value={radiusKm}
-              onChange={e => setRadiusKm(Number(e.target.value))}
+              onChange={e => { setRadiusKm(Number(e.target.value)); setFolded(false) }}
               className="w-full h-1 accent-[var(--color-primary)] cursor-pointer"
             />
             <span className="text-xs text-[var(--color-text-muted)] shrink-0 tabular-nums w-14 text-right">
@@ -107,12 +106,19 @@ export function NearestAirports({ propertyId }: Props) {
 
         {/* Chevron + dismiss */}
         <div className="flex items-center gap-1 shrink-0 ml-auto">
-          <svg
-            className={['h-3.5 w-3.5 text-[var(--color-text-muted)] transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          <button
+            type="button"
+            onClick={() => setFolded(f => !f)}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-1 text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+            aria-label={folded ? 'Expand' : 'Collapse'}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+            <svg
+              className={['h-4 w-4 transition-transform duration-200', folded ? '' : 'rotate-180'].join(' ')}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
           <button
             onClick={e => { e.stopPropagation(); setDismissed(true) }}
             className="rounded p-0.5 text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)] transition-colors"
