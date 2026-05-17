@@ -40,7 +40,7 @@ async function fetchDays(lat: number, lng: number, start: string, end: string, t
   const base = archive ? 'https://archive-api.open-meteo.com/v1/archive' : 'https://api.open-meteo.com/v1/forecast'
   const url = `${base}?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&temperature_unit=${tempUnit}&start_date=${start}&end_date=${end}`
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
     if (!res.ok) return null
     return res.json() as Promise<DailyResponse>
   } catch { return null }
@@ -88,7 +88,16 @@ export async function weatherPublicRoutes(fastify: FastifyInstance) {
       source = 'historical'
     }
 
-    const data = await fetchDays(lat, lng, fetchStart, fetchEnd, tempUnit, source === 'historical')
+    let data = await fetchDays(lat, lng, fetchStart, fetchEnd, tempUnit, source === 'historical')
+
+    // If archive fetch fails (blocked on some hosting providers), fall back to nearest forecast
+    if (!data && source === 'historical') {
+      const fallbackEnd = forecastLimit
+      const fallbackStart = addDays(today, 1)
+      data = await fetchDays(lat, lng, fallbackStart, fallbackEnd, tempUnit, false)
+      if (data) source = 'forecast'
+    }
+
     if (!data) return reply.send({ enabled: false })
 
     const forecast = data.daily.time.map((date, i) => ({
