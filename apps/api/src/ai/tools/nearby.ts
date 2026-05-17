@@ -6,14 +6,14 @@ import type { PoiCategory } from '@ibe/shared'
 
 export const getNearbyPlacesTool: ToolDefinition = {
   name: 'get_nearby_places',
-  description: 'Get nearby points of interest around a hotel: restaurants, attractions, transport, shopping, wellness, nightlife. Call this when the user asks what is nearby, around the hotel, things to do, places to eat, how to get there, etc.',
+  description: 'Get nearby points of interest around a hotel: restaurants, cafes, attractions, museums, transport, metro, shopping, wellness, nightlife, beaches, parks, banks, medical, sports. Call this when the user asks what is nearby, around the hotel, things to do, places to eat, how to get there, etc.',
   parameters: {
     type: 'object',
     properties: {
       propertyId: { type: 'number', description: 'Hotel property ID' },
       categories: {
         type: 'array',
-        items: { type: 'string', enum: ['restaurants', 'attractions', 'transport', 'shopping', 'wellness', 'nightlife'] },
+        items: { type: 'string', enum: ['restaurants', 'cafes', 'attractions', 'museums', 'transport', 'metro', 'shopping', 'wellness', 'nightlife', 'beaches', 'parks', 'banks', 'medical', 'sports'] },
         description: 'Categories to fetch. Omit to use the hotel\'s configured defaults.',
       },
     },
@@ -22,21 +22,39 @@ export const getNearbyPlacesTool: ToolDefinition = {
 }
 
 const OVERPASS_FILTERS: Record<PoiCategory, string> = {
-  restaurants: `node["amenity"~"restaurant|cafe|bar|fast_food|pub"]`,
-  attractions: `node["tourism"~"attraction|museum|gallery|viewpoint|artwork"]`,
-  transport: `(node["public_transport"="station"];node["railway"="station"];node["amenity"="bus_station"])`,
-  shopping: `node["shop"]["name"]`,
-  wellness: `node["leisure"~"spa|fitness_centre|swimming_pool"]`,
-  nightlife: `node["amenity"~"bar|nightclub|pub"]`,
+  restaurants: `node["amenity"~"restaurant|fast_food"]`,
+  cafes:       `node["amenity"~"cafe|coffee_shop"]`,
+  attractions: `node["tourism"~"attraction|viewpoint|artwork"]`,
+  museums:     `node["tourism"~"museum|gallery"]`,
+  transport:   `(node["public_transport"="station"];node["railway"="station"];node["amenity"="bus_station"])`,
+  metro:       `(node["railway"~"subway_entrance|tram_stop"];node["station"="subway"])`,
+  shopping:    `node["shop"]["name"]`,
+  wellness:    `node["leisure"~"spa|fitness_centre|swimming_pool"]`,
+  nightlife:   `node["amenity"~"bar|nightclub|pub"]`,
+  airports:    ``,
+  beaches:     `node["natural"="beach"]["name"]`,
+  parks:       `node["leisure"~"park|garden"]["name"]`,
+  banks:       `(node["amenity"="bank"];node["amenity"="atm"])`,
+  medical:     `(node["amenity"="pharmacy"];node["amenity"="hospital"];node["amenity"="clinic"])`,
+  sports:      `node["leisure"~"sports_centre|stadium|pitch"]["name"]`,
 }
 
 const CATEGORY_LABELS: Record<PoiCategory, string> = {
-  restaurants: 'Restaurants & Cafes',
+  restaurants: 'Restaurants',
+  cafes:       'Cafes & Coffee',
   attractions: 'Attractions',
-  transport: 'Transport',
-  shopping: 'Shopping',
-  wellness: 'Wellness & Spa',
-  nightlife: 'Nightlife',
+  museums:     'Museums & Galleries',
+  transport:   'Transport',
+  metro:       'Metro & Tram',
+  shopping:    'Shopping',
+  wellness:    'Wellness & Spa',
+  nightlife:   'Nightlife',
+  airports:    'Airports',
+  beaches:     'Beaches',
+  parks:       'Parks & Gardens',
+  banks:       'Banks & ATMs',
+  medical:     'Pharmacies & Medical',
+  sports:      'Sports & Recreation',
 }
 
 interface PoiResult {
@@ -48,6 +66,7 @@ interface PoiResult {
 async function fetchOverpassPoi(lat: number, lng: number, radius: number, categories: PoiCategory[]): Promise<PoiResult[]> {
   const parts = categories.flatMap(cat => {
     const filter = OVERPASS_FILTERS[cat]
+    if (!filter) return []
     const withAround = filter.startsWith('(')
       ? filter.slice(1, -1).split(';').map(p => p.trim()).filter(Boolean).map(p => `${p}(around:${radius},${lat},${lng});`).join('\n')
       : `${filter}(around:${radius},${lat},${lng});`
@@ -78,12 +97,22 @@ async function fetchOverpassPoi(lat: number, lng: number, radius: number, catego
     .filter(el => el.tags.name)
     .map(el => {
       let category: PoiCategory = 'attractions'
-      if (el.tags.amenity && ['restaurant', 'cafe', 'fast_food'].includes(el.tags.amenity)) category = 'restaurants'
+      if (el.tags.amenity === 'cafe' || el.tags.amenity === 'coffee_shop') category = 'cafes'
+      else if (el.tags.amenity && ['restaurant', 'fast_food'].includes(el.tags.amenity)) category = 'restaurants'
       else if (el.tags.amenity && ['bar', 'pub'].includes(el.tags.amenity)) category = categories.includes('nightlife') ? 'nightlife' : 'restaurants'
+      else if (el.tags.amenity === 'nightclub') category = 'nightlife'
+      else if (el.tags.tourism && ['museum', 'gallery'].includes(el.tags.tourism)) category = 'museums'
       else if (el.tags.tourism) category = 'attractions'
+      else if (el.tags.railway && ['subway_entrance', 'tram_stop'].includes(el.tags.railway)) category = 'metro'
+      else if (el.tags.station === 'subway') category = 'metro'
       else if (el.tags.public_transport || el.tags.railway || el.tags.amenity === 'bus_station') category = 'transport'
       else if (el.tags.shop) category = 'shopping'
-      else if (el.tags.leisure) category = 'wellness'
+      else if (el.tags.leisure && ['spa', 'fitness_centre', 'swimming_pool'].includes(el.tags.leisure)) category = 'wellness'
+      else if (el.tags.natural === 'beach') category = 'beaches'
+      else if (el.tags.leisure && ['park', 'garden'].includes(el.tags.leisure)) category = 'parks'
+      else if (el.tags.amenity === 'bank' || el.tags.amenity === 'atm') category = 'banks'
+      else if (el.tags.amenity && ['pharmacy', 'hospital', 'clinic'].includes(el.tags.amenity)) category = 'medical'
+      else if (el.tags.leisure && ['sports_centre', 'stadium', 'pitch'].includes(el.tags.leisure)) category = 'sports'
 
       // Haversine distance in metres
       const dLat = (el.lat - lat) * Math.PI / 180

@@ -197,7 +197,7 @@ async function getSystemDataset(): Promise<AirportEntry[] | undefined> {
   return row?.airportDataset ? (row.airportDataset as unknown as AirportEntry[]) : undefined
 }
 
-export async function getNearestAirports(propertyId: number, radiusKmOverride?: number): Promise<NearestAirportsResponse> {
+export async function getNearestAirports(propertyId: number, radiusKmOverride?: number, ignoreEnabled = false): Promise<NearestAirportsResponse> {
   const [resolved, property] = await Promise.all([
     getResolvedAirportConfig(propertyId),
     fetchPropertyStatic(propertyId).catch(() => null),
@@ -208,7 +208,7 @@ export async function getNearestAirports(propertyId: number, radiusKmOverride?: 
 
   const lat = property?.coordinates?.latitude
   const lng = property?.coordinates?.longitude
-  if (!resolved.enabled || !lat || !lng) return { airports: [], radiusKm: radiusKmOverride ?? resolved.radiusKm, stripDefaultFolded, stripAutoFoldSecs }
+  if ((!ignoreEnabled && !resolved.enabled) || !lat || !lng) return { airports: [], radiusKm: radiusKmOverride ?? resolved.radiusKm, stripDefaultFolded, stripAutoFoldSecs }
 
   const radiusKm = radiusKmOverride ?? resolved.radiusKm
   const maxCount = radiusKmOverride !== undefined ? 20 : resolved.maxCount

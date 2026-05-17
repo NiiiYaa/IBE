@@ -1,6 +1,8 @@
 export interface EventsConfigResponse {
   apiKeySet: boolean
   apiKeyMasked: string | null
+  credentialsLocked: boolean
+  enforceChildCreds: boolean
   enabled: boolean
   radiusKm: number
   maxEvents: number
@@ -13,6 +15,8 @@ export interface EventsConfigResponse {
 
 export interface EventsConfigUpdate {
   apiKey?: string
+  clearApiKey?: boolean
+  enforceChildCreds?: boolean
   enabled?: boolean
   radiusKm?: number
   maxEvents?: number

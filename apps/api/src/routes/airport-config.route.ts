@@ -71,6 +71,7 @@ export async function airportPublicRoutes(fastify: FastifyInstance) {
     const radiusKmOverride = rawRadius !== undefined && !isNaN(rawRadius)
       ? Math.min(300, Math.max(1, rawRadius))
       : undefined
-    return reply.send(await getNearestAirports(propertyId, radiusKmOverride))
+    const forMap = qs.forMap === 'true'
+    return reply.send(await getNearestAirports(propertyId, radiusKmOverride, forMap))
   })
 }

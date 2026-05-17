@@ -1209,6 +1209,7 @@ model SystemEventsConfig {
   id                 Int      @id @default(autoincrement())
   apiKey             String?  // AES-256-CBC encrypted Ticketmaster API key
   enabled            Boolean  @default(false)
+  enforceChildCreds  Boolean  @default(false)
   radiusKm           Int      @default(10)
   maxEvents          Int      @default(10)
   stripDefaultFolded Boolean  @default(false)
@@ -1224,9 +1225,10 @@ model OrgEventsConfig {
   organization          Organization @relation(fields: [organizationId], references: [id])
   apiKey                String?      // AES-256-CBC encrypted, optional — falls back to system
   enabled               Boolean      @default(false)
+  enforceChildCreds     Boolean      @default(false)
+  systemServiceDisabled Boolean      @default(false)
   radiusKm              Int          @default(10)
   maxEvents             Int          @default(10)
-  systemServiceDisabled Boolean      @default(false)
   stripDefaultFolded    Boolean      @default(false)
   stripAutoFoldSecs     Int          @default(15)
   showBookButton        Boolean      @default(true)

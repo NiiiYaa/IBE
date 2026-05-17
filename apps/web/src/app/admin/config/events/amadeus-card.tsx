@@ -89,7 +89,7 @@ function AmadeusConfigForm({
       u.radiusKmOverride = radiusKm
       u.maxActivitiesOverride = maxActivities
     }
-    if (isSuper && !isSystem) u.enforceChildCreds = enforceChildCreds
+    if (isSuper) u.enforceChildCreds = enforceChildCreds
     return u
   }
 
@@ -154,7 +154,15 @@ function AmadeusConfigForm({
 
       {/* Client ID */}
       <div className={credsLocked ? 'opacity-50 pointer-events-none' : ''}>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Client ID</label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="text-sm font-medium text-[var(--color-text)]">Client ID</label>
+          {!isSystem && data.credentialsSet && !credsLocked && (
+            <button type="button" onClick={() => onSave({ clearCredentials: true })}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] hover:underline">
+              Use inherited credentials
+            </button>
+          )}
+        </div>
         {data.credentialsSet && (
           <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">
             Current: <span className="font-mono">{data.clientIdMasked}</span> — leave blank to keep.

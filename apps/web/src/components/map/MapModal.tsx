@@ -6,6 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { HeaderMapData } from '@/components/layout/Header'
 import type { PoiCategory, NearestAirport } from '@ibe/shared'
+import { POI_COLORS, POI_ICON_PATHS, poiIconSvg } from '@/lib/poi-icons'
 
 // ── Hotel pin icon ────────────────────────────────────────────────────────────
 
@@ -46,40 +47,51 @@ function makeAirportIcon() {
   return L.divIcon({ className: '', html: svg, iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -14] })
 }
 
-function makePoiIcon(color: string) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-    <circle cx="8" cy="8" r="7" fill="${color}" stroke="white" stroke-width="1.5" opacity="0.9"/>
+function makePoiIcon(color: string, iconPath: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20">
+    <circle cx="10" cy="10" r="9" fill="${color}" stroke="white" stroke-width="1.2"/>
+    ${iconPath}
   </svg>`
-  return L.divIcon({ className: '', html: svg, iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10] })
+  return L.divIcon({ className: '', html: svg, iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -12] })
 }
 
 // ── POI types ─────────────────────────────────────────────────────────────────
 
-const POI_COLORS: Record<PoiCategory, string> = {
-  restaurants: '#f97316',
-  attractions: '#3b82f6',
-  transport: '#8b5cf6',
-  shopping: '#ec4899',
-  wellness: '#10b981',
-  nightlife: '#f59e0b',
-}
-
 const POI_LABELS: Record<PoiCategory, string> = {
   restaurants: 'Restaurants',
+  cafes:       'Cafes',
   attractions: 'Attractions',
-  transport: 'Transport',
-  shopping: 'Shopping',
-  wellness: 'Wellness',
-  nightlife: 'Nightlife',
+  museums:     'Museums',
+  transport:   'Transport',
+  metro:       'Metro',
+  shopping:    'Shopping',
+  wellness:    'Wellness',
+  nightlife:   'Nightlife',
+  airports:    'Airports',
+  beaches:     'Beaches',
+  parks:       'Parks',
+  banks:       'Banks & ATMs',
+  medical:     'Medical',
+  sports:      'Sports',
 }
 
+
 const OVERPASS_FILTERS: Record<PoiCategory, string> = {
-  restaurants: `node["amenity"~"restaurant|cafe|bar|fast_food|pub"]`,
-  attractions: `node["tourism"~"attraction|museum|gallery|viewpoint|artwork"]`,
-  transport: `(node["public_transport"="station"];node["railway"="station"];node["amenity"="bus_station"])`,
-  shopping: `node["shop"]["name"]`,
-  wellness: `node["leisure"~"spa|fitness_centre|swimming_pool"]`,
-  nightlife: `node["amenity"~"bar|nightclub|pub"]`,
+  restaurants: `node["amenity"~"restaurant|fast_food|food_court"]`,
+  cafes:       `node["amenity"~"cafe|coffee_shop|bakery|ice_cream"]`,
+  attractions: `node["tourism"~"attraction|viewpoint|artwork|zoo|theme_park"]`,
+  museums:     `node["tourism"~"museum|gallery"]`,
+  transport:   `(node["amenity"~"bus_station|ferry_terminal|taxi"];node["railway"~"station|halt"]["station"!="subway"])`,
+  metro:       `(node["railway"="subway_entrance"];node["station"="subway"];node["railway"="tram_stop"])`,
+  shopping:    `node["shop"]["name"]`,
+  wellness:    `node["leisure"~"spa|fitness_centre|swimming_pool"]`,
+  nightlife:   `node["amenity"~"bar|nightclub|pub"]`,
+  airports:    ``,
+  beaches:     `node["natural"="beach"]`,
+  parks:       `node["leisure"~"park|garden|nature_reserve|common"]`,
+  banks:       `(node["amenity"="bank"];node["amenity"="atm"])`,
+  medical:     `node["amenity"~"pharmacy|hospital|clinic|doctors|dentist"]`,
+  sports:      `node["leisure"~"stadium|sports_centre|sports_hall|pitch|track"]`,
 }
 
 // ── Data types ────────────────────────────────────────────────────────────────
@@ -134,12 +146,25 @@ async function fetchPoi(lat: number, lng: number, radius: number, categories: Po
 
     return data.elements.map(el => {
       let category: PoiCategory = 'attractions'
-      if (el.tags.amenity && ['restaurant', 'cafe', 'fast_food'].includes(el.tags.amenity)) category = 'restaurants'
-      else if (el.tags.amenity && ['bar', 'pub'].includes(el.tags.amenity)) category = categories.includes('nightlife') ? 'nightlife' : 'restaurants'
-      else if (el.tags.tourism) category = 'attractions'
-      else if (el.tags.public_transport || el.tags.railway || (el.tags.amenity === 'bus_station')) category = 'transport'
+      const a = el.tags.amenity
+      const t = el.tags.tourism
+      const l = el.tags.leisure
+      if (a && ['restaurant', 'fast_food', 'food_court'].includes(a)) category = 'restaurants'
+      else if (a && ['cafe', 'coffee_shop', 'bakery', 'ice_cream'].includes(a)) category = 'cafes'
+      else if (a && ['bar', 'pub'].includes(a)) category = categories.includes('nightlife') ? 'nightlife' : 'restaurants'
+      else if (a && 'nightclub' === a) category = 'nightlife'
+      else if (a && ['pharmacy', 'hospital', 'clinic', 'doctors', 'dentist'].includes(a)) category = 'medical'
+      else if (a && ['bank', 'atm'].includes(a)) category = 'banks'
+      else if (a && ['bus_station', 'ferry_terminal', 'taxi'].includes(a)) category = 'transport'
+      else if (el.tags.railway === 'subway_entrance' || el.tags.station === 'subway' || el.tags.railway === 'tram_stop') category = 'metro'
+      else if (el.tags.railway || el.tags.public_transport) category = 'transport'
+      else if (t && ['museum', 'gallery'].includes(t)) category = 'museums'
+      else if (t) category = 'attractions'
+      else if (el.tags.natural === 'beach') category = 'beaches'
+      else if (l && ['park', 'garden', 'nature_reserve', 'common'].includes(l)) category = 'parks'
+      else if (l && ['stadium', 'sports_centre', 'sports_hall', 'pitch', 'track'].includes(l)) category = 'sports'
+      else if (l && ['spa', 'fitness_centre', 'swimming_pool'].includes(l)) category = 'wellness'
       else if (el.tags.shop) category = 'shopping'
-      else if (el.tags.leisure) category = 'wellness'
       return { id: el.id, lat: el.lat, lon: el.lon, tags: el.tags, category }
     }).filter(n => categories.includes(n.category))
   } catch {
@@ -194,10 +219,12 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
           const [cfgRes, chainRes] = await Promise.all(fetches)
           const cfg: PublicMapsConfig = cfgRes.ok ? await cfgRes.json() : { provider: 'osm', poiRadius: 1000, poiCategories: ['restaurants', 'attractions', 'transport', 'shopping'] }
           setMapsConfig(cfg)
+          const showAirports = (cfg.poiCategories as PoiCategory[]).includes('airports')
+          const nonAirportCats = (cfg.poiCategories as PoiCategory[]).filter(c => c !== 'airports')
           const [poiData, sisterProps, airportRes] = await Promise.all([
-            fetchPoi(data.lat, data.lng, cfg.poiRadius, cfg.poiCategories as PoiCategory[]),
+            fetchPoi(data.lat, data.lng, cfg.poiRadius, nonAirportCats),
             chainRes?.ok ? chainRes.json() as Promise<ChainProperty[]> : Promise.resolve([]),
-            fetch(`/api/v1/airports/nearest?propertyId=${data.propertyId}`).catch(() => null),
+            showAirports ? fetch(`/api/v1/airports/nearest?propertyId=${data.propertyId}&forMap=true`).catch(() => null) : Promise.resolve(null),
           ])
           setPoi(poiData)
           setChainProps((sisterProps as ChainProperty[]).filter(p => p.id !== data.propertyId))
@@ -303,7 +330,7 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
                     </Marker>
                   ))}
                   {poi.map(p => (
-                    <Marker key={p.id} position={[p.lat, p.lon]} icon={makePoiIcon(POI_COLORS[p.category])}>
+                    <Marker key={p.id} position={[p.lat, p.lon]} icon={makePoiIcon(POI_COLORS[p.category], POI_ICON_PATHS[p.category])}>
                       <Popup>
                         <div>
                           <p className="font-medium">{p.tags.name ?? p.category}</p>
@@ -349,17 +376,13 @@ export default function MapModal({ data, onClose }: { data: HeaderMapData; onClo
         {/* Legend (hotel mode only) */}
         {data.mode === 'hotel' && (presentCategories.length > 0 || airports.length > 0) && (
           <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] px-5 py-2.5">
-            {airports.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <svg className="h-3 w-3 shrink-0" fill="none" stroke="#0f509e" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
-                </svg>
-                <span className="text-xs text-[var(--color-text-muted)]">Airports</span>
-              </div>
-            )}
-            {presentCategories.map(cat => (
+            {[...(airports.length > 0 ? ['airports' as PoiCategory] : []), ...presentCategories].map(cat => (
               <div key={cat} className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: POI_COLORS[cat] }} />
+                <span
+                  className="inline-flex shrink-0 items-center justify-center rounded-full"
+                  style={{ width: 16, height: 16, background: POI_COLORS[cat] }}
+                  dangerouslySetInnerHTML={{ __html: poiIconSvg(cat, 16) }}
+                />
                 <span className="text-xs text-[var(--color-text-muted)]">{POI_LABELS[cat]}</span>
               </div>
             ))}

@@ -90,8 +90,11 @@ export async function getOrgAmadeusConfig(orgId: number): Promise<AmadeusConfigR
 
 export async function upsertOrgAmadeusConfig(orgId: number, data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
   const update: Record<string, unknown> = {}
-  if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
-  if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
+  if (data.clearCredentials) { update.clientId = null; update.clientSecret = null }
+  else {
+    if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
+    if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
+  }
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.enforceChildCreds !== undefined) update.enforceChildCreds = data.enforceChildCreds
   if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
@@ -144,8 +147,11 @@ export async function getPropertyAmadeusConfig(propertyId: number): Promise<Amad
 
 export async function upsertPropertyAmadeusConfig(propertyId: number, data: AmadeusConfigUpdate): Promise<AmadeusConfigResponse> {
   const update: Record<string, unknown> = {}
-  if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
-  if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
+  if (data.clearCredentials) { update.clientId = null; update.clientSecret = null }
+  else {
+    if (data.clientId !== undefined && data.clientId !== '') update.clientId = encryptApiKey(data.clientId)
+    if (data.clientSecret !== undefined && data.clientSecret !== '') update.clientSecret = encryptApiKey(data.clientSecret)
+  }
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.systemServiceDisabled !== undefined) update.systemServiceDisabled = data.systemServiceDisabled
   // nullable overrides: null resets to inherited

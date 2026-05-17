@@ -30,17 +30,39 @@ export const MAP_PROVIDER_KEY_LABEL: Record<MapProvider, string> = {
   here: 'HERE API Key',
 }
 
-export type PoiCategory = 'restaurants' | 'attractions' | 'transport' | 'shopping' | 'wellness' | 'nightlife'
+export type PoiCategory =
+  | 'restaurants' | 'cafes'
+  | 'attractions' | 'museums'
+  | 'transport' | 'metro'
+  | 'shopping' | 'wellness' | 'nightlife'
+  | 'airports' | 'beaches' | 'parks'
+  | 'banks' | 'medical' | 'sports'
 
-export const POI_CATEGORIES: PoiCategory[] = ['restaurants', 'attractions', 'transport', 'shopping', 'wellness', 'nightlife']
+export const POI_CATEGORIES: PoiCategory[] = [
+  'restaurants', 'cafes',
+  'attractions', 'museums',
+  'transport', 'metro',
+  'shopping', 'wellness', 'nightlife',
+  'airports', 'beaches', 'parks',
+  'banks', 'medical', 'sports',
+]
 
 export const POI_CATEGORY_LABELS: Record<PoiCategory, string> = {
-  restaurants: 'Restaurants & Cafes',
+  restaurants: 'Restaurants',
+  cafes: 'Cafes & Coffee',
   attractions: 'Attractions & Sights',
-  transport: 'Transport',
+  museums: 'Museums & Galleries',
+  transport: 'Buses & Trains',
+  metro: 'Metro & Tram',
   shopping: 'Shopping',
   wellness: 'Wellness & Spa',
   nightlife: 'Nightlife & Bars',
+  airports: 'Airports',
+  beaches: 'Beaches',
+  parks: 'Parks & Gardens',
+  banks: 'Banks & ATMs',
+  medical: 'Pharmacies & Medical',
+  sports: 'Sports & Recreation',
 }
 
 export interface MapsConfigResponse {

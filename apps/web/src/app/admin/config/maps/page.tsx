@@ -15,6 +15,7 @@ import {
   POI_CATEGORY_LABELS,
 } from '@ibe/shared'
 import type { MapProvider, PoiCategory, MapsConfigResponse, MapsConfigUpdate } from '@ibe/shared'
+import { poiIconSvg } from '@/lib/poi-icons'
 
 const POI_RADIUS_OPTIONS = [
   { value: 500, label: '500 m' },
@@ -87,11 +88,12 @@ function PoiSettings({ poiRadius, poiCategories, onRadiusChange, onCategoryToggl
         <label className="mb-2 block text-sm font-medium text-[var(--color-text)]">POI Categories to Show</label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {POI_CATEGORIES.map(cat => (
-            <label key={cat} className={['flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors',
+            <label key={cat} className={['flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',
               poiCategories.includes(cat) ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]',
             ].join(' ')}>
               <input type="checkbox" checked={poiCategories.includes(cat)} onChange={() => onCategoryToggle(cat)}
-                className="accent-[var(--color-primary)]" />
+                className="accent-[var(--color-primary)] shrink-0" />
+              <span className="shrink-0" dangerouslySetInnerHTML={{ __html: poiIconSvg(cat, 16) }} />
               {POI_CATEGORY_LABELS[cat]}
             </label>
           ))}

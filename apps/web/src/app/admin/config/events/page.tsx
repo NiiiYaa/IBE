@@ -21,7 +21,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onToggleSystemService }: {
+function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onToggleSystemService, amadeusStripMerged }: {
   data: EventsConfigResponse
   onSave: (update: EventsConfigUpdate) => void
   saving: boolean
@@ -29,9 +29,11 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
   isSuper?: boolean
   orgId?: number
   onToggleSystemService?: (disabled: boolean) => void
+  amadeusStripMerged?: boolean
 }) {
   const [apiKey, setApiKey] = useState('')
   const [enabled, setEnabled] = useState(data.enabled)
+  const [enforceChildCreds, setEnforceChildCreds] = useState(data.enforceChildCreds)
   const [radiusKm, setRadiusKm] = useState(data.radiusKm)
   const [maxEvents, setMaxEvents] = useState(data.maxEvents)
   const [stripDefaultFolded, setStripDefaultFolded] = useState(data.stripDefaultFolded)
@@ -41,6 +43,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
 
   useEffect(() => {
     setEnabled(data.enabled)
+    setEnforceChildCreds(data.enforceChildCreds)
     setRadiusKm(data.radiusKm)
     setMaxEvents(data.maxEvents)
     setStripDefaultFolded(data.stripDefaultFolded)
@@ -90,9 +93,26 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
         </div>
       )}
 
+      {/* Credentials locked banner */}
+      {data.credentialsLocked && (
+        <div className="rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/5 px-4 py-3">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            API key is locked by the system level. Your own key is ignored.
+          </p>
+        </div>
+      )}
+
       {/* API key */}
-      <div>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-text)]">Ticketmaster API Key</label>
+      <div className={data.credentialsLocked ? 'opacity-50 pointer-events-none' : ''}>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="text-sm font-medium text-[var(--color-text)]">Ticketmaster API Key</label>
+          {!isSystem && data.apiKeySet && !data.credentialsLocked && (
+            <button type="button" onClick={() => onSave({ clearApiKey: true })}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] hover:underline">
+              Use inherited key
+            </button>
+          )}
+        </div>
         {data.apiKeySet && (
           <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">
             Current key: <span className="font-mono">{data.apiKeyMasked}</span> — leave blank to keep it.
@@ -107,6 +127,21 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
           {' '}— 5,000 requests/day on the free tier.
         </p>
       </div>
+
+      {/* Lock credentials for children (super only) */}
+      {isSuper && (
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+          <Toggle checked={enforceChildCreds} onChange={setEnforceChildCreds} />
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Lock API key for levels below</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {isSystem
+                ? 'All orgs will use the system API key.'
+                : 'Hotels in this org cannot use their own API key.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Search radius */}
       <div>
@@ -149,8 +184,11 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
       </div>
 
       {/* Strip display behaviour */}
-      <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Strip display behaviour</p>
+      <div className={['space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3', amadeusStripMerged ? 'opacity-50 pointer-events-none' : ''].join(' ')}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+          Strip display behaviour
+          {amadeusStripMerged && <span className="ml-2 font-normal normal-case opacity-70">— controlled by Amadeus Discover (merged mode)</span>}
+        </p>
         <div className="flex items-center gap-3">
           <Toggle checked={showBookButton} onChange={setShowBookButton} />
           <span className="text-sm text-[var(--color-text)]">Show &ldquo;Get Tickets&rdquo; button on cards</span>
@@ -177,7 +215,7 @@ function EventsConfigForm({ data, onSave, saving, isSystem, isSuper, orgId, onTo
       </div>
 
       <div className="flex flex-wrap items-center gap-3 pt-1">
-        <button type="button" disabled={saving} onClick={() => onSave({ enabled, radiusKm, maxEvents, stripDefaultFolded, stripAutoFoldSecs, showBookButton, ...(apiKey ? { apiKey } : {}) })}
+        <button type="button" disabled={saving} onClick={() => onSave({ enabled, radiusKm, maxEvents, stripDefaultFolded, stripAutoFoldSecs, showBookButton, ...(apiKey ? { apiKey } : {}), ...(isSuper ? { enforceChildCreds } : {}) })}
           className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -201,6 +239,10 @@ function SystemEventsSection() {
     queryKey: ['events-config-system'],
     queryFn: () => apiClient.getSystemEventsConfig(),
   })
+  const { data: amadeusData } = useQuery({
+    queryKey: ['amadeus-config-system'],
+    queryFn: () => apiClient.getSystemAmadeusConfig(),
+  })
   const saveMutation = useMutation({
     mutationFn: (update: EventsConfigUpdate) => apiClient.updateSystemEventsConfig(update),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['events-config-system'] }) },
@@ -214,7 +256,8 @@ function SystemEventsSection() {
       {isLoading && <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>}
       {isError && <p className="text-sm text-[var(--color-error)]">Failed to load. Please refresh.</p>}
       {data && (
-        <EventsConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending} isSystem isSuper />
+        <EventsConfigForm data={data} onSave={u => saveMutation.mutate(u)} saving={saveMutation.isPending}
+          isSystem isSuper amadeusStripMerged={amadeusData?.stripMode === 'merged'} />
       )}
       {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}
       {saveMutation.isSuccess && <p className="mt-3 text-sm text-[var(--color-success)]">Saved.</p>}
@@ -242,6 +285,12 @@ export default function EventsConfigPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['events-config', orgId],
     queryFn: () => apiClient.getEventsConfig(orgId),
+    enabled: !!admin && !isSystemLevel && orgId !== undefined,
+  })
+
+  const { data: amadeusData } = useQuery({
+    queryKey: ['amadeus-config', orgId],
+    queryFn: () => apiClient.getAmadeusConfig(orgId),
     enabled: !!admin && !isSystemLevel && orgId !== undefined,
   })
 
@@ -310,6 +359,7 @@ export default function EventsConfigPage() {
                 isSuper={isSuper}
                 {...(orgId !== undefined ? { orgId } : {})}
                 onToggleSystemService={disabled => saveMutation.mutate({ systemServiceDisabled: disabled })}
+                amadeusStripMerged={amadeusData?.stripMode === 'merged'}
               />
             )}
             {saveMutation.isError && <p className="mt-3 text-sm text-[var(--color-error)]">Save failed.</p>}

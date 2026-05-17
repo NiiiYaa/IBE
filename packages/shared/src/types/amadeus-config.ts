@@ -20,6 +20,7 @@ export interface AmadeusConfigResponse {
 export interface AmadeusConfigUpdate {
   clientId?: string
   clientSecret?: string
+  clearCredentials?: boolean
   enabled?: boolean
   enforceChildCreds?: boolean
   systemServiceDisabled?: boolean
