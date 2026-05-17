@@ -112,14 +112,11 @@ function AirportConfigForm({ data, onSave, saving, isSystem }: {
 
       <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Strip display behaviour</p>
-        {!isSystem && (
-          <p className="text-xs text-[var(--color-text-muted)]">Configured at system level.</p>
-        )}
-        <div className={['flex items-center gap-3', !isSystem ? 'pointer-events-none opacity-50' : ''].join(' ')}>
+        <div className="flex items-center gap-3">
           <Toggle checked={stripDefaultFolded} onChange={setStripDefaultFolded} />
           <span className="text-sm text-[var(--color-text)]">Start collapsed by default</span>
         </div>
-        <div className={!isSystem ? 'pointer-events-none opacity-50' : ''}>
+        <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
             Auto-collapse after <span className="font-normal normal-case opacity-60">seconds (0 = never)</span>
           </label>
@@ -137,7 +134,7 @@ function AirportConfigForm({ data, onSave, saving, isSystem }: {
 
       <div className="flex items-center gap-3 pt-1">
         <button type="button" disabled={saving}
-          onClick={() => onSave({ enabled, radiusKm, maxCount, ...(isSystem && { stripDefaultFolded, stripAutoFoldSecs }) })}
+          onClick={() => onSave({ enabled, radiusKm, maxCount, stripDefaultFolded, stripAutoFoldSecs })}
           className="rounded-lg bg-[var(--color-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>
