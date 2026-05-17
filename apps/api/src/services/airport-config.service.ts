@@ -24,7 +24,13 @@ function sysToResponse(row: {
 }
 
 function childToResponse(
-  row: { enabled: boolean | null; radiusKm: number | null; maxCount: number | null } | null,
+  row: {
+    enabled: boolean | null
+    radiusKm: number | null
+    maxCount: number | null
+    stripDefaultFolded: boolean | null | undefined
+    stripAutoFoldSecs: number | null | undefined
+  } | null,
   parent: AirportConfigResponse,
   hasOwn: boolean
 ): AirportConfigResponse {
@@ -32,8 +38,8 @@ function childToResponse(
     enabled: row?.enabled ?? parent.enabled,
     radiusKm: row?.radiusKm ?? parent.radiusKm,
     maxCount: row?.maxCount ?? parent.maxCount,
-    stripDefaultFolded: parent.stripDefaultFolded,
-    stripAutoFoldSecs: parent.stripAutoFoldSecs,
+    stripDefaultFolded: row?.stripDefaultFolded ?? parent.stripDefaultFolded,
+    stripAutoFoldSecs: row?.stripAutoFoldSecs ?? parent.stripAutoFoldSecs,
     hasOwnConfig: hasOwn,
     datasetUpdatedAt: null,
   }
@@ -114,6 +120,8 @@ export async function upsertOrgAirportConfig(orgId: number, data: AirportConfigU
   if (data.enabled !== undefined) update.enabled = data.enabled  // allow null
   if (data.radiusKm !== undefined) update.radiusKm = data.radiusKm
   if (data.maxCount !== undefined) update.maxCount = data.maxCount
+  if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
+  if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
 
   const row = await prisma.orgAirportConfig.upsert({
     where: { organizationId: orgId },
@@ -141,6 +149,8 @@ export async function upsertPropertyAirportConfig(propertyId: number, data: Airp
   if (data.enabled !== undefined) update.enabled = data.enabled
   if (data.radiusKm !== undefined) update.radiusKm = data.radiusKm
   if (data.maxCount !== undefined) update.maxCount = data.maxCount
+  if (data.stripDefaultFolded !== undefined) update.stripDefaultFolded = data.stripDefaultFolded
+  if (data.stripAutoFoldSecs !== undefined) update.stripAutoFoldSecs = data.stripAutoFoldSecs
 
   const row = await prisma.propertyAirportConfig.upsert({
     where: { propertyId },
@@ -171,7 +181,13 @@ export async function getResolvedAirportConfig(propertyId: number): Promise<Reso
   const org = childToResponse(orgRow ?? null, sys, !!orgRow)
   const resolved = childToResponse(propRow ?? null, org, !!propRow)
 
-  return { enabled: resolved.enabled, radiusKm: resolved.radiusKm, maxCount: resolved.maxCount }
+  return {
+    enabled: resolved.enabled,
+    radiusKm: resolved.radiusKm,
+    maxCount: resolved.maxCount,
+    stripDefaultFolded: resolved.stripDefaultFolded,
+    stripAutoFoldSecs: resolved.stripAutoFoldSecs,
+  }
 }
 
 async function getSystemDataset(): Promise<AirportEntry[] | undefined> {
@@ -182,14 +198,13 @@ async function getSystemDataset(): Promise<AirportEntry[] | undefined> {
 }
 
 export async function getNearestAirports(propertyId: number, radiusKmOverride?: number): Promise<NearestAirportsResponse> {
-  const [resolved, property, sysRow] = await Promise.all([
+  const [resolved, property] = await Promise.all([
     getResolvedAirportConfig(propertyId),
     fetchPropertyStatic(propertyId).catch(() => null),
-    prisma.systemAirportConfig.findFirst({ select: { stripDefaultFolded: true, stripAutoFoldSecs: true } }),
   ])
 
-  const stripDefaultFolded = sysRow?.stripDefaultFolded ?? SYS_DEFAULTS.stripDefaultFolded
-  const stripAutoFoldSecs = sysRow?.stripAutoFoldSecs ?? SYS_DEFAULTS.stripAutoFoldSecs
+  const stripDefaultFolded = resolved.stripDefaultFolded
+  const stripAutoFoldSecs = resolved.stripAutoFoldSecs
 
   const lat = property?.coordinates?.latitude
   const lng = property?.coordinates?.longitude
