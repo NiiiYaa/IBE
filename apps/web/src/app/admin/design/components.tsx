@@ -109,7 +109,7 @@ export function Toggle({
   checked,
   onChange,
 }: {
-  label: string
+  label?: string
   hint?: string
   checked: boolean
   onChange: (v: boolean) => void
@@ -130,10 +130,12 @@ export function Toggle({
           className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
         />
       </div>
-      <div>
-        <p className="text-sm font-medium text-[var(--color-text)]">{label}</p>
-        {hint && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{hint}</p>}
-      </div>
+      {label && (
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">{label}</p>
+          {hint && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{hint}</p>}
+        </div>
+      )}
     </label>
   )
 }

@@ -343,13 +343,12 @@ export default function ChainPage() {
           <FormRow label="Display name" hint="Name shown in the hero heading on the chain page">
             <TextInput value={draft.displayName ?? ''} onChange={v => set('displayName', v || null)} placeholder="e.g. Grand Hotels Collection" />
           </FormRow>
-          <div className="mt-4">
+          <FormRow label="Show name on page">
             <Toggle
-              label="Show name on page"
               checked={draft.showNameOnPage ?? true}
               onChange={v => set('showNameOnPage', v)}
             />
-          </div>
+          </FormRow>
           <FormRow label="Tagline" hint="Short brand message below the display name">
             <TextInput value={draft.tagline ?? ''} onChange={v => set('tagline', v || null)} placeholder="Find your perfect stay" />
           </FormRow>

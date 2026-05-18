@@ -46,6 +46,7 @@ export interface HomePageClientProps {
   heroImageMode: 'fixed' | 'carousel'
   heroCarouselInterval: number
   displayName: string
+  showNameOnPage: boolean
   chainName?: string | null
   tagline?: string | null
   heroImageUrl: string | null
@@ -68,6 +69,7 @@ export function HomePageClient({
   heroImageMode,
   heroCarouselInterval,
   displayName,
+  showNameOnPage,
   chainName,
   tagline,
   heroImageUrl,
@@ -154,7 +156,7 @@ export function HomePageClient({
         <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-4 sm:py-6'}`}>
           {!aiLayout && (
             <div className="mb-3 sm:mb-4 text-center">
-              <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {showNameOnPage && <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>}
               {chainLabel && <p className="mt-1 text-xs sm:text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-1 sm:mt-2 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
@@ -188,7 +190,7 @@ export function HomePageClient({
         <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-12' : 'py-4 sm:py-6'}`}>
           {!aiLayout && (
             <div className="mb-3 sm:mb-4 text-center">
-              <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>
+              {showNameOnPage && <h1 className="text-2xl font-bold text-[var(--color-text)] sm:text-4xl">{displayName}</h1>}
               {chainLabel && <p className="mt-1 text-xs sm:text-sm font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-1 sm:mt-3 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
@@ -215,7 +217,7 @@ export function HomePageClient({
         <div className={`mx-auto max-w-5xl px-4 ${aiLayout ? 'py-8' : 'py-4'}`}>
           {!aiLayout && (
             <div className="mb-3 text-center">
-              <h1 className="text-2xl font-bold text-[var(--color-text)]">{displayName}</h1>
+              {showNameOnPage && <h1 className="text-2xl font-bold text-[var(--color-text)]">{displayName}</h1>}
               {chainLabel && <p className="mt-1 text-xs font-medium tracking-wide text-[var(--color-text-muted)]">{chainLabel}</p>}
               {tagline && <p className="mt-1 text-base text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
@@ -242,7 +244,7 @@ export function HomePageClient({
         <div className={`relative flex flex-1 flex-col items-center px-4 ${!aiLayout ? 'justify-center' : 'py-12'}`}>
           {!aiLayout && (
             <div className="w-full text-center">
-              <h1 className="text-5xl font-bold text-white drop-shadow-lg lg:text-6xl">{displayName}</h1>
+              {showNameOnPage && <h1 className="text-5xl font-bold text-white drop-shadow-lg lg:text-6xl">{displayName}</h1>}
               {chainLabel && <p className="mt-1.5 text-sm font-medium tracking-wide text-white/70 drop-shadow">{chainLabel}</p>}
               {tagline && <p className="mt-2 text-xl text-white/80 drop-shadow">{tagline}</p>}
             </div>
