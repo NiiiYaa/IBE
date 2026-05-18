@@ -365,6 +365,7 @@ model HotelConfig {
   heroImageUrl                    String?
   searchResultsImageUrl           String?
   displayName                     String?
+  showNameOnPage                  Boolean  @default(true)
   tagline                         String?
   tabTitle                        String?
   infantMaxAge                    Int      @default(2)
@@ -502,6 +503,7 @@ model OrgDesignDefaults {
   logoUrl           String?
   faviconUrl        String?
   displayName       String?
+  showNameOnPage    Boolean?
   tagline           String?
   tabTitle          String?
   defaultCurrency   String?
