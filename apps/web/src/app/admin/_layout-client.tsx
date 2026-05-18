@@ -235,10 +235,14 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const [impersonateSearch, setImpersonateSearch] = useState('')
   const impersonateDropdownRef = useRef<HTMLDivElement>(null)
 
+  const [activateDropdownOpen, setActivateDropdownOpen] = useState(false)
+  const [activateSearch, setActivateSearch] = useState('')
+  const activateDropdownRef = useRef<HTMLDivElement>(null)
+
   const { data: allImpersonateUsers } = useQuery({
     queryKey: ['admin-users-impersonate'],
     queryFn: () => apiClient.listAdminUsers(false),
-    enabled: isImpersonating,
+    enabled: isSuper || isImpersonating,
   })
 
   const effectiveOrgData = isSuper ? superOrgData : orgData
@@ -316,6 +320,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     function handleClickOutside(e: MouseEvent) {
       if (impersonateDropdownRef.current && !impersonateDropdownRef.current.contains(e.target as Node)) {
         setImpersonateDropdownOpen(false)
+      }
+      if (activateDropdownRef.current && !activateDropdownRef.current.contains(e.target as Node)) {
+        setActivateDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -487,6 +494,67 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       {(isImpersonating || showPropertySelector || b2cUrl || b2bUrl) && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs">
 
+          {/* Activate impersonation — shown to super admins when not currently impersonating */}
+          {isSuper && !isImpersonating && (
+            <div className="relative" ref={activateDropdownRef}>
+              <button
+                onClick={() => { setActivateDropdownOpen(o => !o); setActivateSearch('') }}
+                className="flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-700 transition-colors hover:bg-amber-100"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                </svg>
+                Impersonate
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {activateDropdownOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+                  <div className="border-b border-[var(--color-border)] p-2">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Search users…"
+                      value={activateSearch}
+                      onChange={e => setActivateSearch(e.target.value)}
+                      className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-xs text-[var(--color-text)] focus:outline-none"
+                    />
+                  </div>
+                  <ul className="max-h-48 overflow-y-auto py-1">
+                    {(allImpersonateUsers ?? [])
+                      .filter(u => {
+                        if (u.id === admin?.id) return false
+                        const q = activateSearch.toLowerCase()
+                        return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                      })
+                      .map(u => (
+                        <li key={u.id}>
+                          <button
+                            onClick={async () => {
+                              setActivateDropdownOpen(false)
+                              try {
+                                await apiClient.impersonate(u.id)
+                                window.location.href = '/admin'
+                              } catch {
+                                setActivateDropdownOpen(true)
+                              }
+                            }}
+                            className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-[var(--color-background)]"
+                          >
+                            <span className="font-medium text-[var(--color-text)]">{u.name}</span>
+                            <span className="text-[10px] text-[var(--color-text-muted)]">{u.email} · {u.role}</span>
+                          </button>
+                        </li>
+                      ))
+                    }
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Impersonation section */}
           {isImpersonating && (
             <>
@@ -563,8 +631,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          {/* Separator between impersonation and configuring sections */}
-          {isImpersonating && (showPropertySelector || b2cUrl || b2bUrl) && (
+          {/* Separator between impersonation/activate and configuring sections */}
+          {(isImpersonating || isSuper) && (showPropertySelector || b2cUrl || b2bUrl) && (
             <span className="select-none text-amber-400">|</span>
           )}
 
