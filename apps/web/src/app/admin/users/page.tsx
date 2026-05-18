@@ -184,6 +184,9 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  // impersonate
+  const [impersonateError, setImpersonateError] = useState<string | null>(null)
+
   // filters
   const [filterSearch, setFilterSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
@@ -278,8 +281,13 @@ export default function UsersPage() {
   }
 
   async function handleImpersonate(userId: number) {
-    await apiClient.impersonate(userId)
-    window.location.href = '/admin'
+    setImpersonateError(null)
+    try {
+      await apiClient.impersonate(userId)
+      window.location.href = '/admin'
+    } catch (err) {
+      setImpersonateError(err instanceof Error ? err.message : 'Impersonation failed')
+    }
   }
 
   function startEditOrg(orgId: number, current: string | null | undefined) {
@@ -601,6 +609,9 @@ export default function UsersPage() {
                               >
                                 Impersonate
                               </button>
+                            )}
+                            {impersonateError && (me?.role === 'super' || me?.impersonatorId !== undefined) && !isMe && (
+                              <span className="text-xs text-[var(--color-error)]">{impersonateError}</span>
                             )}
                             {!isMe && (
                               deleteConfirm === u.id ? (

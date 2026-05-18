@@ -8,8 +8,7 @@ const ALLOWED_ROLES = ['admin', 'observer', 'user', 'affiliate']
 export async function userRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/users', async (request, reply) => {
     const onlyDeleted = (request.query as Record<string, string>).includeDeleted === 'true'
-    const isEffectiveSuper = request.admin.role === 'super' || request.admin.impersonatorId !== undefined
-    const users = isEffectiveSuper
+    const users = request.admin.role === 'super'
       ? await listAllUsers(onlyDeleted)
       : await listUsers(request.admin.organizationId!, onlyDeleted)
     return reply.send(users)

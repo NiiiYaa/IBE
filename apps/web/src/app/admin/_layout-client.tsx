@@ -518,6 +518,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 <ul className="max-h-48 overflow-y-auto py-1">
                   {(allImpersonateUsers ?? [])
                     .filter(u => {
+                      if (u.id === admin?.id) return false
                       if (orgId !== null && u.orgId !== orgId) return false
                       const q = impersonateSearch.toLowerCase()
                       return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
@@ -527,8 +528,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                         <button
                           onClick={async () => {
                             setImpersonateDropdownOpen(false)
-                            await apiClient.impersonate(u.id)
-                            window.location.href = '/admin'
+                            try {
+                              await apiClient.impersonate(u.id)
+                              window.location.href = '/admin'
+                            } catch {
+                              setImpersonateDropdownOpen(true)
+                            }
                           }}
                           className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-[var(--color-background)]"
                         >
