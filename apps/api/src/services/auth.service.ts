@@ -8,6 +8,28 @@ export interface AdminPayload {
   role: string
   propertyIds?: number[]  // populated for 'user' role
   mustChangePassword?: boolean
+  impersonatorId?: number  // present only during impersonation; holds the real super admin's adminId
+}
+
+export function canImpersonate(caller: AdminPayload): boolean {
+  return caller.role === 'super' || caller.impersonatorId !== undefined
+}
+
+export function buildImpersonatePayload(
+  caller: AdminPayload,
+  target: { id: number; organizationId: number | null; role: string; propertyIds?: number[] | undefined },
+): AdminPayload {
+  const realSuperAdminId = caller.impersonatorId ?? caller.adminId
+  const payload: AdminPayload = {
+    adminId: target.id,
+    organizationId: target.organizationId,
+    role: target.role,
+    impersonatorId: realSuperAdminId,
+  }
+  if (target.propertyIds !== undefined) {
+    payload.propertyIds = target.propertyIds
+  }
+  return payload
 }
 
 export type AccountChoice = {
