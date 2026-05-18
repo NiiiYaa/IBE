@@ -698,6 +698,16 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             placeholder="e.g. Grand Palace Hotel"
             draft={draft} orgDefaults={orgDefaults} onSet={setStr} onReset={reset} />
 
+          <OverrideToggleRow
+            label="Show name on page"
+            fieldKey="showNameOnPage"
+            systemDefault={true}
+            draft={draft}
+            orgDefaults={orgDefaults}
+            onSet={setB}
+            onReset={resetO}
+          />
+
           {/* Logo — inline override with HyperGuest fallback and image preview */}
           <FormRow label="Logo">
             {property?.logo && (
