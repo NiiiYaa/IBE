@@ -104,7 +104,7 @@ type CommData = {
   whatsappTwilioAuthTokenSet: boolean
 }
 
-function WhatsAppInheritedBadge({ data }: { data: CommData | undefined }) {
+function WhatsAppInheritedBadge({ data, webjsStatus }: { data: CommData | undefined; webjsStatus?: string | undefined }) {
   if (!data?.whatsappProvider && !data?.whatsappEnabled) {
     return <p className="text-sm text-[var(--color-text-muted)]">No system config set yet.</p>
   }
@@ -119,7 +119,13 @@ function WhatsAppInheritedBadge({ data }: { data: CommData | undefined }) {
       {data.whatsappProvider === 'meta' && data.whatsappPhoneNumberId && (
         <span> · {data.whatsappPhoneNumberId}</span>
       )}
-      {data.whatsappEnabled
+      {data.whatsappProvider === 'wwebjs' ? (
+        webjsStatus === 'connected'
+          ? <span className="ml-2 text-[var(--color-success)] text-xs font-medium">● Connected</span>
+          : webjsStatus === 'qr'
+          ? <span className="ml-2 text-amber-600 text-xs font-medium">● Awaiting scan</span>
+          : <span className="ml-2 text-[var(--color-error)] text-xs font-medium">● Disconnected</span>
+      ) : data.whatsappEnabled
         ? <span className="ml-2 text-[var(--color-success)] text-xs font-medium">● Enabled</span>
         : <span className="ml-2 text-[var(--color-error)] text-xs font-medium">● Disabled</span>}
     </div>
@@ -216,6 +222,14 @@ export default function WhatsAppPage() {
     queryKey: ['whatsapp-webhook-info'],
     queryFn: () => apiClient.getWhatsAppWebhookInfo(),
     enabled: !isSystemLevel,
+  })
+
+  const isInheritingWwebjs = !isSystemLevel && useSystemDefault && data?.whatsappProvider === 'wwebjs'
+  const { data: systemWebjsStatusData } = useQuery({
+    queryKey: ['wwebjs-status', undefined],
+    queryFn: () => apiClient.getWebjsStatus(undefined),
+    enabled: isInheritingWwebjs,
+    refetchInterval: isInheritingWwebjs ? 3000 : false,
   })
 
   useEffect(() => {
@@ -479,7 +493,7 @@ export default function WhatsAppPage() {
         {useSystemDefault ? (
           <div className="space-y-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Currently inheriting from System</p>
-            <WhatsAppInheritedBadge data={data as CommData | undefined} />
+            <WhatsAppInheritedBadge data={data as CommData | undefined} webjsStatus={systemWebjsStatusData?.status} />
           </div>
         ) : (
           <div className="space-y-4">
