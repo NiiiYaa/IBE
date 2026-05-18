@@ -483,96 +483,98 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      {/* ── Impersonation bar ─────────────────────────────────────────── */}
-      {isImpersonating && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-2 text-xs">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-red-500">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-          </svg>
-          <span className="shrink-0 text-red-700">Configuring as:</span>
-
-          {/* Searchable user-switcher dropdown */}
-          <div className="relative" ref={impersonateDropdownRef}>
-            <button
-              onClick={() => { setImpersonateDropdownOpen(o => !o); setImpersonateSearch('') }}
-              className="flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
-            >
-              {admin?.name ?? '…'}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-
-            {impersonateDropdownOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
-                <div className="border-b border-[var(--color-border)] p-2">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Search users…"
-                    value={impersonateSearch}
-                    onChange={e => setImpersonateSearch(e.target.value)}
-                    className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-xs text-[var(--color-text)] focus:outline-none"
-                  />
-                </div>
-                <ul className="max-h-48 overflow-y-auto py-1">
-                  {(allImpersonateUsers ?? [])
-                    .filter(u => {
-                      if (u.id === admin?.id) return false
-                      if (orgId !== null && u.orgId !== orgId) return false
-                      const q = impersonateSearch.toLowerCase()
-                      return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-                    })
-                    .map(u => (
-                      <li key={u.id}>
-                        <button
-                          onClick={async () => {
-                            setImpersonateDropdownOpen(false)
-                            try {
-                              await apiClient.impersonate(u.id)
-                              window.location.href = '/admin'
-                            } catch {
-                              setImpersonateDropdownOpen(true)
-                            }
-                          }}
-                          className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-[var(--color-background)]"
-                        >
-                          <span className="font-medium text-[var(--color-text)]">{u.name}</span>
-                          <span className="text-[10px] text-[var(--color-text-muted)]">{u.email} · {u.role}</span>
-                        </button>
-                      </li>
-                    ))
-                  }
-                </ul>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={async () => {
-              await apiClient.exitImpersonation()
-              window.location.href = '/admin'
-            }}
-            className="rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
-          >
-            Exit
-          </button>
-
-          {admin?.impersonatorName && (
-            <span className="ml-auto text-[10px] text-red-400">
-              Signed in as: {admin.impersonatorName}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* ── Configuring bar ────────────────────────────────────────────── */}
-      {(showPropertySelector || b2cUrl || b2bUrl) && (
+      {/* ── Configuring / Impersonation bar ──────────────────────────── */}
+      {(isImpersonating || showPropertySelector || b2cUrl || b2bUrl) && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-500">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-          </svg>
+
+          {/* Impersonation section */}
+          {isImpersonating && (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-red-500">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="shrink-0 text-red-700">Configuring as:</span>
+
+              <div className="relative" ref={impersonateDropdownRef}>
+                <button
+                  onClick={() => { setImpersonateDropdownOpen(o => !o); setImpersonateSearch('') }}
+                  className="flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
+                >
+                  {admin?.name ?? '…'}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {impersonateDropdownOpen && (
+                  <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+                    <div className="border-b border-[var(--color-border)] p-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Search users…"
+                        value={impersonateSearch}
+                        onChange={e => setImpersonateSearch(e.target.value)}
+                        className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-xs text-[var(--color-text)] focus:outline-none"
+                      />
+                    </div>
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                      {(allImpersonateUsers ?? [])
+                        .filter(u => {
+                          if (u.id === admin?.id) return false
+                          if (orgId !== null && u.orgId !== orgId) return false
+                          const q = impersonateSearch.toLowerCase()
+                          return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                        })
+                        .map(u => (
+                          <li key={u.id}>
+                            <button
+                              onClick={async () => {
+                                setImpersonateDropdownOpen(false)
+                                try {
+                                  await apiClient.impersonate(u.id)
+                                  window.location.href = '/admin'
+                                } catch {
+                                  setImpersonateDropdownOpen(true)
+                                }
+                              }}
+                              className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-[var(--color-background)]"
+                            >
+                              <span className="font-medium text-[var(--color-text)]">{u.name}</span>
+                              <span className="text-[10px] text-[var(--color-text-muted)]">{u.email} · {u.role}</span>
+                            </button>
+                          </li>
+                        ))
+                      }
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={async () => {
+                  await apiClient.exitImpersonation()
+                  window.location.href = '/admin'
+                }}
+                className="rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
+              >
+                Exit
+              </button>
+            </>
+          )}
+
+          {/* Separator between impersonation and configuring sections */}
+          {isImpersonating && (showPropertySelector || b2cUrl || b2bUrl) && (
+            <span className="select-none text-amber-400">|</span>
+          )}
+
+          {/* Configuring section */}
+          {(showPropertySelector || b2cUrl || b2bUrl) && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-500">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+            </svg>
+          )}
           {showPropertySelector && (
             <span className="flex-1 text-amber-800">
               {propertyId === null ? (
