@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { useAdminAuth } from '../../hooks/use-admin-auth'
 import { AdminPropertyProvider, useAdminProperty } from './property-context'
@@ -229,6 +229,18 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     enabled: isAuthenticated,
   })
 
+  const isImpersonating = admin?.impersonatorId !== undefined
+
+  const [impersonateDropdownOpen, setImpersonateDropdownOpen] = useState(false)
+  const [impersonateSearch, setImpersonateSearch] = useState('')
+  const impersonateDropdownRef = useRef<HTMLDivElement>(null)
+
+  const { data: allImpersonateUsers } = useQuery({
+    queryKey: ['admin-users-impersonate'],
+    queryFn: () => apiClient.listAdminUsers(false),
+    enabled: isImpersonating,
+  })
+
   const effectiveOrgData = isSuper ? superOrgData : orgData
   const isBuyerOrg = effectiveOrgData?.orgType === 'buyer'
   const visibleSections = filterSections(SECTIONS, role, isBuyerOrg)
@@ -299,6 +311,16 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
       router.replace('/admin/onboarding')
     }
   }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (impersonateDropdownRef.current && !impersonateDropdownRef.current.contains(e.target as Node)) {
+        setImpersonateDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Active section: whichever section owns the current pathname
   const activeSection = useMemo(() => {
@@ -460,6 +482,84 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
+
+      {/* ── Impersonation bar ─────────────────────────────────────────── */}
+      {isImpersonating && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-2 text-xs">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-red-500">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+          </svg>
+          <span className="shrink-0 text-red-700">Configuring as:</span>
+
+          {/* Searchable user-switcher dropdown */}
+          <div className="relative" ref={impersonateDropdownRef}>
+            <button
+              onClick={() => { setImpersonateDropdownOpen(o => !o); setImpersonateSearch('') }}
+              className="flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
+            >
+              {admin?.name ?? '…'}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {impersonateDropdownOpen && (
+              <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+                <div className="border-b border-[var(--color-border)] p-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search users…"
+                    value={impersonateSearch}
+                    onChange={e => setImpersonateSearch(e.target.value)}
+                    className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-xs text-[var(--color-text)] focus:outline-none"
+                  />
+                </div>
+                <ul className="max-h-48 overflow-y-auto py-1">
+                  {(allImpersonateUsers ?? [])
+                    .filter(u => {
+                      if (orgId !== null && u.orgId !== orgId) return false
+                      const q = impersonateSearch.toLowerCase()
+                      return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                    })
+                    .map(u => (
+                      <li key={u.id}>
+                        <button
+                          onClick={async () => {
+                            setImpersonateDropdownOpen(false)
+                            await apiClient.impersonate(u.id)
+                            window.location.href = '/admin'
+                          }}
+                          className="flex w-full flex-col px-3 py-1.5 text-left hover:bg-[var(--color-background)]"
+                        >
+                          <span className="font-medium text-[var(--color-text)]">{u.name}</span>
+                          <span className="text-[10px] text-[var(--color-text-muted)]">{u.email} · {u.role}</span>
+                        </button>
+                      </li>
+                    ))
+                  }
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={async () => {
+              await apiClient.exitImpersonation()
+              window.location.href = '/admin'
+            }}
+            className="rounded border border-red-300 bg-white px-2 py-0.5 font-medium text-red-700 transition-colors hover:bg-red-100"
+          >
+            Exit
+          </button>
+
+          {admin?.impersonatorName && (
+            <span className="ml-auto text-[10px] text-red-400">
+              Signed in as: {admin.impersonatorName}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── Configuring bar ────────────────────────────────────────────── */}
       {(showPropertySelector || b2cUrl || b2bUrl) && (
