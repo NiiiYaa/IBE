@@ -143,9 +143,16 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (typeof targetAdminId !== 'number') {
       return reply.status(400).send({ error: 'targetAdminId is required' })
     }
+    const realSuperAdminId = request.admin.impersonatorId ?? request.admin.adminId
+    if (targetAdminId === realSuperAdminId) {
+      return reply.status(400).send({ error: 'Cannot impersonate yourself' })
+    }
     const target = await getAdminById(targetAdminId)
     if (!target || !target.isActive) {
       return reply.status(404).send({ error: 'User not found or inactive' })
+    }
+    if (target.role === 'super') {
+      return reply.status(403).send({ error: 'Cannot impersonate a super admin', code: 'IBE.AUTH.012' })
     }
     const payload = buildImpersonatePayload(request.admin, {
       id: target.id,
