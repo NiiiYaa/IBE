@@ -140,12 +140,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden', code: 'IBE.AUTH.011' })
     }
     const { targetAdminId } = request.body as { targetAdminId?: number }
-    if (typeof targetAdminId !== 'number') {
-      return reply.status(400).send({ error: 'targetAdminId is required' })
+    if (typeof targetAdminId !== 'number' || !Number.isInteger(targetAdminId)) {
+      return reply.status(400).send({ error: 'targetAdminId is required', code: 'IBE.AUTH.013' })
     }
     const realSuperAdminId = request.admin.impersonatorId ?? request.admin.adminId
     if (targetAdminId === realSuperAdminId) {
-      return reply.status(400).send({ error: 'Cannot impersonate yourself' })
+      return reply.status(400).send({ error: 'Cannot impersonate yourself', code: 'IBE.AUTH.014' })
     }
     const target = await getAdminById(targetAdminId)
     if (!target || !target.isActive) {
@@ -167,12 +167,16 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/auth/impersonate/exit', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { impersonatorId } = request.admin
     if (impersonatorId === undefined) {
-      return reply.status(400).send({ error: 'Not in an impersonation session' })
+      return reply.status(400).send({ error: 'Not in an impersonation session', code: 'IBE.AUTH.015' })
     }
     const superAdmin = await getAdminById(impersonatorId)
     if (!superAdmin || !superAdmin.isActive) {
       reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
       return reply.status(401).send({ error: 'Original session is no longer valid', code: 'IBE.AUTH.001' })
+    }
+    if (superAdmin.role !== 'super') {
+      reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
+      return reply.status(403).send({ error: 'Impersonator is no longer a super admin', code: 'IBE.AUTH.016' })
     }
     setCookieAndRespond(fastify, reply, {
       adminId: superAdmin.id,
