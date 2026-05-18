@@ -277,6 +277,11 @@ export default function UsersPage() {
     }
   }
 
+  async function handleImpersonate(userId: number) {
+    await apiClient.impersonate(userId)
+    window.location.href = '/admin'
+  }
+
   function startEditOrg(orgId: number, current: string | null | undefined) {
     setEditingOrgId(orgId)
     setEditingOrgHgId(current ?? '')
@@ -589,6 +594,14 @@ export default function UsersPage() {
                               className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-border)] hover:text-[var(--color-text)]">
                               Edit
                             </button>
+                            {(me?.role === 'super' || me?.impersonatorId !== undefined) && !isMe && (
+                              <button
+                                onClick={() => handleImpersonate(u.id)}
+                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-light)]"
+                              >
+                                Impersonate
+                              </button>
+                            )}
                             {!isMe && (
                               deleteConfirm === u.id ? (
                                 <>
