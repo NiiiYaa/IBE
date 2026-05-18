@@ -233,6 +233,8 @@ export interface AdminMe {
   propertyIds?: number[]
   orgName: string | null
   orgHyperGuestOrgId: string | null
+  impersonatorId?: number | undefined
+  impersonatorName?: string | undefined
 }
 
 export interface DataProviderGlobalResponse {
@@ -283,6 +285,18 @@ export const apiClient = {
   updateMyAdminProfile(data: { name?: string; email?: string; currentPassword?: string; newPassword?: string }): Promise<{ id: number; name: string; email: string }> {
     return apiRequest('/api/v1/auth/me', { method: 'PUT', body: JSON.stringify(data) })
   },
+
+  impersonate(targetAdminId: number): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/auth/impersonate', {
+      method: 'POST',
+      body: JSON.stringify({ targetAdminId }),
+    })
+  },
+
+  exitImpersonation(): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/auth/impersonate/exit', { method: 'POST' })
+  },
+
   /** Search availability for a property */
   search(params: URLSearchParams): Promise<SearchResponse> {
     return apiRequest<SearchResponse>(`/api/v1/search?${params.toString()}`)
