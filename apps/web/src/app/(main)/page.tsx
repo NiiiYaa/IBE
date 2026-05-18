@@ -316,7 +316,8 @@ export default async function HomePage({
   const heroStyle = config?.heroStyle ?? 'fullpage'
   const heroImageMode = config?.heroImageMode ?? 'fixed'
   const heroCarouselInterval = config?.heroCarouselInterval ?? 5
-  const displayName = config?.displayName || property?.name || 'Welcome'
+  const displayName = config?.displayName?.trim() || property?.name || 'Welcome'
+  const showNameOnPage = config?.showNameOnPage ?? true
   const tagline = config?.tagline
   const logoUrl = config?.logoUrl || property?.logo || null
 
@@ -392,6 +393,7 @@ export default async function HomePage({
       heroImageMode={heroImageMode}
       heroCarouselInterval={heroCarouselInterval}
       displayName={displayName}
+      showNameOnPage={showNameOnPage}
       chainName={chainName}
       tagline={tagline ?? null}
       heroImageUrl={heroImageUrl}
