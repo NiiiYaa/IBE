@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile, type AdminPayload } from '../services/auth.service.js'
+import { resolveAdminLogin, signUpAdmin, findOrCreateGoogleUser, getAdminById, updateAdminProfile, canImpersonate, buildImpersonatePayload, type AdminPayload } from '../services/auth.service.js'
 import { forgotAdminPassword } from '../services/user.service.js'
 import { env } from '../config/env.js'
 import { cookieDomain } from '../utils/cookie.js'
@@ -95,11 +95,27 @@ export async function authRoutes(fastify: FastifyInstance) {
       reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
       return reply.status(401).send({ error: 'Unauthorized', code: 'IBE.AUTH.001' })
     }
-    return reply.send(admin)
+    if (request.admin.impersonatorId === undefined) {
+      return reply.send(admin)
+    }
+    const impersonator = await getAdminById(request.admin.impersonatorId)
+    return reply.send({
+      ...admin,
+      impersonatorId: request.admin.impersonatorId,
+      ...(impersonator ? { impersonatorName: impersonator.name } : {}),
+    })
   })
 
   fastify.put('/auth/me', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const body = request.body as { name?: string; email?: string; currentPassword?: string; newPassword?: string }
+
+    if (request.admin.impersonatorId !== undefined && (body.email !== undefined || body.newPassword !== undefined)) {
+      return reply.status(403).send({
+        error: 'Identity fields cannot be changed during impersonation',
+        code: 'IBE.AUTH.010',
+      })
+    }
+
     try {
       const updated = await updateAdminProfile(request.admin.adminId, {
         ...(body.name !== undefined && { name: body.name }),
@@ -115,6 +131,49 @@ export async function authRoutes(fastify: FastifyInstance) {
         : 400
       return reply.status(status).send({ error: message })
     }
+  })
+
+  // ── Impersonate ────────────────────────────────────────────────────────────
+
+  fastify.post('/auth/impersonate', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    if (!canImpersonate(request.admin)) {
+      return reply.status(403).send({ error: 'Forbidden', code: 'IBE.AUTH.011' })
+    }
+    const { targetAdminId } = request.body as { targetAdminId?: number }
+    if (typeof targetAdminId !== 'number') {
+      return reply.status(400).send({ error: 'targetAdminId is required' })
+    }
+    const target = await getAdminById(targetAdminId)
+    if (!target || !target.isActive) {
+      return reply.status(404).send({ error: 'User not found or inactive' })
+    }
+    const payload = buildImpersonatePayload(request.admin, {
+      id: target.id,
+      organizationId: target.organizationId,
+      role: target.role,
+      propertyIds: target.propertyIds,
+    })
+    setCookieAndRespond(fastify, reply, payload)
+    return reply.send({ ok: true })
+  })
+
+  fastify.post('/auth/impersonate/exit', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { impersonatorId } = request.admin
+    if (impersonatorId === undefined) {
+      return reply.status(400).send({ error: 'Not in an impersonation session' })
+    }
+    const superAdmin = await getAdminById(impersonatorId)
+    if (!superAdmin || !superAdmin.isActive) {
+      reply.clearCookie(COOKIE_NAME, { path: '/', ...(_adminCookieDomain ? { domain: _adminCookieDomain } : {}) })
+      return reply.status(401).send({ error: 'Original session is no longer valid', code: 'IBE.AUTH.001' })
+    }
+    setCookieAndRespond(fastify, reply, {
+      adminId: superAdmin.id,
+      organizationId: superAdmin.organizationId,
+      role: superAdmin.role,
+      mustChangePassword: superAdmin.mustChangePassword,
+    })
+    return reply.send({ ok: true })
   })
 
   // ── Google OAuth ───────────────────────────────────────────────────────────
