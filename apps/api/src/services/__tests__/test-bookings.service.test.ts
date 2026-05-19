@@ -92,6 +92,12 @@ describe('searchForTestBooking', () => {
       propertyId: 1, checkIn: '2026-06-01', checkOut: '2026-06-03', adults: 2, childrenAges: [],
     })
 
+    expect(mSearch).toHaveBeenCalledWith({
+      hotelId: 1,
+      checkIn: '2026-06-01',
+      checkOut: '2026-06-03',
+      rooms: [{ adults: 2, childAges: undefined }],
+    })
     expect(rates).toHaveLength(1)
     expect(rates[0]).toMatchObject({
       roomName: 'Deluxe Room',
@@ -173,6 +179,18 @@ describe('createTestBooking', () => {
       leadGuest: expect.objectContaining({ firstName: 'Test', lastName: 'Guest', email: 'test@hyperguest.com' }),
       rooms: expect.arrayContaining([expect.objectContaining({ roomId: 10, rateCode: 'RP001', expectedAmount: 200, expectedCurrency: 'USD' })]),
     }))
+    expect(mPrisma.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          isTest: true,
+          paymentFlow: 'pay_at_hotel_no_card',
+          bookingChannel: 'b2c',
+          leadGuestFirstName: 'Test',
+          leadGuestLastName: 'Guest',
+          leadGuestEmail: 'test@hyperguest.com',
+        }),
+      })
+    )
     expect(result).toEqual({ bookingId: 42, bookingReference: '999' })
   })
 })
@@ -190,7 +208,7 @@ describe('cancelTestBooking', () => {
     expect(mCancel).toHaveBeenCalledWith(999, 1)
     expect(mPrisma.booking.update).toHaveBeenCalledWith({
       where: { id: 42 },
-      data: { status: 'cancelled' },
+      data: { status: 'Cancelled' },
     })
     expect(ok).toBe(true)
   })
@@ -204,7 +222,7 @@ describe('cancelTestBooking', () => {
 
   it('returns false when booking is already cancelled', async () => {
     mPrisma.booking.findUnique.mockResolvedValue({
-      hyperGuestBookingId: 1, propertyId: 1, status: 'cancelled',
+      hyperGuestBookingId: 1, propertyId: 1, status: 'Cancelled',
     })
     const ok = await cancelTestBooking(42)
     expect(mCancel).not.toHaveBeenCalled()

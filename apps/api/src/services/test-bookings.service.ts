@@ -1,6 +1,6 @@
 import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { createBooking, cancelBooking as hgCancelBooking } from '../adapters/hyperguest/booking.js'
-import { GuestTitle } from '@ibe/shared'
+import { GuestTitle, BookingStatus, PaymentFlow } from '@ibe/shared'
 import type { HGCancellationPolicy, TestBookingRateResult, TestBookingBookResponse } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
@@ -118,7 +118,7 @@ export async function createTestBooking(params: {
       currency: booking.payment.chargeAmount.currency,
       isTest: true,
       paymentMethod: 'external',
-      paymentFlow: 'pay_at_hotel_no_card',
+      paymentFlow: PaymentFlow.PayAtHotelNoCard,
       bookingChannel: 'b2c',
       cancellationDeadline: null,
       rawResponse: JSON.stringify(booking),
@@ -145,10 +145,10 @@ export async function cancelTestBooking(bookingId: number): Promise<boolean> {
     select: { hyperGuestBookingId: true, propertyId: true, status: true },
   })
 
-  if (!booking || booking.status === 'cancelled') return false
+  if (!booking || booking.status === BookingStatus.Cancelled) return false
 
   await hgCancelBooking(booking.hyperGuestBookingId, booking.propertyId)
-  await prisma.booking.update({ where: { id: bookingId }, data: { status: 'cancelled' } })
+  await prisma.booking.update({ where: { id: bookingId }, data: { status: BookingStatus.Cancelled } })
 
   logger.info({ bookingId, hyperGuestBookingId: booking.hyperGuestBookingId }, '[TestBookings] Booking cancelled')
   return true
