@@ -128,7 +128,7 @@ const SECTIONS: Section[] = [
   },
 ]
 
-const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0 }
+const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0, affiliate: -1 }
 
 function filterSections(sections: Section[], role: string, isBuyerOrg: boolean): Section[] {
   const level = ROLE_LEVEL[role] ?? 0
@@ -311,6 +311,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, admin?.mustChangePassword, isAuthPage, isOnboarding, pathname, router])
 
   useEffect(() => {
+    if (isAuthenticated && role === 'affiliate' && !isAuthPage) {
+      router.replace('/affiliate/dashboard')
+    }
+  }, [isAuthenticated, role, isAuthPage, router])
+
+  useEffect(() => {
     if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super' && orgData.orgType !== 'buyer') {
       router.replace('/admin/onboarding')
     }
@@ -354,6 +360,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (isAuthPage || isOnboarding) {
     return <>{children}</>
+  }
+
+  if (role === 'affiliate') {
+    return null
   }
 
   // Derive B2C / B2B view URLs from the active org settings + selected property

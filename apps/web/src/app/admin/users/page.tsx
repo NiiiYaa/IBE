@@ -605,9 +605,10 @@ export default function UsersPage() {
                             {(me?.role === 'super' || me?.impersonatorId !== undefined) && !isMe && (
                               <button
                                 onClick={() => handleImpersonate(u.id)}
-                                className="rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-light)]"
+                                title="Impersonate"
+                                className="rounded-md p-1.5 text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-light)]"
                               >
-                                Impersonate
+                                <SpyIcon className="h-4 w-4" />
                               </button>
                             )}
                             {impersonateError && (me?.role === 'super' || me?.impersonatorId !== undefined) && !isMe && (
@@ -775,6 +776,27 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
     ].join(' ')}>
       {isActive ? 'Active' : 'Inactive'}
     </span>
+  )
+}
+
+function SpyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      {/* brim */}
+      <rect x="2" y="9" width="20" height="2" rx="1" />
+      {/* crown */}
+      <path d="M6 9 C6 5 8.5 3 12 3 C15.5 3 18 5 18 9 Z" />
+      {/* glasses bridge */}
+      <rect x="11" y="14" width="2" height="1.5" rx="0.5" />
+      {/* left lens */}
+      <rect x="4" y="13" width="6" height="4" rx="2" />
+      {/* right lens */}
+      <rect x="14" y="13" width="6" height="4" rx="2" />
+      {/* left temple */}
+      <rect x="2" y="14" width="2.5" height="1.2" rx="0.6" />
+      {/* right temple */}
+      <rect x="19.5" y="14" width="2.5" height="1.2" rx="0.6" />
+    </svg>
   )
 }
 

@@ -158,6 +158,7 @@ export async function affiliatePortalRoutes(fastify: FastifyInstance) {
       id: user.id,
       email: user.email,
       name: user.name,
+      impersonatorId: request.admin.impersonatorId ?? null,
       stats: {
         totalBookings: bookings.length,
         totalRevenue: Math.round(totalRevenue * 100) / 100,

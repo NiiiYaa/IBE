@@ -2021,7 +2021,7 @@ export const apiClient = {
     return apiRequest('/api/v1/affiliate/register', { method: 'POST', body: JSON.stringify(data) })
   },
 
-  affiliateMe(): Promise<{ id: number; email: string; name: string; stats: AffiliatePortalStats }> {
+  affiliateMe(): Promise<{ id: number; email: string; name: string; impersonatorId: number | null; stats: AffiliatePortalStats }> {
     return apiRequest('/api/v1/affiliate/me', { cache: 'no-store' })
   },
 

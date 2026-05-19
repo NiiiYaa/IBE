@@ -77,6 +77,17 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
             </nav>
           </div>
           <div className="flex items-center gap-3">
+            {me.impersonatorId && (
+              <button
+                onClick={async () => {
+                  await apiClient.exitImpersonation()
+                  window.location.href = '/admin/users'
+                }}
+                className="rounded border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
+              >
+                Exit impersonation
+              </button>
+            )}
             <span className="text-sm text-[var(--color-text-muted)]">{me.name}</span>
             <Link
               href="/affiliate/account"
