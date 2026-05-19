@@ -24,16 +24,17 @@ export async function testBookingsRoutes(fastify: FastifyInstance) {
   // ── POST /admin/test-bookings/search ────────────────────────────────────────
   fastify.post('/admin/test-bookings/search', async (request, reply) => {
     const body = request.body as TestBookingSearchRequest
-    if (!body.propertyId || !body.checkIn || !body.checkOut || typeof body.adults !== 'number') {
+    if (!body.propertyId || !body.checkIn || !body.checkOut || !Number.isInteger(body.adults) || body.adults < 1) {
       return reply.status(400).send({ error: 'propertyId, checkIn, checkOut, adults are required' })
     }
+    const childrenAges = Array.isArray(body.childrenAges) ? body.childrenAges : []
 
     if (!await assertPropertyAccess(body.propertyId, request.admin)) {
       return reply.status(403).send({ error: 'Forbidden' })
     }
 
     try {
-      const rates = await searchForTestBooking(body)
+      const rates = await searchForTestBooking({ ...body, childrenAges })
       return reply.send({ rates })
     } catch (err) {
       return reply.status(502).send({ error: err instanceof Error ? err.message : 'Search failed' })
@@ -43,16 +44,17 @@ export async function testBookingsRoutes(fastify: FastifyInstance) {
   // ── POST /admin/test-bookings/book ──────────────────────────────────────────
   fastify.post('/admin/test-bookings/book', async (request, reply) => {
     const body = request.body as TestBookingBookRequest
-    if (!body.propertyId || !body.rateKey || !body.checkIn || !body.checkOut || typeof body.adults !== 'number') {
+    if (!body.propertyId || !body.rateKey || !body.checkIn || !body.checkOut || !Number.isInteger(body.adults) || body.adults < 1) {
       return reply.status(400).send({ error: 'propertyId, rateKey, checkIn, checkOut, adults are required' })
     }
+    const childrenAges = Array.isArray(body.childrenAges) ? body.childrenAges : []
 
     if (!await assertPropertyAccess(body.propertyId, request.admin)) {
       return reply.status(403).send({ error: 'Forbidden' })
     }
 
     try {
-      const result = await createTestBooking(body)
+      const result = await createTestBooking({ ...body, childrenAges })
       return reply.status(201).send(result)
     } catch (err) {
       return reply.status(502).send({ error: err instanceof Error ? err.message : 'Booking failed' })
