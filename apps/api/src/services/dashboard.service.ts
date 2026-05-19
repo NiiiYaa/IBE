@@ -49,7 +49,7 @@ export async function getDashboardStats(
 
   const [bookings, bookingsToday] = await Promise.all([
     prisma.booking.findMany({
-      where: { createdAt: { gte: from, lte: to }, ...propertyIdFilter },
+      where: { createdAt: { gte: from, lte: to }, isTest: false, ...propertyIdFilter },
       select: {
         createdAt: true, totalAmount: true, currency: true, status: true, searchId: true,
         checkIn: true, checkOut: true,
@@ -57,7 +57,7 @@ export async function getDashboardStats(
       },
     }),
     prisma.booking.count({
-      where: { createdAt: { gte: todayStart }, ...propertyIdFilter },
+      where: { createdAt: { gte: todayStart }, isTest: false, ...propertyIdFilter },
     }),
   ])
 
@@ -181,6 +181,7 @@ export async function getDashboardStats(
       where: {
         createdAt: { gte: from, lte: to },
         promoCode: { not: null },
+        isTest: false,
         ...propertyIdFilter,
       },
       select: { promoCode: true, totalAmount: true, originalPrice: true },

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
@@ -577,6 +577,10 @@ export default function TestBookingsPage() {
     COMBINATIONS.map(() => ({ status: 'idle', error: null, rates: [] }))
   )
 
+  useEffect(() => {
+    setComboStates(COMBINATIONS.map(() => ({ status: 'idle', error: null, rates: [] })))
+  }, [propertyId])
+
   if (!propertyId) {
     return (
       <main className="mx-auto max-w-4xl px-4 py-8">
@@ -619,7 +623,7 @@ export default function TestBookingsPage() {
             setComboStates={setComboStates}
           />
         )}
-        {activeTab === 'custom' && <CustomMode propertyId={propertyId} />}
+        {activeTab === 'custom' && <CustomMode key={propertyId} propertyId={propertyId} />}
       </section>
     </main>
   )

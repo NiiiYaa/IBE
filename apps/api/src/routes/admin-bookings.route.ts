@@ -127,8 +127,9 @@ export async function adminBookingsRoutes(fastify: FastifyInstance) {
     if (q.hasAffiliate === 'false') where['affiliateId'] = null
     if (q.hasPromo === 'true') where['promoCode'] = { not: null }
     if (q.hasPromo === 'false') where['promoCode'] = null
+    // Default: exclude test bookings; only show them when explicitly requested
     if (q.isTest === 'true') where['isTest'] = true
-    if (q.isTest === 'false') where['isTest'] = false
+    else where['isTest'] = false
 
     if (q.preset) {
       applyPreset(where, q.preset as Preset)
