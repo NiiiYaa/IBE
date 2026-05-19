@@ -19,6 +19,7 @@ export * from './types/cross-sell.js'
 export * from './types/groups.js'
 export type * from './types/data-provider.js'
 export type * from './types/external-ibe.js'
+export type * from './types/test-bookings.js'
 
 // Schemas
 export * from './schemas/search.js'
