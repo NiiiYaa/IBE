@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import * as XLSX from 'xlsx'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
 import type { TestBookingRateResult, TestBookingBookResponse } from '@ibe/shared'
@@ -335,8 +336,237 @@ function CombinationsMode({ propertyId, comboStates, setComboStates }: {
   )
 }
 
-// ── Placeholder for exportToExcel (filled in Task 7) ──────────────────────────
-function exportToExcel(_states: ComboState[]) { /* implemented in Task 7 */ }
+// ── Excel export ──────────────────────────────────────────────────────────────
+
+function exportToExcel(states: ComboState[]) {
+  const rows: Record<string, unknown>[] = []
+
+  states.forEach((state, comboIdx) => {
+    const combo = COMBINATIONS[comboIdx]!
+    state.rates.forEach(rs => {
+      if (!rs.booking) return
+      rows.push({
+        'Combination #': comboIdx + 1,
+        'Adults': combo.adults,
+        'Children': combo.childrenAges.length,
+        'Child Ages': combo.childrenAges.join(', ') || '—',
+        'Nationality': combo.nationality,
+        'Check-in': offsetDate(combo.offsetDays),
+        'Check-out': offsetDate(combo.offsetDays + combo.nights),
+        'Nights': combo.nights,
+        'Board (combo)': combo.board,
+        'Cancellation (combo)': combo.cancellation,
+        'Room Name': rs.rate.roomName,
+        'Board (rate)': rs.rate.board,
+        'Cancellation (rate)': rs.rate.cancellationPolicy,
+        'Price/Night': rs.rate.pricePerNight,
+        'Total': rs.rate.totalPrice,
+        'Currency': rs.rate.currency,
+        'Booking Reference': rs.booking.bookingReference,
+        'Status': rs.cancelStatus === 'cancelled' ? 'cancelled' : 'booked',
+      })
+    })
+  })
+
+  if (rows.length === 0) return
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Test Bookings')
+  XLSX.writeFile(wb, `test-bookings-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+function exportCustomToExcel(
+  rates: RateState[],
+  params: { checkIn: string; checkOut: string; adults: number; childrenAges: number[]; nationality: string }
+) {
+  const nights = Math.round((Date.parse(params.checkOut) - Date.parse(params.checkIn)) / 86_400_000)
+  const rows = rates
+    .filter(rs => rs.booking)
+    .map(rs => ({
+      'Adults': params.adults,
+      'Children': params.childrenAges.length,
+      'Child Ages': params.childrenAges.join(', ') || '—',
+      'Nationality': params.nationality,
+      'Check-in': params.checkIn,
+      'Check-out': params.checkOut,
+      'Nights': nights,
+      'Room Name': rs.rate.roomName,
+      'Board': rs.rate.board,
+      'Cancellation': rs.rate.cancellationPolicy,
+      'Price/Night': rs.rate.pricePerNight,
+      'Total': rs.rate.totalPrice,
+      'Currency': rs.rate.currency,
+      'Booking Reference': rs.booking!.bookingReference,
+      'Status': rs.cancelStatus === 'cancelled' ? 'cancelled' : 'booked',
+    }))
+
+  if (rows.length === 0) return
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Test Bookings')
+  XLSX.writeFile(wb, `test-bookings-custom-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+// ── CustomMode ────────────────────────────────────────────────────────────────
+
+const NATIONALITIES = ['GR', 'US', 'UK', 'DE', 'FR', 'IN', 'EG', 'JP', 'AU', 'IT', 'ES', 'CN', 'BR', 'RU', 'CA']
+
+function defaultDates() {
+  const now = new Date()
+  return {
+    checkIn: new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10),
+    checkOut: new Date(now.getTime() + 32 * 86400000).toISOString().slice(0, 10),
+  }
+}
+
+function CustomMode({ propertyId }: { propertyId: number }) {
+  const { checkIn: defaultCI, checkOut: defaultCO } = defaultDates()
+  const [checkIn, setCheckIn] = useState(defaultCI)
+  const [checkOut, setCheckOut] = useState(defaultCO)
+  const [adults, setAdults] = useState(2)
+  const [childrenAges, setChildrenAges] = useState<number[]>([])
+  const [nationality, setNationality] = useState('US')
+  const [rates, setRates] = useState<RateState[]>([])
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'searching' | 'done' | 'no-results' | 'error'>('idle')
+  const [searchError, setSearchError] = useState<string | null>(null)
+
+  const anyBooking = rates.some(r => r.booking !== null)
+  const anyChecked = rates.some(r => r.checked && !r.booking)
+
+  function updateRate(idx: number, update: Partial<RateState>) {
+    setRates(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx]!, ...update }
+      return next
+    })
+  }
+
+  async function runSearch() {
+    setSearchStatus('searching')
+    setSearchError(null)
+    setRates([])
+    try {
+      const res = await apiClient.testBookingsSearch({ propertyId, checkIn, checkOut, adults, childrenAges })
+      if (res.rates.length === 0) {
+        setSearchStatus('no-results')
+      } else {
+        setRates(res.rates.map(r => ({ rate: r, checked: false, booking: null, bookingError: null, cancelStatus: 'idle' })))
+        setSearchStatus('done')
+      }
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Search failed')
+      setSearchStatus('error')
+    }
+  }
+
+  async function bookChecked() {
+    await Promise.all(
+      rates.map(async (rs, idx) => {
+        if (!rs.checked || rs.booking) return
+        try {
+          const result = await apiClient.testBookingsBook({
+            propertyId, rateKey: rs.rate.rateKey, checkIn, checkOut, adults, childrenAges,
+          })
+          updateRate(idx, { booking: result, bookingError: null })
+        } catch (err) {
+          updateRate(idx, { bookingError: err instanceof Error ? err.message : 'Booking failed' })
+        }
+      })
+    )
+  }
+
+  async function cancelBooking(idx: number, bookingId: number) {
+    updateRate(idx, { cancelStatus: 'cancelling' })
+    try {
+      await apiClient.testBookingsCancel(bookingId)
+      updateRate(idx, { cancelStatus: 'cancelled' })
+    } catch {
+      updateRate(idx, { cancelStatus: 'error' })
+    }
+  }
+
+  const inputClass = 'rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none'
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Check-in</label>
+          <input type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)} className={inputClass} />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Check-out</label>
+          <input type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)} className={inputClass} />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Adults</label>
+          <select value={adults} onChange={e => setAdults(Number(e.target.value))} className={inputClass}>
+            {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Children ages (comma-separated)</label>
+          <input
+            type="text"
+            placeholder="e.g. 5,10"
+            className={inputClass}
+            onChange={e => {
+              const val = e.target.value.trim()
+              if (!val) { setChildrenAges([]); return }
+              const ages = val.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+              setChildrenAges(ages)
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Nationality</label>
+          <select value={nationality} onChange={e => setNationality(e.target.value)} className={inputClass}>
+            {NATIONALITIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <button
+          type="button"
+          disabled={!checkIn || !checkOut || searchStatus === 'searching'}
+          onClick={() => { void runSearch() }}
+          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+        >
+          {searchStatus === 'searching' ? 'Searching…' : 'Run search'}
+        </button>
+        {anyChecked && (
+          <button
+            type="button"
+            onClick={() => { void bookChecked() }}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+          >
+            Book selected
+          </button>
+        )}
+        {anyBooking && (
+          <button
+            type="button"
+            onClick={() => exportCustomToExcel(rates, { checkIn, checkOut, adults, childrenAges, nationality })}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-bg)] transition-colors"
+          >
+            Export Excel
+          </button>
+        )}
+      </div>
+
+      {searchStatus === 'error' && <p className="text-sm text-error">{searchError}</p>}
+      {searchStatus === 'no-results' && <p className="text-sm text-[var(--color-text-muted)]">No rates available for this combination.</p>}
+
+      {searchStatus === 'done' && rates.length > 0 && (
+        <RatesSubTable
+          rates={rates}
+          onToggle={idx => updateRate(idx, { checked: !rates[idx]!.checked })}
+          onCancel={(idx, bookingId) => { void cancelBooking(idx, bookingId) }}
+        />
+      )}
+    </div>
+  )
+}
 
 // ── Page root (shell — CustomMode added in Task 7) ────────────────────────────
 
@@ -389,9 +619,7 @@ export default function TestBookingsPage() {
             setComboStates={setComboStates}
           />
         )}
-        {activeTab === 'custom' && (
-          <div className="text-sm text-[var(--color-text-muted)]">Custom tab — coming in next step.</div>
-        )}
+        {activeTab === 'custom' && <CustomMode propertyId={propertyId} />}
       </section>
     </main>
   )
