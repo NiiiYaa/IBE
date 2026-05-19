@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
@@ -285,8 +285,8 @@ function CombinationsMode({ propertyId, comboStates, setComboStates }: {
             {COMBINATIONS.map((combo, i) => {
               const state = comboStates[i]!
               return (
-                <>
-                  <tr key={i} className="border-t border-[var(--color-border)] align-top">
+                <React.Fragment key={i}>
+                  <tr className="border-t border-[var(--color-border)] align-top">
                     <td className="py-2 pr-3">
                       <input
                         type="checkbox"
@@ -315,7 +315,7 @@ function CombinationsMode({ propertyId, comboStates, setComboStates }: {
                     </td>
                   </tr>
                   {state.status === 'done' && state.rates.length > 0 && (
-                    <tr key={`${i}-rates`} className="border-t border-[var(--color-border)]/50">
+                    <tr className="border-t border-[var(--color-border)]/50">
                       <td />
                       <td colSpan={2} className="pb-2 pl-2">
                         <RatesSubTable
@@ -326,7 +326,7 @@ function CombinationsMode({ propertyId, comboStates, setComboStates }: {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               )
             })}
           </tbody>
