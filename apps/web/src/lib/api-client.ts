@@ -127,6 +127,11 @@ import type {
   ExternalIBETestStreamEvent,
   ExternalIBEBulkMapRequest,
   ExternalIBEBulkMapResponse,
+  TestBookingSearchRequest,
+  TestBookingSearchResponse,
+  TestBookingBookRequest,
+  TestBookingBookResponse,
+  TestBookingCancelResponse,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -2012,6 +2017,28 @@ export const apiClient = {
     return apiRequest<ExternalIBEBulkMapResponse>('/api/v1/admin/external-ibe/bulk-map', {
       method: 'POST',
       body: JSON.stringify(req),
+    })
+  },
+
+  // ── Test Bookings ──────────────────────────────────────────────────────────
+
+  testBookingsSearch(req: TestBookingSearchRequest): Promise<TestBookingSearchResponse> {
+    return apiRequest<TestBookingSearchResponse>('/api/v1/admin/test-bookings/search', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  },
+
+  testBookingsBook(req: TestBookingBookRequest): Promise<TestBookingBookResponse> {
+    return apiRequest<TestBookingBookResponse>('/api/v1/admin/test-bookings/book', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  },
+
+  testBookingsCancel(bookingId: number): Promise<TestBookingCancelResponse> {
+    return apiRequest<TestBookingCancelResponse>(`/api/v1/admin/test-bookings/${bookingId}/cancel`, {
+      method: 'POST',
     })
   },
 
