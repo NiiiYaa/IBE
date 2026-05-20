@@ -10,6 +10,7 @@ import { apiClient } from '@/lib/api-client'
 import { localeName, localeFlag, localeEnglishName } from '@/lib/locales'
 import { SaveBar, Section } from '../components'
 import { OverrideSelectRow, OverrideLocalesRow, OverrideToggleRow } from '../override-helpers'
+import { DYNAMIC_TYPES, FACILITY_TYPES, getAvailableDynamicTypes, buildCoverageMap, sortLocalesByCoverage } from '@/lib/translation-types'
 
 const ALL_LOCALES = [
   // European
@@ -117,12 +118,16 @@ function SystemLanguageEditor() {
   const defaultLocale = draft.defaultLocale ?? 'en'
   const localeAlphabetical = (draft.localeAlphabetical as boolean | null | undefined) ?? false
 
-  // Available-languages pill list: 'en' first, then enabled others, then remaining
+  const coverageMap = useMemo(
+    () => buildCoverageMap(translationStatus, translationTotal),
+    [translationStatus, translationTotal],
+  )
+
+  // Available-languages pill list: 'en' first, then all others sorted by coverage desc then alpha
   const sortedLocales = useMemo(() => {
-    const enabledNonEn = ALL_LOCALES.filter(c => c !== 'en' && enabledLocales.includes(c))
-    const rest = ALL_LOCALES.filter(c => c !== 'en' && !enabledLocales.includes(c))
-    return ['en', ...enabledNonEn, ...rest]
-  }, [enabledLocales])
+    const nonEn = ALL_LOCALES.filter(c => c !== 'en')
+    return ['en', ...sortLocalesByCoverage(nonEn, coverageMap, localeEnglishName)]
+  }, [coverageMap])
 
   const enabledNonEnLocales = useMemo(() => enabledLocales.filter(c => c !== 'en'), [enabledLocales])
 
@@ -142,6 +147,7 @@ function SystemLanguageEditor() {
         <div className="flex flex-wrap gap-2">
           {sortedLocales.map(code => {
             const active = enabledLocales.includes(code)
+            const pct = coverageMap[code]
             return (
               <button key={code} type="button"
                 onClick={() => {
@@ -161,6 +167,7 @@ function SystemLanguageEditor() {
               >
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
+                {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
               </button>
             )
           })}
@@ -225,7 +232,7 @@ function SystemLanguageEditor() {
 
       <TranslationAISection />
       <TranslationManager enabledLocales={enabledLocales} />
-      <DynamicStringsManager enabledLocales={enabledLocales} orgId={null} />
+      <DynamicStringsManager enabledLocales={enabledLocales} orgId={null} isSystemLevel={true} />
     </div>
   )
 }
@@ -313,6 +320,16 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
     : 'en'
   const localeAlphabetical = (draft.localeAlphabetical as boolean | null | undefined) ?? false
 
+  const coverageMap = buildCoverageMap(translationStatus, translationTotal)
+
+  // Chain/hotel admins only see languages with some translation, sorted by coverage desc then alpha
+  const visibleNonEnLocales = sortLocalesByCoverage(
+    systemLocalesWithEn.filter(c => c !== 'en' && (coverageMap[c] ?? 0) > 0),
+    coverageMap,
+    localeEnglishName,
+  )
+  const visibleLocales = ['en', ...visibleNonEnLocales]
+
   function toggleLocale(code: string) {
     if (code === 'en') return  // 'en' is always on
     const current = enabledLocales
@@ -332,8 +349,9 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
       <Section title="Enabled Languages">
         <div className="flex flex-wrap gap-2">
-          {systemLocalesWithEn.map(code => {
+          {visibleLocales.map(code => {
             const active = enabledLocales.includes(code)
+            const pct = coverageMap[code]
             return (
               <button key={code} type="button"
                 onClick={() => toggleLocale(code)}
@@ -347,6 +365,7 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
               >
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
+                {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
               </button>
             )
           })}
@@ -1069,8 +1088,23 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   const sysPool: string[] = (sysDefs.enabledLocales as string[] | null | undefined) ?? ALL_LOCALES
   const orgPool = (orgDefaults.enabledLocales as string[] | null | undefined)
   const langPool: string[] = orgPool ? orgPool.filter(c => sysPool.includes(c)) : sysPool
-  const localeOptions = langPool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeEnglishName(code)}` }))
-  const localeItems = langPool.map(code => ({ code, label: `${localeFlag(code)} ${localeEnglishName(code)}` }))
+
+  const coverageMap = buildCoverageMap(translationStatus, translationTotal)
+
+  // Hotel admin only sees languages with some translation, sorted by coverage desc then alpha
+  const visibleNonEnPool = sortLocalesByCoverage(
+    langPool.filter(c => c !== 'en' && (coverageMap[c] ?? 0) > 0),
+    coverageMap,
+    localeEnglishName,
+  )
+  const visiblePool = langPool.includes('en') ? ['en', ...visibleNonEnPool] : visibleNonEnPool
+
+  const localeOptions = visiblePool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeEnglishName(code)}` }))
+  const localeItems = visiblePool.map(code => {
+    const pct = coverageMap[code]
+    const pctStr = code !== 'en' && pct != null ? ` · ${pct}%` : ''
+    return { code, label: `${localeFlag(code)} ${localeEnglishName(code)} · ${localeName(code)}${pctStr}` }
+  })
   const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
   const rawActiveLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
   const activeLocales = rawActiveLocales.includes('en') ? rawActiveLocales : ['en', ...rawActiveLocales]
@@ -1324,21 +1358,16 @@ function LocaleOrderEditor({
 
 // ── Dynamic Strings ───────────────────────────────────────────────────────────
 
-const DYNAMIC_TYPES = [
-  { key: 'incentive_items' as const, label: 'Incentives' },
-  { key: 'hotel_facilities' as const, label: 'Hotel Facilities' },
-  { key: 'room_facilities' as const, label: 'Room Facilities' },
-] as const
-
 type DynamicTypeKey = typeof DYNAMIC_TYPES[number]['key']
-const FACILITY_TYPES = new Set<DynamicTypeKey>(['hotel_facilities', 'room_facilities'])
 
 function DynamicStringsManager({
   enabledLocales,
   orgId,
+  isSystemLevel = false,
 }: {
   enabledLocales: string[]
   orgId: number | null
+  isSystemLevel?: boolean
 }) {
   const qc = useQueryClient()
   const [selectedType, setSelectedType] = useState<DynamicTypeKey>('incentive_items')
@@ -1352,6 +1381,7 @@ function DynamicStringsManager({
   const abortRef = useRef<AbortController | null>(null)
 
   const localeOptions = enabledLocales.filter(l => l !== 'en')
+  const availableTypes = getAvailableDynamicTypes(isSystemLevel)
 
   // Fetch properties for source picker (only relevant when scoped to an org)
   const { data: propList } = useQuery({
@@ -1555,7 +1585,7 @@ function DynamicStringsManager({
             }}
             className={ctrlCls}
           >
-            {DYNAMIC_TYPES.map(t => (
+            {availableTypes.map(t => (
               <option key={t.key} value={t.key}>{t.label}</option>
             ))}
           </select>
