@@ -1,7 +1,7 @@
 import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { createBooking, cancelBooking as hgCancelBooking } from '../adapters/hyperguest/booking.js'
-import { GuestTitle, BookingStatus, PaymentFlow } from '@ibe/shared'
-import type { HGCancellationPolicy, TestBookingRateResult, TestBookingBookResponse } from '@ibe/shared'
+import { GuestTitle, BookingStatus, PaymentFlow, calculateCancellationDeadline } from '@ibe/shared'
+import type { HGCancellationPolicy, TestBookingRateResult, TestBookingBookResponse, TestBookingRoomRequest } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 
@@ -20,9 +20,20 @@ export function decodeRateKey(key: string): RateKeyPayload {
   return JSON.parse(Buffer.from(key, 'base64').toString('utf-8')) as RateKeyPayload
 }
 
-function isRefundable(policies: HGCancellationPolicy[]): boolean {
-  if (policies.length === 0) return true
-  return policies.every(p => p.amount === 0)
+function isRefundable(policies: HGCancellationPolicy[], checkIn: string): boolean {
+  if (policies.length === 0) return false
+  const now = Date.now()
+  return policies.some((p) => {
+    if (!p.timeSetting) return p.amount === 0
+    const deadline = calculateCancellationDeadline(
+      checkIn,
+      p.timeSetting.timeFromCheckIn,
+      p.timeSetting.timeFromCheckInType,
+      p.cancellationDeadlineHour,
+    )
+    const ms = Date.parse(deadline)
+    return !isNaN(ms) && ms > now
+  })
 }
 
 const TEST_LEAD_GUEST = {
@@ -32,6 +43,11 @@ const TEST_LEAD_GUEST = {
   birthDate: '1990-01-01',
   email: 'test@hyperguest.com',
   phone: '+10000000000',
+  country: 'US',
+  address: 'N/A',
+  city: 'N/A',
+  state: 'N/A',
+  zip: 'N/A',
 }
 
 export async function searchForTestBooking(params: {
@@ -40,14 +56,19 @@ export async function searchForTestBooking(params: {
   checkOut: string
   adults: number
   childrenAges: number[]
+  rooms?: TestBookingRoomRequest[]
 }): Promise<TestBookingRateResult[]> {
   const nights = Math.round((Date.parse(params.checkOut) - Date.parse(params.checkIn)) / 86_400_000)
+
+  const roomList = params.rooms && params.rooms.length > 0
+    ? params.rooms.map(r => ({ adults: r.adults, childAges: r.childrenAges.length > 0 ? r.childrenAges : undefined }))
+    : [{ adults: params.adults, childAges: params.childrenAges.length > 0 ? params.childrenAges : undefined }]
 
   const hgResponse = await searchAvailability({
     hotelId: params.propertyId,
     checkIn: params.checkIn,
     checkOut: params.checkOut,
-    rooms: [{ adults: params.adults, childAges: params.childrenAges.length > 0 ? params.childrenAges : undefined }],
+    rooms: roomList,
   })
 
   const rates: TestBookingRateResult[] = []
@@ -63,7 +84,7 @@ export async function searchForTestBooking(params: {
           rateKey: encodeRateKey({ roomId: room.roomId, ratePlanCode: rp.ratePlanCode, sellAmount, sellCurrency }),
           roomName: room.roomName,
           board: rp.board,
-          cancellationPolicy: isRefundable(rp.cancellationPolicies) ? 'R' : 'NR',
+          cancellationPolicy: isRefundable(rp.cancellationPolicies, params.checkIn) ? 'R' : 'NR',
           pricePerNight,
           totalPrice: sellAmount,
           currency: sellCurrency,
@@ -96,7 +117,7 @@ export async function createTestBooking(params: {
       rateCode: ratePlanCode,
       expectedAmount: sellAmount,
       expectedCurrency: sellCurrency,
-      guests: [],
+      guests: [TEST_LEAD_GUEST],
     }],
     paymentMethod: 'external',
     isTest: true,

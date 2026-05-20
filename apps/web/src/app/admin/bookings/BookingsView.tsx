@@ -292,16 +292,34 @@ interface BookingsViewProps {
   initialFilters?: Partial<Filters>
 }
 
+type CancelState = 'idle' | 'confirming' | 'cancelling' | 'error'
+
 export function BookingsView({ title, preset, initialFilters }: BookingsViewProps) {
   const { admin } = useAdminAuth()
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, ...initialFilters })
   const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE)
+  const [cancelStates, setCancelStates] = useState<Record<number, CancelState>>({})
   useEffect(() => { setVisibleCols(loadCols(admin?.id)) }, [admin?.id])
 
   function updateVisibleCols(next: Set<string>) {
     setVisibleCols(next)
     localStorage.setItem(colsLsKey(admin?.id), JSON.stringify([...next]))
+  }
+
+  function setCancelState(id: number, state: CancelState) {
+    setCancelStates(prev => ({ ...prev, [id]: state }))
+  }
+
+  async function confirmCancel(id: number) {
+    setCancelState(id, 'cancelling')
+    try {
+      await apiClient.adminCancelBooking(id)
+      setCancelState(id, 'idle')
+      void refetch()
+    } catch {
+      setCancelState(id, 'error')
+    }
   }
 
   const handleFiltersChange = useCallback((f: Filters) => {
@@ -322,7 +340,7 @@ export function BookingsView({ title, preset, initialFilters }: BookingsViewProp
     ...(filters.isTest ? { isTest: filters.isTest === 'true' } : {}),
   }), [page, preset, filters])
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-bookings', queryParams],
     queryFn: () => apiClient.getAdminBookings(queryParams),
     staleTime: 30_000,
@@ -395,18 +413,58 @@ export function BookingsView({ title, preset, initialFilters }: BookingsViewProp
                       {col.label}
                     </th>
                   ))}
+                  <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
-                {data.bookings.map(row => (
-                  <tr key={row.id} className="hover:bg-[var(--color-surface)]">
-                    {visibleColumns.map(col => (
-                      <td key={col.id} className="whitespace-nowrap px-3 py-2.5 text-[var(--color-text)]">
-                        {col.render(row)}
+                {data.bookings.map(row => {
+                  const cs = cancelStates[row.id] ?? 'idle'
+                  const isCancelled = row.status.toLowerCase() === 'cancelled'
+                  return (
+                    <tr key={row.id} className="hover:bg-[var(--color-surface)]">
+                      {visibleColumns.map(col => (
+                        <td key={col.id} className="whitespace-nowrap px-3 py-2.5 text-[var(--color-text)]">
+                          {col.render(row)}
+                        </td>
+                      ))}
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        {isCancelled ? null : cs === 'idle' ? (
+                          <button
+                            onClick={() => setCancelState(row.id, 'confirming')}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        ) : cs === 'confirming' ? (
+                          <span className="flex items-center gap-2 text-xs">
+                            <span className="text-[var(--color-text-muted)]">Are you sure?</span>
+                            <button
+                              onClick={() => { void confirmCancel(row.id) }}
+                              className="font-medium text-red-600 hover:underline"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setCancelState(row.id, 'idle')}
+                              className="text-[var(--color-text-muted)] hover:underline"
+                            >
+                              No
+                            </button>
+                          </span>
+                        ) : cs === 'cancelling' ? (
+                          <span className="text-xs text-[var(--color-text-muted)]">Cancelling…</span>
+                        ) : cs === 'error' ? (
+                          <span className="flex items-center gap-2 text-xs">
+                            <span className="text-red-600">Failed</span>
+                            <button onClick={() => setCancelState(row.id, 'idle')} className="text-[var(--color-text-muted)] hover:underline">retry</button>
+                          </span>
+                        ) : null}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

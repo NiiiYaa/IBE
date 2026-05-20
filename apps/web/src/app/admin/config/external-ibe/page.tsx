@@ -197,6 +197,12 @@ function defaultTestDates() {
   }
 }
 
+const DISPLAY_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function fmtDateDisplay(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}-${DISPLAY_MONTHS[parseInt(m!) - 1]}-${y!.slice(2)}`
+}
+
 function fmtDuration(ms: number): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
 }
@@ -472,7 +478,7 @@ function CustomMode({
   })
 
   const datesLabel = checkIn && checkOut
-    ? `${checkIn}  →  ${checkOut}`
+    ? `${fmtDateDisplay(checkIn)} → ${fmtDateDisplay(checkOut)}`
     : 'Select dates'
 
   const guestParts = [`${adults} adult${adults !== 1 ? 's' : ''}`]

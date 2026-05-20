@@ -1,9 +1,15 @@
+export interface TestBookingRoomRequest {
+  adults: number
+  childrenAges: number[]
+}
+
 export interface TestBookingSearchRequest {
   propertyId: number
   checkIn: string       // YYYY-MM-DD
   checkOut: string      // YYYY-MM-DD
   adults: number
-  childrenAges: number[] // empty array if no children
+  childrenAges: number[]
+  rooms?: TestBookingRoomRequest[] // multi-room; if provided overrides adults/childrenAges
 }
 
 export interface TestBookingRateResult {

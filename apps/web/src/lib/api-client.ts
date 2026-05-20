@@ -1025,6 +1025,10 @@ export const apiClient = {
     return apiRequest<AdminBookingsResponse>(`/api/v1/admin/bookings${qs ? `?${qs}` : ''}`)
   },
 
+  adminCancelBooking(id: number): Promise<{ ok: boolean }> {
+    return apiRequest<{ ok: boolean }>(`/api/v1/admin/bookings/${id}/cancel`, { method: 'POST' })
+  },
+
   /** Get public system meta (tab title, favicon, logo) — no auth required */
   getSystemMeta(): Promise<{ displayName: string | null; tabTitle: string | null; faviconUrl: string | null; logoUrl: string | null }> {
     return apiRequest('/api/v1/config/system-meta')

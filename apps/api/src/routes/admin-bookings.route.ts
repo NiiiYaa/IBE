@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db/client.js'
 import type { AdminBookingRow, AdminBookingsResponse } from '@ibe/shared'
+import { BookingStatus } from '@ibe/shared'
 import { getPropertyDetail } from '../services/static.service.js'
+import { cancelBooking } from '../adapters/hyperguest/booking.js'
 
 const PAGE_SIZE = 50
 const PII_ROLES = new Set(['super', 'admin'])
@@ -224,5 +226,36 @@ export async function adminBookingsRoutes(fastify: FastifyInstance) {
 
     const response: AdminBookingsResponse = { bookings, total, page, pageSize: PAGE_SIZE }
     return reply.send(response)
+  })
+
+  // ── POST /admin/bookings/:id/cancel ─────────────────────────────────────────
+  fastify.post('/admin/bookings/:id/cancel', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    if (isNaN(id)) return reply.status(400).send({ error: 'Invalid booking id' })
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      select: { hyperGuestBookingId: true, propertyId: true, status: true },
+    })
+    if (!booking) return reply.status(404).send({ error: 'Booking not found' })
+    if (booking.status === BookingStatus.Cancelled) return reply.status(409).send({ error: 'Already cancelled' })
+
+    if (request.admin.role !== 'super') {
+      const prop = await prisma.property.findUnique({
+        where: { propertyId: booking.propertyId },
+        select: { organizationId: true },
+      })
+      if (!prop || prop.organizationId !== request.admin.organizationId) {
+        return reply.status(403).send({ error: 'Forbidden' })
+      }
+    }
+
+    try {
+      await cancelBooking(booking.hyperGuestBookingId, booking.propertyId)
+      await prisma.booking.update({ where: { id }, data: { status: BookingStatus.Cancelled } })
+      return reply.send({ ok: true })
+    } catch (err) {
+      return reply.status(502).send({ error: err instanceof Error ? err.message : 'Cancel failed' })
+    }
   })
 }
