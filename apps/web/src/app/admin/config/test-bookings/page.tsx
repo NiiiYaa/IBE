@@ -273,12 +273,43 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
   const [running, setRunning] = useState(false)
   const [selectedChips, setSelectedChips] = useState<Set<Chip>>(new Set(ALL_CHIPS))
 
+  const [resultFilters, setResultFilters] = useState({
+    status: 'all' as 'all' | 'with-results' | 'no-results',
+    board: '',
+    cancellation: 'all' as 'all' | 'R' | 'NR',
+    booked: 'all' as 'all' | 'yes',
+  })
+
   const visibleIndices = COMBINATIONS.map((c, i) => ({ c, i }))
     .filter(({ c }) => comboMatchesChips(c, selectedChips))
     .map(({ i }) => i)
 
-  const allVisSelected = visibleIndices.length > 0 && visibleIndices.every(i => selected[i])
-  const anySelected = visibleIndices.some(i => selected[i])
+  const hasAnySearched = comboStates.some(s => s.status !== 'idle')
+  const availableBoards = [...new Set(
+    comboStates.flatMap(s => s.rates.map(r => r.rate.board)).filter(Boolean)
+  )].sort()
+
+  function rateMatchesFilters(rs: RateState): boolean {
+    if (resultFilters.board && rs.rate.board !== resultFilters.board) return false
+    if (resultFilters.cancellation !== 'all' && rs.rate.cancellationPolicy !== resultFilters.cancellation) return false
+    if (resultFilters.booked === 'yes' && rs.booking === null) return false
+    return true
+  }
+
+  const baseFiltered = visibleIndices.filter(i => {
+    const s = comboStates[i]!
+    if (resultFilters.status === 'with-results' && s.status !== 'done') return false
+    if (resultFilters.status === 'no-results' && s.status !== 'no-results') return false
+    if (s.status === 'done' && !s.rates.some(rateMatchesFilters)) return false
+    return true
+  })
+  const sortedVisible = [
+    ...baseFiltered.filter(i => comboStates[i]!.status !== 'no-results'),
+    ...baseFiltered.filter(i => comboStates[i]!.status === 'no-results'),
+  ]
+
+  const allVisSelected = sortedVisible.length > 0 && sortedVisible.every(i => selected[i])
+  const anySelected = sortedVisible.some(i => selected[i])
   const anyBooking = comboStates.some(s => s.rates.some(r => r.booking !== null))
 
   function toggleChip(chip: Chip) {
@@ -378,7 +409,14 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
 
   const anyChecked = comboStates.some(s => s.rates.some(r => r.checked && !r.booking))
   const anyNrChecked = comboStates.some(s => s.rates.some(r => r.checked && r.rate.cancellationPolicy === 'NR' && !r.booking))
-  const hasResults = comboStates.some(s => s.status === 'done' && s.rates.length > 0)
+  const hasResults = comboStates.some(s => s.status === 'done' || s.status === 'no-results' || s.status === 'error')
+
+  const rfChip = (active: boolean) => [
+    'rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors border',
+    active
+      ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white'
+      : 'bg-transparent border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+  ].join(' ')
 
   return (
     <div className="space-y-4">
@@ -440,6 +478,54 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
         )}
       </div>
 
+      {/* ── Result filters (shown after any search) ── */}
+      {hasAnySearched && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]/50 px-3 py-2.5 space-y-1.5">
+          <p className="text-xs font-semibold text-[var(--color-text-muted)]">Filter results</p>
+          <div className="flex items-center gap-2">
+            <span className="w-14 shrink-0 text-xs text-[var(--color-text-muted)]">Status</span>
+            <div className="flex flex-wrap gap-1">
+              {(['all', 'with-results', 'no-results'] as const).map(v => (
+                <button key={v} type="button" onClick={() => setResultFilters(f => ({ ...f, status: v }))} className={rfChip(resultFilters.status === v)}>
+                  {v === 'all' ? 'All' : v === 'with-results' ? 'With results' : 'No results'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {availableBoards.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="w-14 shrink-0 text-xs text-[var(--color-text-muted)]">Board</span>
+              <div className="flex flex-wrap gap-1">
+                <button type="button" onClick={() => setResultFilters(f => ({ ...f, board: '' }))} className={rfChip(!resultFilters.board)}>All</button>
+                {availableBoards.map(b => (
+                  <button key={b} type="button" onClick={() => setResultFilters(f => ({ ...f, board: b }))} className={rfChip(resultFilters.board === b)}>{b}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="w-14 shrink-0 text-xs text-[var(--color-text-muted)]">Cancel</span>
+            <div className="flex flex-wrap gap-1">
+              {(['all', 'R', 'NR'] as const).map(v => (
+                <button key={v} type="button" onClick={() => setResultFilters(f => ({ ...f, cancellation: v }))} className={rfChip(resultFilters.cancellation === v)}>
+                  {v === 'all' ? 'All' : v === 'R' ? 'Flexi' : 'NR'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-14 shrink-0 text-xs text-[var(--color-text-muted)]">Booked</span>
+            <div className="flex flex-wrap gap-1">
+              {(['all', 'yes'] as const).map(v => (
+                <button key={v} type="button" onClick={() => setResultFilters(f => ({ ...f, booked: v }))} className={rfChip(resultFilters.booked === v)}>
+                  {v === 'all' ? 'All' : 'Booked'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {anyNrChecked && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <strong>Non-refundable rate selected.</strong> You are about to make a test booking for a non-refundable rate — make sure this is approved and that you will be able to cancel it.
@@ -456,7 +542,7 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
                   checked={allVisSelected}
                   onChange={() => setSelected(prev => {
                     const n = [...prev]
-                    visibleIndices.forEach(i => { n[i] = !allVisSelected })
+                    sortedVisible.forEach(i => { n[i] = !allVisSelected })
                     return n
                   })}
                   className="cursor-pointer"
@@ -467,12 +553,16 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
             </tr>
           </thead>
           <tbody>
-            {COMBINATIONS.map((combo, i) => {
-              if (!visibleIndices.includes(i)) return null
+            {sortedVisible.map(i => {
+              const combo = COMBINATIONS[i]!
               const state = comboStates[i]!
+              const isNoResults = state.status === 'no-results'
+              const filteredRates = state.rates
+                .map((rs, origIdx) => ({ rs, origIdx }))
+                .filter(({ rs }) => rateMatchesFilters(rs))
               return (
                 <React.Fragment key={i}>
-                  <tr className="border-t border-[var(--color-border)] align-top">
+                  <tr className={['border-t border-[var(--color-border)] align-top', isNoResults ? 'bg-amber-50/70' : ''].join(' ')}>
                     <td className="py-2 pr-3">
                       <input
                         type="checkbox"
@@ -496,21 +586,27 @@ function CombinationsMode({ propertyId, propertyName, comboStates, setComboState
                       {state.status === 'no-results' && <span className="text-[var(--color-text-muted)]">no results</span>}
                       {state.status === 'error' && <span className="text-error">{state.error}</span>}
                       {state.status === 'done' && (
-                        <span className="text-success">{state.rates.length} rate{state.rates.length !== 1 ? 's' : ''}</span>
+                        <span className="text-success">{filteredRates.length} rate{filteredRates.length !== 1 ? 's' : ''}</span>
                       )}
                     </td>
                   </tr>
-                  {state.status === 'done' && state.rates.length > 0 && (
+                  {state.status === 'done' && filteredRates.length > 0 && (
                     <tr className="border-t border-[var(--color-border)]/50">
                       <td />
                       <td colSpan={2} className="pb-2 pl-2">
                         <RatesSubTable
-                          rates={state.rates}
-                          onToggle={rateIdx => updateRate(i, rateIdx, { checked: !state.rates[rateIdx]!.checked })}
-                          onCancel={(rateIdx, bookingId) => { void cancelBooking(i, rateIdx, bookingId) }}
-                          onToggleNrUnlock={rateIdx => {
-                            const wasUnlocked = state.rates[rateIdx]!.nrUnlocked
-                            updateRate(i, rateIdx, { nrUnlocked: !wasUnlocked, ...(wasUnlocked ? { checked: false } : {}) })
+                          rates={filteredRates.map(({ rs }) => rs)}
+                          onToggle={filtIdx => {
+                            const origIdx = filteredRates[filtIdx]!.origIdx
+                            updateRate(i, origIdx, { checked: !state.rates[origIdx]!.checked })
+                          }}
+                          onCancel={(filtIdx, bookingId) => {
+                            void cancelBooking(i, filteredRates[filtIdx]!.origIdx, bookingId)
+                          }}
+                          onToggleNrUnlock={filtIdx => {
+                            const origIdx = filteredRates[filtIdx]!.origIdx
+                            const wasUnlocked = state.rates[origIdx]!.nrUnlocked
+                            updateRate(i, origIdx, { nrUnlocked: !wasUnlocked, ...(wasUnlocked ? { checked: false } : {}) })
                           }}
                         />
                       </td>
@@ -536,38 +632,70 @@ function excelFilename(propertyName: string, propertyId: number): string {
 }
 
 function exportToExcel(states: ComboState[], propertyName: string, propertyId: number) {
-  const rows: Record<string, unknown>[] = []
+  const resultRows:   Record<string, unknown>[] = []
+  const noResultRows: Record<string, unknown>[] = []
+  const otherRows:    Record<string, unknown>[] = []
 
   states.forEach((state, comboIdx) => {
-    if (state.status !== 'done') return
     const combo = COMBINATIONS[comboIdx]!
-    state.rates.forEach(rs => {
-      rows.push({
-        'Combination #': comboIdx + 1,
-        'Rooms': combo.rooms.length,
-        'Nationality': combo.nationality,
-        'Check-in': offsetDate(combo.offsetDays),
-        'Check-out': offsetDate(combo.offsetDays + combo.nights),
-        'Nights': combo.nights,
-        'Combination': comboLabel(combo),
-        'Room Name': rs.rate.roomName,
-        'Board': rs.rate.board,
-        'Cancellation': rs.rate.cancellationPolicy === 'R' ? 'Flexi' : 'NR',
-        'Price/Night': rs.rate.pricePerNight,
-        'Total': rs.rate.totalPrice,
-        'Currency': rs.rate.currency,
-        'Booked': rs.booking ? 'Yes' : 'No',
-        'Booking Reference': rs.booking?.bookingReference ?? '—',
-        'Booking Status': rs.booking
-          ? (rs.cancelStatus === 'cancelled' ? 'Cancelled' : 'Booked')
-          : '—',
+    const base = {
+      'Combination #': comboIdx + 1,
+      'Rooms': combo.rooms.length,
+      'Nationality': combo.nationality,
+      'Check-in': offsetDate(combo.offsetDays),
+      'Check-out': offsetDate(combo.offsetDays + combo.nights),
+      'Nights': combo.nights,
+      'Combination': comboLabel(combo),
+    }
+    if (state.status === 'done') {
+      state.rates.forEach(rs => {
+        resultRows.push({
+          ...base,
+          'Search Status': 'Results found',
+          'Room Name': rs.rate.roomName,
+          'Board': rs.rate.board,
+          'Cancellation': rs.rate.cancellationPolicy === 'R' ? 'Flexi' : 'NR',
+          'Price/Night': rs.rate.pricePerNight,
+          'Total': rs.rate.totalPrice,
+          'Currency': rs.rate.currency,
+          'Booked': rs.booking ? 'Yes' : 'No',
+          'Booking Reference': rs.booking?.bookingReference ?? '—',
+          'Booking Status': rs.booking
+            ? (rs.cancelStatus === 'cancelled' ? 'Cancelled' : 'Booked')
+            : '—',
+        })
       })
-    })
+    } else if (state.status === 'no-results') {
+      noResultRows.push({
+        ...base,
+        'Search Status': 'No results',
+        'Room Name': '—', 'Board': '—', 'Cancellation': '—',
+        'Price/Night': '—', 'Total': '—', 'Currency': '—',
+        'Booked': '—', 'Booking Reference': '—', 'Booking Status': '—',
+      })
+    } else if (state.status === 'idle') {
+      otherRows.push({
+        ...base,
+        'Search Status': 'Not searched',
+        'Room Name': '—', 'Board': '—', 'Cancellation': '—',
+        'Price/Night': '—', 'Total': '—', 'Currency': '—',
+        'Booked': '—', 'Booking Reference': '—', 'Booking Status': '—',
+      })
+    } else if (state.status === 'error') {
+      otherRows.push({
+        ...base,
+        'Search Status': `Error: ${state.error ?? 'unknown'}`,
+        'Room Name': '—', 'Board': '—', 'Cancellation': '—',
+        'Price/Night': '—', 'Total': '—', 'Currency': '—',
+        'Booked': '—', 'Booking Reference': '—', 'Booking Status': '—',
+      })
+    }
   })
 
-  if (rows.length === 0) return
+  const allRows = [...resultRows, ...noResultRows, ...otherRows]
+  if (allRows.length === 0) return
 
-  const ws = XLSX.utils.json_to_sheet(rows)
+  const ws = XLSX.utils.json_to_sheet(allRows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Test Bookings')
   XLSX.writeFile(wb, excelFilename(propertyName, propertyId))
