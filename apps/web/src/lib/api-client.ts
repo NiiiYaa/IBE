@@ -140,6 +140,11 @@ import type {
   CompSetCompetitorUpdate,
   CompSetResult,
   CompSetRunResponse,
+  SystemEventCalendarConfig,
+  PropertyEventCalendarConfig,
+  EventCalendarEvent,
+  EventCalendarRunResponse,
+  ChainEventCalendarEvents,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -2148,6 +2153,39 @@ export const apiClient = {
 
   getCompSetResults(propertyId: number): Promise<CompSetResult[]> {
     return apiRequest(`/api/v1/admin/intelligence/compset/results?propertyId=${propertyId}`)
+  },
+
+  // ── Event Calendar ────────────────────────────────────────────────────────
+
+  getEventCalendarSystemConfig(): Promise<SystemEventCalendarConfig> {
+    return apiRequest('/api/v1/admin/intelligence/event-calendar/system-config')
+  },
+
+  updateEventCalendarSystemConfig(data: Partial<SystemEventCalendarConfig>): Promise<SystemEventCalendarConfig> {
+    return apiRequest('/api/v1/admin/intelligence/event-calendar/system-config', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getEventCalendarPropertyConfig(propertyId: number): Promise<PropertyEventCalendarConfig | null> {
+    return apiRequest(`/api/v1/admin/intelligence/event-calendar/config?propertyId=${propertyId}`)
+  },
+
+  updateEventCalendarPropertyConfig(propertyId: number, data: { radiusKm: number | null }): Promise<PropertyEventCalendarConfig> {
+    return apiRequest(`/api/v1/admin/intelligence/event-calendar/config?propertyId=${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  runEventCalendar(propertyId: number, from?: string, to?: string): Promise<EventCalendarRunResponse> {
+    const params = new URLSearchParams({ propertyId: String(propertyId) })
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    return apiRequest(`/api/v1/admin/intelligence/event-calendar/run?${params.toString()}`, { method: 'POST' })
+  },
+
+  getEventCalendarEvents(propertyId: number, from: string, to: string): Promise<EventCalendarEvent[]> {
+    return apiRequest(`/api/v1/admin/intelligence/event-calendar/events?propertyId=${propertyId}&from=${from}&to=${to}`)
+  },
+
+  getEventCalendarChainEvents(orgId: number): Promise<ChainEventCalendarEvents[]> {
+    return apiRequest(`/api/v1/admin/intelligence/event-calendar/events/chain?orgId=${orgId}`)
   },
 }
 
