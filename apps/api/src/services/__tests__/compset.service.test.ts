@@ -111,6 +111,15 @@ describe('getEffectiveSearchParams', () => {
     expect(result.map(r => r.tier)).toEqual(['system', 'chain', 'hotel'])
     expect(result).toHaveLength(3)
   })
+  it('handles property with no organization (orgId null)', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: null })
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'L1', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, countryCode: 'FR', label: 'L3', sortOrder: 0 }])
+    const result = await getEffectiveSearchParams(100)
+    expect(result.map(r => r.tier)).toEqual(['system', 'hotel'])
+    expect(result).toHaveLength(2)
+  })
 })
 
 describe('createSearchParam', () => {
@@ -142,6 +151,87 @@ describe('createCompetitor', () => {
     const result = await createCompetitor({ propertyId: 100, name: 'Hotel X' })
     expect('error' in result).toBe(false)
     if (!('error' in result)) expect(result.name).toBe('Hotel X')
+  })
+})
+
+describe('listCompetitors', () => {
+  it('returns competitors ordered by sortOrder', async () => {
+    mp.compSetCompetitor.findMany.mockResolvedValue([
+      { id: 1, propertyId: 100, name: 'Hotel A', searchUrl: 'https://a.com', sortOrder: 0, status: 'idle', lastFetchAt: null, errorMsg: null },
+      { id: 2, propertyId: 100, name: 'Hotel B', searchUrl: null, sortOrder: 1, status: 'done', lastFetchAt: new Date('2026-05-21T10:00:00Z'), errorMsg: null },
+    ])
+    const result = await listCompetitors(100)
+    expect(result).toHaveLength(2)
+    expect(result[0].name).toBe('Hotel A')
+    expect(result[1].lastFetchAt).toBe('2026-05-21T10:00:00.000Z')
+    expect(mp.compSetCompetitor.findMany).toHaveBeenCalledWith({ where: { propertyId: 100 }, orderBy: { sortOrder: 'asc' } })
+  })
+})
+
+describe('updateSearchParam', () => {
+  it('returns null when id not found', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(null)
+    const result = await updateSearchParam(999, { nights: 3 })
+    expect(result).toBeNull()
+    expect(mp.compSetSearchParam.update).not.toHaveBeenCalled()
+  })
+  it('updates and regenerates label', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'old', sortOrder: 0 })
+    mp.compSetSearchParam.update.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 3, adults: 2, countryCode: 'US', label: 'Today+7 · 3 Nights · 2 Adults · US', sortOrder: 0 })
+    const result = await updateSearchParam(1, { nights: 3 })
+    expect(result).not.toBeNull()
+    expect(mp.compSetSearchParam.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: expect.objectContaining({ nights: 3, label: 'Today+7 · 3 Nights · 2 Adults · US' }),
+    })
+    expect(result?.tier).toBe('system')
+  })
+})
+
+describe('deleteSearchParam', () => {
+  it('returns false when id not found', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(null)
+    const result = await deleteSearchParam(999)
+    expect(result).toBe(false)
+    expect(mp.compSetSearchParam.delete).not.toHaveBeenCalled()
+  })
+  it('returns true and deletes when found', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'L', sortOrder: 0 })
+    mp.compSetSearchParam.delete.mockResolvedValue({})
+    const result = await deleteSearchParam(1)
+    expect(result).toBe(true)
+    expect(mp.compSetSearchParam.delete).toHaveBeenCalledWith({ where: { id: 1 } })
+  })
+})
+
+describe('updateCompetitor', () => {
+  it('returns null when id not found', async () => {
+    mp.compSetCompetitor.findUnique.mockResolvedValue(null)
+    const result = await updateCompetitor(999, { name: 'New Name' })
+    expect(result).toBeNull()
+    expect(mp.compSetCompetitor.update).not.toHaveBeenCalled()
+  })
+  it('updates competitor when found', async () => {
+    mp.compSetCompetitor.findUnique.mockResolvedValue({ id: 1, propertyId: 100, name: 'Old', searchUrl: null, sortOrder: 0, status: 'idle', lastFetchAt: null, errorMsg: null })
+    mp.compSetCompetitor.update.mockResolvedValue({ id: 1, propertyId: 100, name: 'New Name', searchUrl: null, sortOrder: 0, status: 'idle', lastFetchAt: null, errorMsg: null })
+    const result = await updateCompetitor(1, { name: 'New Name' })
+    expect(result?.name).toBe('New Name')
+  })
+})
+
+describe('deleteCompetitor', () => {
+  it('returns false when id not found', async () => {
+    mp.compSetCompetitor.findUnique.mockResolvedValue(null)
+    const result = await deleteCompetitor(999)
+    expect(result).toBe(false)
+    expect(mp.compSetCompetitor.delete).not.toHaveBeenCalled()
+  })
+  it('returns true and deletes when found', async () => {
+    mp.compSetCompetitor.findUnique.mockResolvedValue({ id: 1, propertyId: 100, name: 'Hotel X', searchUrl: null, sortOrder: 0, status: 'idle', lastFetchAt: null, errorMsg: null })
+    mp.compSetCompetitor.delete.mockResolvedValue({})
+    const result = await deleteCompetitor(1)
+    expect(result).toBe(true)
+    expect(mp.compSetCompetitor.delete).toHaveBeenCalledWith({ where: { id: 1 } })
   })
 })
 
