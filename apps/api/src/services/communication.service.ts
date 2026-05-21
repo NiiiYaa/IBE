@@ -188,17 +188,20 @@ export async function getCommSettings(organizationId: number): Promise<CommSetti
       smsAwsRegion: sys.smsAwsRegion,
     } : { smsEnabled: false }),
     // WhatsApp: same pattern
-    ...(useOwnWhatsapp ? {} : sys.whatsappSharedWithOrgs ? {
-      whatsappEnabled: row.whatsappSystemServiceDisabled ? false : sys.whatsappEnabled,
-      whatsappProvider: sys.whatsappProvider,
-      whatsappPhoneNumberId: sys.whatsappPhoneNumberId,
-      whatsappBusinessAccountId: sys.whatsappBusinessAccountId,
-      whatsappAccessToken: sys.whatsappAccessToken,
-      whatsappTwilioAccountSid: sys.whatsappTwilioAccountSid,
-      whatsappTwilioAuthToken: sys.whatsappTwilioAuthToken,
-      whatsappTwilioNumber: sys.whatsappTwilioNumber,
-      whatsappWebjsServiceUrl: sys.whatsappWebjsServiceUrl,
-    } : { whatsappEnabled: false }),
+    ...(useOwnWhatsapp ? {} : sys.whatsappSharedWithOrgs ? (() => {
+      const inhHasCredentials = !!(sys.whatsappAccessToken || sys.whatsappTwilioAuthToken || sys.whatsappWebjsServiceUrl)
+      return {
+        whatsappEnabled: row.whatsappSystemServiceDisabled ? false : (sys.whatsappEnabled && inhHasCredentials),
+        whatsappProvider: sys.whatsappProvider,
+        whatsappPhoneNumberId: sys.whatsappPhoneNumberId,
+        whatsappBusinessAccountId: sys.whatsappBusinessAccountId,
+        whatsappAccessToken: sys.whatsappAccessToken,
+        whatsappTwilioAccountSid: sys.whatsappTwilioAccountSid,
+        whatsappTwilioAuthToken: sys.whatsappTwilioAuthToken,
+        whatsappTwilioNumber: sys.whatsappTwilioNumber,
+        whatsappWebjsServiceUrl: sys.whatsappWebjsServiceUrl,
+      }
+    })() : { whatsappEnabled: false }),
   }
 }
 

@@ -1095,8 +1095,8 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
       {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
 
-      {/* Inherited local section — only when not using own wwebjs */}
-      {!(useOwn && provider === 'wwebjs') && (
+      {/* Local QR section — only relevant in own mode and only when provider isn't wwebjs (wwebjs is handled inline above) */}
+      {useOwn && provider !== 'wwebjs' && (
         <div className="border-t border-[var(--color-border)] pt-6">
           <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
         </div>
