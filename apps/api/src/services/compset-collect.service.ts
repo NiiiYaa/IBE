@@ -9,6 +9,7 @@ import { getProviderAdapter } from '../ai/adapters/index.js'
 import { getEffectiveSearchParams, listCompetitors } from './compset.service.js'
 import { refreshPropertyEvents } from './event-calendar-fetch.service.js'
 import { getSystemEventCalendarConfig } from './event-calendar.service.js'
+import { detectKnownIBE } from '@ibe/shared'
 import type { CompSetSearchParam } from '@ibe/shared'
 
 export interface RoomRate {
@@ -83,6 +84,14 @@ async function extractSentecRates(page: Page, orgId: number | null): Promise<Roo
 
 const IBE_EXTRACTORS: Record<string, RateExtractor> = {
   'sentec': extractSentecRates,
+}
+
+// If a competitor URL has no template vars, try to expand it using the known IBE registry
+function expandCompetitorUrl(rawUrl: string): string {
+  if (rawUrl.includes('{')) return rawUrl // already a template
+  const detected = detectKnownIBE(rawUrl)
+  if (!detected?.searchTemplate || !detected.externalHotelId) return rawUrl
+  return detected.searchTemplate.replaceAll('{externalHotelId}', detected.externalHotelId)
 }
 
 async function extractRatesWithAI(page: Page, orgId: number | null): Promise<RoomRate[]> {
@@ -273,12 +282,13 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         ...Array(param.adults).fill('A'),
         ...param.childAges.map(String),
       ].join(',')
-      const builtUrl = buildExternalUrl(competitor.searchUrl, {
+      const expandedTemplate = expandCompetitorUrl(competitor.searchUrl)
+      const builtUrl = buildExternalUrl(expandedTemplate, {
         checkIn, checkOut, adults: param.adults,
         nights: param.nights, countryCode: '',
-        guests,
+        currency: 'USD', guests,
       })
-      logger.info({ template: competitor.searchUrl, builtUrl }, '[CompSet] Built competitor URL')
+      logger.info({ raw: competitor.searchUrl, expanded: expandedTemplate, builtUrl }, '[CompSet] Built competitor URL')
 
       try {
         const rates = await fetchCompetitorRates(builtUrl, orgId)

@@ -775,6 +775,7 @@ function MappingSection({ competitor, results }: MappingSectionProps) {
   })
 
   const mode = competitor.comparisonMode ?? 'cheapest'
+  const neverRun = !competitor.lastFetchAt
   const noResults = compRooms.length === 0
 
   return (
@@ -804,7 +805,9 @@ function MappingSection({ competitor, results }: MappingSectionProps) {
         <div className="space-y-3">
           {noResults ? (
             <p className="text-xs text-[var(--color-text-muted)] italic">
-              Run the competitor first to see available rooms.
+              {neverRun
+                ? 'Run the competitor first to see available rooms.'
+                : 'No rooms found in the last run. Check the search URL and try running again.'}
             </p>
           ) : (
             <>
