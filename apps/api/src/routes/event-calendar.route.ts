@@ -38,7 +38,7 @@ export async function eventCalendarRoutes(fastify: FastifyInstance) {
     if (isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
     const body = request.body as Record<string, unknown>
     return reply.send(await upsertPropertyEventCalendarConfig(propertyId, {
-      radiusKm: body.radiusKm as number | null,
+      radiusKm: (body.radiusKm as number | null | undefined) ?? null,
     }))
   })
 
