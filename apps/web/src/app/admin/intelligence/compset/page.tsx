@@ -313,6 +313,7 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleteErr, setDeleteErr] = useState<string | null>(null)
 
   // Current tier
   const currentTier: 'system' | 'chain' | 'hotel' = propertyId
@@ -349,7 +350,9 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['compset-search-params'] })
       setDeleteConfirmId(null)
+      setDeleteErr(null)
     },
+    onError: (e) => setDeleteErr(e instanceof Error ? e.message : 'Delete failed'),
   })
 
   const params = paramsQuery.data ?? []
@@ -436,6 +439,10 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
         <p className="text-sm text-[var(--color-error,#dc2626)]">
           {createMutation.error instanceof Error ? createMutation.error.message : 'Create failed'}
         </p>
+      )}
+
+      {deleteErr && (
+        <p className="text-xs text-[var(--color-error,#dc2626)]">{deleteErr}</p>
       )}
     </section>
   )
@@ -772,6 +779,8 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
   const [showAdd, setShowAdd] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [runningIds, setRunningIds] = useState<Set<number>>(new Set())
+  const [deleteErr, setDeleteErr] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const competitorsQuery = useQuery({
     queryKey: ['compset-competitors', propertyId],
@@ -792,7 +801,9 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
       setDeleteConfirmId(null)
+      setDeleteErr(null)
     },
+    onError: (e) => setDeleteErr(e instanceof Error ? e.message : 'Delete failed'),
   })
 
   async function runSingle(id: number) {
@@ -800,6 +811,8 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
     try {
       await apiClient.runCompSet(propertyId)
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
+    } catch (e) {
+      setRunError(e instanceof Error ? e.message : 'Run failed')
     } finally {
       setRunningIds((prev) => {
         const next = new Set(prev)
@@ -897,6 +910,14 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
         <p className="text-sm text-[var(--color-error,#dc2626)]">
           {runAllMutation.error instanceof Error ? runAllMutation.error.message : 'Run failed'}
         </p>
+      )}
+
+      {runError && (
+        <p className="text-xs text-[var(--color-error,#dc2626)]">{runError}</p>
+      )}
+
+      {deleteErr && (
+        <p className="text-xs text-[var(--color-error,#dc2626)]">{deleteErr}</p>
       )}
     </section>
   )
