@@ -132,6 +132,14 @@ import type {
   TestBookingBookRequest,
   TestBookingBookResponse,
   TestBookingCancelResponse,
+  SystemCompSetConfig,
+  CompSetSearchParam,
+  CompSetSearchParamCreate,
+  CompSetCompetitor,
+  CompSetCompetitorCreate,
+  CompSetCompetitorUpdate,
+  CompSetResult,
+  CompSetRunResponse,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -2085,6 +2093,61 @@ export const apiClient = {
     commissionRate: number | null; discountRate: number | null; status: string; url: string; createdAt: string
   }[]> {
     return apiRequest('/api/v1/affiliate/links', { cache: 'no-store' })
+  },
+
+  // ── CompSet ───────────────────────────────────────────────────────────────
+
+  getCompSetSystemConfig(): Promise<SystemCompSetConfig> {
+    return apiRequest('/api/v1/admin/intelligence/compset/system-config')
+  },
+
+  updateCompSetSystemConfig(data: Partial<SystemCompSetConfig>): Promise<SystemCompSetConfig> {
+    return apiRequest('/api/v1/admin/intelligence/compset/system-config', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getCompSetSearchParams(opts?: { propertyId?: number; orgId?: number; effective?: boolean }): Promise<CompSetSearchParam[]> {
+    const qs = new URLSearchParams()
+    if (opts?.propertyId) qs.set('propertyId', String(opts.propertyId))
+    if (opts?.orgId) qs.set('orgId', String(opts.orgId))
+    if (opts?.effective === false) qs.set('effective', 'false')
+    const q = qs.toString()
+    return apiRequest(`/api/v1/admin/intelligence/compset/search-params${q ? `?${q}` : ''}`)
+  },
+
+  createCompSetSearchParam(data: CompSetSearchParamCreate & { orgId?: number | null; propertyId?: number | null }): Promise<CompSetSearchParam> {
+    return apiRequest('/api/v1/admin/intelligence/compset/search-params', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  updateCompSetSearchParam(id: number, data: Partial<CompSetSearchParamCreate>): Promise<CompSetSearchParam> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/search-params/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  deleteCompSetSearchParam(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/search-params/${id}`, { method: 'DELETE' })
+  },
+
+  getCompSetCompetitors(propertyId: number): Promise<CompSetCompetitor[]> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors?propertyId=${propertyId}`)
+  },
+
+  createCompSetCompetitor(data: CompSetCompetitorCreate): Promise<CompSetCompetitor> {
+    return apiRequest('/api/v1/admin/intelligence/compset/competitors', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  updateCompSetCompetitor(id: number, data: CompSetCompetitorUpdate): Promise<CompSetCompetitor> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  deleteCompSetCompetitor(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${id}`, { method: 'DELETE' })
+  },
+
+  runCompSet(propertyId: number): Promise<CompSetRunResponse> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/run?propertyId=${propertyId}`, { method: 'POST' })
+  },
+
+  getCompSetResults(propertyId: number): Promise<CompSetResult[]> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/results?propertyId=${propertyId}`)
   },
 }
 
