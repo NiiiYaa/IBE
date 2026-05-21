@@ -112,3 +112,9 @@ export interface ExternalIBEBulkMapResponse {
   errors: { propertyId: number; message: string }[]
   stillMissing: { propertyId: number; name: string }[]
 }
+
+export interface IBERegistryEntry {
+  hostname: string
+  name: string | null
+  searchTemplate: string | null
+}

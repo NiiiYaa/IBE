@@ -313,6 +313,7 @@ Rules:
 - When scenario labels are provided, use them to identify guest-count and stay-duration parameters: a parameter whose value changes between an adults=2 URL and an adults=1 URL maps to {adults}; a parameter whose value changes with nights maps to date parameters; a parameter that appears only in child-inclusive scenarios maps to {children} or the {guests} composite.
 - If a parameter appears in some URLs but not others, include it if it appears in the majority.
 - Keep parameters that have no matching concept as static literal values in the template (do not invent placeholder names outside the vocabulary above).
+- IMPORTANT: Write placeholder tokens with literal curly braces, e.g. {externalHotelId}. Never URL-encode them as %7BexternalHotelId%7D.
 - Return only the JSON object, no surrounding text.`
 
   try {
@@ -332,6 +333,10 @@ Rules:
     // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
     const jsonText = response.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
     const parsed = JSON.parse(jsonText) as ExternalIBEAnalyzeResponse
+    // Decode any URL-encoded braces the AI may have produced (%7B → { , %7D → })
+    if (parsed.template) {
+      parsed.template = parsed.template.replace(/%7B/gi, '{').replace(/%7D/gi, '}')
+    }
     return parsed
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Unexpected error during analysis' }

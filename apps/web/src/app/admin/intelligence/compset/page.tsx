@@ -7,11 +7,15 @@ import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { SaveBar } from '@/app/admin/design/components'
 import { CronPicker } from '../components/CronPicker'
+import { UrlAnalysisSection } from '../components/UrlAnalysisSection'
+import type { ExternalIBEAnalyzeResponse } from '@ibe/shared'
 import type {
   SystemCompSetConfig,
   CompSetSearchParam,
   CompSetCompetitor,
   CompSetSearchParamCreate,
+  CompSetResult,
+  CompSetRoomMapping,
 } from '@ibe/shared'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -515,35 +519,14 @@ interface AddCompetitorFormProps {
 function AddCompetitorForm({ propertyId, orgId, onSaved, onCancel }: AddCompetitorFormProps) {
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [rawUrl, setRawUrl] = useState('')
-  const [template, setTemplate] = useState('')
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
-
-  const analyzeMutation = useMutation({
-    mutationFn: () =>
-      apiClient.analyzeExternalIBEUrls({
-        urls: rawUrl
-          .split('\n')
-          .map((u) => u.trim())
-          .filter(Boolean),
-        type: 'search',
-        ...(orgId !== null ? { orgId } : {}),
-        propertyId,
-      }),
-    onSuccess: (r) => {
-      setTemplate(r.template)
-      setAnalyzeError(null)
-    },
-    onError: (e: unknown) =>
-      setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed'),
-  })
+  const [analyzeResult, setAnalyzeResult] = useState<ExternalIBEAnalyzeResponse | null>(null)
 
   const saveMutation = useMutation({
     mutationFn: () =>
       apiClient.createCompSetCompetitor({
         propertyId,
         name: name.trim(),
-        searchUrl: template.trim() || null,
+        searchUrl: analyzeResult?.template ?? null,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
@@ -569,50 +552,12 @@ function AddCompetitorForm({ propertyId, orgId, onSaved, onCancel }: AddCompetit
         />
       </div>
 
-      <div className="space-y-1">
-        <label className="block text-xs font-medium text-[var(--color-text-muted)]">
-          Sample URL(s) — paste one or more search page URLs
-        </label>
-        <textarea
-          value={rawUrl}
-          onChange={(e) => setRawUrl(e.target.value)}
-          placeholder="https://..."
-          rows={3}
-          className={[
-            'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]',
-            'px-3 py-2 font-mono text-sm text-[var(--color-text)]',
-            'placeholder-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none',
-          ].join(' ')}
-        />
-      </div>
-
-      <button
-        type="button"
-        disabled={!rawUrl.trim() || analyzeMutation.isPending}
-        onClick={() => analyzeMutation.mutate()}
-        className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-surface)] transition-colors"
-      >
-        {analyzeMutation.isPending ? 'Analysing…' : 'Analyse URL'}
-      </button>
-
-      {analyzeError && (
-        <p className="text-sm text-[var(--color-error,#dc2626)]">{analyzeError}</p>
-      )}
-
-      {(template || analyzeMutation.isSuccess) && (
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-[var(--color-text-muted)]">
-            URL template (editable)
-          </label>
-          <input
-            type="text"
-            value={template}
-            onChange={(e) => setTemplate(e.target.value)}
-            className={inputClass('font-mono')}
-            placeholder="https://..."
-          />
-        </div>
-      )}
+      <UrlAnalysisSection
+        orgId={orgId}
+        propertyId={propertyId}
+        result={analyzeResult}
+        onResult={setAnalyzeResult}
+      />
 
       {saveMutation.isError && (
         <p className="text-sm text-[var(--color-error,#dc2626)]">
@@ -749,6 +694,196 @@ function CompetitorCard({
   )
 }
 
+// ── Mapping Section ───────────────────────────────────────────────────────────
+
+interface MappingSectionProps {
+  competitor: CompSetCompetitor
+  results: CompSetResult[]
+}
+
+function MappingSection({ competitor, results }: MappingSectionProps) {
+  const qc = useQueryClient()
+
+  // Unique room names from latest results (no board/cancellation — those come from search results)
+  const compRooms = [...new Set(
+    results
+      .filter(r => r.competitorId === competitor.id && r.searchStatus === 'found' && r.roomName)
+      .map(r => r.roomName!),
+  )]
+
+  const ownRooms = [...new Set(
+    results
+      .filter(r => r.competitorId === null && r.searchStatus === 'found' && r.roomName)
+      .map(r => r.roomName!),
+  )]
+
+  const mappingsQuery = useQuery({
+    queryKey: ['compset-mappings', competitor.id],
+    queryFn: () => apiClient.getCompSetRoomMappings(competitor.id),
+  })
+
+  // Local draft: compRoomName → ownRoomName (empty string = not mapped)
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [draftInitialized, setDraftInitialized] = useState(false)
+
+  useEffect(() => {
+    setDraft({})
+    setDraftInitialized(false)
+  }, [competitor.id])
+
+  useEffect(() => {
+    if (mappingsQuery.data && !draftInitialized) {
+      const init: Record<string, string> = {}
+      for (const m of mappingsQuery.data) {
+        init[m.compRoomName] = m.ownRoomName
+      }
+      setDraft(init)
+      setDraftInitialized(true)
+    }
+  }, [mappingsQuery.data, draftInitialized])
+
+  const modeMutation = useMutation({
+    mutationFn: (mode: 'cheapest' | 'room_mapping') =>
+      apiClient.updateCompSetCompetitor(competitor.id, { comparisonMode: mode }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['compset-competitors', competitor.propertyId] }),
+  })
+
+  const autoMutation = useMutation({
+    mutationFn: () =>
+      apiClient.autoCompSetRoomMappings(
+        competitor.id,
+        compRooms.map(r => ({ roomName: r })),
+        ownRooms.map(r => ({ roomName: r })),
+      ),
+    onSuccess: (mappings) => {
+      void qc.invalidateQueries({ queryKey: ['compset-mappings', competitor.id] })
+      const init: Record<string, string> = {}
+      for (const m of mappings) { init[m.compRoomName] = m.ownRoomName }
+      setDraft(init)
+      setDraftInitialized(true)
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const mappings = compRooms
+        .filter(cr => draft[cr])
+        .map(cr => ({ compRoomName: cr, ownRoomName: draft[cr]! }))
+      return apiClient.saveCompSetRoomMappings(competitor.id, mappings)
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['compset-mappings', competitor.id] }),
+  })
+
+  const mode = competitor.comparisonMode ?? 'cheapest'
+  const noResults = compRooms.length === 0
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-[var(--color-text)]">Comparison mode</h3>
+
+      {/* Mode selector */}
+      <div className="flex gap-4">
+        {(['cheapest', 'room_mapping'] as const).map(m => (
+          <label key={m} className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name={`mode-${competitor.id}`}
+              checked={mode === m}
+              onChange={() => modeMutation.mutate(m)}
+              className="accent-[var(--color-primary)]"
+            />
+            <span className="text-sm text-[var(--color-text)]">
+              {m === 'cheapest' ? 'Cheapest rate' : 'Room mapping'}
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {/* Room mapping panel */}
+      {mode === 'room_mapping' && (
+        <div className="space-y-3">
+          {noResults ? (
+            <p className="text-xs text-[var(--color-text-muted)] italic">
+              Run the competitor first to see available rooms.
+            </p>
+          ) : (
+            <>
+              {/* Auto-map button */}
+              {ownRooms.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={autoMutation.isPending}
+                    onClick={() => autoMutation.mutate()}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
+                  >
+                    {autoMutation.isPending ? 'Mapping…' : 'Auto-map'}
+                  </button>
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    Suggests matches — override below
+                  </span>
+                </div>
+              )}
+
+              {/* Mapping table */}
+              <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--color-border)] bg-[var(--color-background,#f9fafb)]">
+                      <th className="px-3 py-2 text-left font-medium text-[var(--color-text-muted)]">Competitor room</th>
+                      <th className="px-3 py-2 text-left font-medium text-[var(--color-text-muted)]">My Hotel room</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {compRooms.map(cr => (
+                      <tr key={cr}>
+                        <td className="px-3 py-2 text-[var(--color-text)]">{cr}</td>
+                        <td className="px-3 py-2">
+                          {ownRooms.length === 0 ? (
+                            <span className="text-[var(--color-text-muted)] italic">No own-hotel rooms yet</span>
+                          ) : (
+                            <select
+                              value={draft[cr] ?? ''}
+                              onChange={e => setDraft(prev => ({ ...prev, [cr]: e.target.value }))}
+                              className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+                            >
+                              <option value="">— not mapped —</option>
+                              {ownRooms.map(o => (
+                                <option key={o} value={o}>{o}</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={saveMutation.isPending}
+                  onClick={() => saveMutation.mutate()}
+                  className="rounded-lg bg-[var(--color-primary)] px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
+                >
+                  {saveMutation.isPending ? 'Saving…' : 'Save mapping'}
+                </button>
+                {saveMutation.isSuccess && (
+                  <span className="text-xs text-[var(--color-success,#16a34a)]">Saved</span>
+                )}
+                {saveMutation.isError && (
+                  <span className="text-xs text-[var(--color-error,#dc2626)]">Save failed</span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Section C: Competitors ────────────────────────────────────────────────────
 
 interface CompetitorsSectionProps {
@@ -760,6 +895,7 @@ interface CompetitorsSectionProps {
 function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSectionProps) {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
+  const [selectedCompId, setSelectedCompId] = useState<number | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [runningIds, setRunningIds] = useState<Set<number>>(new Set())
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
@@ -781,10 +917,11 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.deleteCompSetCompetitor(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
       setDeleteConfirmId(null)
       setDeleteErr(null)
+      if (selectedCompId === id) setSelectedCompId(null)
     },
     onError: (e) => setDeleteErr(e instanceof Error ? e.message : 'Delete failed'),
   })
@@ -805,78 +942,103 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
     }
   }
 
+  const resultsQuery = useQuery({
+    queryKey: ['compset-results', propertyId],
+    queryFn: () => apiClient.getCompSetResults(propertyId),
+    staleTime: 30_000,
+  })
+
   const competitors = competitorsQuery.data ?? []
+  const results = resultsQuery.data ?? []
   const maxReached = competitors.length >= maxCompetitors
+  const activeId = selectedCompId ?? competitors[0]?.id ?? null
+  const selectedComp = competitors.find((c) => c.id === activeId) ?? null
 
   return (
     <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-[var(--color-text)]">Competitors</h2>
-        <div className="flex items-center gap-2">
+      {/* Buttons row — always at the top */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={runAllMutation.isPending || competitors.some((c) => c.status === 'fetching')}
+          onClick={() => runAllMutation.mutate()}
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
+        >
+          {runAllMutation.isPending ? 'Starting…' : 'Run All'}
+        </button>
+
+        <div className="relative group">
           <button
             type="button"
-            disabled={runAllMutation.isPending || competitors.some((c) => c.status === 'fetching')}
-            onClick={() => runAllMutation.mutate()}
-            className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
+            disabled={maxReached || showAdd}
+            onClick={() => { setShowAdd(true); setSelectedCompId(null) }}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
           >
-            {runAllMutation.isPending ? 'Starting…' : 'Run All'}
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Competitor
           </button>
-
-          <div className="relative group">
-            <button
-              type="button"
-              disabled={maxReached || showAdd}
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Add Competitor
-            </button>
-            {maxReached && (
-              <div className="absolute right-0 top-full mt-1 z-10 hidden group-hover:block w-max max-w-[200px] rounded-lg bg-[var(--color-text)] px-3 py-2 text-xs text-white shadow-lg">
-                Maximum of {maxCompetitors} competitors reached
-              </div>
-            )}
-          </div>
+          {maxReached && (
+            <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover:block w-max max-w-[200px] rounded-lg bg-[var(--color-text)] px-3 py-2 text-xs text-white shadow-lg">
+              Maximum of {maxCompetitors} competitors reached
+            </div>
+          )}
         </div>
       </div>
 
       {competitorsQuery.isLoading ? (
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg bg-[var(--color-border)]" />
+            <div key={i} className="h-10 animate-pulse rounded-lg bg-[var(--color-border)]" />
           ))}
         </div>
       ) : (
         <>
-          {competitors.length === 0 && !showAdd && (
+          {/* Competitor sub-tabs */}
+          {competitors.length > 0 && (
+            <div className="flex gap-1 border-b border-[var(--color-border)] overflow-x-auto">
+              {competitors.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { setSelectedCompId(c.id); setShowAdd(false) }}
+                  className={[
+                    'shrink-0 px-3 py-1.5 text-sm font-medium transition-colors truncate max-w-[160px]',
+                    !showAdd && activeId === c.id
+                      ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)] -mb-px'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+                  ].join(' ')}
+                  title={c.name}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Selected competitor detail */}
+          {!showAdd && selectedComp && (
+            <div className="space-y-4">
+              <CompetitorCard
+                competitor={selectedComp}
+                onRun={() => void runSingle(selectedComp.id)}
+                isRunning={runningIds.has(selectedComp.id)}
+                onDelete={() => deleteMutation.mutate(selectedComp.id)}
+                isDeleting={deleteMutation.isPending && deleteConfirmId === selectedComp.id}
+                deleteConfirm={deleteConfirmId === selectedComp.id}
+                onDeleteRequest={() => setDeleteConfirmId(selectedComp.id)}
+                onDeleteCancel={() => setDeleteConfirmId(null)}
+              />
+              <MappingSection competitor={selectedComp} results={results} />
+            </div>
+          )}
+
+          {!showAdd && competitors.length === 0 && (
             <p className="text-sm text-[var(--color-text-muted)] italic">
               No competitors added yet. Click &quot;Add Competitor&quot; to get started.
             </p>
           )}
-
-          <div className="space-y-3">
-            {competitors.map((c) => (
-              <CompetitorCard
-                key={c.id}
-                competitor={c}
-                onRun={() => void runSingle(c.id)}
-                isRunning={runningIds.has(c.id)}
-                onDelete={() => deleteMutation.mutate(c.id)}
-                isDeleting={deleteMutation.isPending && deleteConfirmId === c.id}
-                deleteConfirm={deleteConfirmId === c.id}
-                onDeleteRequest={() => setDeleteConfirmId(c.id)}
-                onDeleteCancel={() => setDeleteConfirmId(null)}
-              />
-            ))}
-          </div>
         </>
       )}
 
@@ -884,7 +1046,7 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
         <AddCompetitorForm
           propertyId={propertyId}
           orgId={orgId}
-          onSaved={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] }) }}
           onCancel={() => setShowAdd(false)}
         />
       )}
@@ -906,57 +1068,262 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
   )
 }
 
+// ── Section D: Results ───────────────────────────────────────────────────────
+
+function ResultCell({ result }: { result: CompSetResult | undefined }) {
+  if (!result) return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)]" colSpan={4}>—</td>
+  if (result.searchStatus === 'error') {
+    return <td className="py-2.5 text-right text-xs text-red-500" colSpan={4}>Error</td>
+  }
+  if (result.searchStatus === 'not_found' || result.pricePerNight == null) {
+    return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)] italic" colSpan={4}>Not found</td>
+  }
+  const cur = result.currency ?? ''
+  return (
+    <>
+      <td className="py-2.5 text-xs text-[var(--color-text-muted)] max-w-[140px] truncate" title={result.roomName ?? undefined}>
+        {result.roomName ?? '—'}
+      </td>
+      <td className="py-2.5 text-xs text-[var(--color-text-muted)]">{result.board ?? '—'}</td>
+      <td className="py-2.5 text-right font-semibold text-[var(--color-text)]">
+        {cur}{cur ? ' ' : ''}{result.pricePerNight.toLocaleString()}
+      </td>
+      <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)]">
+        {result.total != null ? `${cur}${cur ? ' ' : ''}${result.total.toLocaleString()}` : '—'}
+      </td>
+    </>
+  )
+}
+
+function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: number | null }) {
+  const resultsQuery = useQuery({
+    queryKey: ['compset-results', propertyId],
+    queryFn: () => apiClient.getCompSetResults(propertyId),
+    refetchInterval: 8_000,
+  })
+
+  const competitorsQuery = useQuery({
+    queryKey: ['compset-competitors', propertyId],
+    queryFn: () => apiClient.getCompSetCompetitors(propertyId),
+  })
+
+  const paramsQuery = useQuery({
+    queryKey: ['compset-search-params', propertyId, orgId],
+    queryFn: () =>
+      apiClient.getCompSetSearchParams({
+        propertyId,
+        ...(orgId !== null ? { orgId } : {}),
+        effective: true,
+      }),
+  })
+
+  const results = resultsQuery.data ?? []
+  const competitors = competitorsQuery.data ?? []
+  const params = paramsQuery.data ?? []
+
+  if (resultsQuery.isLoading) return null
+
+  const compById = new Map(competitors.map(c => [c.id, c]))
+  const paramById = new Map(params.map(p => [p.id, p]))
+
+  // unique param IDs ordered by first appearance in results
+  const paramIds = [...new Set(results.map(r => r.searchParamId))]
+  // unique competitor IDs ordered by first appearance
+  const competitorIds = [...new Set(
+    results.map(r => r.competitorId).filter((id): id is number => id !== null)
+  )]
+
+  function bestResult(paramId: number, compId: number | null): CompSetResult | undefined {
+    const rows = results.filter(r => r.searchParamId === paramId && r.competitorId === compId)
+    const found = rows.filter(r => r.searchStatus === 'found' && r.pricePerNight != null)
+    if (found.length > 0) {
+      return found.reduce((best, r) =>
+        (r.pricePerNight ?? Infinity) < (best.pricePerNight ?? Infinity) ? r : best
+      )
+    }
+    return rows[0]
+  }
+
+  const hasOwnResults = results.some(r => r.competitorId === null)
+
+  function fmtDate(iso: string): string {
+    try {
+      const [y, m, d] = iso.split('-')
+      const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+      return `${parseInt(d!)} ${MONTHS[parseInt(m!) - 1]} ${y}`
+    } catch { return iso }
+  }
+
+  const lastFetch = results[0] ? fmtDateTime(results[0].fetchedAt) : null
+
+  return (
+    <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[var(--color-text)]">Results</h2>
+        {lastFetch && (
+          <span className="text-xs text-[var(--color-text-muted)]">Last run: {lastFetch}</span>
+        )}
+      </div>
+
+      {results.length === 0 ? (
+        <p className="text-sm italic text-[var(--color-text-muted)]">
+          No results yet. Add competitors and click Run to fetch price data.
+        </p>
+      ) : (
+        <div className="space-y-6">
+          {paramIds.map(paramId => {
+            const param = paramById.get(paramId)
+            const label = param?.label ?? `Config #${paramId}`
+            const sampleResult = results.find(r => r.searchParamId === paramId)
+            const dateRange = sampleResult
+              ? `${fmtDate(sampleResult.checkIn)} → ${fmtDate(sampleResult.checkOut)}`
+              : null
+            return (
+              <div key={paramId}>
+                <div className="mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                    {label}
+                  </p>
+                  {dateRange && (
+                    <p className="text-xs text-[var(--color-text-muted)]">{dateRange}</p>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--color-border)]">
+                        <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Competitor</th>
+                        <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Room</th>
+                        <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Board</th>
+                        <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Per night</th>
+                        <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Total</th>
+                        <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Fetched</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)]">
+                      {hasOwnResults && (() => {
+                        const result = bestResult(paramId, null)
+                        return (
+                          <tr key="own" className="bg-[var(--color-primary)]/5">
+                            <td className="py-2.5 font-semibold text-[var(--color-primary)]">
+                              My Hotel
+                            </td>
+                            <ResultCell result={result} />
+                            <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                              {result?.fetchedAt ? fmtDateTime(result.fetchedAt) : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })()}
+                      {competitorIds.map(compId => {
+                        const comp = compById.get(compId)
+                        const result = bestResult(paramId, compId)
+                        return (
+                          <tr key={compId}>
+                            <td className="py-2.5 font-medium text-[var(--color-text)]">
+                              {comp?.name ?? `#${compId}`}
+                            </td>
+                            <ResultCell result={result} />
+                            <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                              {result?.fetchedAt ? fmtDateTime(result.fetchedAt) : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
+
+const TABS = ['Search Configurations', 'Competitors', 'Results'] as const
+type Tab = typeof TABS[number]
 
 export default function CompSetPage() {
   const { admin } = useAdminAuth()
   const { propertyId, orgId } = useAdminProperty()
+  const [activeTab, setActiveTab] = useState<Tab>('Search Configurations')
 
   if (!admin) return null
 
   const isSuper = admin.role === 'super'
   const effectiveOrgId = orgId ?? admin.organizationId
-
-  // System level: super admin, no org selected, no property selected
   const isSystemLevel = isSuper && orgId === null && propertyId === null
 
-  // Fetch system config to get maxCompetitors for CompetitorsSection
   const sysConfigQuery = useQuery({
     queryKey: ['compset-system-config'],
     queryFn: () => apiClient.getCompSetSystemConfig(),
     enabled: isSuper,
   })
-
   const maxCompetitors = sysConfigQuery.data?.maxCompetitorsPerProperty ?? 10
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 space-y-6">
       <h1 className="text-xl font-semibold text-[var(--color-text)]">CompSet</h1>
 
-      {/* Section A — System Config (super admin, system level only) */}
-      {isSystemLevel && <SystemConfigPanel />}
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-[var(--color-border)]">
+        {TABS.map(tab => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={[
+              'px-4 py-2 text-sm font-medium transition-colors',
+              activeTab === tab
+                ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)] -mb-px'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+            ].join(' ')}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-      {/* Section B — Search Configurations (always visible) */}
-      <SearchConfigSection
-        propertyId={propertyId}
-        orgId={effectiveOrgId}
-        isSuper={isSuper}
-      />
-
-      {/* Section C — Competitors (only when a property is selected) */}
-      {propertyId !== null && (
-        <CompetitorsSection
-          propertyId={propertyId}
-          orgId={effectiveOrgId}
-          maxCompetitors={maxCompetitors}
-        />
+      {/* Tab: Search Configurations */}
+      {activeTab === 'Search Configurations' && (
+        <div className="space-y-6">
+          {isSystemLevel && <SystemConfigPanel />}
+          <SearchConfigSection
+            propertyId={propertyId}
+            orgId={effectiveOrgId}
+            isSuper={isSuper}
+          />
+        </div>
       )}
 
-      {/* Prompt when no property is selected and not system level */}
-      {propertyId === null && !isSystemLevel && (
-        <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          Select a property to manage competitors.
-        </p>
+      {/* Tab: Competitors */}
+      {activeTab === 'Competitors' && (
+        propertyId !== null ? (
+          <CompetitorsSection
+            propertyId={propertyId}
+            orgId={effectiveOrgId}
+            maxCompetitors={maxCompetitors}
+          />
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+            Select a property to manage competitors.
+          </p>
+        )
+      )}
+
+      {/* Tab: Results */}
+      {activeTab === 'Results' && (
+        propertyId !== null ? (
+          <ResultsSection propertyId={propertyId} orgId={effectiveOrgId} />
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+            Select a property to view results.
+          </p>
+        )
       )}
     </main>
   )

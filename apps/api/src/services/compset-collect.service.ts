@@ -28,15 +28,68 @@ export function deriveCancellation(
   return hasGracePeriod ? 'Flexi' : 'NR'
 }
 
-type RateExtractor = (page: Page) => Promise<RoomRate[]>
+type RateExtractor = (page: Page, orgId: number | null) => Promise<RoomRate[]>
 
-const IBE_EXTRACTORS: Record<string, RateExtractor> = {}
+async function extractSentecRates(page: Page, orgId: number | null): Promise<RoomRate[]> {
+  // Detect cookie-consent banner. If present, pre-set common consent tokens in
+  // localStorage/cookies and reload — so the booking widget initialises with URL
+  // params and no consent modal on the second render.
+  const hadConsentModal = await page.evaluate(() => {
+    const text = document.body.innerText
+    if (!/enable.*services|cookie.*consent|cookie.*preference/i.test(text)) return false
+    try {
+      localStorage.setItem('CookieConsent', 'true')
+      localStorage.setItem('cookieconsent_status', 'dismiss')
+      localStorage.setItem('cookie_consent', 'accepted')
+      localStorage.setItem('consent_given', 'true')
+      document.cookie = 'CookieConsent=true; path=/'
+      document.cookie = 'cookieconsent_status=dismiss; path=/'
+    } catch { /* storage blocked */ }
+    return true
+  })
+
+  if (hadConsentModal) {
+    // Reload the same URL — consent tokens are now set so the modal should not appear.
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 })
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+    await page.waitForTimeout(5000)
+  }
+
+  // If the guest selector is still showing unset child ages, fill them in from the URL
+  // and click "Check Availability" so the room list renders.
+  try {
+    const url = new URL(page.url())
+    const guestTokens = (url.searchParams.get('guests') ?? '').split(',')
+    const childAges = guestTokens.filter(t => t !== 'A' && /^\d+$/.test(t)).map(Number)
+    if (childAges.length > 0) {
+      const ageSelects = page.locator('select').filter({ hasText: 'Select age' })
+      const count = await ageSelects.count()
+      for (let i = 0; i < Math.min(count, childAges.length); i++) {
+        await ageSelects.nth(i).selectOption(String(childAges[i]))
+      }
+      if (count > 0) {
+        const checkBtn = page.getByRole('button', { name: /check availability/i })
+        if (await checkBtn.isVisible({ timeout: 2000 })) {
+          await checkBtn.click()
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+          await page.waitForTimeout(5000)
+        }
+      }
+    }
+  } catch { /* age selectors not found or already resolved */ }
+
+  return extractRatesWithAI(page, orgId)
+}
+
+const IBE_EXTRACTORS: Record<string, RateExtractor> = {
+  'sentec': extractSentecRates,
+}
 
 async function extractRatesWithAI(page: Page, orgId: number | null): Promise<RoomRate[]> {
   const aiConfig = await resolveAIConfig(undefined, orgId ?? undefined)
   if (!aiConfig) return []
 
-  const visibleText = await page.evaluate(() => document.body.innerText.slice(0, 8000))
+  const visibleText = await page.evaluate(() => document.body.innerText.slice(0, 15000))
 
   const systemPrompt = 'You are a hotel rate extractor. Return only valid JSON with no surrounding text.'
   const userPrompt = `Extract all available room rates from this hotel booking page text.
@@ -65,7 +118,15 @@ Return only the JSON array, no surrounding text.`
     if (response.stopReason === 'error' || !response.text) return []
     const jsonText = response.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
     const parsed = JSON.parse(jsonText) as unknown
-    return Array.isArray(parsed) ? (parsed as RoomRate[]) : []
+    if (!Array.isArray(parsed)) return []
+    return (parsed as Record<string, unknown>[]).map(r => ({
+      roomName: String(r.roomName ?? ''),
+      board: String(r.board ?? ''),
+      cancellation: String(r.cancellation ?? ''),
+      pricePerNight: parseFloat(String(r.pricePerNight)) || 0,
+      total: parseFloat(String(r.total)) || 0,
+      currency: String(r.currency ?? ''),
+    }))
   } catch {
     return []
   }
@@ -114,12 +175,17 @@ async function fetchOwnRates(propertyId: number, param: CompSetSearchParam): Pro
 }
 
 async function fetchCompetitorRates(searchUrl: string, orgId: number | null): Promise<RoomRate[]> {
+  logger.info({ searchUrl }, '[CompSet] Fetching competitor rates')
   try {
     return await withStealthPage(searchUrl, async (page: Page) => {
+      // Extra wait for SPA pages that render availability data after networkidle
+      await page.waitForTimeout(3000)
+      const visibleText = await page.evaluate(() => document.body.innerText.slice(0, 500))
+      logger.info({ searchUrl, textSnippet: visibleText }, '[CompSet] Page text snippet')
       const hostname = new URL(searchUrl).hostname
       const ibeType = Object.keys(IBE_EXTRACTORS).find(k => hostname.includes(k))
       if (ibeType) {
-        return await IBE_EXTRACTORS[ibeType]!(page)
+        return await IBE_EXTRACTORS[ibeType]!(page, orgId)
       }
       return await extractRatesWithAI(page, orgId)
     })
@@ -154,8 +220,6 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
       data: { status: 'fetching' },
     })
   }
-
-  await prisma.compSetResult.deleteMany({ where: { propertyId } })
 
   const fetchedAt = new Date()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,10 +269,16 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         continue
       }
 
+      const guests = [
+        ...Array(param.adults).fill('A'),
+        ...param.childAges.map(String),
+      ].join(',')
       const builtUrl = buildExternalUrl(competitor.searchUrl, {
         checkIn, checkOut, adults: param.adults,
         nights: param.nights, countryCode: '',
+        guests,
       })
+      logger.info({ template: competitor.searchUrl, builtUrl }, '[CompSet] Built competitor URL')
 
       try {
         const rates = await fetchCompetitorRates(builtUrl, orgId)
@@ -244,9 +314,10 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
     }
   }
 
-  if (toInsert.length > 0) {
-    await prisma.compSetResult.createMany({ data: toInsert })
-  }
+  await prisma.$transaction([
+    prisma.compSetResult.deleteMany({ where: { propertyId } }),
+    prisma.compSetResult.createMany({ data: toInsert }),
+  ])
 
   logger.info({ propertyId, rows: toInsert.length }, '[CompSet] Collection run complete')
 

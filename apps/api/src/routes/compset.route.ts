@@ -11,6 +11,9 @@ import {
   createCompetitor,
   updateCompetitor,
   deleteCompetitor,
+  getRoomMappings,
+  replaceRoomMappings,
+  autoMapRooms,
 } from '../services/compset.service.js'
 import { runPropertyCompSet } from '../services/compset-collect.service.js'
 import { prisma } from '../db/client.js'
@@ -134,6 +137,31 @@ export async function compsetRoutes(fastify: FastifyInstance) {
       fastify.log.warn({ err, propertyId }, '[CompSet] Background run failed'),
     )
     return reply.send({ started: true })
+  })
+
+  // ── Room Mappings ─────────────────────────────────────────────────────────
+
+  // GET mappings for a competitor
+  fastify.get('/admin/intelligence/compset/competitors/:id/mappings', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    return reply.send(await getRoomMappings(id))
+  })
+
+  // PUT (replace) mappings for a competitor
+  fastify.put('/admin/intelligence/compset/competitors/:id/mappings', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const { mappings } = request.body as { mappings: Parameters<typeof replaceRoomMappings>[1] }
+    return reply.send(await replaceRoomMappings(id, mappings ?? []))
+  })
+
+  // POST auto-map rooms using heuristic, then admin can override
+  fastify.post('/admin/intelligence/compset/competitors/:id/mappings/auto', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const { compRooms, ownRooms } = request.body as {
+      compRooms: Array<{ roomName: string }>
+      ownRooms: Array<{ roomName: string }>
+    }
+    return reply.send(await autoMapRooms(id, compRooms ?? [], ownRooms ?? []))
   })
 
   // GET results

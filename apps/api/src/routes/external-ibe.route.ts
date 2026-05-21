@@ -10,7 +10,8 @@ import {
   bulkMapExternalHotelIds,
 } from '../services/external-ibe.service.js'
 import { resolveExternalBookingUrl } from '../services/external-ibe-scraper.service.js'
-import type { ExternalIBEConfigUpdate, ExternalIBEAnalyzeRequest, ExternalIBETestResultItem, ExternalIBEBulkMapRequest } from '@ibe/shared'
+import type { ExternalIBEConfigUpdate, ExternalIBEAnalyzeRequest, ExternalIBETestResultItem, ExternalIBEBulkMapRequest, IBERegistryEntry } from '@ibe/shared'
+import { lookupIBERegistry, upsertIBERegistry } from '../services/ibe-registry.service.js'
 
 function parseScope(
   query: Record<string, string>,
@@ -317,5 +318,19 @@ export async function externalIBERoutes(fastify: FastifyInstance) {
     const result = await analyzeExternalIBEUrls(body)
     if ('error' in result) return reply.status(422).send(result)
     return reply.send(result)
+  })
+
+  // IBE Registry — shared across External IBE and CompSet
+  fastify.get('/admin/external-ibe/registry/lookup', async (request, reply) => {
+    const { hostname } = request.query as Record<string, string>
+    if (!hostname) return reply.status(400).send({ error: 'hostname is required' })
+    const entry = await lookupIBERegistry(hostname)
+    return reply.send(entry ?? null)
+  })
+
+  fastify.post('/admin/external-ibe/registry', async (request, reply) => {
+    const body = request.body as IBERegistryEntry
+    if (!body.hostname) return reply.status(400).send({ error: 'hostname is required' })
+    return reply.send(await upsertIBERegistry(body))
   })
 }

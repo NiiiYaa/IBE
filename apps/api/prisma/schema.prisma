@@ -1713,19 +1713,33 @@ model CompSetSearchParam {
 }
 
 model CompSetCompetitor {
-  id          Int       @id @default(autoincrement())
-  propertyId  Int
-  name        String
-  searchUrl   String?
-  sortOrder   Int       @default(0)
-  status      String    @default("idle")
-  lastFetchAt DateTime?
-  errorMsg    String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  propertyId      Int
+  name            String
+  searchUrl       String?
+  sortOrder       Int       @default(0)
+  status          String    @default("idle")
+  lastFetchAt     DateTime?
+  errorMsg        String?
+  comparisonMode  String    @default("cheapest")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  property Property        @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetCompetitor_propertyId_fkey")
-  results  CompSetResult[]
+  property     Property             @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetCompetitor_propertyId_fkey")
+  results      CompSetResult[]
+  roomMappings CompSetRoomMapping[]
+}
+
+model CompSetRoomMapping {
+  id           Int               @id @default(autoincrement())
+  competitorId Int
+  compRoomName String
+  ownRoomName  String
+  createdAt    DateTime          @default(now())
+
+  competitor CompSetCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@unique([competitorId, compRoomName])
 }
 
 model CompSetResult {
@@ -1882,6 +1896,15 @@ model OrgWLConfig {
   systemServiceDisabled Boolean      @default(false)
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
+}
+
+model IBERegistry {
+  id             Int      @id @default(autoincrement())
+  hostname       String   @unique
+  name           String?
+  searchTemplate String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model PropertyWLConfig {

@@ -114,7 +114,7 @@ export async function getChainEvents(orgId: number): Promise<ChainEventCalendarE
     byProperty.get(row.propertyId)?.push(toEvent(row))
   }
 
-  return properties.map(p => ({ propertyId: p.propertyId, events: byProperty.get(p.propertyId) ?? [] }))
+  return properties.map(p => ({ propertyId: p.propertyId, propertyName: p.name ?? '', events: byProperty.get(p.propertyId) ?? [] }))
 }
 
 export async function replacePropertyEvents(

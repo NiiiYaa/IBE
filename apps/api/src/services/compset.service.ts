@@ -1,4 +1,7 @@
 import { prisma } from '../db/client.js'
+import { logger } from '../utils/logger.js'
+import { resolveAIConfig } from './ai-config.service.js'
+import { getProviderAdapter } from '../ai/adapters/index.js'
 import type {
   SystemCompSetConfig,
   CompSetSearchParam,
@@ -6,6 +9,8 @@ import type {
   CompSetCompetitor,
   CompSetCompetitorCreate,
   CompSetCompetitorUpdate,
+  CompSetRoomMapping,
+  CompSetRoomMappingUpsert,
 } from '@ibe/shared'
 
 // ── Label generation ──────────────────────────────────────────────────────────
@@ -148,12 +153,14 @@ export async function deleteSearchParam(id: number): Promise<boolean> {
 function toCompetitor(row: {
   id: number; propertyId: number; name: string; searchUrl: string | null;
   sortOrder: number; status: string; lastFetchAt: Date | null; errorMsg: string | null;
+  comparisonMode: string;
 }): CompSetCompetitor {
   return {
     id: row.id, propertyId: row.propertyId, name: row.name, searchUrl: row.searchUrl,
     sortOrder: row.sortOrder, status: row.status as CompSetCompetitor['status'],
     lastFetchAt: row.lastFetchAt?.toISOString() ?? null,
     errorMsg: row.errorMsg,
+    comparisonMode: (row.comparisonMode ?? 'cheapest') as CompSetCompetitor['comparisonMode'],
   }
 }
 
@@ -196,4 +203,112 @@ export async function deleteCompetitor(id: number): Promise<boolean> {
 export async function getActivePropertyIds(): Promise<number[]> {
   const rows = await prisma.compSetCompetitor.groupBy({ by: ['propertyId'] })
   return rows.map(r => r.propertyId)
+}
+
+// ── CompSetRoomMapping ────────────────────────────────────────────────────────
+
+export async function getRoomMappings(competitorId: number): Promise<CompSetRoomMapping[]> {
+  const rows = await prisma.compSetRoomMapping.findMany({ where: { competitorId }, orderBy: { id: 'asc' } })
+  return rows.map(r => ({
+    id: r.id, competitorId: r.competitorId,
+    compRoomName: r.compRoomName, ownRoomName: r.ownRoomName,
+  }))
+}
+
+export async function replaceRoomMappings(
+  competitorId: number,
+  mappings: CompSetRoomMappingUpsert[],
+): Promise<CompSetRoomMapping[]> {
+  await prisma.$transaction([
+    prisma.compSetRoomMapping.deleteMany({ where: { competitorId } }),
+    prisma.compSetRoomMapping.createMany({
+      data: mappings.map(m => ({ competitorId, compRoomName: m.compRoomName, ownRoomName: m.ownRoomName })),
+    }),
+  ])
+  return getRoomMappings(competitorId)
+}
+
+function wordOverlapScore(a: string, b: string): number {
+  const aWords = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
+  return b.toLowerCase().split(/\W+/).filter(w => aWords.has(w)).length
+}
+
+function closestOwnRoom(candidate: string, ownNames: string[]): string {
+  if (ownNames.includes(candidate)) return candidate
+  const scored = ownNames.map(o => ({ name: o, score: wordOverlapScore(candidate, o) }))
+  scored.sort((a, b) => b.score - a.score)
+  return scored[0]!.name
+}
+
+async function aiMapRooms(
+  compNames: string[],
+  ownNames: string[],
+  orgId: number | null,
+): Promise<Record<string, string>> {
+  try {
+    const aiConfig = await resolveAIConfig(undefined, orgId ?? undefined)
+    if (!aiConfig) return {}
+
+    const ownList = ownNames.map((r, i) => `${i + 1}. "${r}"`).join('\n')
+    const prompt = `You are a hotel room matching expert. Assign each competitor room to the best matching own hotel room.
+
+COMPETITOR ROOMS:
+${compNames.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+OWN HOTEL ROOMS (copy values EXACTLY as shown — do not paraphrase or invent new names):
+${ownList}
+
+Match by room tier and type (suite→suite, double/standard→standard, penthouse→most premium available).
+Return a JSON object: keys = competitor room names, values = own hotel room names copied verbatim from the list above.
+Every competitor room must appear as a key.
+Return ONLY the JSON object.`
+
+    const adapter = getProviderAdapter(aiConfig.provider)
+    const response = await adapter.call(
+      [{ role: 'user', content: prompt }],
+      [],
+      'You are a hotel room matching expert. Return only valid JSON with exact room names.',
+      aiConfig.apiKey,
+      aiConfig.model,
+    )
+    if (response.stopReason === 'error' || !response.text) return {}
+    const jsonText = response.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    const raw = JSON.parse(jsonText) as Record<string, string>
+    // Resolve any hallucinated values to the closest actual own room
+    const resolved: Record<string, string> = {}
+    for (const [comp, suggested] of Object.entries(raw)) {
+      resolved[comp] = closestOwnRoom(suggested, ownNames)
+    }
+    logger.info({ resolved }, '[CompSet] aiMapRooms resolved')
+    return resolved
+  } catch (err) {
+    logger.warn({ err }, '[CompSet] aiMapRooms failed')
+    return {}
+  }
+}
+
+export async function autoMapRooms(
+  competitorId: number,
+  compRooms: Array<{ roomName: string }>,
+  ownRooms: Array<{ roomName: string }>,
+): Promise<CompSetRoomMapping[]> {
+  if (ownRooms.length === 0 || compRooms.length === 0) return []
+
+  const compNames = compRooms.map(r => r.roomName)
+  const ownNames = ownRooms.map(r => r.roomName)
+
+  const competitor = await prisma.compSetCompetitor.findUnique({
+    where: { id: competitorId },
+    include: { property: { select: { organizationId: true } } },
+  })
+  const orgId = competitor?.property?.organizationId ?? null
+
+  const aiSuggestions = await aiMapRooms(compNames, ownNames, orgId)
+
+  const mappings: CompSetRoomMappingUpsert[] = compNames.map(compName => ({
+    compRoomName: compName,
+    ownRoomName: aiSuggestions[compName] ?? closestOwnRoom(compName, ownNames),
+  }))
+
+  return replaceRoomMappings(competitorId, mappings)
 }

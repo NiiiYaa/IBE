@@ -9,7 +9,7 @@ import {
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../property-context'
-import type { DashboardStats, OrgRecord } from '@ibe/shared'
+import type { DashboardStats, OrgRecord, EventCalendarEvent, ChainEventCalendarEvents } from '@ibe/shared'
 
 const AI_CHANNEL_LABELS: Record<string, string> = {
   aiSearchBar: 'AI Search Bar',
@@ -77,6 +77,7 @@ const SECTIONS = [
   { id: 'charts',    label: 'Bookings & Revenue' },
   { id: 'ai',        label: 'AI Search Analytics' },
   { id: 'marketing', label: 'Marketing' },
+  { id: 'events',    label: 'Upcoming Events' },
 ] as const
 
 type SectionId = typeof SECTIONS[number]['id']
@@ -151,6 +152,104 @@ function SectionPicker({ visible, onChange }: { visible: Set<SectionId>; onChang
         </div>
       )}
     </div>
+  )
+}
+
+// ── Upcoming Events helpers ───────────────────────────────────────────────────
+
+const DEMAND_BADGE: Record<string, { label: string; cls: string }> = {
+  high:   { label: 'High',   cls: 'bg-red-100 text-red-700' },
+  medium: { label: 'Medium', cls: 'bg-amber-100 text-amber-700' },
+  low:    { label: 'Low',    cls: 'bg-green-100 text-green-700' },
+}
+
+function todayStr() { return new Date().toISOString().split('T')[0]! }
+function todayPlus60Str() {
+  const d = new Date(); d.setDate(d.getDate() + 60)
+  return d.toISOString().split('T')[0]!
+}
+
+function fmtEventRange(start: string, end: string) {
+  const s = new Date(start + 'T00:00:00')
+  const e = new Date(end + 'T00:00:00')
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  if (start === end) return s.toLocaleDateString('en-US', opts)
+  if (s.getMonth() === e.getMonth()) return `${s.toLocaleDateString('en-US', opts)}–${e.getDate()}`
+  return `${s.toLocaleDateString('en-US', opts)} – ${e.toLocaleDateString('en-US', opts)}`
+}
+
+function EventRow({ event }: { event: EventCalendarEvent }) {
+  const badge = DEMAND_BADGE[event.demandLevel] ?? DEMAND_BADGE.medium!
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-[var(--color-border)] last:border-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium text-[var(--color-text)]">{event.name}</p>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+        </div>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{fmtEventRange(event.startDate, event.endDate)}</p>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 line-clamp-1">{event.demandDescription}</p>
+      </div>
+    </div>
+  )
+}
+
+function UpcomingEventsSection({ propertyId, orgId }: { propertyId: number | undefined; orgId: number | undefined }) {
+  const from = todayStr()
+  const to   = todayPlus60Str()
+
+  const propertyQuery = useQuery<EventCalendarEvent[]>({
+    queryKey: ['dashboard-events-property', propertyId, from, to],
+    queryFn: () => apiClient.getEventCalendarEvents(propertyId!, from, to),
+    enabled: propertyId != null,
+    staleTime: 10 * 60_000,
+  })
+
+  const chainQuery = useQuery<ChainEventCalendarEvents[]>({
+    queryKey: ['dashboard-events-chain', orgId],
+    queryFn: () => apiClient.getEventCalendarChainEvents(orgId!),
+    enabled: propertyId == null && orgId != null,
+    staleTime: 10 * 60_000,
+  })
+
+  if (propertyId != null) {
+    const events = propertyQuery.data ?? []
+    if (propertyQuery.isLoading) return null
+    if (events.length === 0) return (
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]">No upcoming events found for this property in the next 60 days.</p>
+    )
+    return (
+      <div className="mt-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <div className="divide-y divide-[var(--color-border)]">
+          {events.map(e => <EventRow key={e.id} event={e} />)}
+        </div>
+      </div>
+    )
+  }
+
+  if (orgId != null) {
+    const groups = chainQuery.data ?? []
+    if (chainQuery.isLoading) return null
+    const allEmpty = groups.every(g => g.events.length === 0)
+    if (allEmpty) return (
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]">No upcoming events found for any property in the next 60 days.</p>
+    )
+    return (
+      <div className="mt-3 space-y-4">
+        {groups.filter(g => g.events.length > 0).map(g => (
+          <div key={g.propertyId} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{g.propertyName} <span className="font-normal">#{g.propertyId}</span></p>
+            <div className="divide-y divide-[var(--color-border)]">
+              {g.events.map(e => <EventRow key={e.id} event={e} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <p className="mt-2 text-sm text-[var(--color-text-muted)]">Select a property or organisation to see upcoming events.</p>
   )
 }
 
@@ -585,6 +684,14 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Upcoming Events */}
+      {visibleSections.has('events') && (
+        <div className="space-y-3">
+          <SectionTitle>Upcoming Events</SectionTitle>
+          <UpcomingEventsSection propertyId={propertyId} orgId={orgId} />
         </div>
       )}
     </div>

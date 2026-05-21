@@ -127,6 +127,7 @@ import type {
   ExternalIBETestStreamEvent,
   ExternalIBEBulkMapRequest,
   ExternalIBEBulkMapResponse,
+  IBERegistryEntry,
   TestBookingSearchRequest,
   TestBookingSearchResponse,
   TestBookingBookRequest,
@@ -140,6 +141,8 @@ import type {
   CompSetCompetitorUpdate,
   CompSetResult,
   CompSetRunResponse,
+  CompSetRoomMapping,
+  CompSetRoomMappingUpsert,
   SystemEventCalendarConfig,
   PropertyEventCalendarConfig,
   EventCalendarEvent,
@@ -2005,6 +2008,17 @@ export const apiClient = {
     })
   },
 
+  lookupIBERegistry(hostname: string): Promise<IBERegistryEntry | null> {
+    return apiRequest(`/api/v1/admin/external-ibe/registry/lookup?hostname=${encodeURIComponent(hostname)}`)
+  },
+
+  saveIBERegistry(entry: IBERegistryEntry): Promise<IBERegistryEntry> {
+    return apiRequest('/api/v1/admin/external-ibe/registry', {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    })
+  },
+
   testExternalIBEConfig(
     params: { checkIn: string; checkOut: string; adults?: number; childrenAges?: number[] },
     scope: { orgId?: number; propertyId?: number },
@@ -2153,6 +2167,28 @@ export const apiClient = {
 
   getCompSetResults(propertyId: number): Promise<CompSetResult[]> {
     return apiRequest(`/api/v1/admin/intelligence/compset/results?propertyId=${propertyId}`)
+  },
+
+  getCompSetRoomMappings(competitorId: number): Promise<CompSetRoomMapping[]> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/mappings`)
+  },
+
+  saveCompSetRoomMappings(competitorId: number, mappings: CompSetRoomMappingUpsert[]): Promise<CompSetRoomMapping[]> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/mappings`, {
+      method: 'PUT',
+      body: JSON.stringify({ mappings }),
+    })
+  },
+
+  autoCompSetRoomMappings(
+    competitorId: number,
+    compRooms: Array<{ roomName: string }>,
+    ownRooms: Array<{ roomName: string }>,
+  ): Promise<CompSetRoomMapping[]> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/mappings/auto`, {
+      method: 'POST',
+      body: JSON.stringify({ compRooms, ownRooms }),
+    })
   },
 
   // ── Event Calendar ────────────────────────────────────────────────────────

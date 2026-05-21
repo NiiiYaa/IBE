@@ -36,6 +36,19 @@ export interface CompSetCompetitor {
   status: 'idle' | 'fetching' | 'done' | 'error'
   lastFetchAt: string | null
   errorMsg: string | null
+  comparisonMode: 'cheapest' | 'room_mapping'
+}
+
+export interface CompSetRoomMapping {
+  id: number
+  competitorId: number
+  compRoomName: string
+  ownRoomName: string
+}
+
+export interface CompSetRoomMappingUpsert {
+  compRoomName: string
+  ownRoomName: string
 }
 
 export interface CompSetCompetitorCreate {
@@ -49,6 +62,7 @@ export interface CompSetCompetitorUpdate {
   name?: string
   searchUrl?: string | null
   sortOrder?: number
+  comparisonMode?: 'cheapest' | 'room_mapping'
 }
 
 export interface CompSetResult {

@@ -300,21 +300,89 @@ function PropertyView({ propertyId }: { propertyId: number }) {
   )
 }
 
+// ── Property Row ──────────────────────────────────────────────────────────────
+
+function PropertyRow({
+  propertyId, propertyName, events, isRefreshing, onRefresh,
+}: {
+  propertyId: number
+  propertyName: string
+  events: EventCalendarEvent[]
+  isRefreshing: boolean
+  onRefresh: () => void
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <details
+      open={open}
+      onToggle={e => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+      className="rounded-lg border border-gray-200"
+    >
+      <summary className="flex items-center justify-between px-4 py-3 font-medium text-gray-800 hover:bg-gray-50 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span>
+          {propertyName} <span className="text-gray-400 font-normal text-sm">(#{propertyId})</span>
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={isRefreshing}
+            onClick={e => { e.stopPropagation(); onRefresh() }}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <svg
+            className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </summary>
+      <div className="space-y-3 p-4">
+        {events.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No events found. Try refreshing.</p>
+        ) : (
+          events.map(e => <EventCard key={e.id} event={e} />)
+        )}
+      </div>
+    </details>
+  )
+}
+
 // ── Chain View ────────────────────────────────────────────────────────────────
 
 function ChainView({ orgId }: { orgId: number }) {
   const qc = useQueryClient()
-  const [refreshing, setRefreshing] = useState(false)
+  const [refreshingAll, setRefreshingAll] = useState(false)
+  const [refreshingIds, setRefreshingIds] = useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   const { data: chainData } = useQuery({
     queryKey: ['eventCalendar', 'chain', orgId],
     queryFn: () => apiClient.getEventCalendarChainEvents(orgId),
   })
 
+  function startPoll(propertyId?: number) {
+    let elapsed = 0
+    const poll = setInterval(() => {
+      elapsed += 5000
+      void qc.invalidateQueries({ queryKey: ['eventCalendar', 'chain', orgId] })
+      if (elapsed >= 90000) {
+        clearInterval(poll)
+        if (propertyId != null) {
+          setRefreshingIds(s => { const n = new Set(s); n.delete(propertyId); return n })
+        } else {
+          setRefreshingAll(false)
+        }
+      }
+    }, 5000)
+  }
+
   async function refreshAll() {
     if (!chainData) return
-    setRefreshing(true)
+    setRefreshingAll(true)
     setError(null)
     const from = todayStr()
     const to = todayPlus60Str()
@@ -323,16 +391,15 @@ function ChainView({ orgId }: { orgId: number }) {
         apiClient.runEventCalendar(propertyId, from, to).catch(() => null)
       )
     )
-    // Poll for 90 seconds until chain data updates
-    let elapsed = 0
-    const poll = setInterval(() => {
-      elapsed += 5000
-      void qc.invalidateQueries({ queryKey: ['eventCalendar', 'chain', orgId] })
-      if (elapsed >= 90000) {
-        clearInterval(poll)
-        setRefreshing(false)
-      }
-    }, 5000)
+    startPoll()
+  }
+
+  async function refreshOne(propertyId: number) {
+    setRefreshingIds(s => new Set(s).add(propertyId))
+    const from = todayStr()
+    const to = todayPlus60Str()
+    await apiClient.runEventCalendar(propertyId, from, to).catch(() => null)
+    startPoll(propertyId)
   }
 
   return (
@@ -340,30 +407,46 @@ function ChainView({ orgId }: { orgId: number }) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">All Properties — Upcoming Events</h2>
         <button
-          disabled={refreshing}
+          disabled={refreshingAll}
           onClick={() => void refreshAll()}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {refreshing ? 'Refreshing All…' : 'Refresh All'}
+          {refreshingAll ? 'Refreshing All…' : 'Refresh All'}
         </button>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {chainData?.map(({ propertyId, events }) => (
-        <details key={propertyId} className="rounded-lg border border-gray-200" open>
-          <summary className="cursor-pointer px-4 py-3 font-medium text-gray-800 hover:bg-gray-50">
-            Property #{propertyId}
-          </summary>
-          <div className="space-y-3 p-4">
-            {events.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">
-                No events found. Try refreshing.
-              </p>
-            ) : (
-              events.map(e => <EventCard key={e.id} event={e} />)
-            )}
-          </div>
-        </details>
-      ))}
+
+      {/* Search filter */}
+      <input
+        type="text"
+        placeholder="Filter by name or ID…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
+      {(() => {
+        const q = search.trim().toLowerCase()
+        const filtered = q
+          ? (chainData ?? []).filter(p =>
+              p.propertyName.toLowerCase().includes(q) ||
+              String(p.propertyId).includes(q)
+            )
+          : (chainData ?? [])
+        if (chainData && filtered.length === 0) {
+          return <p className="text-sm text-gray-500 italic">No properties match "{search}".</p>
+        }
+        return filtered.map(({ propertyId, propertyName, events }) => (
+        <PropertyRow
+          key={propertyId}
+          propertyId={propertyId}
+          propertyName={propertyName}
+          events={events}
+          isRefreshing={refreshingIds.has(propertyId)}
+          onRefresh={() => void refreshOne(propertyId)}
+        />
+        ))
+      })()}
     </div>
   )
 }

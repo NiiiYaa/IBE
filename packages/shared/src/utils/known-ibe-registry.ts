@@ -250,6 +250,30 @@ const registry: KnownIBEEntry[] = [
   },
 ]
 
+/**
+ * Given a URL and a search template (containing `{externalHotelId}` and other
+ * `{placeholder}` tokens), extracts the hotel ID value from the URL.
+ * Returns null if the template has no `{externalHotelId}` or the URL doesn't match.
+ */
+export function extractHotelIdFromUrl(url: string, template: string): string | null {
+  try {
+    if (!template.includes('{externalHotelId}')) return null
+    const WILD = '\x00WILD\x00'
+    // Replace other {placeholders} with a neutral marker before escaping
+    const withWild = template
+      .replace(/\{[^}]+\}/g, WILD)
+      .replace(WILD, '{externalHotelId}') // restore the one we want to capture (first occurrence)
+    const parts = withWild.split('{externalHotelId}')
+    if (parts.length !== 2) return null
+    const escape = (s: string) =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(new RegExp(WILD.replace(/\x00/g, '\\x00'), 'g'), '[^/?&#]*')
+    const pattern = new RegExp(`${escape(parts[0]!)}([^/?&#]+)${escape(parts[1]!)}`)
+    return url.match(pattern)?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
 export function detectKnownIBE(url: string): KnownIBEDetection | null {
   const trimmed = url.trim()
   if (!trimmed) return null

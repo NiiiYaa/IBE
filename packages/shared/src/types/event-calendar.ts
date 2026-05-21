@@ -29,5 +29,6 @@ export interface EventCalendarRunResponse {
 
 export interface ChainEventCalendarEvents {
   propertyId: number
+  propertyName: string
   events: EventCalendarEvent[]
 }
