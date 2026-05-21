@@ -21,12 +21,14 @@ vi.mock('../external-ibe.service.js', () => ({
 import { prisma } from '../../db/client.js'
 import { getEffectiveSearchParams, listCompetitors } from '../compset.service.js'
 import { searchAvailability } from '../../adapters/hyperguest/search.js'
+import { withStealthPage } from '../playwright-browser.service.js'
 import { deriveCancellation, runPropertyCompSet } from '../compset-collect.service.js'
 
 const mp = prisma as any
 const mGetParams = getEffectiveSearchParams as any
 const mListComp = listCompetitors as any
 const mSearch = searchAvailability as any
+const mStealth = withStealthPage as any
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -127,5 +129,53 @@ describe('runPropertyCompSet', () => {
     expect(mp.compSetCompetitor.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 10 }, data: expect.objectContaining({ status: 'error', errorMsg: 'No search URL configured' }) }),
     )
+  })
+
+  it('stores found rows for competitor with valid searchUrl and scraped rates', async () => {
+    mGetParams.mockResolvedValue([baseParam])
+    mListComp.mockResolvedValue([{ id: 10, propertyId: 100, name: 'Rival', searchUrl: 'https://rival.com/book?checkIn={checkIn}', sortOrder: 0, status: 'idle', lastFetchAt: null, errorMsg: null }])
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetCompetitor.updateMany.mockResolvedValue({})
+    mp.compSetCompetitor.update.mockResolvedValue({})
+    mp.compSetResult.deleteMany.mockResolvedValue({})
+    mp.compSetResult.createMany.mockResolvedValue({})
+    mSearch.mockResolvedValue({ results: [] })
+    mStealth.mockResolvedValue([{ roomName: 'Superior', board: 'RO', cancellation: 'NR', pricePerNight: 100, total: 200, currency: 'EUR' }])
+
+    await runPropertyCompSet(100)
+
+    expect(mp.compSetResult.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          competitorId: 10,
+          searchStatus: 'found',
+          roomName: 'Superior',
+          board: 'RO',
+          cancellation: 'NR',
+          total: 200,
+          currency: 'EUR',
+        }),
+      ]),
+    })
+    expect(mp.compSetCompetitor.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 10 }, data: expect.objectContaining({ status: 'done' }) }),
+    )
+  })
+
+  it('stores error searchStatus when own-rates fetch throws', async () => {
+    mGetParams.mockResolvedValue([baseParam])
+    mListComp.mockResolvedValue([])
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetResult.deleteMany.mockResolvedValue({})
+    mp.compSetResult.createMany.mockResolvedValue({})
+    mSearch.mockRejectedValue(new Error('HG timeout'))
+
+    await runPropertyCompSet(100)
+
+    expect(mp.compSetResult.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ competitorId: null, searchStatus: 'error' }),
+      ]),
+    })
   })
 })
