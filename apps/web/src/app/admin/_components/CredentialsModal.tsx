@@ -10,6 +10,7 @@ export interface CredentialsInfo {
   phone?: string | null
   temporaryPassword: string
   loginUrl: string
+  orgId?: number | null
 }
 
 export function CredentialsModal({ info, onClose }: { info: CredentialsInfo; onClose: () => void }) {
@@ -45,6 +46,7 @@ export function CredentialsModal({ info, onClose }: { info: CredentialsInfo; onC
       await apiClient.sendAdminCredentials({
         channel: sendTab,
         to: sendTo.trim(),
+        orgId: info.orgId,
         credentials: { name: info.name, email: info.email, temporaryPassword: info.temporaryPassword, loginUrl: info.loginUrl },
       })
       setSendResult({ ok: true, msg: `Sent via ${sendTab === 'email' ? 'Email' : 'WhatsApp'}` })

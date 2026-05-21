@@ -1308,6 +1308,7 @@ export interface UpdateAdminUserRequest {
 export interface SendAdminCredentialsRequest {
   channel: 'email' | 'whatsapp'
   to: string
+  orgId?: number | null | undefined
   credentials: { name: string; email: string; temporaryPassword: string; loginUrl: string }
 }
 

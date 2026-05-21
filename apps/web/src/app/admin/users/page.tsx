@@ -227,7 +227,7 @@ export default function UsersPage() {
       const result = await apiClient.createAdminUser(form)
       await qc.invalidateQueries({ queryKey: ['admin-users'] })
       const loginUrl = `${window.location.origin}/admin/login`
-      setCredentialsInfo({ label: `${result.name} — account created`, name: result.name, email: result.email, ...(result.phone != null ? { phone: result.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl })
+      setCredentialsInfo({ label: `${result.name} — account created`, name: result.name, email: result.email, ...(result.phone != null ? { phone: result.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl, orgId: form.orgId ?? null })
       setForm({ email: '', name: '', role: 'admin', phone: '', ...(isSuper && form.orgId ? { orgId: form.orgId } : {}) })
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create user')
@@ -255,7 +255,7 @@ export default function UsersPage() {
     try {
       const result = await apiClient.resetAdminUserPassword(u.id)
       const loginUrl = `${window.location.origin}/admin/login`
-      setCredentialsInfo({ label: `Password reset — ${u.name}`, name: u.name, email: u.email, ...(u.phone != null ? { phone: u.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl })
+      setCredentialsInfo({ label: `Password reset — ${u.name}`, name: u.name, email: u.email, ...(u.phone != null ? { phone: u.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl, orgId: u.orgId ?? null })
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to reset password')
     }

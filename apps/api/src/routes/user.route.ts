@@ -118,11 +118,12 @@ export async function userRoutes(fastify: FastifyInstance) {
     const body = request.body as {
       channel?: 'email' | 'whatsapp'
       to?: string
+      orgId?: number | null
       credentials?: { name: string; email: string; temporaryPassword: string; loginUrl: string }
     }
     if (!body.channel || !body.to?.trim() || !body.credentials)
       return reply.status(400).send({ error: 'channel, to and credentials are required' })
-    const orgId = request.admin.role === 'super' ? null : request.admin.organizationId
+    const orgId = body.orgId ?? (request.admin.role === 'super' ? null : request.admin.organizationId)
     const result = await sendAdminCredentials(orgId, body.channel, body.to.trim(), body.credentials)
     if (!result.ok) return reply.status(502).send({ error: result.error ?? 'Send failed' })
     return reply.send({ ok: true })

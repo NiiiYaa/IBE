@@ -12,7 +12,7 @@ export async function getSystemEventCalendarConfig(): Promise<SystemEventCalenda
   const row = await prisma.systemEventCalendarConfig.findFirst()
   return {
     enabled: row?.enabled ?? false,
-    defaultRadiusKm: row?.defaultRadiusKm ?? 50,
+    defaultRadiusKm: row?.defaultRadiusKm ?? 100,
     cronSchedule: row?.cronSchedule ?? '0 4 * * *',
   }
 }
@@ -26,7 +26,7 @@ export async function upsertSystemEventCalendarConfig(
     : await prisma.systemEventCalendarConfig.create({
         data: {
           enabled: data.enabled ?? false,
-          defaultRadiusKm: data.defaultRadiusKm ?? 50,
+          defaultRadiusKm: data.defaultRadiusKm ?? 100,
           cronSchedule: data.cronSchedule ?? '0 4 * * *',
         },
       })

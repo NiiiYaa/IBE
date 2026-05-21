@@ -35,11 +35,17 @@ const mp = prisma as any
 beforeEach(() => { vi.clearAllMocks() })
 
 describe('buildSearchParamLabel', () => {
-  it('generates singular forms when count is 1', () => {
-    expect(buildSearchParamLabel(1, 1, 1, 'US')).toBe('Today+1 · 1 Night · 1 Adult · US')
+  it('generates singular forms when count is 1, no children', () => {
+    expect(buildSearchParamLabel(1, 1, 1, 0, [])).toBe('Today+1 · 1 Night · 1 Adult')
   })
-  it('generates plural forms when count > 1', () => {
-    expect(buildSearchParamLabel(7, 5, 2, 'GB')).toBe('Today+7 · 5 Nights · 2 Adults · GB')
+  it('generates plural forms when count > 1, no children', () => {
+    expect(buildSearchParamLabel(7, 5, 2, 0, [])).toBe('Today+7 · 5 Nights · 2 Adults')
+  })
+  it('appends child info when children present', () => {
+    expect(buildSearchParamLabel(7, 2, 2, 2, [8, 10])).toBe('Today+7 · 2 Nights · 2 Adults · 2 Children (8, 10)')
+  })
+  it('uses singular Child when 1 child', () => {
+    expect(buildSearchParamLabel(1, 1, 1, 1, [5])).toBe('Today+1 · 1 Night · 1 Adult · 1 Child (5)')
   })
 })
 
@@ -77,7 +83,7 @@ describe('upsertSystemCompSetConfig', () => {
 describe('getScopedSearchParams', () => {
   it('returns system params when no scope keys provided', async () => {
     mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'Today+7 · 5 Nights · 2 Adults · US', sortOrder: 0 },
+      { id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'Today+7 · 5 Nights · 2 Adults', sortOrder: 0 },
     ])
     const result = await getScopedSearchParams({})
     expect(result).toHaveLength(1)
@@ -86,14 +92,14 @@ describe('getScopedSearchParams', () => {
   })
   it('returns chain params when orgId provided', async () => {
     mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, countryCode: 'DE', label: 'Today+3 · 3 Nights · 2 Adults · DE', sortOrder: 0 },
+      { id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, children: 0, childAges: '[]', label: 'Today+3 · 3 Nights · 2 Adults', sortOrder: 0 },
     ])
     const result = await getScopedSearchParams({ orgId: 5 })
     expect(result[0]!.tier).toBe('chain')
   })
   it('returns hotel params when propertyId provided', async () => {
     mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, countryCode: 'FR', label: 'Today+1 · 1 Night · 1 Adult · FR', sortOrder: 0 },
+      { id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'Today+1 · 1 Night · 1 Adult', sortOrder: 0 },
     ])
     const result = await getScopedSearchParams({ propertyId: 100 })
     expect(result[0]!.tier).toBe('hotel')
@@ -104,9 +110,9 @@ describe('getEffectiveSearchParams', () => {
   it('merges system + chain + hotel params in order', async () => {
     mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mp.compSetSearchParam.findMany
-      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'L1', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, countryCode: 'DE', label: 'L2', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, countryCode: 'FR', label: 'L3', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L1', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, children: 0, childAges: '[]', label: 'L2', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'L3', sortOrder: 0 }])
     const result = await getEffectiveSearchParams(100)
     expect(result.map(r => r.tier)).toEqual(['system', 'chain', 'hotel'])
     expect(result).toHaveLength(3)
@@ -114,8 +120,8 @@ describe('getEffectiveSearchParams', () => {
   it('handles property with no organization (orgId null)', async () => {
     mp.property.findUnique.mockResolvedValue({ organizationId: null })
     mp.compSetSearchParam.findMany
-      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'L1', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, countryCode: 'FR', label: 'L3', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L1', sortOrder: 0 }])
+      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'L3', sortOrder: 0 }])
     const result = await getEffectiveSearchParams(100)
     expect(result.map(r => r.tier)).toEqual(['system', 'hotel'])
     expect(result).toHaveLength(2)
@@ -125,12 +131,12 @@ describe('getEffectiveSearchParams', () => {
 describe('createSearchParam', () => {
   it('creates a system param and generates label', async () => {
     mp.compSetSearchParam.create.mockResolvedValue({
-      id: 10, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US',
-      label: 'Today+7 · 5 Nights · 2 Adults · US', sortOrder: 0,
+      id: 10, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]',
+      label: 'Today+7 · 5 Nights · 2 Adults', sortOrder: 0,
     })
-    const result = await createSearchParam({}, { offsetDays: 7, nights: 5, adults: 2, countryCode: 'US' })
+    const result = await createSearchParam({}, { offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: [] })
     expect(mp.compSetSearchParam.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ label: 'Today+7 · 5 Nights · 2 Adults · US', orgId: null, propertyId: null }),
+      data: expect.objectContaining({ label: 'Today+7 · 5 Nights · 2 Adults', orgId: null, propertyId: null }),
     })
     expect(result.tier).toBe('system')
   })
@@ -176,13 +182,13 @@ describe('updateSearchParam', () => {
     expect(mp.compSetSearchParam.update).not.toHaveBeenCalled()
   })
   it('updates and regenerates label', async () => {
-    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'old', sortOrder: 0 })
-    mp.compSetSearchParam.update.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 3, adults: 2, countryCode: 'US', label: 'Today+7 · 3 Nights · 2 Adults · US', sortOrder: 0 })
+    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'old', sortOrder: 0 })
+    mp.compSetSearchParam.update.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 3, adults: 2, children: 0, childAges: '[]', label: 'Today+7 · 3 Nights · 2 Adults', sortOrder: 0 })
     const result = await updateSearchParam(1, { nights: 3 })
     expect(result).not.toBeNull()
     expect(mp.compSetSearchParam.update).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: expect.objectContaining({ nights: 3, label: 'Today+7 · 3 Nights · 2 Adults · US' }),
+      data: expect.objectContaining({ nights: 3, label: 'Today+7 · 3 Nights · 2 Adults' }),
     })
     expect(result?.tier).toBe('system')
   })
@@ -196,7 +202,7 @@ describe('deleteSearchParam', () => {
     expect(mp.compSetSearchParam.delete).not.toHaveBeenCalled()
   })
   it('returns true and deletes when found', async () => {
-    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, countryCode: 'US', label: 'L', sortOrder: 0 })
+    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L', sortOrder: 0 })
     mp.compSetSearchParam.delete.mockResolvedValue({})
     const result = await deleteSearchParam(1)
     expect(result).toBe(true)

@@ -1,15 +1,41 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { apiClient } from '@/lib/api-client'
 import { SaveBar } from '@/app/admin/design/components'
+import { CronPicker } from '../components/CronPicker'
 import type {
   SystemEventCalendarConfig,
   EventCalendarEvent,
 } from '@ibe/shared'
+
+// ── Toggle ────────────────────────────────────────────────────────────────────
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={[
+        'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+        checked ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200',
+          checked ? 'translate-x-4' : 'translate-x-0',
+        ].join(' ')}
+      />
+    </button>
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -17,9 +43,9 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0]!
 }
 
-function todayPlus30Str(): string {
+function todayPlus60Str(): string {
   const d = new Date()
-  d.setDate(d.getDate() + 30)
+  d.setDate(d.getDate() + 60)
   return d.toISOString().split('T')[0]!
 }
 
@@ -88,38 +114,37 @@ function SystemConfigPanel() {
   if (!data) return <p className="text-sm text-gray-500">Loading…</p>
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-800">System Configuration</h2>
-      <label className="flex items-center gap-3">
-        <input
-          type="checkbox"
+    <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <h2 className="text-sm font-semibold text-[var(--color-text)]">System Configuration</h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">Enable Event Calendar</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Master switch for the entire Event Calendar feature</p>
+        </div>
+        <Toggle
           checked={form.enabled ?? false}
-          onChange={e => { setForm(f => ({ ...f, enabled: e.target.checked })); setDirty(true) }}
-          className="h-4 w-4 rounded border-gray-300"
+          onChange={v => { setForm(f => ({ ...f, enabled: v })); setDirty(true) }}
         />
-        <span className="text-sm font-medium text-gray-700">Enable Event Calendar</span>
-      </label>
+      </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Default Radius (km)</label>
+        <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Default Radius (km)</label>
         <input
           type="number"
           min={1}
-          value={form.defaultRadiusKm ?? 50}
+          value={form.defaultRadiusKm ?? 100}
           onChange={e => { setForm(f => ({ ...f, defaultRadiusKm: parseInt(e.target.value, 10) })); setDirty(true) }}
-          className="w-32 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="w-32 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)]"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Cron Schedule</label>
-        <input
-          type="text"
+        <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Cron Schedule</label>
+        <CronPicker
           value={form.cronSchedule ?? '0 4 * * *'}
-          onChange={e => { setForm(f => ({ ...f, cronSchedule: e.target.value })); setDirty(true) }}
-          className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono"
+          onChange={v => { setForm(f => ({ ...f, cronSchedule: v })); setDirty(true) }}
         />
       </div>
       <SaveBar isDirty={dirty} isSaving={isPending} onSave={() => save(form)} />
-    </div>
+    </section>
   )
 }
 
@@ -128,7 +153,8 @@ function SystemConfigPanel() {
 function PropertyView({ propertyId }: { propertyId: number }) {
   const qc = useQueryClient()
   const [from, setFrom] = useState(todayStr())
-  const [to, setTo] = useState(todayPlus30Str())
+  const [to, setTo] = useState(todayPlus60Str())
+  const [openDates, setOpenDates] = useState(false)
   const [radiusInput, setRadiusInput] = useState<string>('')
   const [radDirty, setRadDirty] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -190,7 +216,7 @@ function PropertyView({ propertyId }: { propertyId: number }) {
     ? new Date(events[0]!.fetchedAt).toLocaleString()
     : null
 
-  const defaultRadius = sysConfig?.defaultRadiusKm ?? 50
+  const defaultRadius = sysConfig?.defaultRadiusKm ?? 100
 
   return (
     <div className="space-y-6">
@@ -221,21 +247,37 @@ function PropertyView({ propertyId }: { propertyId: number }) {
       </div>
 
       {/* Refresh controls */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">From</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">To</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setOpenDates(p => !p)}
+            className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] hover:border-[var(--color-primary)] transition-colors"
+          >
+            <svg className="h-4 w-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {formatDateRange(from, to)}
+          </button>
+          {openDates && (
+            <div className="absolute top-full left-0 z-50 mt-1">
+              <CalendarDropdown
+                checkIn={from}
+                checkOut={to}
+                initialField="checkin"
+                onDatesChange={(ci, co) => { setFrom(ci); setTo(co) }}
+                onClose={() => setOpenDates(false)}
+                labelStart="From"
+                labelEnd="To"
+                labelDuration="Days"
+              />
+            </div>
+          )}
         </div>
         <button
           disabled={running}
           onClick={() => run()}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {running ? 'Refreshing…' : 'Refresh Events'}
         </button>
@@ -275,7 +317,7 @@ function ChainView({ orgId }: { orgId: number }) {
     setRefreshing(true)
     setError(null)
     const from = todayStr()
-    const to = todayPlus30Str()
+    const to = todayPlus60Str()
     await Promise.all(
       chainData.map(({ propertyId }) =>
         apiClient.runEventCalendar(propertyId, from, to).catch(() => null)

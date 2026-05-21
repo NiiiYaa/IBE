@@ -55,7 +55,7 @@ export async function refreshPropertyEvents(
     getSystemEventCalendarConfig(),
     getPropertyEventCalendarConfig(propertyId),
   ])
-  const radiusKm = propConfig?.radiusKm ?? sysConfig.defaultRadiusKm ?? 50
+  const radiusKm = propConfig?.radiusKm ?? sysConfig.defaultRadiusKm ?? 100
 
   const { latitude, longitude } = staticData.coordinates
   const city = staticData.location.city.name

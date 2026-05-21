@@ -10,8 +10,11 @@ import type {
 
 // ── Label generation ──────────────────────────────────────────────────────────
 
-export function buildSearchParamLabel(offsetDays: number, nights: number, adults: number, countryCode: string): string {
-  return `Today+${offsetDays} · ${nights} Night${nights !== 1 ? 's' : ''} · ${adults} Adult${adults !== 1 ? 's' : ''} · ${countryCode}`
+export function buildSearchParamLabel(offsetDays: number, nights: number, adults: number, children: number, childAges: number[]): string {
+  const base = `Today+${offsetDays} · ${nights} Night${nights !== 1 ? 's' : ''} · ${adults} Adult${adults !== 1 ? 's' : ''}`
+  if (children === 0) return base
+  const agesStr = childAges.length > 0 ? ` (${childAges.join(', ')})` : ''
+  return `${base} · ${children} Child${children !== 1 ? 'ren' : ''}${agesStr}`
 }
 
 // ── SystemCompSetConfig ───────────────────────────────────────────────────────
@@ -47,12 +50,15 @@ type Tier = 'system' | 'chain' | 'hotel'
 
 function toParam(row: {
   id: number; orgId: number | null; propertyId: number | null;
-  offsetDays: number; nights: number; adults: number; countryCode: string;
+  offsetDays: number; nights: number; adults: number; children: number; childAges: string;
   label: string; sortOrder: number;
 }, tier: Tier): CompSetSearchParam {
-  return { id: row.id, orgId: row.orgId, propertyId: row.propertyId,
+  return {
+    id: row.id, orgId: row.orgId, propertyId: row.propertyId,
     offsetDays: row.offsetDays, nights: row.nights, adults: row.adults,
-    countryCode: row.countryCode, label: row.label, sortOrder: row.sortOrder, tier }
+    children: row.children, childAges: JSON.parse(row.childAges) as number[],
+    label: row.label, sortOrder: row.sortOrder, tier,
+  }
 }
 
 export async function getScopedSearchParams(scope: { orgId?: number | null; propertyId?: number | null }): Promise<CompSetSearchParam[]> {
@@ -86,7 +92,7 @@ export async function getEffectiveSearchParams(propertyId: number): Promise<Comp
 }
 
 export async function createSearchParam(scope: { orgId?: number | null; propertyId?: number | null }, data: CompSetSearchParamCreate): Promise<CompSetSearchParam> {
-  const label = buildSearchParamLabel(data.offsetDays, data.nights, data.adults, data.countryCode)
+  const label = buildSearchParamLabel(data.offsetDays, data.nights, data.adults, data.children, data.childAges)
   const row = await prisma.compSetSearchParam.create({
     data: {
       orgId: scope.orgId ?? null,
@@ -94,7 +100,8 @@ export async function createSearchParam(scope: { orgId?: number | null; property
       offsetDays: data.offsetDays,
       nights: data.nights,
       adults: data.adults,
-      countryCode: data.countryCode,
+      children: data.children,
+      childAges: JSON.stringify(data.childAges),
       label,
       sortOrder: data.sortOrder ?? 0,
     },
@@ -106,15 +113,22 @@ export async function createSearchParam(scope: { orgId?: number | null; property
 export async function updateSearchParam(id: number, data: Partial<CompSetSearchParamCreate>): Promise<CompSetSearchParam | null> {
   const existing = await prisma.compSetSearchParam.findUnique({ where: { id } })
   if (!existing) return null
+  const children = data.children ?? existing.children
+  const childAges = data.childAges ?? (JSON.parse(existing.childAges) as number[])
   const updated = await prisma.compSetSearchParam.update({
     where: { id },
     data: {
-      ...data,
+      ...(data.offsetDays !== undefined && { offsetDays: data.offsetDays }),
+      ...(data.nights !== undefined && { nights: data.nights }),
+      ...(data.adults !== undefined && { adults: data.adults }),
+      children,
+      childAges: JSON.stringify(childAges),
       label: buildSearchParamLabel(
         data.offsetDays ?? existing.offsetDays,
         data.nights ?? existing.nights,
         data.adults ?? existing.adults,
-        data.countryCode ?? existing.countryCode,
+        children,
+        childAges,
       ),
     },
   })

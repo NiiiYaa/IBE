@@ -183,6 +183,7 @@ function PortalRegistrationsSection() {
         email: result.email,
         temporaryPassword: result.temporaryPassword,
         loginUrl: `${window.location.origin}/affiliate/login`,
+        orgId: null,
       })
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to reset password')
@@ -506,6 +507,7 @@ function AffiliatesEditor({ propertyId, contextOrgId }: { propertyId: number | n
         email: result.email,
         temporaryPassword: result.temporaryPassword,
         loginUrl: `${window.location.origin}/affiliate/login`,
+        orgId: contextOrgId,
       })
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to reset password')

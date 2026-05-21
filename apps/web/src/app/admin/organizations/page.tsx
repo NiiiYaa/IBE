@@ -12,6 +12,7 @@ interface CreatedCredentials {
   phone?: string | null
   temporaryPassword: string
   loginUrl: string
+  orgId?: number | null
 }
 
 function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClose: () => void }) {
@@ -42,6 +43,7 @@ function CredentialsModal({ creds, onClose }: { creds: CreatedCredentials; onClo
       await apiClient.sendAdminCredentials({
         channel: sendTab,
         to: sendTo.trim(),
+        orgId: creds.orgId,
         credentials: { name: creds.name, email: creds.email, temporaryPassword: creds.temporaryPassword, loginUrl: creds.loginUrl },
       })
       setSendResult({ ok: true, msg: `Sent via ${sendTab === 'email' ? 'Email' : 'WhatsApp'}` })
@@ -280,7 +282,7 @@ export default function OrganizationsPage() {
       const user = await apiClient.createAdminUser({ email: adminEmail.trim(), name: adminName.trim(), role: 'admin', orgId: org.id, ...(adminPhone.trim() ? { phone: adminPhone.trim() } : {}) })
       await qc.invalidateQueries({ queryKey: ['super-orgs'] })
       const loginUrl = `${window.location.origin}/admin/login`
-      setCreatedCreds({ label: `Account created — ${org.name}`, name: adminName.trim(), email: user.email, ...(adminPhone.trim() ? { phone: adminPhone.trim() } : {}), temporaryPassword: user.temporaryPassword, loginUrl })
+      setCreatedCreds({ label: `Account created — ${org.name}`, name: adminName.trim(), email: user.email, ...(adminPhone.trim() ? { phone: adminPhone.trim() } : {}), temporaryPassword: user.temporaryPassword, loginUrl, orgId: org.id })
       setName(''); setHgOrgId(''); setToken(''); setOrgType('seller'); setAdminName(''); setAdminEmail(''); setAdminPhone('')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create account')

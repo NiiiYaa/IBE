@@ -11,7 +11,8 @@ export interface CompSetSearchParam {
   offsetDays: number
   nights: number
   adults: number
-  countryCode: string
+  children: number
+  childAges: number[]
   label: string
   sortOrder: number
   tier: 'system' | 'chain' | 'hotel'
@@ -21,7 +22,8 @@ export interface CompSetSearchParamCreate {
   offsetDays: number
   nights: number
   adults: number
-  countryCode: string
+  children: number
+  childAges: number[]
   sortOrder?: number
 }
 

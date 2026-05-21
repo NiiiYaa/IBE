@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { SaveBar } from '@/app/admin/design/components'
+import { CronPicker } from '../components/CronPicker'
 import type {
   SystemCompSetConfig,
   CompSetSearchParam,
@@ -177,19 +178,10 @@ function SystemConfigPanel() {
         <label className="block text-sm font-medium text-[var(--color-text)]">
           Cron schedule
         </label>
-        <input
-          type="text"
+        <CronPicker
           value={cronSchedule}
-          onChange={(e) => {
-            setCronSchedule(e.target.value)
-            markDirty()
-          }}
-          placeholder="0 2 * * *"
-          className={inputClass('font-mono max-w-[240px]')}
+          onChange={(v) => { setCronSchedule(v); markDirty() }}
         />
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Standard cron expression (e.g. <code className="font-mono">0 2 * * *</code> = daily at 02:00 UTC)
-        </p>
       </div>
 
       {saveMutation.isError && (
@@ -219,11 +211,24 @@ function AddParamForm({ onAdd, isPending, onCancel }: AddParamFormProps) {
   const [offsetDays, setOffsetDays] = useState(7)
   const [nights, setNights] = useState(2)
   const [adults, setAdults] = useState(2)
-  const [countryCode, setCountryCode] = useState('US')
+  const [children, setChildren] = useState(0)
+  const [childAges, setChildAges] = useState<number[]>([])
+
+  function handleChildrenChange(count: number) {
+    setChildren(count)
+    setChildAges(prev => {
+      if (count > prev.length) return [...prev, ...Array(count - prev.length).fill(8)]
+      return prev.slice(0, count)
+    })
+  }
+
+  function handleChildAge(index: number, age: number) {
+    setChildAges(prev => prev.map((a, i) => (i === index ? age : a)))
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onAdd({ offsetDays, nights, adults, countryCode: countryCode.trim().toUpperCase() })
+    onAdd({ offsetDays, nights, adults, children, childAges })
   }
 
   const fieldClass = inputClass('max-w-[100px]')
@@ -234,65 +239,43 @@ function AddParamForm({ onAdd, isPending, onCancel }: AddParamFormProps) {
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1">
           <label className="block text-xs text-[var(--color-text-muted)]">Offset days</label>
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={offsetDays}
+          <input type="number" min={1} max={365} value={offsetDays}
             onChange={(e) => setOffsetDays(Number(e.target.value))}
-            className={fieldClass}
-            required
-          />
+            className={fieldClass} required />
         </div>
         <div className="space-y-1">
           <label className="block text-xs text-[var(--color-text-muted)]">Nights</label>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={nights}
+          <input type="number" min={1} max={30} value={nights}
             onChange={(e) => setNights(Number(e.target.value))}
-            className={fieldClass}
-            required
-          />
+            className={fieldClass} required />
         </div>
         <div className="space-y-1">
           <label className="block text-xs text-[var(--color-text-muted)]">Adults</label>
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={adults}
+          <input type="number" min={1} max={10} value={adults}
             onChange={(e) => setAdults(Number(e.target.value))}
-            className={fieldClass}
-            required
-          />
+            className={fieldClass} required />
         </div>
         <div className="space-y-1">
-          <label className="block text-xs text-[var(--color-text-muted)]">Country code</label>
-          <input
-            type="text"
-            maxLength={2}
-            value={countryCode}
-            onChange={(e) => setCountryCode(e.target.value)}
-            placeholder="US"
-            className={inputClass('w-[72px] uppercase font-mono')}
-            required
-          />
+          <label className="block text-xs text-[var(--color-text-muted)]">Children</label>
+          <input type="number" min={0} max={10} value={children}
+            onChange={(e) => handleChildrenChange(Number(e.target.value))}
+            className={fieldClass} />
         </div>
+        {childAges.map((age, i) => (
+          <div key={i} className="space-y-1">
+            <label className="block text-xs text-[var(--color-text-muted)]">Child {i + 1} age</label>
+            <input type="number" min={0} max={17} value={age}
+              onChange={(e) => handleChildAge(i, Number(e.target.value))}
+              className={fieldClass} />
+          </div>
+        ))}
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity"
-          >
+          <button type="submit" disabled={isPending}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity">
             {isPending ? 'Adding…' : 'Add'}
           </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
+          <button type="button" onClick={onCancel}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
             Cancel
           </button>
         </div>
@@ -480,7 +463,7 @@ function ParamRow({
       <div className="flex-1 min-w-0">
         <p className="text-sm text-[var(--color-text)] font-medium">{param.label}</p>
         <p className="text-xs text-[var(--color-text-muted)]">
-          +{param.offsetDays}d · {param.nights}n · {param.adults}A · {param.countryCode}
+          +{param.offsetDays}d · {param.nights}n · {param.adults}A{param.children > 0 ? ` · ${param.children}C (${param.childAges.join(', ')})` : ''}
         </p>
       </div>
       {!readOnly && (

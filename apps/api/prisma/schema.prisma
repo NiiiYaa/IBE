@@ -1700,7 +1700,8 @@ model CompSetSearchParam {
   offsetDays  Int
   nights      Int
   adults      Int
-  countryCode String   @default("US")
+  children    Int      @default(0)
+  childAges   String   @default("[]")
   label       String
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -1757,7 +1758,7 @@ model CompSetResult {
 model SystemEventCalendarConfig {
   id              Int      @id @default(autoincrement())
   enabled         Boolean  @default(false)
-  defaultRadiusKm Int      @default(50)
+  defaultRadiusKm Int      @default(100)
   cronSchedule    String   @default("0 4 * * *")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

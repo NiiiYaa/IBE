@@ -85,8 +85,7 @@ async function fetchOwnRates(propertyId: number, param: CompSetSearchParam): Pro
     hotelId: propertyId,
     checkIn,
     checkOut,
-    rooms: [{ adults: param.adults }],
-    nationality: param.countryCode,
+    rooms: [{ adults: param.adults, ...(param.childAges.length > 0 && { childAges: param.childAges }) }],
   })
 
   const result = response.results.find(r => r.propertyId === propertyId)
@@ -172,7 +171,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         toInsert.push({
           propertyId, competitorId: null, searchParamId: param.id,
           fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
-          countryCode: param.countryCode, searchStatus: 'found',
+          countryCode: '', searchStatus: 'found',
           roomName: rate.roomName, board: rate.board, cancellation: rate.cancellation,
           pricePerNight: rate.pricePerNight, total: rate.total, currency: rate.currency,
         })
@@ -181,7 +180,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         toInsert.push({
           propertyId, competitorId: null, searchParamId: param.id,
           fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
-          countryCode: param.countryCode, searchStatus: 'not_found',
+          countryCode: '', searchStatus: 'not_found',
           roomName: null, board: null, cancellation: null,
           pricePerNight: null, total: null, currency: null,
         })
@@ -191,7 +190,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
       toInsert.push({
         propertyId, competitorId: null, searchParamId: param.id,
         fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
-        countryCode: param.countryCode, searchStatus: 'error',
+        countryCode: '', searchStatus: 'error',
         roomName: null, board: null, cancellation: null,
         pricePerNight: null, total: null, currency: null,
       })
@@ -208,7 +207,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
 
       const builtUrl = buildExternalUrl(competitor.searchUrl, {
         checkIn, checkOut, adults: param.adults,
-        nights: param.nights, countryCode: param.countryCode,
+        nights: param.nights, countryCode: '',
       })
 
       try {
@@ -217,7 +216,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
           toInsert.push({
             propertyId, competitorId: competitor.id, searchParamId: param.id,
             fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
-            countryCode: param.countryCode, searchStatus: 'found',
+            countryCode: '', searchStatus: 'found',
             roomName: rate.roomName, board: rate.board, cancellation: rate.cancellation,
             pricePerNight: rate.pricePerNight, total: rate.total, currency: rate.currency,
           })
@@ -226,7 +225,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
           toInsert.push({
             propertyId, competitorId: competitor.id, searchParamId: param.id,
             fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
-            countryCode: param.countryCode, searchStatus: 'not_found',
+            countryCode: '', searchStatus: 'not_found',
             roomName: null, board: null, cancellation: null,
             pricePerNight: null, total: null, currency: null,
           })

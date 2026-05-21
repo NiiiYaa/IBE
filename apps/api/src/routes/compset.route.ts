@@ -67,7 +67,8 @@ export async function compsetRoutes(fastify: FastifyInstance) {
       offsetDays: body.offsetDays as number,
       nights: body.nights as number,
       adults: body.adults as number,
-      countryCode: body.countryCode as string,
+      children: (body.children as number | undefined) ?? 0,
+      childAges: (body.childAges as number[] | undefined) ?? [],
       ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder as number }),
     }
     const result = await createSearchParam({ orgId, propertyId }, data)
