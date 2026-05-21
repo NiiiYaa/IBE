@@ -99,6 +99,14 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: 'Intelligence',
+    sellerOnly: true,
+    items: [
+      { href: '/admin/intelligence/data-provider', label: 'Data Provider', sellerOnly: true },
+      { href: '/admin/intelligence/compset', label: 'CompSet', sellerOnly: true },
+    ],
+  },
+  {
     title: 'Configuration',
     items: [
       { href: '/admin/config/properties', label: 'Properties', sellerOnly: true },
@@ -112,7 +120,6 @@ const SECTIONS: Section[] = [
       { href: '/admin/communication/emails', label: 'Emails', sellerOnly: true },
       { href: '/admin/communication/whatsapp', label: 'WhatsApp', sellerOnly: true },
       { href: '/admin/communication/sms', label: 'SMS', sellerOnly: true },
-      { href: '/admin/config/data-provider', label: 'Data Provider', sellerOnly: true },
       { href: '/admin/config/test-bookings', label: 'Test Bookings', sellerOnly: true },
       { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],
