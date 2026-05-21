@@ -55,6 +55,11 @@ async function start() {
     logger.warn({ err }, '[CompSet] Cron setup failed (non-fatal)'),
   )
 
+  // Start event calendar cron (non-fatal)
+  void import('./services/event-calendar-cron.service.js').then(m => m.startEventCalendarCron()).catch(err =>
+    logger.warn({ err }, '[EventCalendar] Cron setup failed (non-fatal)'),
+  )
+
   // Restore WhatsApp sessions from DB (non-fatal)
   void import('./services/whatsapp-manager.service.js').then(m => m.initAllSessions()).catch(err =>
     logger.warn({ err }, '[Server] WhatsApp session restore failed (non-fatal)'),
@@ -96,6 +101,10 @@ async function shutdown(signal: string) {
   try {
     const { stopCompSetCron } = await import('./services/compset-cron.service.js')
     stopCompSetCron()
+  } catch { /* ignore */ }
+  try {
+    const { stopEventCalendarCron } = await import('./services/event-calendar-cron.service.js')
+    stopEventCalendarCron()
   } catch { /* ignore */ }
   await prisma.$disconnect()
   process.exit(0)
