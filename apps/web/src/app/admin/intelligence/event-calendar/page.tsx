@@ -274,20 +274,23 @@ function ChainView({ orgId }: { orgId: number }) {
     if (!chainData) return
     setRefreshing(true)
     setError(null)
-    try {
-      const from = todayStr()
-      const to = todayPlus30Str()
-      for (const { propertyId } of chainData) {
-        await apiClient.runEventCalendar(propertyId, from, to).catch(() => null)
-      }
-      setTimeout(() => {
-        void qc.invalidateQueries({ queryKey: ['eventCalendar', 'chain', orgId] })
+    const from = todayStr()
+    const to = todayPlus30Str()
+    await Promise.all(
+      chainData.map(({ propertyId }) =>
+        apiClient.runEventCalendar(propertyId, from, to).catch(() => null)
+      )
+    )
+    // Poll for 90 seconds until chain data updates
+    let elapsed = 0
+    const poll = setInterval(() => {
+      elapsed += 5000
+      void qc.invalidateQueries({ queryKey: ['eventCalendar', 'chain', orgId] })
+      if (elapsed >= 90000) {
+        clearInterval(poll)
         setRefreshing(false)
-      }, 3000)
-    } catch {
-      setError('Refresh failed. Please try again.')
-      setRefreshing(false)
-    }
+      }
+    }, 5000)
   }
 
   return (
