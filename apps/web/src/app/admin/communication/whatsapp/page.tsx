@@ -894,11 +894,13 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">WhatsApp configuration for this hotel.</p>
       </div>
 
-      {/* Enable toggle — always at top */}
+      {/* Enable toggle — interactive for own mode; toggles systemServiceDisabled when inheriting */}
       <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
         <div>
           <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Send WhatsApp messages to guests for booking events</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            {useOwn ? 'Send WhatsApp messages to guests for booking events' : `Inherited from ${inheritedLabel.toLowerCase()} — toggle to enable/disable for this hotel`}
+          </p>
         </div>
         {useOwn ? (
           <button type="button" role="switch" aria-checked={enabled}
@@ -909,12 +911,13 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
               enabled ? 'translate-x-5' : 'translate-x-0'].join(' ')} />
           </button>
         ) : (
-          <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-            inheritedActive
-              ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
-              : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'].join(' ')}>
-            {inheritedActive ? `Active (${inheritedLabel})` : `Inactive (${inheritedLabel})`}
-          </span>
+          <button type="button" role="switch" aria-checked={!systemDisabled && inheritedActive}
+            onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
+            className={['relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 disabled:opacity-40',
+              (!systemDisabled && inheritedActive) ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+            <span className={['pointer-events-none block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200',
+              (!systemDisabled && inheritedActive) ? 'translate-x-5' : 'translate-x-0'].join(' ')} />
+          </button>
         )}
       </div>
 
@@ -972,23 +975,13 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
                   {inh.provider === 'meta' ? 'Meta' : inh.provider === 'twilio' ? 'Twilio' : 'Local'}
                 </span>
               )}
-              {isSuper ? (
-                <button type="button" role="switch" aria-checked={!systemDisabled}
-                  onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
-                  className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
-                    !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                    !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-                </button>
-              ) : (
-                <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                  inheritedActive
-                    ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
-                    : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
-                ].join(' ')}>
-                  {inheritedActive ? 'Active' : systemDisabled ? 'Disabled' : 'Inactive'}
-                </span>
-              )}
+              <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                inheritedActive
+                  ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                  : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+              ].join(' ')}>
+                {inheritedActive ? 'Active' : systemDisabled ? 'Disabled' : 'Inactive'}
+              </span>
             </div>
           </div>
         </div>

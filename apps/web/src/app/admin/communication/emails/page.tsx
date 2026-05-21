@@ -524,34 +524,21 @@ function PropertyEmailSection({ propertyId, orgId, isSuper }: { propertyId: numb
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">Email configuration for this hotel.</p>
       </div>
 
-      {/* Enable toggle — always at top, read-only when inherited */}
+      {/* Enable toggle — interactive for own mode; toggles systemServiceDisabled when inheriting */}
       <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
         <div>
           <p className="text-sm font-medium text-[var(--color-text)]">Enable email notifications</p>
           <p className="text-xs text-[var(--color-text-muted)]">
-            {useOwn ? 'Send booking confirmations and updates to guests' : `Controlled by ${inheritedLabel.toLowerCase()} settings`}
+            {useOwn ? 'Send booking confirmations and updates to guests' : `Inherited from ${inheritedLabel.toLowerCase()} — toggle to enable/disable for this hotel`}
           </p>
         </div>
         {useOwn
           ? <Toggle enabled={enabled} onChange={v => { setEnabled(v); markDirty() }} />
-          : <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-              (inh?.enabled && !systemDisabled) ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
-            ].join(' ')}>
-              {(inh?.enabled && !systemDisabled) ? 'Active' : 'Inactive'}
-            </span>
+          : <Toggle enabled={!systemDisabled && (inh?.enabled ?? false)} onChange={() => disableMutation.mutate(!systemDisabled)} />
         }
       </div>
 
-      {data?.inheritedBlocked && !useOwn && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]/30 px-5 py-4">
-          <p className="text-sm font-medium text-[var(--color-text-muted)]">Email not available from chain</p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">The organisation has not shared its email service with hotels. Use your own credentials below.</p>
-        </div>
-      )}
-
-      {effectiveEnabled && (<>
-
-      {/* Use inherited / Use own toggle */}
+      {/* Use own email configuration — always visible so hotel can switch even when inherited is inactive */}
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
         <div className="flex items-center gap-3">
           <button type="button" role="switch" aria-checked={useOwn}
@@ -569,6 +556,15 @@ function PropertyEmailSection({ propertyId, orgId, isSuper }: { propertyId: numb
           </div>
         </div>
       </div>
+
+      {data?.inheritedBlocked && !useOwn && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]/30 px-5 py-4">
+          <p className="text-sm font-medium text-[var(--color-text-muted)]">Email not available from chain</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">The organisation has not shared its email service with hotels. Use your own credentials below.</p>
+        </div>
+      )}
+
+      {effectiveEnabled && (<>
 
       {/* Inherited mode: service status + sender branding */}
       {!useOwn && (
@@ -588,21 +584,11 @@ function PropertyEmailSection({ propertyId, orgId, isSuper }: { propertyId: numb
                       : 'No inherited email service configured.'}
                 </p>
               </div>
-              {isSuper ? (
-                <button type="button" role="switch" aria-checked={!systemDisabled}
-                  onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
-                  className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
-                    !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
-                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                    !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-                </button>
-              ) : (
-                <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                  systemDisabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-                ].join(' ')}>
-                  {systemDisabled ? 'Disabled' : 'Active'}
-                </span>
-              )}
+              <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                systemDisabled ? 'bg-[var(--color-border)] text-[var(--color-text-muted)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
+              ].join(' ')}>
+                {systemDisabled ? 'Disabled' : 'Active'}
+              </span>
             </div>
           </div>
 

@@ -276,9 +276,6 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     const propertyId = resolvePropertyId(request)
     if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
     const body = request.body as Record<string, unknown>
-    if (body.systemServiceDisabled !== undefined && (request as any).admin.role !== 'super') {
-      return reply.status(403).send({ error: 'Only super admins can disable system services' })
-    }
     const data = {
       ...(body.useOwn !== undefined && { useOwnEmail: body.useOwn as boolean }),
       ...(body.enabled !== undefined && { emailEnabled: body.enabled as boolean }),
@@ -314,9 +311,6 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     const propertyId = resolvePropertyId(request)
     if (!propertyId) return reply.status(400).send({ error: 'propertyId required' })
     const body = request.body as Record<string, unknown>
-    if (body.systemServiceDisabled !== undefined && (request as any).admin.role !== 'super') {
-      return reply.status(403).send({ error: 'Only super admins can disable system services' })
-    }
     const data = {
       ...(body.useOwn !== undefined && { useOwnWhatsapp: body.useOwn as boolean }),
       ...(body.enabled !== undefined && { whatsappEnabled: body.enabled as boolean }),
