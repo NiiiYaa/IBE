@@ -27,23 +27,22 @@ export async function sendEmail(orgId: number, payload: EmailPayload, propertyId
     const settings = await getCommSettings(orgId)
     if (!settings.emailEnabled) return { ok: false, error: 'Email not enabled for this organisation' }
 
-    // Property-level sender branding: prop config → HG contact email → org/system fallback
+    // Property-level sender branding overrides org/system defaults
     let fromName = settings.emailFromName
     let fromAddress = settings.emailFromAddress
     if (propertyId) {
-      const propRow = await prisma.propertyCommunicationSettings.findUnique({
-        where: { propertyId },
-        select: { emailFromName: true, emailFromAddress: true },
-      })
+      const [propRow, prop] = await Promise.all([
+        prisma.propertyCommunicationSettings.findUnique({
+          where: { propertyId },
+          select: { emailFromName: true, emailFromAddress: true },
+        }),
+        prisma.property.findUnique({ where: { propertyId }, select: { name: true } }),
+      ])
+      // From name: explicit config → hotel property name → org/system fallback
       if (propRow?.emailFromName) fromName = propRow.emailFromName
-      if (propRow?.emailFromAddress) {
-        fromAddress = propRow.emailFromAddress
-      } else {
-        // Fall back to the hotel's own HG contact email rather than leaking the system address
-        const { fetchPropertyStatic } = await import('../adapters/hyperguest/static.js')
-        const hgStatic = await fetchPropertyStatic(propertyId).catch(() => null)
-        if (hgStatic?.contact?.email) fromAddress = hgStatic.contact.email
-      }
+      else if (prop?.name) fromName = prop.name
+      // From address: only use hotel's address if explicitly set (must match authorized SMTP account)
+      if (propRow?.emailFromAddress) fromAddress = propRow.emailFromAddress
     }
 
     const from = fromAddress
