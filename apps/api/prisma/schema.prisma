@@ -63,6 +63,7 @@ model Organization {
   propertyOrganizations       PropertyOrganization[]
   orgDataProviderConfig       OrgDataProviderConfig?
   externalIBEConfig           ExternalIBEConfig?
+  compSetSearchParams         CompSetSearchParam[]
 }
 
 // roles: super | admin | observer | user
@@ -464,6 +465,9 @@ model Property {
   propertyAirportConfig       PropertyAirportConfig?
   propertyScore               PropertyScore?
   externalIBEConfig           ExternalIBEConfig?
+  compSetSearchParams         CompSetSearchParam[]
+  compSetCompetitors          CompSetCompetitor[]
+  compSetResults              CompSetResult[]
 
   @@index([organizationId])
 }
@@ -1674,6 +1678,76 @@ model PropertyAmadeusConfig {
   stripMode             String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+// ── Intelligence CompSet ──────────────────────────────────────────────────────
+
+model SystemCompSetConfig {
+  id                        Int      @id @default(autoincrement())
+  maxCompetitorsPerProperty Int      @default(5)
+  cronSchedule              String   @default("0 3 * * *")
+  enabled                   Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model CompSetSearchParam {
+  id          Int      @id @default(autoincrement())
+  orgId       Int?
+  propertyId  Int?
+  offsetDays  Int
+  nights      Int
+  adults      Int
+  countryCode String   @default("US")
+  label       String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization?   @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  property     Property?       @relation(fields: [propertyId], references: [propertyId], onDelete: SetNull, map: "CompSetSearchParam_propertyId_fkey")
+  results      CompSetResult[]
+}
+
+model CompSetCompetitor {
+  id          Int       @id @default(autoincrement())
+  propertyId  Int
+  name        String
+  searchUrl   String?
+  sortOrder   Int       @default(0)
+  status      String    @default("idle")
+  lastFetchAt DateTime?
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  property Property        @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetCompetitor_propertyId_fkey")
+  results  CompSetResult[]
+}
+
+model CompSetResult {
+  id            Int       @id @default(autoincrement())
+  propertyId    Int
+  competitorId  Int?
+  searchParamId Int
+  fetchedAt     DateTime
+  checkIn       String
+  checkOut      String
+  nights        Int
+  adults        Int
+  countryCode   String
+  searchStatus  String
+  roomName      String?
+  board         String?
+  cancellation  String?
+  pricePerNight Float?
+  total         Float?
+  currency      String?
+  createdAt     DateTime  @default(now())
+
+  property     Property           @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetResult_propertyId_fkey")
+  competitor   CompSetCompetitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+  searchParam  CompSetSearchParam @relation(fields: [searchParamId], references: [id], onDelete: Cascade)
 }
 
 // ── External IBE ──────────────────────────────────────────────────────────────
