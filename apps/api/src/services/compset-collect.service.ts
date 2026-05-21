@@ -8,6 +8,7 @@ import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { getEffectiveSearchParams, listCompetitors } from './compset.service.js'
 import { refreshPropertyEvents } from './event-calendar-fetch.service.js'
+import { getSystemEventCalendarConfig } from './event-calendar.service.js'
 import type { CompSetSearchParam } from '@ibe/shared'
 
 export interface RoomRate {
@@ -250,14 +251,17 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
 
   logger.info({ propertyId, rows: toInsert.length }, '[CompSet] Collection run complete')
 
-  // Trigger event calendar refresh for the same date window (non-fatal)
+  // Trigger event calendar refresh for the same date window (non-fatal, only when enabled)
   const dates = params.map(p => ({
     start: resolveDate(p.offsetDays),
     end: resolveDate(p.offsetDays + p.nights),
   }))
   const minStart = dates.reduce((min, d) => d.start < min ? d.start : min, dates[0]!.start)
   const maxEnd = dates.reduce((max, d) => d.end > max ? d.end : max, dates[0]!.end)
-  await refreshPropertyEvents(propertyId, minStart, maxEnd).catch(err =>
+  await getSystemEventCalendarConfig().then(cfg => {
+    if (!cfg.enabled) return
+    return refreshPropertyEvents(propertyId, minStart, maxEnd)
+  }).catch(err =>
     logger.warn({ err, propertyId }, '[EventCalendar] Post-CompSet event refresh failed (non-fatal)'),
   )
 }

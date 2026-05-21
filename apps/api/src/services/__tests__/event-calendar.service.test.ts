@@ -174,14 +174,14 @@ describe('getChainEvents', () => {
   })
 
   it('returns ChainEventCalendarEvents with empty events for property with no events', async () => {
-    mp.property.findMany.mockResolvedValue([{ propertyId: 7 }])
+    mp.property.findMany.mockResolvedValue([{ propertyId: 7, name: 'Test Hotel' }])
     mp.eventCalendarEvent.findMany.mockResolvedValue([])
     const result = await getChainEvents(10)
     expect(result).toEqual([{ propertyId: 7, events: [] }])
   })
 
   it('returns mapped events for a property', async () => {
-    mp.property.findMany.mockResolvedValue([{ propertyId: 7 }])
+    mp.property.findMany.mockResolvedValue([{ propertyId: 7, name: 'Test Hotel' }])
     const row = {
       id: 1, propertyId: 7, fetchedAt: new Date('2026-05-21'),
       periodStart: '2026-06-01', periodEnd: '2026-06-30',
@@ -195,6 +195,12 @@ describe('getChainEvents', () => {
     expect(result[0]!.propertyId).toBe(7)
     expect(result[0]!.events[0]!.name).toBe('Jazz Fest')
     expect(result[0]!.events[0]!.fetchedAt).toBe('2026-05-21T00:00:00.000Z')
+    // Single batched query, not N+1
+    expect(mp.eventCalendarEvent.findMany).toHaveBeenCalledTimes(1)
+    expect(mp.eventCalendarEvent.findMany).toHaveBeenCalledWith({
+      where: { propertyId: { in: [7] } },
+      orderBy: { startDate: 'asc' },
+    })
   })
 })
 

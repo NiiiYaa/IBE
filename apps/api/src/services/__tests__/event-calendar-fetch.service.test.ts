@@ -63,7 +63,7 @@ describe('refreshPropertyEvents', () => {
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
     mPropConfig.mockResolvedValue(null)
-    const mockCall = vi.fn().mockResolvedValue({ text: '[]', stopReason: 'end_turn' })
+    const mockCall = vi.fn().mockResolvedValue({ text: '[]', stopReason: 'end' })
     mAdapter.mockReturnValue({ call: mockCall })
     mReplace.mockResolvedValue(undefined)
 
@@ -85,7 +85,7 @@ describe('refreshPropertyEvents', () => {
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
     mPropConfig.mockResolvedValue({ propertyId: 1, radiusKm: 20 })
-    const mockCall = vi.fn().mockResolvedValue({ text: '[]', stopReason: 'end_turn' })
+    const mockCall = vi.fn().mockResolvedValue({ text: '[]', stopReason: 'end' })
     mAdapter.mockReturnValue({ call: mockCall })
     mReplace.mockResolvedValue(undefined)
 
@@ -106,7 +106,7 @@ describe('refreshPropertyEvents', () => {
         description: 'Big event', demandLevel: 'high', demandDescription: 'High demand' },
     ]
     const mockCall = vi.fn().mockResolvedValue({
-      text: JSON.stringify(events), stopReason: 'end_turn',
+      text: JSON.stringify(events), stopReason: 'end',
     })
     mAdapter.mockReturnValue({ call: mockCall })
     mReplace.mockResolvedValue(undefined)
@@ -127,7 +127,7 @@ describe('refreshPropertyEvents', () => {
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
     mPropConfig.mockResolvedValue(null)
-    const mockCall = vi.fn().mockResolvedValue({ text: 'not json!!', stopReason: 'end_turn' })
+    const mockCall = vi.fn().mockResolvedValue({ text: 'not json!!', stopReason: 'end' })
     mAdapter.mockReturnValue({ call: mockCall })
     mReplace.mockResolvedValue(undefined)
 
@@ -164,7 +164,7 @@ describe('refreshPropertyEvents', () => {
         description: 'ok', demandLevel: 'low', demandDescription: 'low demand' }, // empty name
       { name: 'Missing fields', startDate: '2026-06-02' }, // missing required fields
     ]
-    const mockCall = vi.fn().mockResolvedValue({ text: JSON.stringify(mixed), stopReason: 'end_turn' })
+    const mockCall = vi.fn().mockResolvedValue({ text: JSON.stringify(mixed), stopReason: 'end' })
     mAdapter.mockReturnValue({ call: mockCall })
     mReplace.mockResolvedValue(undefined)
 

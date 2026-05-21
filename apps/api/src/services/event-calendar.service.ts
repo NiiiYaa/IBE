@@ -96,17 +96,25 @@ export async function getPropertyEvents(
 export async function getChainEvents(orgId: number): Promise<ChainEventCalendarEvents[]> {
   const properties = await prisma.property.findMany({
     where: { organizationId: orgId, deletedAt: null },
-    select: { propertyId: true },
+    select: { propertyId: true, name: true },
   })
-  const results: ChainEventCalendarEvents[] = []
+  if (properties.length === 0) return []
+
+  const propertyIds = properties.map(p => p.propertyId)
+  const allRows = await prisma.eventCalendarEvent.findMany({
+    where: { propertyId: { in: propertyIds } },
+    orderBy: { startDate: 'asc' },
+  })
+
+  const byProperty = new Map<number, ReturnType<typeof toEvent>[]>()
   for (const { propertyId } of properties) {
-    const rows = await prisma.eventCalendarEvent.findMany({
-      where: { propertyId },
-      orderBy: { startDate: 'asc' },
-    })
-    results.push({ propertyId, events: rows.map(toEvent) })
+    byProperty.set(propertyId, [])
   }
-  return results
+  for (const row of allRows) {
+    byProperty.get(row.propertyId)?.push(toEvent(row))
+  }
+
+  return properties.map(p => ({ propertyId: p.propertyId, events: byProperty.get(p.propertyId) ?? [] }))
 }
 
 export async function replacePropertyEvents(
