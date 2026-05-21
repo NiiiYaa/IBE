@@ -468,6 +468,8 @@ model Property {
   compSetSearchParams         CompSetSearchParam[]
   compSetCompetitors          CompSetCompetitor[]
   compSetResults              CompSetResult[]
+  eventCalendarConfig         PropertyEventCalendarConfig?
+  eventCalendarEvents         EventCalendarEvent[]
 
   @@index([organizationId])
 }
@@ -1748,6 +1750,46 @@ model CompSetResult {
   property     Property           @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetResult_propertyId_fkey")
   competitor   CompSetCompetitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
   searchParam  CompSetSearchParam @relation(fields: [searchParamId], references: [id], onDelete: Cascade)
+}
+
+// ── Event Calendar ────────────────────────────────────────────────────────────
+
+model SystemEventCalendarConfig {
+  id              Int      @id @default(autoincrement())
+  enabled         Boolean  @default(false)
+  defaultRadiusKm Int      @default(50)
+  cronSchedule    String   @default("0 4 * * *")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PropertyEventCalendarConfig {
+  id         Int      @id @default(autoincrement())
+  propertyId Int      @unique
+  radiusKm   Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade)
+}
+
+model EventCalendarEvent {
+  id                Int      @id @default(autoincrement())
+  propertyId        Int
+  fetchedAt         DateTime
+  periodStart       String
+  periodEnd         String
+  name              String
+  startDate         String
+  endDate           String
+  description       String
+  demandLevel       String
+  demandDescription String
+  createdAt         DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade)
+
+  @@index([propertyId, startDate, endDate])
 }
 
 // ── External IBE ──────────────────────────────────────────────────────────────
