@@ -105,6 +105,8 @@ function AIConfigForm({
   apiKeyMasked,
   whatsappApiKeySet,
   whatsappApiKeyMasked,
+  enabledLabel,
+  enabledDescription,
 }: {
   initialProvider: AIProvider | null
   initialModel: string | null
@@ -131,6 +133,8 @@ function AIConfigForm({
   apiKeyMasked?: string | null
   whatsappApiKeySet?: boolean
   whatsappApiKeyMasked?: string | null
+  enabledLabel?: string
+  enabledDescription?: string
 }) {
   const [provider, setProvider] = useState<AIProvider>(initialProvider ?? 'openai')
   const [model, setModel] = useState(initialModel ?? AI_PROVIDER_MODELS[initialProvider ?? 'openai'][0])
@@ -349,25 +353,25 @@ function AIConfigForm({
         />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">{enabledLabel ?? (enabled ? 'Enabled' : 'Disabled')}</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+            {enabledDescription ?? 'When disabled, any chain or property that inherits from this level will have no AI service available unless they configure their own provider.'}
+          </p>
+        </div>
         <button
           type="button"
           role="switch"
           aria-checked={enabled}
           onClick={() => setEnabled(v => !v)}
           className={[
-            'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+            'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
             enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
           ].join(' ')}
         >
-          <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200', enabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+          <span className={['pointer-events-none block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200', enabled ? 'translate-x-5' : 'translate-x-0'].join(' ')} />
         </button>
-        <div>
-          <span className="text-sm text-[var(--color-text)]">{enabled ? 'Enabled' : 'Disabled'}</span>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            When disabled, any chain or property that inherits from this level will have no AI service available unless they configure their own provider.
-          </p>
-        </div>
       </div>
 
       <div className="flex gap-3 pt-1">
@@ -467,6 +471,8 @@ function SystemConfigSection() {
         apiKeyMasked={data?.apiKeyMasked ?? null}
         whatsappApiKeySet={data?.whatsappApiKeySet ?? false}
         whatsappApiKeyMasked={data?.whatsappApiKeyMasked ?? null}
+        enabledLabel="Share with organisations"
+        enabledDescription="Allow organisations to inherit and use this AI service"
       />
       {saveMutation.isError && <p className="mt-2 text-sm text-[var(--color-error)]">Save failed. Please try again.</p>}
     </SectionCard>
@@ -600,6 +606,8 @@ function OrgConfigSection({ orgId, isSuper }: { orgId?: number; isSuper: boolean
             apiKeyMasked={data?.apiKeyMasked ?? null}
             whatsappApiKeySet={data?.whatsappApiKeySet ?? false}
             whatsappApiKeyMasked={data?.whatsappApiKeyMasked ?? null}
+            enabledLabel="Share with hotels"
+            enabledDescription="Allow hotels to inherit and use this organisation's AI service"
           />
         </>
       )}

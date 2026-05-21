@@ -586,6 +586,13 @@ model CommunicationSettings {
   // System-service disable flags (super admin only)
   emailSystemServiceDisabled    Boolean @default(false)
   whatsappSystemServiceDisabled Boolean @default(false)
+  emailUseOwn                   Boolean @default(false)
+  smsUseOwn                     Boolean @default(false)
+  whatsappUseOwn                Boolean @default(false)
+  // Sharing: whether org allows hotels to inherit this service
+  emailSharedWithProperties    Boolean @default(true)
+  smsSharedWithProperties      Boolean @default(true)
+  whatsappSharedWithProperties Boolean @default(true)
 
   // Email
   emailEnabled      Boolean @default(false)
@@ -1151,6 +1158,11 @@ model SystemCommunicationSettings {
   smsAwsAccessKey     String  @default("")
   smsAwsSecretKey     String?
   smsAwsRegion        String  @default("")
+
+  // Sharing: whether system allows orgs to inherit each service
+  emailSharedWithOrgs    Boolean @default(true)
+  smsSharedWithOrgs      Boolean @default(true)
+  whatsappSharedWithOrgs Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

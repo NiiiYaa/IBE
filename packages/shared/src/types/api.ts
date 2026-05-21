@@ -523,8 +523,15 @@ export interface CommunicationSettingsResponse {
   emailSmtpSecure: boolean
   emailSmtpPasswordSet: boolean
   emailApiKeySet: boolean
+  emailUseOwn: boolean
   emailSystemServiceDisabled: boolean
+  emailSharedWithOrgs: boolean
+  emailSharedWithProperties: boolean
+  smsUseOwn: boolean
+  smsSharedWithOrgs: boolean
+  smsSharedWithProperties: boolean
 
+  whatsappUseOwn: boolean
   whatsappEnabled: boolean
   whatsappProvider: WhatsAppProvider
   whatsappPhoneNumberId: string
@@ -536,6 +543,8 @@ export interface CommunicationSettingsResponse {
   whatsappWebjsServiceUrl: string
   whatsappWebjsServiceUrlOwn: string
   whatsappSystemServiceDisabled: boolean
+  whatsappSharedWithOrgs: boolean
+  whatsappSharedWithProperties: boolean
 
   smsEnabled: boolean
   smsProvider: SmsProvider
@@ -558,10 +567,13 @@ export interface UpdateCommunicationSettingsRequest {
   emailSmtpPort?: number
   emailSmtpUser?: string
   emailSmtpSecure?: boolean
-  emailSmtpPassword?: string
-  emailApiKey?: string
+  emailSmtpPassword?: string | null
+  emailApiKey?: string | null
   emailSystemServiceDisabled?: boolean
+  emailSharedWithOrgs?: boolean
+  emailSharedWithProperties?: boolean
 
+  whatsappUseOwn?: boolean
   whatsappEnabled?: boolean
   whatsappSystemServiceDisabled?: boolean
   whatsappProvider?: WhatsAppProvider
@@ -572,17 +584,22 @@ export interface UpdateCommunicationSettingsRequest {
   whatsappTwilioAuthToken?: string
   whatsappTwilioNumber?: string
   whatsappWebjsServiceUrl?: string
+  whatsappSharedWithOrgs?: boolean
+  whatsappSharedWithProperties?: boolean
 
+  smsUseOwn?: boolean
   smsEnabled?: boolean
   smsProvider?: SmsProvider
   smsFromNumber?: string
   smsTwilioAccountSid?: string
-  smsTwilioAuthToken?: string
+  smsTwilioAuthToken?: string | null
   smsVonageApiKey?: string
-  smsVonageApiSecret?: string
+  smsVonageApiSecret?: string | null
   smsAwsAccessKey?: string
-  smsAwsSecretKey?: string
+  smsAwsSecretKey?: string | null
   smsAwsRegion?: string
+  smsSharedWithOrgs?: boolean
+  smsSharedWithProperties?: boolean
 }
 
 // ── Message Rules ─────────────────────────────────────────────────────────────
@@ -637,6 +654,9 @@ export interface PropertyEmailSettingsResponse {
   systemServiceDisabled: boolean
   inherited: PropertyEmailInheritedConfig | null
   inheritedFrom: 'org' | 'system' | null
+  inheritedBlocked: boolean
+  hgName: string | null
+  hgContactEmail: string | null
 }
 
 export interface UpdatePropertyEmailSettingsRequest {
@@ -680,6 +700,7 @@ export interface PropertyWhatsAppSettingsResponse {
   systemServiceDisabled: boolean
   inherited: PropertyWhatsAppInheritedConfig | null
   inheritedFrom: 'org' | 'system' | null
+  inheritedBlocked: boolean
 }
 
 export interface UpdatePropertyWhatsAppSettingsRequest {

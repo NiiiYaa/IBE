@@ -5,6 +5,14 @@ import { cacheGet, cacheSet } from '../utils/cache.js'
 export interface CommSettings {
   emailSystemServiceDisabled: boolean
   whatsappSystemServiceDisabled: boolean
+  // System-level: whether each service is shared with orgs
+  emailSharedWithOrgs: boolean
+  smsSharedWithOrgs: boolean
+  whatsappSharedWithOrgs: boolean
+  // Org-level: whether each service is shared with properties
+  emailSharedWithProperties: boolean
+  smsSharedWithProperties: boolean
+  whatsappSharedWithProperties: boolean
   emailEnabled: boolean
   emailProvider: string
   emailFromName: string
@@ -15,7 +23,9 @@ export interface CommSettings {
   emailSmtpSecure: boolean
   emailSmtpPassword: string | null
   emailApiKey: string | null
+  emailUseOwn: boolean
 
+  whatsappUseOwn: boolean
   whatsappEnabled: boolean
   whatsappProvider: string
   whatsappPhoneNumberId: string
@@ -26,6 +36,7 @@ export interface CommSettings {
   whatsappTwilioNumber: string
   whatsappWebjsServiceUrl: string
 
+  smsUseOwn: boolean
   smsEnabled: boolean
   smsProvider: string
   smsFromNumber: string
@@ -41,14 +52,16 @@ export interface CommSettings {
 function defaults(): CommSettings {
   return {
     emailSystemServiceDisabled: false, whatsappSystemServiceDisabled: false,
+    emailSharedWithOrgs: true, smsSharedWithOrgs: true, whatsappSharedWithOrgs: true,
+    emailSharedWithProperties: true, smsSharedWithProperties: true, whatsappSharedWithProperties: true,
     emailEnabled: false, emailProvider: 'smtp', emailFromName: '', emailFromAddress: '',
     emailSmtpHost: '', emailSmtpPort: 587, emailSmtpUser: '', emailSmtpSecure: true,
-    emailSmtpPassword: null, emailApiKey: null,
-    whatsappEnabled: false, whatsappProvider: 'meta', whatsappPhoneNumberId: '',
+    emailSmtpPassword: null, emailApiKey: null, emailUseOwn: false,
+    whatsappUseOwn: false, whatsappEnabled: false, whatsappProvider: 'meta', whatsappPhoneNumberId: '',
     whatsappBusinessAccountId: '', whatsappAccessToken: null,
     whatsappTwilioAccountSid: '', whatsappTwilioAuthToken: null, whatsappTwilioNumber: '',
     whatsappWebjsServiceUrl: '',
-    smsEnabled: false, smsProvider: 'twilio', smsFromNumber: '',
+    smsUseOwn: false, smsEnabled: false, smsProvider: 'twilio', smsFromNumber: '',
     smsTwilioAccountSid: '', smsTwilioAuthToken: null,
     smsVonageApiKey: '', smsVonageApiSecret: null,
     smsAwsAccessKey: '', smsAwsSecretKey: null, smsAwsRegion: '',
@@ -58,14 +71,17 @@ function defaults(): CommSettings {
 function mapRow(row: {
   emailEnabled: boolean; emailProvider: string; emailFromName: string; emailFromAddress: string
   emailSmtpHost: string; emailSmtpPort: number; emailSmtpUser: string; emailSmtpSecure: boolean
-  emailSmtpPassword: string | null; emailApiKey: string | null
+  emailSmtpPassword: string | null; emailApiKey: string | null; emailUseOwn?: boolean
   emailSystemServiceDisabled?: boolean
+  emailSharedWithOrgs?: boolean; smsSharedWithOrgs?: boolean; whatsappSharedWithOrgs?: boolean
+  emailSharedWithProperties?: boolean; smsSharedWithProperties?: boolean; whatsappSharedWithProperties?: boolean
+  whatsappUseOwn?: boolean
   whatsappEnabled: boolean; whatsappProvider: string; whatsappPhoneNumberId: string
   whatsappBusinessAccountId: string; whatsappAccessToken: string | null
   whatsappTwilioAccountSid: string; whatsappTwilioAuthToken: string | null; whatsappTwilioNumber: string
   whatsappWebjsServiceUrl: string
   whatsappSystemServiceDisabled?: boolean
-  smsEnabled: boolean; smsProvider: string; smsFromNumber: string
+  smsUseOwn?: boolean; smsEnabled: boolean; smsProvider: string; smsFromNumber: string
   smsTwilioAccountSid: string; smsTwilioAuthToken: string | null
   smsVonageApiKey: string; smsVonageApiSecret: string | null
   smsAwsAccessKey: string; smsAwsSecretKey: string | null; smsAwsRegion: string
@@ -73,11 +89,18 @@ function mapRow(row: {
   return {
     emailSystemServiceDisabled: row.emailSystemServiceDisabled ?? false,
     whatsappSystemServiceDisabled: row.whatsappSystemServiceDisabled ?? false,
+    emailSharedWithOrgs: row.emailSharedWithOrgs ?? true,
+    smsSharedWithOrgs: row.smsSharedWithOrgs ?? true,
+    whatsappSharedWithOrgs: row.whatsappSharedWithOrgs ?? true,
+    emailSharedWithProperties: row.emailSharedWithProperties ?? true,
+    smsSharedWithProperties: row.smsSharedWithProperties ?? true,
+    whatsappSharedWithProperties: row.whatsappSharedWithProperties ?? true,
     emailEnabled: row.emailEnabled, emailProvider: row.emailProvider,
     emailFromName: row.emailFromName, emailFromAddress: row.emailFromAddress,
     emailSmtpHost: row.emailSmtpHost, emailSmtpPort: row.emailSmtpPort,
     emailSmtpUser: row.emailSmtpUser, emailSmtpSecure: row.emailSmtpSecure,
-    emailSmtpPassword: row.emailSmtpPassword, emailApiKey: row.emailApiKey,
+    emailSmtpPassword: row.emailSmtpPassword, emailApiKey: row.emailApiKey, emailUseOwn: row.emailUseOwn ?? false,
+    whatsappUseOwn: row.whatsappUseOwn ?? false,
     whatsappEnabled: row.whatsappEnabled, whatsappProvider: row.whatsappProvider,
     whatsappPhoneNumberId: row.whatsappPhoneNumberId,
     whatsappBusinessAccountId: row.whatsappBusinessAccountId,
@@ -86,6 +109,7 @@ function mapRow(row: {
     whatsappTwilioAuthToken: row.whatsappTwilioAuthToken,
     whatsappTwilioNumber: row.whatsappTwilioNumber,
     whatsappWebjsServiceUrl: row.whatsappWebjsServiceUrl,
+    smsUseOwn: row.smsUseOwn ?? false,
     smsEnabled: row.smsEnabled, smsProvider: row.smsProvider,
     smsFromNumber: row.smsFromNumber, smsTwilioAccountSid: row.smsTwilioAccountSid,
     smsTwilioAuthToken: row.smsTwilioAuthToken, smsVonageApiKey: row.smsVonageApiKey,
@@ -126,19 +150,19 @@ export async function getCommSettings(organizationId: number): Promise<CommSetti
   const row = await prisma.communicationSettings.findUnique({ where: { organizationId } })
   if (!row) return loadSystemCommSettings()
 
-  const hasOwnEmailCreds = !!(row.emailApiKey || row.emailSmtpPassword)
-  const hasOwnWhatsappCreds = !!(row.whatsappAccessToken || row.whatsappTwilioAuthToken || row.whatsappWebjsServiceUrl)
+  const useOwnEmail = row.emailUseOwn ?? false
+  const useOwnSms = row.smsUseOwn ?? false
+  const useOwnWhatsapp = row.whatsappUseOwn ?? false
 
-  // If org has own credentials for both services, no need for system fallback
-  if (hasOwnEmailCreds && hasOwnWhatsappCreds) return mapRow(row)
+  if (useOwnEmail && useOwnSms && useOwnWhatsapp) return mapRow(row)
 
   const sys = await loadSystemCommSettings()
   const orgSettings = mapRow(row)
 
   return {
     ...orgSettings,
-    // Email: use own credentials if set; else check disable flag; else inherit system
-    ...(hasOwnEmailCreds ? {} : {
+    // Email: if org chose "use own", keep org's own settings; else inherit system (if system allows)
+    ...(useOwnEmail ? {} : sys.emailSharedWithOrgs ? {
       emailEnabled: row.emailSystemServiceDisabled ? false : sys.emailEnabled,
       emailProvider: sys.emailProvider,
       emailFromName: row.emailFromName || sys.emailFromName,
@@ -149,9 +173,22 @@ export async function getCommSettings(organizationId: number): Promise<CommSetti
       emailSmtpSecure: sys.emailSmtpSecure,
       emailSmtpPassword: sys.emailSmtpPassword,
       emailApiKey: sys.emailApiKey,
-    }),
+    } : { emailEnabled: false }),
+    // SMS: same pattern
+    ...(useOwnSms ? {} : sys.smsSharedWithOrgs ? {
+      smsEnabled: sys.smsEnabled,
+      smsProvider: sys.smsProvider,
+      smsFromNumber: sys.smsFromNumber,
+      smsTwilioAccountSid: sys.smsTwilioAccountSid,
+      smsTwilioAuthToken: sys.smsTwilioAuthToken,
+      smsVonageApiKey: sys.smsVonageApiKey,
+      smsVonageApiSecret: sys.smsVonageApiSecret,
+      smsAwsAccessKey: sys.smsAwsAccessKey,
+      smsAwsSecretKey: sys.smsAwsSecretKey,
+      smsAwsRegion: sys.smsAwsRegion,
+    } : { smsEnabled: false }),
     // WhatsApp: same pattern
-    ...(hasOwnWhatsappCreds ? {} : {
+    ...(useOwnWhatsapp ? {} : sys.whatsappSharedWithOrgs ? {
       whatsappEnabled: row.whatsappSystemServiceDisabled ? false : sys.whatsappEnabled,
       whatsappProvider: sys.whatsappProvider,
       whatsappPhoneNumberId: sys.whatsappPhoneNumberId,
@@ -161,7 +198,7 @@ export async function getCommSettings(organizationId: number): Promise<CommSetti
       whatsappTwilioAuthToken: sys.whatsappTwilioAuthToken,
       whatsappTwilioNumber: sys.whatsappTwilioNumber,
       whatsappWebjsServiceUrl: sys.whatsappWebjsServiceUrl,
-    }),
+    } : { whatsappEnabled: false }),
   }
 }
 
@@ -318,27 +355,81 @@ export async function upsertPropertyWebjsSettings(
 import type { PropertyEmailSettingsResponse, PropertyWhatsAppSettingsResponse } from '@ibe/shared'
 
 async function resolvePropertyInheritedEmail(orgId: number | null) {
-  if (orgId === null) return { settings: await loadSystemCommSettings(), from: 'system' as const }
+  if (orgId === null) {
+    const settings = await loadSystemCommSettings()
+    return { settings, from: 'system' as const, blocked: false }
+  }
   const orgRow = await prisma.communicationSettings.findUnique({ where: { organizationId: orgId } })
-  const hasOrgOwn = !!(orgRow?.emailApiKey || orgRow?.emailSmtpPassword)
+  const hasOrgOwn = !!(orgRow?.emailUseOwn)
+  if (!hasOrgOwn) {
+    // org inherits from system — check system allows sharing with orgs
+    const sys = await loadSystemCommSettings()
+    if (!sys.emailSharedWithOrgs) {
+      return { settings: await getCommSettings(orgId), from: 'system' as const, blocked: true }
+    }
+  } else {
+    // org has own — check org allows sharing with properties
+    const orgShared = orgRow?.emailSharedWithProperties ?? true
+    if (!orgShared) {
+      return { settings: await getCommSettings(orgId), from: 'org' as const, blocked: true }
+    }
+  }
   const settings = await getCommSettings(orgId)
-  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const }
+  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const, blocked: false }
+}
+
+async function resolvePropertyInheritedSms(orgId: number | null) {
+  if (orgId === null) {
+    const settings = await loadSystemCommSettings()
+    return { settings, from: 'system' as const, blocked: false }
+  }
+  const orgRow = await prisma.communicationSettings.findUnique({ where: { organizationId: orgId } })
+  const hasOrgOwn = !!(orgRow?.smsUseOwn)
+  if (!hasOrgOwn) {
+    const sys = await loadSystemCommSettings()
+    if (!sys.smsSharedWithOrgs) {
+      return { settings: await getCommSettings(orgId), from: 'system' as const, blocked: true }
+    }
+  } else {
+    const orgShared = orgRow?.smsSharedWithProperties ?? true
+    if (!orgShared) {
+      return { settings: await getCommSettings(orgId), from: 'org' as const, blocked: true }
+    }
+  }
+  const settings = await getCommSettings(orgId)
+  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const, blocked: false }
 }
 
 async function resolvePropertyInheritedWhatsApp(orgId: number | null) {
-  if (orgId === null) return { settings: await loadSystemCommSettings(), from: 'system' as const }
+  if (orgId === null) {
+    const settings = await loadSystemCommSettings()
+    return { settings, from: 'system' as const, blocked: false }
+  }
   const orgRow = await prisma.communicationSettings.findUnique({ where: { organizationId: orgId } })
-  const hasOrgOwn = !!(orgRow?.whatsappAccessToken || orgRow?.whatsappTwilioAuthToken || orgRow?.whatsappWebjsServiceUrl)
+  const hasOrgOwn = !!(orgRow?.whatsappUseOwn)
+  if (!hasOrgOwn) {
+    const sys = await loadSystemCommSettings()
+    if (!sys.whatsappSharedWithOrgs) {
+      return { settings: await getCommSettings(orgId), from: 'system' as const, blocked: true }
+    }
+  } else {
+    const orgShared = orgRow?.whatsappSharedWithProperties ?? true
+    if (!orgShared) {
+      return { settings: await getCommSettings(orgId), from: 'org' as const, blocked: true }
+    }
+  }
   const settings = await getCommSettings(orgId)
-  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const }
+  return { settings, from: hasOrgOwn ? 'org' as const : 'system' as const, blocked: false }
 }
 
 export async function getPropertyEmailSettingsAdmin(propertyId: number): Promise<PropertyEmailSettingsResponse> {
-  const [propRow, prop] = await Promise.all([
+  const { fetchPropertyStatic } = await import('../adapters/hyperguest/static.js')
+  const [propRow, prop, hgStatic] = await Promise.all([
     prisma.propertyCommunicationSettings.findUnique({ where: { propertyId } }),
-    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
+    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true, name: true } }),
+    fetchPropertyStatic(propertyId).catch(() => null),
   ])
-  const { settings: inh, from: inheritedFrom } = await resolvePropertyInheritedEmail(prop?.organizationId ?? null)
+  const { settings: inh, from: inheritedFrom, blocked: inheritedBlocked } = await resolvePropertyInheritedEmail(prop?.organizationId ?? null)
   return {
     useOwn: propRow?.useOwnEmail ?? false,
     enabled: propRow?.emailEnabled ?? false,
@@ -365,6 +456,9 @@ export async function getPropertyEmailSettingsAdmin(propertyId: number): Promise
       apiKeySet: !!(inh.emailApiKey),
     },
     inheritedFrom,
+    inheritedBlocked,
+    hgName: prop?.name ?? null,
+    hgContactEmail: hgStatic?.contact?.email ?? null,
   }
 }
 
@@ -397,7 +491,8 @@ export async function getPropertyWhatsAppSettingsAdmin(propertyId: number): Prom
     prisma.propertyCommunicationSettings.findUnique({ where: { propertyId } }),
     prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
   ])
-  const { settings: inh, from: inheritedFrom } = await resolvePropertyInheritedWhatsApp(prop?.organizationId ?? null)
+  const { settings: inh, from: inheritedFrom, blocked: inheritedBlocked } = await resolvePropertyInheritedWhatsApp(prop?.organizationId ?? null)
+  const inhHasCredentials = !!(inh.whatsappAccessToken || inh.whatsappTwilioAuthToken || inh.whatsappWebjsServiceUrl)
   return {
     useOwn: propRow?.useOwnWhatsapp ?? false,
     enabled: propRow?.whatsappEnabled ?? false,
@@ -410,7 +505,7 @@ export async function getPropertyWhatsAppSettingsAdmin(propertyId: number): Prom
     twilioNumber: propRow?.whatsappTwilioNumber ?? '',
     systemServiceDisabled: propRow?.whatsappSystemServiceDisabled ?? false,
     inherited: {
-      enabled: inh.whatsappEnabled,
+      enabled: inh.whatsappEnabled && inhHasCredentials && !inheritedBlocked,
       provider: inh.whatsappProvider as import('@ibe/shared').WhatsAppProvider,
       phoneNumberId: inh.whatsappPhoneNumberId,
       businessAccountId: inh.whatsappBusinessAccountId,
@@ -420,6 +515,7 @@ export async function getPropertyWhatsAppSettingsAdmin(propertyId: number): Prom
       twilioNumber: inh.whatsappTwilioNumber,
     },
     inheritedFrom,
+    inheritedBlocked,
   }
 }
 

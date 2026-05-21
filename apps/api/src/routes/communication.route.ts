@@ -18,6 +18,8 @@ function maskSensitive(s: CommSettings, ownWebjsUrl = '') {
     emailSmtpPasswordSet: !!s.emailSmtpPassword,
     emailApiKeySet: !!s.emailApiKey,
     emailSystemServiceDisabled: s.emailSystemServiceDisabled,
+    emailSharedWithOrgs: s.emailSharedWithOrgs,
+    emailSharedWithProperties: s.emailSharedWithProperties,
     whatsappEnabled: s.whatsappEnabled,
     whatsappProvider: s.whatsappProvider,
     whatsappPhoneNumberId: s.whatsappPhoneNumberId,
@@ -29,6 +31,8 @@ function maskSensitive(s: CommSettings, ownWebjsUrl = '') {
     whatsappWebjsServiceUrl: s.whatsappWebjsServiceUrl,
     whatsappWebjsServiceUrlOwn: ownWebjsUrl,
     whatsappSystemServiceDisabled: s.whatsappSystemServiceDisabled,
+    whatsappSharedWithOrgs: s.whatsappSharedWithOrgs,
+    whatsappSharedWithProperties: s.whatsappSharedWithProperties,
     smsEnabled: s.smsEnabled,
     smsProvider: s.smsProvider,
     smsFromNumber: s.smsFromNumber,
@@ -39,6 +43,8 @@ function maskSensitive(s: CommSettings, ownWebjsUrl = '') {
     smsAwsAccessKey: s.smsAwsAccessKey,
     smsAwsSecretKeySet: !!s.smsAwsSecretKey,
     smsAwsRegion: s.smsAwsRegion,
+    smsSharedWithOrgs: s.smsSharedWithOrgs,
+    smsSharedWithProperties: s.smsSharedWithProperties,
   }
 }
 
@@ -64,12 +70,42 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     const orgId = request.admin.role === 'super' && rawOrgId
       ? parseInt(rawOrgId, 10)
       : request.admin.organizationId!
-    const s = await getCommSettings(orgId)
-    const orgRow = await prisma.communicationSettings.findUnique({
-      where: { organizationId: orgId },
-      select: { whatsappWebjsServiceUrl: true },
+    const [s, sys, orgRow] = await Promise.all([
+      getCommSettings(orgId),
+      getSystemCommSettings(),
+      prisma.communicationSettings.findUnique({
+        where: { organizationId: orgId },
+        select: {
+          whatsappWebjsServiceUrl: true, whatsappAccessToken: true, whatsappTwilioAuthToken: true, whatsappUseOwn: true,
+          emailSmtpPassword: true, emailApiKey: true, emailUseOwn: true,
+          smsTwilioAuthToken: true, smsVonageApiSecret: true, smsAwsSecretKey: true, smsUseOwn: true,
+          emailSharedWithProperties: true, smsSharedWithProperties: true, whatsappSharedWithProperties: true,
+        },
+      }),
+    ])
+    return reply.send({
+      ...maskSensitive(s, orgRow?.whatsappWebjsServiceUrl ?? ''),
+      // WhatsApp: use org-own flags
+      whatsappAccessTokenSet: !!(orgRow?.whatsappAccessToken),
+      whatsappTwilioAuthTokenSet: !!(orgRow?.whatsappTwilioAuthToken),
+      whatsappUseOwn: orgRow?.whatsappUseOwn ?? false,
+      // Email: use org-own flags (not merged system values)
+      emailSmtpPasswordSet: !!(orgRow?.emailSmtpPassword),
+      emailApiKeySet: !!(orgRow?.emailApiKey),
+      emailUseOwn: orgRow?.emailUseOwn ?? false,
+      // SMS: same pattern
+      smsTwilioAuthTokenSet: !!(orgRow?.smsTwilioAuthToken),
+      smsVonageApiSecretSet: !!(orgRow?.smsVonageApiSecret),
+      smsAwsSecretKeySet: !!(orgRow?.smsAwsSecretKey),
+      smsUseOwn: orgRow?.smsUseOwn ?? false,
+      // Sharing: org's own "share with properties" flags + system's "share with orgs" flags
+      emailSharedWithProperties: orgRow?.emailSharedWithProperties ?? true,
+      smsSharedWithProperties: orgRow?.smsSharedWithProperties ?? true,
+      whatsappSharedWithProperties: orgRow?.whatsappSharedWithProperties ?? true,
+      emailSharedWithOrgs: sys.emailSharedWithOrgs,
+      smsSharedWithOrgs: sys.smsSharedWithOrgs,
+      whatsappSharedWithOrgs: sys.whatsappSharedWithOrgs,
     })
-    return reply.send(maskSensitive(s, orgRow?.whatsappWebjsServiceUrl ?? ''))
   })
 
   fastify.get('/admin/communication/whatsapp-webhook', async (_request, reply) => {

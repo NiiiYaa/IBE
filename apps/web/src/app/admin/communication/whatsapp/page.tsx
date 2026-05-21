@@ -41,97 +41,6 @@ const PROVIDERS: { value: WhatsAppProvider; label: string; hint: string }[] = [
   { value: 'wwebjs', label: 'Local', hint: 'Connect any WhatsApp number via QR code using a local bridge service' },
 ]
 
-// ── System service row — toggle (super) or status pill (org admin) ────────────
-
-function SystemServiceRow({
-  disabled, isSuper, onToggle, saving,
-}: { disabled: boolean; isSuper: boolean; onToggle: (v: boolean) => void; saving: boolean }) {
-  if (isSuper) {
-    return (
-      <div className="mb-4 flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
-        <div>
-          <p className="text-sm font-medium text-[var(--color-text)]">System WhatsApp service</p>
-          <p className="text-xs text-[var(--color-text-muted)]">When disabled, this org uses no WhatsApp unless it has its own credentials.</p>
-        </div>
-        <button type="button" role="switch" aria-checked={!disabled} disabled={saving}
-          onClick={() => onToggle(!disabled)}
-          className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
-            !disabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
-          <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-            !disabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-        </button>
-      </div>
-    )
-  }
-  return (
-    <div className="mb-4 flex items-center gap-2">
-      <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-        disabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-      ].join(' ')}>
-        System WhatsApp: {disabled ? 'Disabled by admin' : 'Active'}
-      </span>
-    </div>
-  )
-}
-
-// ── Section card wrapper ───────────────────────────────────────────────────────
-
-function SectionCard({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-      <div className="mb-5 flex items-center gap-2">
-        <h2 className="text-base font-semibold text-[var(--color-text)]">{title}</h2>
-        {badge && (
-          <span className="rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-purple-700">
-            {badge}
-          </span>
-        )}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-// ── Inherited config badge ─────────────────────────────────────────────────────
-
-type CommData = {
-  whatsappEnabled: boolean
-  whatsappProvider: string
-  whatsappPhoneNumberId: string
-  whatsappTwilioNumber: string
-  whatsappWebjsServiceUrl: string
-  whatsappAccessTokenSet: boolean
-  whatsappTwilioAuthTokenSet: boolean
-}
-
-function WhatsAppInheritedBadge({ data, webjsStatus }: { data: CommData | undefined; webjsStatus?: string | undefined }) {
-  if (!data?.whatsappProvider && !data?.whatsappEnabled) {
-    return <p className="text-sm text-[var(--color-text-muted)]">No system config set yet.</p>
-  }
-  const providerLabel = data.whatsappProvider === 'wwebjs' ? 'Local'
-    : data.whatsappProvider === 'meta' ? 'Meta' : data.whatsappProvider === 'twilio' ? 'Twilio' : data.whatsappProvider
-  return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-sm text-[var(--color-text-muted)]">
-      <span className="font-medium text-[var(--color-text)]">{providerLabel}</span>
-      {data.whatsappProvider === 'twilio' && data.whatsappTwilioNumber && (
-        <span> · {data.whatsappTwilioNumber}</span>
-      )}
-      {data.whatsappProvider === 'meta' && data.whatsappPhoneNumberId && (
-        <span> · {data.whatsappPhoneNumberId}</span>
-      )}
-      {data.whatsappProvider === 'wwebjs' ? (
-        webjsStatus === 'connected'
-          ? <span className="ml-2 text-[var(--color-success)] text-xs font-medium">● Connected</span>
-          : webjsStatus === 'qr'
-          ? <span className="ml-2 text-amber-600 text-xs font-medium">● Awaiting scan</span>
-          : <span className="ml-2 text-[var(--color-error)] text-xs font-medium">● Disconnected</span>
-      ) : data.whatsappEnabled
-        ? <span className="ml-2 text-[var(--color-success)] text-xs font-medium">● Enabled</span>
-        : <span className="ml-2 text-[var(--color-error)] text-xs font-medium">● Disabled</span>}
-    </div>
-  )
-}
-
 function LocalConsentModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [checked, setChecked] = useState(false)
   return (
@@ -187,6 +96,7 @@ export default function WhatsAppPage() {
   const queryKey = isSystemLevel ? ['system-communication'] : ['admin-communication-wa', orgId]
 
   const [enabled, setEnabled] = useState(false)
+  const [useOwnWhatsApp, setUseOwnWhatsApp] = useState(false)
   const [provider, setProvider] = useState<WhatsAppProvider>('meta')
   const [phoneNumberId, setPhoneNumberId] = useState('')
   const [businessAccountId, setBusinessAccountId] = useState('')
@@ -196,11 +106,12 @@ export default function WhatsAppPage() {
   const [twilioNumber, setTwilioNumber] = useState('')
   const [webjsServiceUrl, setWebjsServiceUrl] = useState('')
   const [webjsServiceUrlOwn, setWebjsServiceUrlOwn] = useState('')
-  const [useSystemDefault, setUseSystemDefault] = useState(true)
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [showLocalConsent, setShowLocalConsent] = useState<'select' | 'enable' | false>(false)
+  const [whatsappSharedWithOrgs, setWhatsappSharedWithOrgs] = useState(true)
+  const [whatsappSharedWithProperties, setWhatsappSharedWithProperties] = useState(true)
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -224,7 +135,7 @@ export default function WhatsAppPage() {
     enabled: !isSystemLevel,
   })
 
-  const isInheritingWwebjs = !isSystemLevel && useSystemDefault && data?.whatsappProvider === 'wwebjs'
+  const isInheritingWwebjs = !isSystemLevel && !useOwnWhatsApp && data?.whatsappProvider === 'wwebjs'
   const { data: systemWebjsStatusData } = useQuery({
     queryKey: ['wwebjs-status', undefined],
     queryFn: () => apiClient.getWebjsStatus(undefined),
@@ -236,14 +147,25 @@ export default function WhatsAppPage() {
     if (!data) return
     setEnabled(data.whatsappEnabled)
     setProvider(data.whatsappProvider as WhatsAppProvider)
-    setPhoneNumberId(data.whatsappPhoneNumberId)
-    setBusinessAccountId(data.whatsappBusinessAccountId)
-    setTwilioAccountSid(data.whatsappTwilioAccountSid)
-    setTwilioNumber(data.whatsappTwilioNumber)
-    setWebjsServiceUrl(data.whatsappWebjsServiceUrl)
+    const isOwn = isSystemLevel ? true : ((data as any).whatsappUseOwn ?? false)
+    setUseOwnWhatsApp(isOwn)
+    if (isOwn || isSystemLevel) {
+      setPhoneNumberId(data.whatsappPhoneNumberId)
+      setBusinessAccountId(data.whatsappBusinessAccountId)
+      setTwilioAccountSid(data.whatsappTwilioAccountSid)
+      setTwilioNumber(data.whatsappTwilioNumber)
+      setWebjsServiceUrl(data.whatsappWebjsServiceUrl)
+    } else {
+      setPhoneNumberId('')
+      setBusinessAccountId('')
+      setTwilioAccountSid('')
+      setTwilioNumber('')
+      setWebjsServiceUrl('')
+    }
     setWebjsServiceUrlOwn(data.whatsappWebjsServiceUrlOwn ?? '')
-    setUseSystemDefault(!data.whatsappAccessTokenSet && !data.whatsappTwilioAuthTokenSet && !(data.whatsappWebjsServiceUrlOwn ?? ''))
-  }, [data])
+    setWhatsappSharedWithOrgs(data.whatsappSharedWithOrgs ?? true)
+    setWhatsappSharedWithProperties(data.whatsappSharedWithProperties ?? true)
+  }, [data, isSystemLevel])
 
   const testMutation = useMutation({
     mutationFn: () => apiClient.testWhatsappConnection(isSuper ? (orgId ?? undefined) : undefined),
@@ -253,7 +175,14 @@ export default function WhatsAppPage() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: () => {
-      const payload = {
+      const sharingFlags = isSystemLevel
+        ? { whatsappSharedWithOrgs }
+        : { whatsappSharedWithProperties }
+      const payload = (!isSystemLevel && !useOwnWhatsApp) ? {
+        whatsappUseOwn: false as const,
+        ...sharingFlags,
+      } : {
+        ...(!isSystemLevel ? { whatsappUseOwn: true as const } : {}),
         whatsappEnabled: enabled,
         whatsappProvider: provider,
         whatsappPhoneNumberId: phoneNumberId,
@@ -263,6 +192,7 @@ export default function WhatsAppPage() {
         ...(twilioAuthToken ? { whatsappTwilioAuthToken: twilioAuthToken } : {}),
         whatsappTwilioNumber: twilioNumber,
         whatsappWebjsServiceUrl: isSystemLevel ? webjsServiceUrl : webjsServiceUrlOwn.trim(),
+        ...sharingFlags,
       }
       return isSystemLevel
         ? apiClient.updateSystemCommunicationSettings(payload)
@@ -276,12 +206,6 @@ export default function WhatsAppPage() {
       setError(null)
     },
     onError: (err: unknown) => setError(err instanceof Error ? err.message : 'Save failed'),
-  })
-
-  const disableSystemMutation = useMutation({
-    mutationFn: (disabled: boolean) =>
-      apiClient.updateCommunicationSettings({ whatsappSystemServiceDisabled: disabled, ...(orgId ? { orgId } : {}) } as never),
-    onSuccess: () => void qc.invalidateQueries({ queryKey }),
   })
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm font-mono focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
@@ -395,29 +319,30 @@ export default function WhatsAppPage() {
           </p>
         </div>
 
-        <SectionCard title="System Default" badge="Super">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
-                <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
-              </div>
-              <Toggle enabled={enabled} onChange={v => {
-                if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
-                else { setEnabled(v); markDirty() }
-              }} />
-            </div>
-            <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
-              {credentialForm(true)}
-            </fieldset>
+        {/* Enable toggle — always at top */}
+        <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
           </div>
-        </SectionCard>
+          <Toggle enabled={enabled} onChange={v => {
+            if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
+            else { setEnabled(v); markDirty() }
+          }} />
+        </div>
 
-        {provider === 'wwebjs' && (
+        {enabled && (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">Provider</h2>
+            {credentialForm(true)}
+          </div>
+        )}
+
+        {enabled && provider === 'wwebjs' && (
           <WebjsStatusPanel orgId={undefined} inherited={false} />
         )}
 
-        {provider === 'meta' && webhookInfo && (
+        {enabled && provider === 'meta' && webhookInfo && (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Webhook configuration</p>
             <p className="text-xs text-[var(--color-text-muted)]">
@@ -433,7 +358,7 @@ export default function WhatsAppPage() {
 
         {error && <ErrorBanner message={error} />}
 
-        {provider !== 'wwebjs' && (
+        {enabled && provider !== 'wwebjs' && (
           <div className="flex items-center gap-3 flex-wrap">
             <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
               className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
@@ -447,6 +372,15 @@ export default function WhatsAppPage() {
           </div>
         )}
 
+        {/* Share with organisations */}
+        <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Share with organisations</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Allow organisations to inherit and use this WhatsApp service</p>
+          </div>
+          <Toggle enabled={whatsappSharedWithOrgs} onChange={v => { setWhatsappSharedWithOrgs(v); markDirty() }} />
+        </div>
+
         <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
       </div>
       {localConsentModal}
@@ -455,6 +389,8 @@ export default function WhatsAppPage() {
   }
 
   // ── Org level ─────────────────────────────────────────────────────────────────
+
+  const systemWaActive = !useOwnWhatsApp && !systemDisabled && (data?.whatsappEnabled ?? false)
 
   return (
     <>
@@ -467,49 +403,105 @@ export default function WhatsAppPage() {
         </p>
       </div>
 
-      <SectionCard title="Chain / Organisation">
-        <SystemServiceRow
-          disabled={systemDisabled}
-          isSuper={isSuper ?? false}
-          onToggle={v => disableSystemMutation.mutate(!v)}
-          saving={disableSystemMutation.isPending}
-        />
+      {/* Enable toggle — always at top */}
+      <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Send WhatsApp messages to guests for booking events</p>
+        </div>
+        <Toggle enabled={enabled} onChange={v => {
+          if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
+          else { setEnabled(v); markDirty() }
+        }} />
+      </div>
 
-        <div className="mb-4 flex items-center gap-3">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={useSystemDefault}
-            onClick={() => setUseSystemDefault(v => !v)}
-            className={['relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-              useSystemDefault ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}
-          >
-            <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200',
-              useSystemDefault ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-          </button>
-          <span className="text-sm text-[var(--color-text)]">Use system default</span>
+      {enabled && (<>
+
+        {/* Use System / Use own toggle */}
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <button type="button" role="switch" aria-checked={useOwnWhatsApp}
+              onClick={() => { setUseOwnWhatsApp(v => !v); markDirty() }}
+              className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                useOwnWhatsApp ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+              <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                useOwnWhatsApp ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+            </button>
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">
+                {useOwnWhatsApp ? 'Use my own credentials' : 'Use System (if allowed)'}
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {useOwnWhatsApp
+                  ? 'WhatsApp is sent via your own provider account.'
+                  : 'WhatsApp is sent via the system provider. No credentials needed.'}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {useSystemDefault ? (
-          <div className="space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Currently inheriting from System</p>
-            <WhatsAppInheritedBadge data={data as CommData | undefined} webjsStatus={systemWebjsStatusData?.status} />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+        {/* System mode: status card */}
+        {!useOwnWhatsApp && (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
-                <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
+                <p className="text-sm font-medium text-[var(--color-text)]">System WhatsApp service</p>
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                  {systemDisabled
+                    ? 'System WhatsApp is disabled by the administrator for this account.'
+                    : systemWaActive
+                      ? `Active — WhatsApp is sent via the system provider (${data?.whatsappProvider?.toUpperCase()}).`
+                      : 'System WhatsApp is not currently configured or enabled.'}
+                </p>
               </div>
-              <Toggle enabled={enabled} onChange={v => {
-                if (v && provider === 'wwebjs') { setShowLocalConsent('enable') }
-                else { setEnabled(v); markDirty() }
-              }} />
+              <div className="flex items-center gap-2 shrink-0">
+                {systemWaActive && data?.whatsappProvider && (
+                  <span className="rounded bg-[var(--color-border)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+                    {data.whatsappProvider === 'meta' ? 'Meta' : data.whatsappProvider === 'twilio' ? 'Twilio' : 'Local'}
+                  </span>
+                )}
+                <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                  systemDisabled
+                    ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]'
+                    : systemWaActive
+                      ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                      : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+                ].join(' ')}>
+                  {systemDisabled ? 'Disabled by admin' : systemWaActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
-            <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
-              {credentialForm(true)}
-            </fieldset>
+          </div>
+        )}
+
+        {/* System wwebjs: org own number option */}
+        {!useOwnWhatsApp && data?.whatsappProvider === 'wwebjs' && !systemDisabled && (
+          <OwnWebjsNumberSection
+            orgId={orgId ?? undefined}
+            onActivate={() => {
+              apiClient.updateCommunicationSettings({
+                whatsappEnabled: true,
+                whatsappProvider: 'wwebjs',
+                ...(orgId ? { orgId } : {}),
+              } as never).then(() => void qc.invalidateQueries({ queryKey }))
+            }}
+            onDeactivate={() => {
+              void Promise.all([
+                apiClient.disconnectWwebjs(orgId ?? undefined),
+                apiClient.updateCommunicationSettings({
+                  whatsappEnabled: false,
+                  ...(orgId ? { orgId } : {}),
+                } as never),
+              ]).then(() => void qc.invalidateQueries({ queryKey }))
+            }}
+          />
+        )}
+
+        {/* Own mode: provider form */}
+        {useOwnWhatsApp && (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">Provider</h2>
+            {credentialForm(true)}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">What gets sent</p>
               <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
@@ -521,68 +513,56 @@ export default function WhatsAppPage() {
           </div>
         )}
 
-        {/* Own number on system wwebjs — shown when inheriting and system uses Local */}
-        {useSystemDefault && data?.whatsappProvider === 'wwebjs' && !systemDisabled && (
-          <div className="mt-4">
-            <OwnWebjsNumberSection
-              orgId={orgId ?? undefined}
-              onActivate={() => {
-                apiClient.updateCommunicationSettings({
-                  whatsappEnabled: true,
-                  whatsappProvider: 'wwebjs',
-                  ...(orgId ? { orgId } : {}),
-                } as never).then(() => void qc.invalidateQueries({ queryKey }))
-              }}
-              onDeactivate={() => {
-                void Promise.all([
-                  apiClient.disconnectWwebjs(orgId ?? undefined),
-                  apiClient.updateCommunicationSettings({
-                    whatsappEnabled: false,
-                    ...(orgId ? { orgId } : {}),
-                  } as never),
-                ]).then(() => void qc.invalidateQueries({ queryKey }))
-              }}
-            />
+        {useOwnWhatsApp && provider === 'wwebjs' && (
+          <WebjsStatusPanel orgId={isSuper ? (orgId ?? undefined) : undefined} inherited={false} />
+        )}
+
+        {useOwnWhatsApp && provider === 'meta' && webhookInfo && (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Webhook configuration</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              In Meta Business Manager → WhatsApp → Configuration, paste these values:
+            </p>
+            <CopyField label="Callback URL" value={webhookInfo.webhookUrl} />
+            <CopyField label="Verify Token" value={webhookInfo.verifyToken} />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Then subscribe to the <span className="font-mono font-medium">messages</span> field under Webhook Fields.
+            </p>
           </div>
         )}
-      </SectionCard>
 
-      {!useSystemDefault && provider === 'wwebjs' && (
-        <WebjsStatusPanel orgId={isSuper ? (orgId ?? undefined) : undefined} inherited={false} />
-      )}
+        {useOwnWhatsApp && provider !== 'wwebjs' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+              className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testResult && (
+              <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+                {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+              </p>
+            )}
+          </div>
+        )}
 
-      {!useSystemDefault && provider === 'meta' && webhookInfo && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Webhook configuration</p>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            In Meta Business Manager → WhatsApp → Configuration, paste these values:
-          </p>
-          <CopyField label="Callback URL" value={webhookInfo.webhookUrl} />
-          <CopyField label="Verify Token" value={webhookInfo.verifyToken} />
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Then subscribe to the <span className="font-mono font-medium">messages</span> field under Webhook Fields.
-          </p>
+      </>)}
+
+      {/* Sharing controls */}
+      {data?.whatsappSharedWithOrgs === false && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]/30 px-5 py-4">
+          <p className="text-sm font-medium text-[var(--color-text-muted)]">System WhatsApp not shared with organisations</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">The system has restricted sharing of this service. You must configure your own WhatsApp credentials.</p>
         </div>
       )}
+      <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">Share with hotels</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Allow hotels to inherit and use this organisation's WhatsApp service</p>
+        </div>
+        <Toggle enabled={whatsappSharedWithProperties} onChange={v => { setWhatsappSharedWithProperties(v); markDirty() }} />
+      </div>
 
       {error && <ErrorBanner message={error} />}
-
-      {/* Test Connection only makes sense for API-based providers (Meta / Twilio).
-          For Local, the status panel already shows the real connection state. */}
-      {data?.whatsappProvider !== 'wwebjs' && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
-            className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
-            {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-          </button>
-          {testResult && (
-            <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
-              {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
-            </p>
-          )}
-        </div>
-      )}
-
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
     </div>
     {localConsentModal}
@@ -835,16 +815,24 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [showLocalConsent, setShowLocalConsent] = useState(false)
 
   useEffect(() => {
     if (!data) return
     setUseOwn(data.useOwn)
     setEnabled(data.enabled)
     setProvider(data.provider)
-    setPhoneNumberId(data.phoneNumberId)
-    setBusinessAccountId(data.businessAccountId)
-    setTwilioAccountSid(data.twilioAccountSid)
-    setTwilioNumber(data.twilioNumber)
+    if (data.useOwn) {
+      setPhoneNumberId(data.phoneNumberId)
+      setBusinessAccountId(data.businessAccountId)
+      setTwilioAccountSid(data.twilioAccountSid)
+      setTwilioNumber(data.twilioNumber)
+    } else {
+      setPhoneNumberId('')
+      setBusinessAccountId('')
+      setTwilioAccountSid('')
+      setTwilioNumber('')
+    }
   }, [data])
 
   const testMutation = useMutation({
@@ -884,174 +872,245 @@ function PropertyWhatsAppSection({ propertyId, orgId, isSuper }: { propertyId: n
 
   function markDirty() { setIsDirty(true) }
 
+  const localConsentModal = showLocalConsent && (
+    <LocalConsentModal
+      onConfirm={() => { setProvider('wwebjs'); markDirty(); setShowLocalConsent(false) }}
+      onCancel={() => setShowLocalConsent(false)}
+    />
+  )
+
   const inh = data?.inherited
   const inheritedLabel = data?.inheritedFrom === 'org' ? 'Chain' : 'System'
   const systemDisabled = data?.systemServiceDisabled ?? false
+  const inheritedActive = (inh?.enabled ?? false) && !systemDisabled
 
   const inputCls = 'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]'
 
   return (
+    <>
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">WhatsApp configuration for this hotel.</p>
       </div>
 
-      {/* Inherited Meta/Twilio service status */}
-      {!useOwn && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-[var(--color-text)]">
-                Inherited WhatsApp service
-                <span className="ml-2 rounded-full bg-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{inheritedLabel}</span>
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                {systemDisabled
-                  ? 'Inherited service is disabled for this hotel.'
-                  : inh
-                    ? `Using ${inheritedLabel.toLowerCase()} WhatsApp provider (${inh.provider.toUpperCase()}${inh.phoneNumberId ? ` · ${inh.phoneNumberId}` : inh.twilioNumber ? ` · ${inh.twilioNumber}` : ''}).`
-                    : 'No inherited WhatsApp service configured.'}
-              </p>
-            </div>
-            {isSuper ? (
-              <button type="button" role="switch" aria-checked={!systemDisabled}
-                onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
-                className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
-                  !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
-                <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                  !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-              </button>
-            ) : (
-              <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                systemDisabled ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-              ].join(' ')}>
-                {systemDisabled ? 'Disabled' : 'Active'}
-              </span>
-            )}
-          </div>
+      {/* Enable toggle — always at top */}
+      <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Send WhatsApp messages to guests for booking events</p>
         </div>
-      )}
+        {useOwn ? (
+          <button type="button" role="switch" aria-checked={enabled}
+            onClick={() => { setEnabled(v => !v); markDirty() }}
+            className={['relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+              enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+            <span className={['pointer-events-none block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200',
+              enabled ? 'translate-x-5' : 'translate-x-0'].join(' ')} />
+          </button>
+        ) : (
+          <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+            inheritedActive
+              ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+              : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'].join(' ')}>
+            {inheritedActive ? `Active (${inheritedLabel})` : `Inactive (${inheritedLabel})`}
+          </span>
+        )}
+      </div>
 
-      {/* Toggle: use inherited vs own */}
+      {/* Use Chain / Use own toggle — always visible */}
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
         <div className="flex items-center gap-3">
           <button type="button" role="switch" aria-checked={useOwn}
-            onClick={() => { setUseOwn(v => !v); markDirty() }}
+            onClick={() => { setUseOwn(v => { if (!v) setEnabled(true); return !v }); markDirty() }}
             className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
               useOwn ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
             <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
               useOwn ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
           </button>
           <div>
-            <p className="text-sm font-medium text-[var(--color-text)]">Use own WhatsApp configuration</p>
+            <p className="text-sm font-medium text-[var(--color-text)]">
+              {useOwn ? 'Use my own credentials' : `Use ${inheritedLabel} (if allowed)`}
+            </p>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {useOwn ? 'Hotel uses its own credentials.' : `Hotel inherits from ${inheritedLabel.toLowerCase()}.`}
+              {useOwn
+                ? 'WhatsApp is sent via this hotel\'s own provider account.'
+                : `WhatsApp is sent via the ${inheritedLabel.toLowerCase()} provider.`}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Own credentials */}
-      {useOwn && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+      {data?.inheritedBlocked && !useOwn && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-border)]/30 px-5 py-4">
+          <p className="text-sm font-medium text-[var(--color-text-muted)]">WhatsApp not available from chain</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">The organisation has not shared its WhatsApp service with hotels. Use your own credentials below.</p>
+        </div>
+      )}
+
+      {/* Inherited mode: status card */}
+      {!useOwn && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[var(--color-text)]">Enable WhatsApp notifications</p>
-              <p className="text-xs text-[var(--color-text-muted)]">Message guests on WhatsApp for booking events</p>
-            </div>
-            <button type="button" role="switch" aria-checked={enabled}
-              onClick={() => { setEnabled(v => !v); markDirty() }}
-              className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
-                enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
-              <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                enabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
-            </button>
-          </div>
-
-          <fieldset disabled={!enabled} className="space-y-4 disabled:opacity-50">
-            {/* Provider selector — meta / twilio only (no local at property level) */}
-            <div className="flex gap-2">
-              {PROVIDERS.filter(p => p.value !== 'wwebjs').map(p => (
-                <button key={p.value} type="button"
-                  onClick={() => { setProvider(p.value); markDirty() }}
-                  className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
-                    provider === p.value
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
-                  ].join(' ')}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)]">{PROVIDERS.find(p => p.value === provider)?.hint}</p>
-
-            {provider === 'meta' && (
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Phone Number ID</label>
-                  <input type="text" value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); markDirty() }}
-                    placeholder="123456789012345" className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp Business Account ID</label>
-                  <input type="text" value={businessAccountId} onChange={e => { setBusinessAccountId(e.target.value); markDirty() }}
-                    placeholder="987654321098765" className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Access Token</label>
-                  <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); markDirty() }}
-                    placeholder={data?.accessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
-                    className={inputCls} />
-                </div>
-              </div>
-            )}
-
-            {provider === 'twilio' && (
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Account SID</label>
-                  <input type="text" value={twilioAccountSid} onChange={e => { setTwilioAccountSid(e.target.value); markDirty() }}
-                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Auth Token</label>
-                  <input type="password" value={twilioAuthToken} onChange={e => { setTwilioAuthToken(e.target.value); markDirty() }}
-                    placeholder={data?.twilioAuthTokenSet ? '(stored — leave blank to keep)' : 'Paste auth token'}
-                    className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp number</label>
-                  <input type="text" value={twilioNumber} onChange={e => { setTwilioNumber(e.target.value); markDirty() }}
-                    placeholder="whatsapp:+14155238886" className={inputCls} />
-                </div>
-              </div>
-            )}
-          </fieldset>
-
-          {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
-
-          <div className="flex items-center gap-3 flex-wrap pt-1">
-            <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
-              className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
-              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-            </button>
-            {testResult && (
-              <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
-                {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+              <p className="text-sm font-medium text-[var(--color-text)]">
+                {inheritedLabel} WhatsApp service
               </p>
-            )}
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                {data?.inheritedBlocked
+                  ? 'Not available — organisation has not shared this service.'
+                  : systemDisabled
+                    ? 'Inherited service is disabled for this hotel.'
+                    : inheritedActive && inh
+                      ? `Using ${inheritedLabel.toLowerCase()} WhatsApp provider (${inh.provider.toUpperCase()}${inh.phoneNumberId ? ` · ${inh.phoneNumberId}` : inh.twilioNumber ? ` · ${inh.twilioNumber}` : ''}).`
+                      : 'No inherited WhatsApp service configured or enabled.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {inheritedActive && inh?.provider && (
+                <span className="rounded bg-[var(--color-border)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+                  {inh.provider === 'meta' ? 'Meta' : inh.provider === 'twilio' ? 'Twilio' : 'Local'}
+                </span>
+              )}
+              {isSuper ? (
+                <button type="button" role="switch" aria-checked={!systemDisabled}
+                  onClick={() => disableMutation.mutate(!systemDisabled)} disabled={disableMutation.isPending}
+                  className={['relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-40',
+                    !systemDisabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'].join(' ')}>
+                  <span className={['inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    !systemDisabled ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+                </button>
+              ) : (
+                <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                  inheritedActive
+                    ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                    : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+                ].join(' ')}>
+                  {inheritedActive ? 'Active' : systemDisabled ? 'Disabled' : 'Inactive'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
 
+      {/* Own mode: provider form */}
+      {useOwn && enabled && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-[var(--color-text)]">Provider</h2>
+          <div className="flex gap-2">
+            {PROVIDERS.map(p => (
+              <button key={p.value} type="button"
+                onClick={() => {
+                  if (p.value === 'wwebjs') { setShowLocalConsent(true) }
+                  else { setProvider(p.value); markDirty() }
+                }}
+                className={['flex-1 rounded-lg border-2 py-2 text-sm font-medium transition-all',
+                  provider === p.value
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary-light)]',
+                ].join(' ')}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">{PROVIDERS.find(p => p.value === provider)?.hint}</p>
+
+          {provider === 'meta' && (
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Phone Number ID</label>
+                <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Found in Meta Business → WhatsApp → Phone Numbers</p>
+                <input type="text" value={phoneNumberId} onChange={e => { setPhoneNumberId(e.target.value); markDirty() }}
+                  placeholder="123456789012345" className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp Business Account ID</label>
+                <input type="text" value={businessAccountId} onChange={e => { setBusinessAccountId(e.target.value); markDirty() }}
+                  placeholder="987654321098765" className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Access Token</label>
+                <input type="password" value={accessToken} onChange={e => { setAccessToken(e.target.value); markDirty() }}
+                  placeholder={data?.accessTokenSet ? '(stored — leave blank to keep)' : 'Paste permanent access token'}
+                  className={inputCls} />
+              </div>
+            </div>
+          )}
+
+          {provider === 'twilio' && (
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Account SID</label>
+                <input type="text" value={twilioAccountSid} onChange={e => { setTwilioAccountSid(e.target.value); markDirty() }}
+                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">Auth Token</label>
+                <input type="password" value={twilioAuthToken} onChange={e => { setTwilioAuthToken(e.target.value); markDirty() }}
+                  placeholder={data?.twilioAuthTokenSet ? '(stored — leave blank to keep)' : 'Paste auth token'}
+                  className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">WhatsApp number</label>
+                <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">Your Twilio WhatsApp-enabled number (e.g. whatsapp:+14155238886)</p>
+                <input type="text" value={twilioNumber} onChange={e => { setTwilioNumber(e.target.value); markDirty() }}
+                  placeholder="whatsapp:+14155238886" className={inputCls} />
+              </div>
+            </div>
+          )}
+
+          {provider === 'wwebjs' && (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3">
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Uses the built-in Baileys service — no external bridge needed.
+                Save, then scan the QR code that appears below to connect a WhatsApp number.
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">What gets sent</p>
+            <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
+              <li>• Booking confirmation (immediately after booking)</li>
+              <li>• Booking cancellation</li>
+              <li>• Pre-arrival reminder (configurable timing)</li>
+            </ul>
+          </div>
+
+          {provider !== 'wwebjs' && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="button" disabled={testMutation.isPending} onClick={() => testMutation.mutate()}
+                className="rounded-lg border border-[var(--color-border)] px-5 py-2 text-sm font-medium text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-40">
+                {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+              </button>
+              {testResult && (
+                <p className={testResult.ok ? 'text-sm text-[var(--color-success)]' : 'text-sm text-[var(--color-error)]'}>
+                  {testResult.ok ? '✓ Connection successful' : '✗ ' + testResult.error}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Local connection panel — shown inline when own wwebjs is selected */}
+      {useOwn && enabled && provider === 'wwebjs' && (
+        <PropertyWebjsStatusPanel propertyId={propertyId} orgId={orgId ?? undefined} hasOwn={true} />
+      )}
+
+      {error && <p className="text-sm text-[var(--color-error)]">{error}</p>}
       <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
 
-      {/* Local / wwebjs section */}
-      <div className="border-t border-[var(--color-border)] pt-6">
-        <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
-      </div>
+      {/* Inherited local section — only when not using own wwebjs */}
+      {!(useOwn && provider === 'wwebjs') && (
+        <div className="border-t border-[var(--color-border)] pt-6">
+          <PropertyWebjsSection propertyId={propertyId} orgId={orgId} isSuper={isSuper} />
+        </div>
+      )}
     </div>
+    {localConsentModal}
+    </>
   )
 }
 
@@ -1096,12 +1155,7 @@ function PropertyWebjsSection({ propertyId, orgId, isSuper }: { propertyId: numb
 
   return (
     <>
-    <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">WhatsApp</h1>
-        <p className="mt-1 text-sm text-[var(--color-text-muted)]">WhatsApp configuration for this hotel.</p>
-      </div>
-
+    <div className="space-y-6">
       {isSuper && hasInherited && (
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
           <div className="flex items-center justify-between">
@@ -1199,6 +1253,13 @@ function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: n
     refetchInterval: statusData?.status === 'qr' ? 5000 : false,
   })
 
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      try { await apiClient.getPropertyWebjsQr(propertyId, orgId) } catch { /* init triggered */ }
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['property-wwebjs-status', propertyId] }),
+  })
+
   const disconnectMutation = useMutation({
     mutationFn: () => apiClient.disconnectPropertyWwebjs(propertyId, orgId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['property-wwebjs-status', propertyId] }),
@@ -1223,7 +1284,7 @@ function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: n
           <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
             {status === 'connected' && `Connected as +${statusData?.phoneNumber}`}
             {status === 'qr' && 'Scan the QR code with WhatsApp to connect'}
-            {status === 'disconnected' && 'Not connected'}
+            {status === 'disconnected' && 'Not connected — click Connect to generate a QR code'}
           </p>
         </div>
         <span className={['rounded-full px-2.5 py-0.5 text-xs font-semibold',
@@ -1237,6 +1298,16 @@ function PropertyWebjsStatusPanel({ propertyId, orgId, hasOwn }: { propertyId: n
         <div className="flex justify-center">
           <img src={qrData.qr} alt="WhatsApp QR code" className="h-48 w-48 rounded-lg border border-[var(--color-border)]" />
         </div>
+      )}
+      {status === 'disconnected' && hasOwn && (
+        <button
+          type="button"
+          onClick={() => connectMutation.mutate()}
+          disabled={connectMutation.isPending}
+          className="rounded-lg border border-[var(--color-primary)]/40 px-4 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 disabled:opacity-40 transition-colors"
+        >
+          {connectMutation.isPending ? 'Connecting…' : 'Connect'}
+        </button>
       )}
       {status === 'connected' && (
         <div className="flex flex-wrap items-center gap-2">
