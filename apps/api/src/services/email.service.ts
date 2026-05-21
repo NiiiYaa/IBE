@@ -27,7 +27,7 @@ export async function sendEmail(orgId: number, payload: EmailPayload, propertyId
     const settings = await getCommSettings(orgId)
     if (!settings.emailEnabled) return { ok: false, error: 'Email not enabled for this organisation' }
 
-    // Property-level sender branding overrides org/system defaults
+    // Property-level sender branding: prop config → HG contact email → org/system fallback
     let fromName = settings.emailFromName
     let fromAddress = settings.emailFromAddress
     if (propertyId) {
@@ -36,7 +36,14 @@ export async function sendEmail(orgId: number, payload: EmailPayload, propertyId
         select: { emailFromName: true, emailFromAddress: true },
       })
       if (propRow?.emailFromName) fromName = propRow.emailFromName
-      if (propRow?.emailFromAddress) fromAddress = propRow.emailFromAddress
+      if (propRow?.emailFromAddress) {
+        fromAddress = propRow.emailFromAddress
+      } else {
+        // Fall back to the hotel's own HG contact email rather than leaking the system address
+        const { fetchPropertyStatic } = await import('../adapters/hyperguest/static.js')
+        const hgStatic = await fetchPropertyStatic(propertyId).catch(() => null)
+        if (hgStatic?.contact?.email) fromAddress = hgStatic.contact.email
+      }
     }
 
     const from = fromAddress
