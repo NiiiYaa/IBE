@@ -173,6 +173,7 @@ function PropertyView({ propertyId }: { propertyId: number }) {
     mutationFn: () => apiClient.runEventCalendar(propertyId, from, to),
     onSuccess: () => {
       setRunError(null)
+      if (pollRef.current) clearInterval(pollRef.current)
       const start = Date.now()
       pollRef.current = setInterval(() => {
         if (Date.now() - start > 60000) {
