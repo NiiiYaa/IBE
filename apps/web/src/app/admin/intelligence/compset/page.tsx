@@ -1074,12 +1074,12 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
 // ── Section D: Results ───────────────────────────────────────────────────────
 
 function ResultCell({ result }: { result: CompSetResult | undefined }) {
-  if (!result) return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)]" colSpan={4}>—</td>
+  if (!result) return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)]" colSpan={5}>—</td>
   if (result.searchStatus === 'error') {
-    return <td className="py-2.5 text-right text-xs text-red-500" colSpan={4}>Error</td>
+    return <td className="py-2.5 text-right text-xs text-red-500" colSpan={5}>Error</td>
   }
   if (result.searchStatus === 'not_found' || result.pricePerNight == null) {
-    return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)] italic" colSpan={4}>Not found</td>
+    return <td className="py-2.5 text-right text-xs text-[var(--color-text-muted)] italic" colSpan={5}>Not found</td>
   }
   const cur = result.currency ?? ''
   return (
@@ -1088,6 +1088,7 @@ function ResultCell({ result }: { result: CompSetResult | undefined }) {
         {result.roomName ?? '—'}
       </td>
       <td className="py-2.5 text-xs text-[var(--color-text-muted)]">{result.board ?? '—'}</td>
+      <td className="py-2.5 text-xs text-[var(--color-text-muted)]">{result.cancellation ?? '—'}</td>
       <td className="py-2.5 text-right font-semibold text-[var(--color-text)]">
         {cur}{cur ? ' ' : ''}{result.pricePerNight.toLocaleString()}
       </td>
@@ -1129,15 +1130,19 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   const compById = new Map(competitors.map(c => [c.id, c]))
   const paramById = new Map(params.map(p => [p.id, p]))
 
-  // unique param IDs ordered by first appearance in results
-  const paramIds = [...new Set(results.map(r => r.searchParamId))]
+  // Hide results whose check-in date has already passed
+  const today = new Date().toISOString().split('T')[0]!
+  const freshResults = results.filter(r => r.checkIn >= today)
+
+  // unique param IDs ordered by first appearance in fresh results
+  const paramIds = [...new Set(freshResults.map(r => r.searchParamId))]
   // unique competitor IDs ordered by first appearance
   const competitorIds = [...new Set(
-    results.map(r => r.competitorId).filter((id): id is number => id !== null)
+    freshResults.map(r => r.competitorId).filter((id): id is number => id !== null)
   )]
 
   function bestResult(paramId: number, compId: number | null): CompSetResult | undefined {
-    const rows = results.filter(r => r.searchParamId === paramId && r.competitorId === compId)
+    const rows = freshResults.filter(r => r.searchParamId === paramId && r.competitorId === compId)
     const found = rows.filter(r => r.searchStatus === 'found' && r.pricePerNight != null)
     if (found.length > 0) {
       return found.reduce((best, r) =>
@@ -1147,7 +1152,7 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
     return rows[0]
   }
 
-  const hasOwnResults = results.some(r => r.competitorId === null)
+  const hasOwnResults = freshResults.some(r => r.competitorId === null)
 
   function fmtDate(iso: string): string {
     try {
@@ -1168,9 +1173,11 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
         )}
       </div>
 
-      {results.length === 0 ? (
+      {freshResults.length === 0 ? (
         <p className="text-sm italic text-[var(--color-text-muted)]">
-          No results yet. Add competitors and click Run to fetch price data.
+          {results.length > 0
+            ? 'All results are for past dates. Run again to fetch current availability.'
+            : 'No results yet. Add competitors and click Run to fetch price data.'}
         </p>
       ) : (
         <div className="space-y-6">
@@ -1198,6 +1205,7 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
                         <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Competitor</th>
                         <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Room</th>
                         <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Board</th>
+                        <th className="pb-2 text-left text-xs font-semibold text-[var(--color-text-muted)]">Cancel.</th>
                         <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Per night</th>
                         <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Total</th>
                         <th className="pb-2 text-right text-xs font-semibold text-[var(--color-text-muted)]">Fetched</th>
