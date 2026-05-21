@@ -67,6 +67,7 @@ import { visitRoutes } from './routes/visit.route.js'
 import { incentiveAdminRoutes, incentivePublicRoutes } from './routes/incentive.route.js'
 import { dataProviderRoutes } from './routes/data-provider.route.js'
 import { compsetRoutes } from './routes/compset.route.js'
+import { eventCalendarRoutes } from './routes/event-calendar.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -251,6 +252,7 @@ export async function buildApp() {
     await adminApp.register(incentiveAdminRoutes, { prefix: '/api/v1' })
     await adminApp.register(dataProviderRoutes, { prefix: '/api/v1' })
     await adminApp.register(compsetRoutes, { prefix: '/api/v1' })
+    await adminApp.register(eventCalendarRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────
