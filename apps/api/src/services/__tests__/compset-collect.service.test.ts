@@ -17,6 +17,7 @@ vi.mock('../ai-config.service.js', () => ({ resolveAIConfig: vi.fn() }))
 vi.mock('../external-ibe.service.js', () => ({
   buildExternalUrl: vi.fn((template: string) => template),
 }))
+vi.mock('../event-calendar-fetch.service.js', () => ({ refreshPropertyEvents: vi.fn(() => Promise.resolve()) }))
 
 import { prisma } from '../../db/client.js'
 import { getEffectiveSearchParams, listCompetitors } from '../compset.service.js'
