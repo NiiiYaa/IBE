@@ -8,13 +8,6 @@ vi.mock('../event-calendar.service.js', () => ({
   getPropertyEventCalendarConfig: vi.fn(),
   replacePropertyEvents: vi.fn(),
 }))
-vi.mock('../../db/client.js', () => ({
-  prisma: {
-    property: { findUnique: vi.fn() },
-  },
-}))
-
-import { prisma } from '../../db/client.js'
 import { resolveAIConfig } from '../ai-config.service.js'
 import { fetchPropertyStatic } from '../../adapters/hyperguest/static.js'
 import { getProviderAdapter } from '../../ai/adapters/index.js'
@@ -25,7 +18,6 @@ import {
 } from '../event-calendar.service.js'
 import { refreshPropertyEvents } from '../event-calendar-fetch.service.js'
 
-const mp = prisma as any
 const mAI = resolveAIConfig as any
 const mStatic = fetchPropertyStatic as any
 const mAdapter = getProviderAdapter as any
@@ -54,14 +46,12 @@ function makeAIConfig() {
 
 describe('refreshPropertyEvents', () => {
   it('returns early when no AI config is set', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(null)
     await refreshPropertyEvents(1, '2026-06-01', '2026-06-30')
     expect(mReplace).not.toHaveBeenCalled()
   })
 
   it('returns early when fetchPropertyStatic fails', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockRejectedValue(new Error('static fetch failed'))
     await refreshPropertyEvents(1, '2026-06-01', '2026-06-30')
@@ -69,7 +59,6 @@ describe('refreshPropertyEvents', () => {
   })
 
   it('calls AI adapter with correct prompt containing city and radius', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
@@ -92,7 +81,6 @@ describe('refreshPropertyEvents', () => {
   })
 
   it('uses property radius override when set', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
@@ -109,7 +97,6 @@ describe('refreshPropertyEvents', () => {
   })
 
   it('stores parsed events on successful AI response', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
@@ -136,7 +123,6 @@ describe('refreshPropertyEvents', () => {
   })
 
   it('stores zero events and does not crash on malformed AI response', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
@@ -150,8 +136,21 @@ describe('refreshPropertyEvents', () => {
     expect(mReplace).toHaveBeenCalledWith(1, expect.any(Date), '2026-06-01', '2026-06-30', [])
   })
 
+  it('stores zero events when AI response has error stopReason', async () => {
+    mAI.mockResolvedValue(makeAIConfig())
+    mStatic.mockResolvedValue(makeStaticResult())
+    mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
+    mPropConfig.mockResolvedValue(null)
+    const mockCall = vi.fn().mockResolvedValue({ text: null, stopReason: 'error' })
+    mAdapter.mockReturnValue({ call: mockCall })
+    mReplace.mockResolvedValue(undefined)
+
+    await refreshPropertyEvents(1, '2026-06-01', '2026-06-30')
+
+    expect(mReplace).toHaveBeenCalledWith(1, expect.any(Date), '2026-06-01', '2026-06-30', [])
+  })
+
   it('skips malformed event objects but saves valid ones', async () => {
-    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mAI.mockResolvedValue(makeAIConfig())
     mStatic.mockResolvedValue(makeStaticResult())
     mSysConfig.mockResolvedValue({ enabled: true, defaultRadiusKm: 50, cronSchedule: '0 4 * * *' })
@@ -159,7 +158,11 @@ describe('refreshPropertyEvents', () => {
     const mixed = [
       { name: 'Good', startDate: '2026-06-01', endDate: '2026-06-01',
         description: 'ok', demandLevel: 'low', demandDescription: 'low demand' },
-      { name: 'Bad', startDate: '2026-06-02' }, // missing required fields
+      { name: 'Bad date', startDate: 'tomorrow', endDate: '2026-06-02',
+        description: 'ok', demandLevel: 'low', demandDescription: 'low demand' },
+      { name: '', startDate: '2026-06-01', endDate: '2026-06-01',
+        description: 'ok', demandLevel: 'low', demandDescription: 'low demand' }, // empty name
+      { name: 'Missing fields', startDate: '2026-06-02' }, // missing required fields
     ]
     const mockCall = vi.fn().mockResolvedValue({ text: JSON.stringify(mixed), stopReason: 'end_turn' })
     mAdapter.mockReturnValue({ call: mockCall })

@@ -1,5 +1,4 @@
 import { logger } from '../utils/logger.js'
-import { prisma } from '../db/client.js'
 import { resolveAIConfig } from './ai-config.service.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
@@ -18,13 +17,15 @@ interface ParsedEvent {
   demandDescription: string
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
 function isValidEvent(obj: unknown): obj is ParsedEvent {
   if (!obj || typeof obj !== 'object') return false
   const e = obj as Record<string, unknown>
   return (
-    typeof e.name === 'string' &&
-    typeof e.startDate === 'string' &&
-    typeof e.endDate === 'string' &&
+    typeof e.name === 'string' && e.name.length > 0 &&
+    typeof e.startDate === 'string' && ISO_DATE_RE.test(e.startDate) &&
+    typeof e.endDate === 'string' && ISO_DATE_RE.test(e.endDate) &&
     typeof e.description === 'string' &&
     (e.demandLevel === 'high' || e.demandLevel === 'medium' || e.demandLevel === 'low') &&
     typeof e.demandDescription === 'string'
@@ -36,13 +37,7 @@ export async function refreshPropertyEvents(
   periodStart: string,
   periodEnd: string,
 ): Promise<void> {
-  const prop = await prisma.property.findUnique({
-    where: { propertyId },
-    select: { organizationId: true },
-  })
-  const orgId = prop?.organizationId ?? undefined
-
-  const aiConfig = await resolveAIConfig(propertyId, orgId)
+  const aiConfig = await resolveAIConfig(propertyId)
   if (!aiConfig) {
     logger.info({ propertyId }, '[EventCalendar] No AI config — skipping')
     return
