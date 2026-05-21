@@ -21,6 +21,7 @@ export type * from './types/data-provider.js'
 export type * from './types/external-ibe.js'
 export type * from './types/test-bookings.js'
 export type * from './types/compset.js'
+export type * from './types/event-calendar.js'
 
 // Schemas
 export * from './schemas/search.js'
