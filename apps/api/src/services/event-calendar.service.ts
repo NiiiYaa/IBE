@@ -119,14 +119,16 @@ export async function replacePropertyEvents(
     description: string; demandLevel: 'high' | 'medium' | 'low'; demandDescription: string
   }>,
 ): Promise<void> {
-  await prisma.eventCalendarEvent.deleteMany({ where: { propertyId } })
-  await prisma.eventCalendarEvent.createMany({
-    data: events.map(e => ({
-      propertyId, fetchedAt, periodStart, periodEnd,
-      name: e.name, startDate: e.startDate, endDate: e.endDate,
-      description: e.description, demandLevel: e.demandLevel, demandDescription: e.demandDescription,
-    })),
-  })
+  await prisma.$transaction([
+    prisma.eventCalendarEvent.deleteMany({ where: { propertyId } }),
+    prisma.eventCalendarEvent.createMany({
+      data: events.map(e => ({
+        propertyId, fetchedAt, periodStart, periodEnd,
+        name: e.name, startDate: e.startDate, endDate: e.endDate,
+        description: e.description, demandLevel: e.demandLevel, demandDescription: e.demandDescription,
+      })),
+    }),
+  ])
 }
 
 // ── Active property IDs for cron ──────────────────────────────────────────────

@@ -13,6 +13,7 @@ vi.mock('../../db/client.js', () => ({
     },
     compSetCompetitor: { groupBy: vi.fn() },
     property: { findMany: vi.fn() },
+    $transaction: vi.fn(),
   },
 }))
 
@@ -132,9 +133,10 @@ describe('getPropertyEvents', () => {
 })
 
 describe('replacePropertyEvents', () => {
-  it('deletes existing and inserts new events', async () => {
-    mp.eventCalendarEvent.deleteMany.mockResolvedValue({ count: 3 })
-    mp.eventCalendarEvent.createMany.mockResolvedValue({ count: 2 })
+  it('deletes existing and inserts new events atomically', async () => {
+    mp.eventCalendarEvent.deleteMany.mockReturnValue({ where: { propertyId: 5 } })
+    mp.eventCalendarEvent.createMany.mockReturnValue({ data: [] })
+    mp.$transaction.mockResolvedValue([{ count: 3 }, { count: 1 }])
     const fetchedAt = new Date()
     const events = [
       {
@@ -143,18 +145,56 @@ describe('replacePropertyEvents', () => {
       },
     ]
     await replacePropertyEvents(5, fetchedAt, '2026-06-01', '2026-06-30', events)
+    expect(mp.$transaction).toHaveBeenCalled()
+    // Verify deleteMany was called (as part of building the transaction array)
     expect(mp.eventCalendarEvent.deleteMany).toHaveBeenCalledWith({ where: { propertyId: 5 } })
+    // Verify createMany was called with correct data
     expect(mp.eventCalendarEvent.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ propertyId: 5, name: 'Concert', fetchedAt })],
     })
   })
 
-  it('calls deleteMany even when events array is empty', async () => {
-    mp.eventCalendarEvent.deleteMany.mockResolvedValue({ count: 1 })
-    mp.eventCalendarEvent.createMany.mockResolvedValue({ count: 0 })
+  it('calls transaction even when events array is empty', async () => {
+    mp.eventCalendarEvent.deleteMany.mockReturnValue({ where: { propertyId: 5 } })
+    mp.eventCalendarEvent.createMany.mockReturnValue({ data: [] })
+    mp.$transaction.mockResolvedValue([{ count: 1 }, { count: 0 }])
     await replacePropertyEvents(5, new Date(), '2026-06-01', '2026-06-30', [])
+    expect(mp.$transaction).toHaveBeenCalled()
     expect(mp.eventCalendarEvent.deleteMany).toHaveBeenCalled()
     expect(mp.eventCalendarEvent.createMany).toHaveBeenCalledWith({ data: [] })
+  })
+})
+
+describe('getChainEvents', () => {
+  it('returns empty array when org has no properties', async () => {
+    mp.property.findMany.mockResolvedValue([])
+    const result = await getChainEvents(10)
+    expect(result).toEqual([])
+    expect(mp.eventCalendarEvent.findMany).not.toHaveBeenCalled()
+  })
+
+  it('returns ChainEventCalendarEvents with empty events for property with no events', async () => {
+    mp.property.findMany.mockResolvedValue([{ propertyId: 7 }])
+    mp.eventCalendarEvent.findMany.mockResolvedValue([])
+    const result = await getChainEvents(10)
+    expect(result).toEqual([{ propertyId: 7, events: [] }])
+  })
+
+  it('returns mapped events for a property', async () => {
+    mp.property.findMany.mockResolvedValue([{ propertyId: 7 }])
+    const row = {
+      id: 1, propertyId: 7, fetchedAt: new Date('2026-05-21'),
+      periodStart: '2026-06-01', periodEnd: '2026-06-30',
+      name: 'Jazz Fest', startDate: '2026-06-10', endDate: '2026-06-12',
+      description: 'Annual jazz festival', demandLevel: 'high',
+      demandDescription: 'High occupancy expected', createdAt: new Date(),
+    }
+    mp.eventCalendarEvent.findMany.mockResolvedValue([row])
+    const result = await getChainEvents(10)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.propertyId).toBe(7)
+    expect(result[0]!.events[0]!.name).toBe('Jazz Fest')
+    expect(result[0]!.events[0]!.fetchedAt).toBe('2026-05-21T00:00:00.000Z')
   })
 })
 
