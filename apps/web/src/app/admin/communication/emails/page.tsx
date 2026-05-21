@@ -65,8 +65,8 @@ export default function EmailsPage() {
     setProvider(data.emailProvider as EmailProvider)
     setFromName(data.emailFromName || orgName)
     setFromAddress(data.emailFromAddress || (orgSlug ? `no-reply@${orgSlug}.com` : ''))
-    // Only populate SMTP fields when org has its own config — system values leak in otherwise
-    if (data.emailUseOwn) {
+    // At system level always populate SMTP; at org level only when org uses its own config
+    if (isSystemLevel || data.emailUseOwn) {
       setSmtpHost(data.emailSmtpHost)
       setSmtpPort(data.emailSmtpPort)
       setSmtpUser(data.emailSmtpUser)

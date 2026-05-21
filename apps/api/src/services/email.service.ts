@@ -1,4 +1,5 @@
 import { getCommSettings, getSystemCommSettings } from './communication.service.js'
+import { prisma } from '../db/client.js'
 
 interface EmailAttachment {
   filename: string
@@ -21,13 +22,25 @@ interface EmailPayload {
   inlineImages?: InlineImage[]
 }
 
-export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{ ok: boolean; error?: string }> {
+export async function sendEmail(orgId: number, payload: EmailPayload, propertyId?: number): Promise<{ ok: boolean; error?: string }> {
   try {
     const settings = await getCommSettings(orgId)
     if (!settings.emailEnabled) return { ok: false, error: 'Email not enabled for this organisation' }
 
-    const from = settings.emailFromAddress
-      ? `${settings.emailFromName || 'IBE'} <${settings.emailFromAddress}>`
+    // Property-level sender branding overrides org/system defaults
+    let fromName = settings.emailFromName
+    let fromAddress = settings.emailFromAddress
+    if (propertyId) {
+      const propRow = await prisma.propertyCommunicationSettings.findUnique({
+        where: { propertyId },
+        select: { emailFromName: true, emailFromAddress: true },
+      })
+      if (propRow?.emailFromName) fromName = propRow.emailFromName
+      if (propRow?.emailFromAddress) fromAddress = propRow.emailFromAddress
+    }
+
+    const from = fromAddress
+      ? `${fromName || 'IBE'} <${fromAddress}>`
       : 'IBE <noreply@example.com>'
 
     if (settings.emailProvider === 'sendgrid') {
@@ -52,7 +65,7 @@ export async function sendEmail(orgId: number, payload: EmailPayload): Promise<{
         headers: { Authorization: `Bearer ${settings.emailApiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: payload.to }] }],
-          from: { email: settings.emailFromAddress, name: settings.emailFromName || 'IBE' },
+          from: { email: fromAddress, name: fromName || 'IBE' },
           reply_to: payload.replyTo ? { email: payload.replyTo } : undefined,
           subject: payload.subject,
           content: [{ type: 'text/html', value: payload.html }],
@@ -134,8 +147,10 @@ export async function sendSystemEmail(payload: EmailPayload): Promise<{ ok: bool
     const settings = await getSystemCommSettings()
     if (!settings.emailEnabled) return { ok: false, error: 'System email not configured' }
 
-    const from = settings.emailFromAddress
-      ? `${settings.emailFromName || 'IBE'} <${settings.emailFromAddress}>`
+    const fromName = settings.emailFromName
+    const fromAddress = settings.emailFromAddress
+    const from = fromAddress
+      ? `${fromName || 'IBE'} <${fromAddress}>`
       : 'IBE <noreply@example.com>'
 
     if (settings.emailProvider === 'smtp') {
@@ -160,7 +175,7 @@ export async function sendSystemEmail(payload: EmailPayload): Promise<{ ok: bool
         headers: { Authorization: `Bearer ${settings.emailApiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: payload.to }] }],
-          from: { email: settings.emailFromAddress, name: settings.emailFromName || 'IBE' },
+          from: { email: fromAddress, name: fromName || 'IBE' },
           subject: payload.subject,
           content: [{ type: 'text/html', value: payload.html }],
         }),

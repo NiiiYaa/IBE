@@ -309,7 +309,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
           logoUrl,
         })
         const subject = `Booking confirmed ${ref}${hotelName ? ` — ${hotelName}` : ''}`
-        const result = await sendEmail(orgId, { to, subject, html, ...(logoInlineImage ? { inlineImages: [logoInlineImage] } : {}) })
+        const result = await sendEmail(orgId, { to, subject, html, ...(logoInlineImage ? { inlineImages: [logoInlineImage] } : {}) }, pid ?? undefined)
         if (!result.ok) return reply.status(502).send({ error: result.error ?? 'Email send failed' })
         return reply.send({ ok: true })
       }
