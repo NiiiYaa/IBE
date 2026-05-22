@@ -453,7 +453,143 @@ function HotelsTab({ orgId }: { orgId: number | null }) {
 }
 
 function UsersTab({ orgId }: { orgId: number | null }) {
-  return <p className="text-sm text-[var(--color-text-muted)] italic">Loading users…</p>
+  const usersQuery = useQuery({
+    queryKey: ['clusters-users', orgId],
+    queryFn: () => apiClient.listClustersUsers(orgId ?? undefined),
+  })
+  const clustersQuery = useQuery({
+    queryKey: ['clusters', orgId],
+    queryFn: () => apiClient.listClusters(orgId ?? undefined),
+  })
+  const qc = useQueryClient()
+  const [managingId, setManagingId] = useState<number | null>(null)
+  const [addClusterId, setAddClusterId] = useState('')
+  const [addRole, setAddRole] = useState<ClusterRole>('user')
+  const [err, setErr] = useState<string | null>(null)
+
+  function invalidateUsers() {
+    void qc.invalidateQueries({ queryKey: ['clusters-users', orgId] })
+  }
+
+  const scopeMutation = useMutation({
+    mutationFn: ({ adminUserId, clusterScope }: { adminUserId: number; clusterScope: boolean }) =>
+      apiClient.setAdminUserClusterScope(adminUserId, { clusterScope }),
+    onSuccess: invalidateUsers,
+  })
+
+  const addMutation = useMutation({
+    mutationFn: ({ adminUserId }: { adminUserId: number }) =>
+      apiClient.addUserToCluster(parseInt(addClusterId, 10), { adminUserId, role: addRole }, orgId ?? undefined),
+    onSuccess: () => {
+      invalidateUsers()
+      setAddClusterId('')
+      setErr(null)
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : 'Failed'),
+  })
+
+  const removeAssignmentMutation = useMutation({
+    mutationFn: ({ clusterId, adminUserId }: { clusterId: number; adminUserId: number }) =>
+      apiClient.removeUserFromCluster(clusterId, adminUserId, orgId ?? undefined),
+    onSuccess: invalidateUsers,
+  })
+
+  const changeRoleMutation = useMutation({
+    mutationFn: ({ clusterId, adminUserId, role }: { clusterId: number; adminUserId: number; role: ClusterRole }) =>
+      apiClient.updateUserClusterRole(clusterId, adminUserId, { role }, orgId ?? undefined),
+    onSuccess: invalidateUsers,
+  })
+
+  const users = usersQuery.data ?? []
+  const clusters = clustersQuery.data ?? []
+
+  if (usersQuery.isLoading) return <div className="h-12 animate-pulse rounded-xl bg-[var(--color-border)]" />
+
+  return (
+    <div className="space-y-3">
+      {users.map(user => {
+        const isManaging = managingId === user.adminUserId
+        const assignedClusterIds = new Set(user.assignments.map(a => a.clusterId))
+        const availableClusters = clusters.filter(c => !assignedClusterIds.has(c.id) && c.status === 'active')
+
+        return (
+          <div key={user.adminUserId} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 space-y-3">
+            {/* User header */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--color-text)] truncate">{user.name}</p>
+                <p className="text-xs text-[var(--color-text-muted)] truncate">{user.email}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={[
+                  'text-xs px-2 py-0.5 rounded-full font-medium',
+                  user.clusterScope
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-green-100 text-green-700',
+                ].join(' ')}>
+                  {user.clusterScope ? 'Cluster scope' : 'Global'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => scopeMutation.mutate({ adminUserId: user.adminUserId, clusterScope: !user.clusterScope })}
+                  disabled={scopeMutation.isPending}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"
+                >
+                  {user.clusterScope ? '→ Global' : '→ Cluster'}
+                </button>
+              </div>
+            </div>
+
+            {/* Assignments */}
+            {user.assignments.length > 0 && (
+              <div className="space-y-1.5">
+                {user.assignments.map(a => (
+                  <div key={a.clusterId} className="flex items-center gap-2 text-sm">
+                    <span className="flex-1 text-[var(--color-text-muted)]">{a.clusterName}</span>
+                    <select
+                      value={a.role}
+                      onChange={e => changeRoleMutation.mutate({ clusterId: a.clusterId, adminUserId: user.adminUserId, role: e.target.value as ClusterRole })}
+                      className={inputClass('text-xs py-1')}
+                    >
+                      {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </select>
+                    <button type="button"
+                      onClick={() => removeAssignmentMutation.mutate({ clusterId: a.clusterId, adminUserId: user.adminUserId })}
+                      className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error,#dc2626)]">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add to cluster */}
+            {isManaging ? (
+              <div className="flex items-center gap-2">
+                <select value={addClusterId} onChange={e => setAddClusterId(e.target.value)} className={inputClass('flex-1 text-xs py-1')}>
+                  <option value="">Select cluster…</option>
+                  {availableClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select value={addRole} onChange={e => setAddRole(e.target.value as ClusterRole)} className={inputClass('text-xs py-1')}>
+                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+                <button type="button" disabled={!addClusterId || addMutation.isPending}
+                  onClick={() => addMutation.mutate({ adminUserId: user.adminUserId })}
+                  className="text-xs text-[var(--color-primary)] disabled:opacity-50">Add</button>
+                <button type="button" onClick={() => { setManagingId(null); setAddClusterId(''); setErr(null) }}
+                  className="text-xs text-[var(--color-text-muted)]">Done</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => { setManagingId(user.adminUserId); setAddClusterId('') }}
+                className="text-xs text-[var(--color-primary)] hover:opacity-80">+ Add to cluster</button>
+            )}
+          </div>
+        )
+      })}
+      {users.length === 0 && (
+        <p className="text-sm italic text-[var(--color-text-muted)]">No users in this organisation.</p>
+      )}
+      {err && <p className="text-xs text-[var(--color-error,#dc2626)]">{err}</p>}
+    </div>
+  )
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
