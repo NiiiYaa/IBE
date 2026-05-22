@@ -288,6 +288,218 @@ function AddParamForm({ onAdd, isPending, onCancel }: AddParamFormProps) {
   )
 }
 
+// ── Section B: Edit Param Form ────────────────────────────────────────────────
+
+interface EditParamFormProps {
+  param: CompSetSearchParam
+  onSave: (data: CompSetSearchParamCreate) => void
+  isPending: boolean
+  onCancel: () => void
+}
+
+function EditParamForm({ param, onSave, isPending, onCancel }: EditParamFormProps) {
+  const [offsetDays, setOffsetDays] = useState(param.offsetDays)
+  const [nights, setNights] = useState(param.nights)
+  const [adults, setAdults] = useState(param.adults)
+  const [children, setChildren] = useState(param.children)
+  const [childAges, setChildAges] = useState<number[]>(param.childAges)
+
+  function handleChildrenChange(count: number) {
+    setChildren(count)
+    setChildAges(prev => {
+      if (count > prev.length) return [...prev, ...Array(count - prev.length).fill(8)]
+      return prev.slice(0, count)
+    })
+  }
+
+  function handleChildAge(index: number, age: number) {
+    setChildAges(prev => prev.map((a, i) => (i === index ? age : a)))
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    onSave({ offsetDays, nights, adults, children, childAges })
+  }
+
+  const fieldClass = inputClass('max-w-[100px]')
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-background,#f9fafb)] p-4 space-y-3">
+      <p className="text-sm font-medium text-[var(--color-text)]">Edit search parameter</p>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Offset days</label>
+          <input type="number" min={1} max={365} value={offsetDays}
+            onChange={(e) => setOffsetDays(Number(e.target.value))}
+            className={fieldClass} required />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Nights</label>
+          <input type="number" min={1} max={30} value={nights}
+            onChange={(e) => setNights(Number(e.target.value))}
+            className={fieldClass} required />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Adults</label>
+          <input type="number" min={1} max={10} value={adults}
+            onChange={(e) => setAdults(Number(e.target.value))}
+            className={fieldClass} required />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--color-text-muted)]">Children</label>
+          <input type="number" min={0} max={10} value={children}
+            onChange={(e) => handleChildrenChange(Number(e.target.value))}
+            className={fieldClass} />
+        </div>
+        {childAges.map((age, i) => (
+          <div key={i} className="space-y-1">
+            <label className="block text-xs text-[var(--color-text-muted)]">Child {i + 1} age</label>
+            <input type="number" min={0} max={17} value={age}
+              onChange={(e) => handleChildAge(i, Number(e.target.value))}
+              className={fieldClass} />
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <button type="submit" disabled={isPending}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-opacity">
+            {isPending ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" onClick={onCancel}
+            className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </form>
+  )
+}
+
+// ── Section B: Param Row ──────────────────────────────────────────────────────
+
+interface ParamRowProps {
+  param: CompSetSearchParam
+  isOwn: boolean
+  isTogglingActive?: boolean
+  onToggleActive?: (isActive: boolean) => void
+  isEditing?: boolean
+  onEditRequest?: () => void
+  onEditCancel?: () => void
+  onEditSave?: (data: CompSetSearchParamCreate) => void
+  isEditSaving?: boolean
+  deleteConfirm?: boolean
+  onDeleteRequest?: () => void
+  onDeleteConfirm?: () => void
+  onDeleteCancel?: () => void
+  isDeleting?: boolean
+}
+
+function ParamRow({
+  param,
+  isOwn,
+  isTogglingActive,
+  onToggleActive,
+  isEditing,
+  onEditRequest,
+  onEditCancel,
+  onEditSave,
+  isEditSaving,
+  deleteConfirm,
+  onDeleteRequest,
+  onDeleteConfirm,
+  onDeleteCancel,
+  isDeleting,
+}: ParamRowProps) {
+  if (isEditing && isOwn) {
+    return (
+      <EditParamForm
+        param={param}
+        onSave={(data) => onEditSave?.(data)}
+        isPending={isEditSaving ?? false}
+        onCancel={() => onEditCancel?.()}
+      />
+    )
+  }
+
+  return (
+    <div
+      className={[
+        'flex items-center gap-3 rounded-lg border px-4 py-3',
+        isOwn
+          ? 'border-[var(--color-border)] bg-[var(--color-surface)]'
+          : 'border-[var(--color-border)] bg-[var(--color-background,#f9fafb)]',
+      ].join(' ')}
+    >
+      <TierBadge tier={param.tier} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-[var(--color-text)] font-medium">{param.label}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          +{param.offsetDays}d · {param.nights}n · {param.adults}A{param.children > 0 ? ` · ${param.children}C (${param.childAges.join(', ')})` : ''}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        {isOwn && !deleteConfirm && (
+          <>
+            <button
+              type="button"
+              onClick={onEditRequest}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onDeleteRequest}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error,#dc2626)] transition-colors"
+            >
+              Delete
+            </button>
+          </>
+        )}
+        {isOwn && deleteConfirm && (
+          <>
+            <span className="text-xs text-[var(--color-text-muted)]">Delete?</span>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={onDeleteConfirm}
+              className="rounded bg-[var(--color-error,#dc2626)] px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+            >
+              {isDeleting ? '…' : 'Yes'}
+            </button>
+            <button
+              type="button"
+              onClick={onDeleteCancel}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Cancel
+            </button>
+          </>
+        )}
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={param.resolvedIsActive}
+          disabled={isTogglingActive}
+          onClick={() => onToggleActive?.(!param.resolvedIsActive)}
+          className={[
+            'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 disabled:opacity-50',
+            param.resolvedIsActive ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200',
+              param.resolvedIsActive ? 'translate-x-4' : 'translate-x-0',
+            ].join(' ')}
+          />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Section B: Search Configurations ─────────────────────────────────────────
 
 interface SearchConfigSectionProps {
@@ -300,16 +512,15 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [editingParamId, setEditingParamId] = useState<number | null>(null)
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
 
-  // Current tier
   const currentTier: 'system' | 'chain' | 'hotel' = propertyId
     ? 'hotel'
     : orgId
     ? 'chain'
     : 'system'
 
-  // Fetch all effective params (including inherited)
   const paramsQuery = useQuery({
     queryKey: ['compset-search-params', propertyId, orgId],
     queryFn: () =>
@@ -332,6 +543,15 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CompSetSearchParamCreate }) =>
+      apiClient.updateCompSetSearchParam(id, data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['compset-search-params'] })
+      setEditingParamId(null)
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.deleteCompSetSearchParam(id),
     onSuccess: () => {
@@ -342,9 +562,18 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
     onError: (e) => setDeleteErr(e instanceof Error ? e.message : 'Delete failed'),
   })
 
+  const activeMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      apiClient.patchCompSetSearchParamActive(id, {
+        isActive,
+        orgId: orgId ?? null,
+        propertyId: propertyId ?? null,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['compset-search-params'] }),
+  })
+
   const params = paramsQuery.data ?? []
 
-  // Tier ordering
   const tierOrder: Record<'system' | 'chain' | 'hotel', number> = { system: 0, chain: 1, hotel: 2 }
   const currentTierOrder = tierOrder[currentTier]
 
@@ -376,10 +605,16 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
           {inheritedParams.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                Inherited
+                Inherited — toggle to activate or deactivate
               </p>
               {inheritedParams.map((param) => (
-                <ParamRow key={param.id} param={param} readOnly />
+                <ParamRow
+                  key={param.id}
+                  param={param}
+                  isOwn={false}
+                  isTogglingActive={activeMutation.isPending}
+                  onToggleActive={(isActive) => activeMutation.mutate({ id: param.id, isActive })}
+                />
               ))}
             </div>
           )}
@@ -395,7 +630,14 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
                 <ParamRow
                   key={param.id}
                   param={param}
-                  readOnly={false}
+                  isOwn={true}
+                  isTogglingActive={activeMutation.isPending}
+                  onToggleActive={(isActive) => activeMutation.mutate({ id: param.id, isActive })}
+                  isEditing={editingParamId === param.id}
+                  onEditRequest={() => { setEditingParamId(param.id); setShowAdd(false) }}
+                  onEditCancel={() => setEditingParamId(null)}
+                  onEditSave={(data) => editMutation.mutate({ id: param.id, data })}
+                  isEditSaving={editMutation.isPending && editingParamId === param.id}
                   deleteConfirm={deleteConfirmId === param.id}
                   onDeleteRequest={() => setDeleteConfirmId(param.id)}
                   onDeleteConfirm={() => deleteMutation.mutate(param.id)}
@@ -432,78 +674,6 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
         <p className="text-xs text-[var(--color-error,#dc2626)]">{deleteErr}</p>
       )}
     </section>
-  )
-}
-
-interface ParamRowProps {
-  param: CompSetSearchParam
-  readOnly: boolean
-  deleteConfirm?: boolean
-  onDeleteRequest?: () => void
-  onDeleteConfirm?: () => void
-  onDeleteCancel?: () => void
-  isDeleting?: boolean
-}
-
-function ParamRow({
-  param,
-  readOnly,
-  deleteConfirm,
-  onDeleteRequest,
-  onDeleteConfirm,
-  onDeleteCancel,
-  isDeleting,
-}: ParamRowProps) {
-  return (
-    <div
-      className={[
-        'flex items-center gap-3 rounded-lg border px-4 py-3',
-        readOnly
-          ? 'border-[var(--color-border)] bg-[var(--color-background,#f9fafb)]'
-          : 'border-[var(--color-border)] bg-[var(--color-surface)]',
-      ].join(' ')}
-    >
-      <TierBadge tier={param.tier} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-[var(--color-text)] font-medium">{param.label}</p>
-        <p className="text-xs text-[var(--color-text-muted)]">
-          +{param.offsetDays}d · {param.nights}n · {param.adults}A{param.children > 0 ? ` · ${param.children}C (${param.childAges.join(', ')})` : ''}
-        </p>
-      </div>
-      {!readOnly && (
-        <div className="flex items-center gap-2 shrink-0">
-          {!deleteConfirm && (
-            <button
-              type="button"
-              onClick={onDeleteRequest}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error,#dc2626)] transition-colors"
-            >
-              Remove
-            </button>
-          )}
-          {deleteConfirm && (
-            <>
-              <span className="text-xs text-[var(--color-text-muted)]">Remove?</span>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={onDeleteConfirm}
-                className="rounded bg-[var(--color-error,#dc2626)] px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
-              >
-                {isDeleting ? '…' : 'Yes'}
-              </button>
-              <button
-                type="button"
-                onClick={onDeleteCancel}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              >
-                Cancel
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -932,7 +1102,7 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
   async function runSingle(id: number) {
     setRunningIds((prev) => new Set([...prev, id]))
     try {
-      await apiClient.runCompSet(propertyId)
+      await apiClient.runSingleCompSet(id)
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
     } catch (e) {
       setRunError(e instanceof Error ? e.message : 'Run failed')
