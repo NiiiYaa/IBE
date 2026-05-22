@@ -53,30 +53,95 @@ export async function upsertSystemCompSetConfig(data: Partial<SystemCompSetConfi
 
 type Tier = 'system' | 'chain' | 'hotel'
 
+type OverrideRow = { searchParamId: number; orgId: number | null; propertyId: number | null; isActive: boolean }
+
+function resolveIsActive(
+  paramId: number,
+  paramOwnIsActive: boolean,
+  overrides: OverrideRow[],
+  scope: { orgId: number | null; propertyId: number | null },
+): boolean {
+  if (scope.propertyId !== null) {
+    const hit = overrides.find(o => o.searchParamId === paramId && o.propertyId === scope.propertyId)
+    if (hit) return hit.isActive
+  }
+  if (scope.orgId !== null) {
+    const hit = overrides.find(o => o.searchParamId === paramId && o.orgId === scope.orgId && o.propertyId === null)
+    if (hit) return hit.isActive
+  }
+  return paramOwnIsActive
+}
+
 function toParam(row: {
   id: number; orgId: number | null; propertyId: number | null;
   offsetDays: number; nights: number; adults: number; children: number; childAges: string;
-  label: string; sortOrder: number;
-}, tier: Tier): CompSetSearchParam {
+  label: string; sortOrder: number; isActive: boolean;
+}, tier: Tier, resolvedIsActive: boolean): CompSetSearchParam {
   return {
     id: row.id, orgId: row.orgId, propertyId: row.propertyId,
     offsetDays: row.offsetDays, nights: row.nights, adults: row.adults,
     children: row.children, childAges: JSON.parse(row.childAges) as number[],
     label: row.label, sortOrder: row.sortOrder, tier,
+    isActive: row.isActive,
+    resolvedIsActive,
   }
 }
 
 export async function getScopedSearchParams(scope: { orgId?: number | null; propertyId?: number | null }): Promise<CompSetSearchParam[]> {
   if (scope.propertyId) {
     const rows = await prisma.compSetSearchParam.findMany({ where: { propertyId: scope.propertyId }, orderBy: { sortOrder: 'asc' } })
-    return rows.map(r => toParam(r, 'hotel'))
+    return rows.map(r => toParam(r, 'hotel', r.isActive))
   }
   if (scope.orgId) {
     const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: scope.orgId, propertyId: null }, orderBy: { sortOrder: 'asc' } })
-    return rows.map(r => toParam(r, 'chain'))
+    return rows.map(r => toParam(r, 'chain', r.isActive))
   }
   const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } })
-  return rows.map(r => toParam(r, 'system'))
+  return rows.map(r => toParam(r, 'system', r.isActive))
+}
+
+export async function getAdminSearchParams(scope: { orgId?: number | null; propertyId?: number | null }): Promise<CompSetSearchParam[]> {
+  const propertyId = scope.propertyId ?? null
+  const orgId = scope.orgId ?? null
+
+  if (propertyId !== null) {
+    const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
+    const propOrgId = prop?.organizationId ?? null
+
+    const [systemRows, chainRows, hotelRows, overrides] = await Promise.all([
+      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
+      propOrgId ? prisma.compSetSearchParam.findMany({ where: { orgId: propOrgId, propertyId: null }, orderBy: { sortOrder: 'asc' } }) : Promise.resolve([]),
+      prisma.compSetSearchParam.findMany({ where: { propertyId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.compSetSearchParamOverride.findMany({
+        where: { OR: [{ propertyId }, ...(propOrgId ? [{ orgId: propOrgId, propertyId: null }] : [])] },
+      }),
+    ])
+
+    const resolveScope = { orgId: propOrgId, propertyId }
+    return [
+      ...systemRows.map(r => toParam(r, 'system', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
+      ...chainRows.map(r => toParam(r, 'chain', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
+      ...hotelRows.map(r => toParam(r, 'hotel', r.isActive)),
+    ]
+  }
+
+  if (orgId !== null) {
+    const [systemRows, chainRows, overrides] = await Promise.all([
+      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
+      prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.compSetSearchParamOverride.findMany({ where: { orgId, propertyId: null } }),
+    ])
+
+    const resolveScope = { orgId, propertyId: null }
+    return [
+      ...systemRows.map(r => toParam(r, 'system', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
+      ...chainRows.map(r => toParam(r, 'chain', r.isActive)),
+    ]
+  }
+
+  // System level — own params only, isActive=true
+  const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null, isActive: true }, orderBy: { sortOrder: 'asc' } })
+  return rows.map(r => toParam(r, 'system', r.isActive))
 }
 
 export async function getEffectiveSearchParams(propertyId: number): Promise<CompSetSearchParam[]> {
@@ -90,9 +155,9 @@ export async function getEffectiveSearchParams(propertyId: number): Promise<Comp
   ])
 
   return [
-    ...systemRows.map(r => toParam(r, 'system')),
-    ...chainRows.map(r => toParam(r, 'chain')),
-    ...hotelRows.map(r => toParam(r, 'hotel')),
+    ...systemRows.map(r => toParam(r, 'system', r.isActive)),
+    ...chainRows.map(r => toParam(r, 'chain', r.isActive)),
+    ...hotelRows.map(r => toParam(r, 'hotel', r.isActive)),
   ]
 }
 
@@ -112,7 +177,7 @@ export async function createSearchParam(scope: { orgId?: number | null; property
     },
   })
   const tier: Tier = scope.propertyId ? 'hotel' : scope.orgId ? 'chain' : 'system'
-  return toParam(row, tier)
+  return toParam(row, tier, row.isActive)
 }
 
 export async function updateSearchParam(id: number, data: Partial<CompSetSearchParamCreate>): Promise<CompSetSearchParam | null> {
@@ -138,7 +203,7 @@ export async function updateSearchParam(id: number, data: Partial<CompSetSearchP
     },
   })
   const tier: Tier = updated.propertyId ? 'hotel' : updated.orgId ? 'chain' : 'system'
-  return toParam(updated, tier)
+  return toParam(updated, tier, updated.isActive)
 }
 
 export async function deleteSearchParam(id: number): Promise<boolean> {
