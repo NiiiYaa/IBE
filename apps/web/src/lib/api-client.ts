@@ -1487,6 +1487,26 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/communication/wwebjs/disconnect${qs}`, { method: 'POST' })
   },
 
+  listWhatsAppInstances(): Promise<Array<{
+    key: string
+    status: 'disconnected' | 'qr' | 'connected'
+    phoneNumber: string | null
+    context: { orgId?: number; propertyId?: number }
+    startedAt: string | null
+    lastActivityAt: string | null
+    messagesSent: number
+    messagesReceived: number
+    lastError: string | null
+    orgName: string | null
+    propertyName: string | null
+  }>> {
+    return apiRequest('/api/v1/admin/communication/wwebjs/instances')
+  },
+
+  killWhatsAppInstance(key: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/communication/wwebjs/instances/${encodeURIComponent(key)}/kill`, { method: 'POST' })
+  },
+
   getPropertyWebjsSettings(propertyId: number): Promise<{ whatsappWebjsServiceUrl: string; whatsappSystemServiceDisabled: boolean; inheritedProvider: string | null; inheritedWebjsUrl: string | null; inheritedDisabled: boolean }> {
     return apiRequest(`/api/v1/admin/communication/property/wwebjs?propertyId=${propertyId}`)
   },
@@ -2327,6 +2347,13 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/intelligence/compset/insights', {
       method: 'POST',
       body: JSON.stringify({ propertyId }),
+    })
+  },
+
+  sendCompSetInsight(propertyId: number, channel: 'email' | 'whatsapp', to: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/v1/admin/intelligence/compset/insights/send', {
+      method: 'POST',
+      body: JSON.stringify({ propertyId, channel, to }),
     })
   },
 

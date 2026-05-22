@@ -20,7 +20,7 @@ import {
 import { runPropertyCompSet, runSingleCompetitor } from '../services/compset-collect.service.js'
 import { getRunStatus, setRunStatus, getCompetitorRunStatus, setCompetitorRunStatus } from '../services/compset-run-status.js'
 import { prisma } from '../db/client.js'
-import { getLatestInsight, hasNewData, generateInsight } from '../services/compset-insight.service.js'
+import { getLatestInsight, hasNewData, generateInsight, sendInsight } from '../services/compset-insight.service.js'
 
 export async function compsetRoutes(fastify: FastifyInstance) {
 
@@ -234,10 +234,15 @@ export async function compsetRoutes(fastify: FastifyInstance) {
     const [insight, newData, latestResult] = await Promise.all([
       getLatestInsight(propertyId),
       hasNewData(propertyId),
-      prisma.compSetResult.findFirst({ where: { propertyId }, select: { id: true } }),
+      prisma.compSetResult.findFirst({ where: { propertyId }, orderBy: { fetchedAt: 'desc' }, select: { fetchedAt: true } }),
     ])
 
-    return reply.send({ insight, hasNewData: newData, hasResults: latestResult !== null })
+    return reply.send({
+      insight,
+      hasNewData: newData,
+      hasResults: latestResult !== null,
+      lastFetchedAt: latestResult?.fetchedAt?.toISOString() ?? null,
+    })
   })
 
   // POST /admin/intelligence/compset/insights
@@ -253,6 +258,23 @@ export async function compsetRoutes(fastify: FastifyInstance) {
       const msg = err instanceof Error ? err.message : 'Generation failed'
       if (msg.includes('AI not configured')) return reply.status(400).send({ error: msg })
       return reply.status(500).send({ error: msg })
+    }
+  })
+
+  // POST /admin/intelligence/compset/insights/send
+  fastify.post('/admin/intelligence/compset/insights/send', async (request, reply) => {
+    const body = request.body as { propertyId?: number; channel?: string; to?: string }
+    const propertyId = typeof body.propertyId === 'number' ? body.propertyId : parseInt(String(body.propertyId ?? ''), 10)
+    if (isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
+    if (!body.channel || !['email', 'whatsapp'].includes(body.channel)) return reply.status(400).send({ error: 'channel must be email or whatsapp' })
+    if (!body.to?.trim()) return reply.status(400).send({ error: 'to is required' })
+
+    try {
+      const result = await sendInsight(propertyId, body.channel as 'email' | 'whatsapp', body.to.trim())
+      return reply.send(result)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Send failed'
+      return reply.status(502).send({ error: msg })
     }
   })
 

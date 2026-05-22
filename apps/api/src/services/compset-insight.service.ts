@@ -3,6 +3,10 @@ import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { getPropertyDetail } from './static.service.js'
 import { logger } from '../utils/logger.js'
+import { sendEmail } from './email.service.js'
+import { getCommSettings, getSystemCommSettings } from './communication.service.js'
+import { sendWhatsAppMessage } from './whatsapp.service.js'
+import { sendMessage as sendWebjsMessage } from './whatsapp-manager.service.js'
 import type { CompSetInsight, InsightContent } from '@ibe/shared'
 
 function rowToInsight(row: { id: number; propertyId: number; analyzedAt: Date; content: string }): CompSetInsight {
@@ -149,4 +153,94 @@ ${dataTable}`
 
   logger.info({ propertyId }, '[CompSetInsight] Analysis stored')
   return rowToInsight(row)
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+export async function sendInsight(propertyId: number, channel: 'email' | 'whatsapp', to: string): Promise<{ ok: boolean }> {
+  const [insight, latestResult, property] = await Promise.all([
+    getLatestInsight(propertyId),
+    prisma.compSetResult.findFirst({ where: { propertyId }, orderBy: { fetchedAt: 'desc' }, select: { fetchedAt: true } }),
+    prisma.property.findUnique({ where: { propertyId }, select: { name: true, organizationId: true } }),
+  ])
+  if (!insight) throw new Error('No insight found for this property')
+  if (!property) throw new Error('Property not found')
+
+  const propertyName = property.name ?? `Property ${propertyId}`
+  const analyzedAt = fmtDateTime(insight.analyzedAt)
+  const lastFetchedAt = latestResult?.fetchedAt ? fmtDateTime(latestResult.fetchedAt.toISOString()) : null
+  const headerLine = lastFetchedAt
+    ? `Last analyzed: ${analyzedAt} · Based on the competitor search performed on ${lastFetchedAt}`
+    : `Last analyzed: ${analyzedAt}`
+
+  const c = insight.content
+  const sections: Array<{ title: string; items: string[] }> = [
+    { title: 'Pricing Insights',           items: c.pricingInsights },
+    { title: 'Competitor Positioning',     items: c.competitorPositioning },
+    { title: 'Recommended Actions',        items: c.recommendedActions },
+    { title: 'Anomalies',                  items: c.anomalies },
+    { title: 'Strategic Recommendations',  items: c.strategicRecommendations },
+  ]
+
+  if (channel === 'email') {
+    const htmlParts = [
+      `<h2 style="font-family:sans-serif;margin-bottom:4px">CompSet Analysis — ${propertyName}</h2>`,
+      `<p style="font-family:sans-serif;color:#666;margin-top:0">${headerLine}</p>`,
+      `<p style="font-family:sans-serif"><strong>${c.summary}</strong></p>`,
+    ]
+    for (const { title, items } of sections) {
+      if (items.length === 0) continue
+      htmlParts.push(`<h3 style="font-family:sans-serif;margin-bottom:6px">${title}</h3>`)
+      htmlParts.push(`<ul style="font-family:sans-serif;margin-top:0">`)
+      items.forEach(item => htmlParts.push(`<li>${item}</li>`))
+      htmlParts.push(`</ul>`)
+    }
+    const result = await sendEmail(
+      property.organizationId,
+      { to, subject: `CompSet Analysis — ${propertyName} (${analyzedAt})`, html: htmlParts.join('') },
+      propertyId,
+    )
+    if (!result.ok) throw new Error(result.error ?? 'Email send failed')
+    return { ok: true }
+  }
+
+  if (channel === 'whatsapp') {
+    const settings = property.organizationId > 0
+      ? await getCommSettings(property.organizationId)
+      : await getSystemCommSettings()
+    if (!settings.whatsappEnabled) throw new Error('WhatsApp not configured for this property')
+
+    const textLines = [
+      `📊 CompSet Analysis — ${propertyName}`,
+      headerLine,
+      ``,
+      c.summary,
+    ]
+    for (const { title, items } of sections) {
+      if (items.length === 0) continue
+      textLines.push(``, `${title}:`)
+      items.forEach(item => textLines.push(`• ${item}`))
+    }
+    const text = textLines.join('\n')
+
+    if (settings.whatsappProvider === 'meta') {
+      if (!settings.whatsappPhoneNumberId || !settings.whatsappAccessToken) throw new Error('WhatsApp not configured')
+      await sendWhatsAppMessage(settings.whatsappPhoneNumberId, settings.whatsappAccessToken, to, text)
+    } else if (settings.whatsappProvider === 'twilio') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const twilio = await import('twilio' as any)
+      const client = new twilio.default(settings.whatsappTwilioAccountSid, settings.whatsappTwilioAuthToken!)
+      await client.messages.create({ from: `whatsapp:${settings.whatsappTwilioNumber}`, to: `whatsapp:${to}`, body: text })
+    } else if (settings.whatsappProvider === 'wwebjs') {
+      const ctx = property.organizationId > 0 ? { orgId: property.organizationId } : {}
+      await sendWebjsMessage(ctx, to, text)
+    }
+    return { ok: true }
+  }
+
+  throw new Error('Invalid channel')
 }

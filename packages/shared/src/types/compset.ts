@@ -129,4 +129,5 @@ export interface CompSetInsightResponse {
   insight: CompSetInsight | null
   hasNewData: boolean
   hasResults: boolean
+  lastFetchedAt: string | null
 }

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getCommSettings, updateCommSettings, getSystemCommSettings, updateSystemCommSettings, testEmailConnection, testWhatsappConnection, getPropertyWebjsSettings, upsertPropertyWebjsSettings, getPropertyEmailSettingsAdmin, upsertPropertyEmailSettings, getPropertyWhatsAppSettingsAdmin, upsertPropertyWhatsAppSettings, testPropertyEmailConnection, testPropertyWhatsAppConnection, getPropertyCommSettings } from '../services/communication.service.js'
 import type { CommSettings } from '../services/communication.service.js'
-import { getStatus, getQrDataUrl, disconnectClient, initClient, clientKey, sendMessage } from '../services/whatsapp-manager.service.js'
+import { getStatus, getQrDataUrl, disconnectClient, initClient, clientKey, sendMessage, listAllInstances } from '../services/whatsapp-manager.service.js'
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 
@@ -207,6 +207,26 @@ export async function communicationRoutes(fastify: FastifyInstance) {
     } catch (err) {
       return reply.status(502).send({ ok: false, error: err instanceof Error ? err.message : String(err) })
     }
+  })
+
+  // Super-admin: list all active local WhatsApp instances
+  fastify.get('/admin/communication/wwebjs/instances', async (request, reply) => {
+    if ((request as any).admin?.role !== 'super') return reply.status(403).send({ error: 'Super admin only' })
+    const instances = await listAllInstances()
+    return reply.send(instances)
+  })
+
+  // Super-admin: kill (disconnect) a specific instance by key
+  fastify.post('/admin/communication/wwebjs/instances/:key/kill', async (request, reply) => {
+    if ((request as any).admin?.role !== 'super') return reply.status(403).send({ error: 'Super admin only' })
+    const { key } = request.params as { key: string }
+    const org = key.match(/^org-(\d+)$/)
+    const prop = key.match(/^property-(\d+)$/)
+    let ctx = {}
+    if (org) ctx = { orgId: Number(org[1]) }
+    else if (prop) ctx = { propertyId: Number(prop[1]) }
+    await disconnectClient(ctx)
+    return reply.send({ ok: true })
   })
 
   // ── Property-level Local WhatsApp ──────────────────────────────────────────

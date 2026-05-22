@@ -38,6 +38,25 @@ interface ClientState {
   context: ClientContext
   socket: ReturnType<typeof makeWASocket> | null
   stopping: boolean
+  startedAt: Date | null
+  lastActivityAt: Date | null
+  messagesSent: number
+  messagesReceived: number
+  lastError: string | null
+}
+
+export interface InstanceInfo {
+  key: string
+  status: ConnectionStatus
+  phoneNumber: string | null
+  context: ClientContext
+  startedAt: string | null
+  lastActivityAt: string | null
+  messagesSent: number
+  messagesReceived: number
+  lastError: string | null
+  orgName: string | null
+  propertyName: string | null
 }
 
 // ── In-memory state ───────────────────────────────────────────────────────────
@@ -100,6 +119,7 @@ export async function initClient(ctx: ClientContext): Promise<void> {
   const state: ClientState = {
     status: 'disconnected', qrDataUrl: null, phoneNumber: null,
     context: ctx, socket: null, stopping: false,
+    startedAt: null, lastActivityAt: null, messagesSent: 0, messagesReceived: 0, lastError: null,
   }
   clients.set(key, state)
 
@@ -145,6 +165,8 @@ export async function initClient(ctx: ClientContext): Promise<void> {
       if (connection === 'open') {
         state.status = 'connected'
         state.qrDataUrl = null
+        state.startedAt = new Date()
+        state.lastError = null
         const jid = sock.user?.id ?? ''
         state.phoneNumber = jid.split(':')[0]?.split('@')[0] || null
         logger.info({ key, phone: state.phoneNumber, instanceId: INSTANCE_ID }, '[WA] Connected')
@@ -162,6 +184,9 @@ export async function initClient(ctx: ClientContext): Promise<void> {
         const loggedOut = statusCode === DisconnectReason.loggedOut
         logger.info({ key, statusCode, loggedOut }, '[WA] Disconnected')
 
+        if (lastDisconnect?.error && !loggedOut) {
+          state.lastError = lastDisconnect.error instanceof Error ? lastDisconnect.error.message : String(lastDisconnect.error)
+        }
         state.status = 'disconnected'
         state.phoneNumber = null
         state.socket = null
@@ -200,6 +225,8 @@ export async function initClient(ctx: ClientContext): Promise<void> {
           await getRedis().set(`wa:active:${state.phoneNumber}`, INSTANCE_ID, 'EX', 600).catch(() => {})
         }
 
+        state.messagesReceived++
+        state.lastActivityAt = new Date()
         logger.info({ key, from, instanceId: INSTANCE_ID, text: text.slice(0, 60) }, '[WA] Incoming message')
         try {
           const reply = await runWhatsAppTurn({
@@ -210,7 +237,10 @@ export async function initClient(ctx: ClientContext): Promise<void> {
             ...(ctx.propertyId !== undefined ? { propertyId: ctx.propertyId } : {}),
           })
           await sock.sendMessage(from, { text: reply })
+          state.messagesSent++
+          state.lastActivityAt = new Date()
         } catch (err) {
+          state.lastError = err instanceof Error ? err.message : String(err)
           logger.error({ err, key, from }, '[WA] Message handling failed')
         }
       }
@@ -232,6 +262,8 @@ export async function sendMessage(ctx: ClientContext = {}, to: string, text: str
   }
   const jid = to.replace(/^\+/, '') + '@s.whatsapp.net'
   await state.socket.sendMessage(jid, { text })
+  state.messagesSent++
+  state.lastActivityAt = new Date()
 }
 
 export async function disconnectClient(ctx: ClientContext = {}): Promise<void> {
@@ -255,6 +287,36 @@ export function getStatus(ctx: ClientContext = {}): { status: ConnectionStatus; 
 
 export function getQrDataUrl(ctx: ClientContext = {}): string | null {
   return clients.get(clientKey(ctx))?.qrDataUrl ?? null
+}
+
+// ── Instance listing ──────────────────────────────────────────────────────────
+
+export async function listAllInstances(): Promise<InstanceInfo[]> {
+  const entries = Array.from(clients.entries())
+  const orgIds = entries.flatMap(([, s]) => s.context.orgId !== undefined ? [s.context.orgId] : [])
+  const propIds = entries.flatMap(([, s]) => s.context.propertyId !== undefined ? [s.context.propertyId] : [])
+
+  const [orgs, props] = await Promise.all([
+    orgIds.length ? prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } }) : [],
+    propIds.length ? prisma.property.findMany({ where: { propertyId: { in: propIds } }, select: { propertyId: true, name: true } }) : [],
+  ])
+
+  const orgMap = new Map(orgs.map(o => [o.id, o.name]))
+  const propMap = new Map(props.map(p => [p.propertyId, p.name]))
+
+  return entries.map(([key, s]) => ({
+    key,
+    status: s.status,
+    phoneNumber: s.phoneNumber,
+    context: s.context,
+    startedAt: s.startedAt?.toISOString() ?? null,
+    lastActivityAt: s.lastActivityAt?.toISOString() ?? null,
+    messagesSent: s.messagesSent,
+    messagesReceived: s.messagesReceived,
+    lastError: s.lastError,
+    orgName: s.context.orgId !== undefined ? (orgMap.get(s.context.orgId) ?? null) : null,
+    propertyName: s.context.propertyId !== undefined ? (propMap.get(s.context.propertyId) ?? null) : null,
+  }))
 }
 
 // ── Startup: restore all sessions from DB ─────────────────────────────────────

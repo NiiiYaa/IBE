@@ -1820,9 +1820,15 @@ const INSIGHT_SECTIONS: Array<{ key: keyof InsightContent; title: string; icon: 
   { key: 'strategicRecommendations', title: 'Strategic Recommendations',  icon: '🎯' },
 ]
 
+type InsightSendChannel = 'email' | 'whatsapp'
+
 function InsightsSection({ propertyId }: { propertyId: number }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [sendChannel, setSendChannel] = useState<InsightSendChannel | null>(null)
+  const [sendTo, setSendTo] = useState('')
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [sendError, setSendError] = useState('')
   const queryClient = useQueryClient()
 
   const insightQuery = useQuery({
@@ -1834,6 +1840,7 @@ function InsightsSection({ propertyId }: { propertyId: number }) {
   const insight: CompSetInsight | null = data?.insight ?? null
   const hasNewData = data?.hasNewData ?? false
   const hasResults = data?.hasResults ?? false
+  const lastFetchedAt = data?.lastFetchedAt ?? null
 
   async function handleAnalyze() {
     setIsGenerating(true)
@@ -1846,6 +1853,58 @@ function InsightsSection({ propertyId }: { propertyId: number }) {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  function openSend(channel: InsightSendChannel) {
+    setSendChannel(channel)
+    setSendTo('')
+    setSendState('idle')
+    setSendError('')
+  }
+
+  async function submitSend() {
+    if (!sendChannel || !sendTo.trim()) return
+    setSendState('sending')
+    try {
+      await apiClient.sendCompSetInsight(propertyId, sendChannel, sendTo.trim())
+      setSendState('sent')
+    } catch (err) {
+      setSendState('error')
+      setSendError(err instanceof Error ? err.message : 'Send failed')
+    }
+  }
+
+  function downloadInsight() {
+    if (!insight) return
+    const c = insight.content
+    const fmt = (iso: string) => new Date(iso).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    })
+    const analyzedAt = fmt(insight.analyzedAt)
+    const headerLine = lastFetchedAt
+      ? `Last analyzed: ${analyzedAt} · Based on the competitor search performed on ${fmt(lastFetchedAt)}`
+      : `Last analyzed: ${analyzedAt}`
+    const lines: string[] = [`CompSet Analysis`, headerLine, '', c.summary, '']
+    const sections = [
+      { title: 'Pricing Insights',          items: c.pricingInsights },
+      { title: 'Competitor Positioning',    items: c.competitorPositioning },
+      { title: 'Recommended Actions',       items: c.recommendedActions },
+      { title: 'Anomalies',                 items: c.anomalies },
+      { title: 'Strategic Recommendations', items: c.strategicRecommendations },
+    ]
+    for (const { title, items } of sections) {
+      if (items.length === 0) continue
+      lines.push(`${title}:`)
+      items.forEach(item => lines.push(`  • ${item}`))
+      lines.push('')
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'compset-analysis.txt'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   if (insightQuery.isLoading) return null
@@ -1884,12 +1943,97 @@ function InsightsSection({ propertyId }: { propertyId: number }) {
       {/* Insight content */}
       {insight && (
         <div className="space-y-4">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Last analyzed:{' '}
-            {new Date(insight.analyzedAt).toLocaleString('en-US', {
-              month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Last analyzed:{' '}
+                {new Date(insight.analyzedAt).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                })}
+                {lastFetchedAt && (
+                  <> · Based on the competitor search performed on {new Date(lastFetchedAt).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                  })}</>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={downloadInsight}
+                title="Download as text file"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              <button
+                type="button"
+                onClick={() => openSend('email')}
+                title="Send via email"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => openSend('whatsapp')}
+                title="Send via WhatsApp"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                  <path d="M12 0C5.374 0 0 5.374 0 12c0 2.117.554 4.103 1.523 5.828L.057 23.486a.5.5 0 00.609.61l5.757-1.51A11.943 11.943 0 0012 24c6.626 0 12-5.374 12-12S18.626 0 12 0zm0 21.818a9.805 9.805 0 01-5.031-1.383l-.36-.214-3.733.979.996-3.637-.235-.374A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+                </svg>
+                WhatsApp
+              </button>
+            </div>
+          </div>
+
+          {/* Inline send form */}
+          {sendChannel && (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+                {sendChannel === 'email' ? 'Send via Email' : 'Send via WhatsApp'}
+              </p>
+              {sendState === 'sent' ? (
+                <p className="text-sm text-[var(--color-success)] font-medium">Sent to {sendTo}</p>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type={sendChannel === 'email' ? 'email' : 'tel'}
+                    value={sendTo}
+                    onChange={e => setSendTo(e.target.value)}
+                    placeholder={sendChannel === 'email' ? 'Email address' : 'Phone number'}
+                    className="flex-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={submitSend}
+                    disabled={sendState === 'sending' || !sendTo.trim()}
+                    className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    {sendState === 'sending' ? 'Sending…' : 'Send'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendChannel(null)}
+                    className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm text-muted hover:text-[var(--color-text)] transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {sendState === 'error' && (
+                <p className="text-xs text-[var(--color-error)]">{sendError}</p>
+              )}
+            </div>
+          )}
 
           {INSIGHT_SECTIONS.map(({ key, title, icon }) => {
             const items = insight.content[key] as string[]
@@ -1916,7 +2060,7 @@ function InsightsSection({ propertyId }: { propertyId: number }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Results', 'Competitors', 'Search Configurations', 'Insights & Actions'] as const
+const TABS = ['Insights & Actions', 'Results', 'Competitors', 'Search Configurations'] as const
 type Tab = typeof TABS[number]
 
 export default function CompSetPage() {

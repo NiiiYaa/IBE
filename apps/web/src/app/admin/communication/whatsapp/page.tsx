@@ -383,6 +383,9 @@ export default function WhatsAppPage() {
 
         <SaveBar isDirty={isDirty} isSaving={isPending} onSave={() => mutate()} />
       </div>
+
+      <WebjsInstancesTable />
+
       {localConsentModal}
       </>
     )
@@ -567,6 +570,128 @@ export default function WhatsAppPage() {
     </div>
     {localConsentModal}
     </>
+  )
+}
+
+function WebjsInstancesTable() {
+  const qc = useQueryClient()
+
+  const { data: instances, isLoading } = useQuery({
+    queryKey: ['wwebjs-instances'],
+    queryFn: () => apiClient.listWhatsAppInstances(),
+    refetchInterval: 5000,
+  })
+
+  const killMutation = useMutation({
+    mutationFn: (key: string) => apiClient.killWhatsAppInstance(key),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['wwebjs-instances'] }),
+  })
+
+  function fmtRelative(iso: string | null): string {
+    if (!iso) return '—'
+    const diff = Date.now() - new Date(iso).getTime()
+    const s = Math.floor(diff / 1000)
+    if (s < 60) return `${s}s ago`
+    const m = Math.floor(s / 60)
+    if (m < 60) return `${m}m ago`
+    const h = Math.floor(m / 60)
+    if (h < 24) return `${h}h ago`
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  function instanceLabel(inst: { key: string; orgName: string | null; propertyName: string | null; context: { orgId?: number; propertyId?: number } }): string {
+    if (inst.propertyName) return inst.propertyName
+    if (inst.orgName) return inst.orgName
+    if (inst.key === 'system') return 'System'
+    return inst.key
+  }
+
+  function scopeLabel(inst: { key: string; context: { orgId?: number; propertyId?: number } }): string {
+    if (inst.context.propertyId) return `Property #${inst.context.propertyId}`
+    if (inst.context.orgId) return `Org #${inst.context.orgId}`
+    return 'System'
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl px-6 pb-12 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-[var(--color-text)]">Active Local Instances</h2>
+        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">All in-process Baileys connections currently running on this server. Refreshes every 5 s.</p>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+        </div>
+      )}
+
+      {!isLoading && (!instances || instances.length === 0) && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-8 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">No active local instances.</p>
+        </div>
+      )}
+
+      {instances && instances.length > 0 && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Account</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Phone</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Status</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Started</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Last activity</th>
+                <th className="px-4 py-2.5 text-center font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">↑ Sent</th>
+                <th className="px-4 py-2.5 text-center font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">↓ Recv</th>
+                <th className="px-4 py-2.5 text-left font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Instance ID</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {instances.map(inst => (
+                <tr key={inst.key} className="hover:bg-[var(--color-background)] transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-[var(--color-text)]">{instanceLabel(inst)}</p>
+                    <p className="text-[var(--color-text-muted)]">{scopeLabel(inst)}</p>
+                    {inst.lastError && (
+                      <p className="mt-0.5 text-[var(--color-error)] truncate max-w-[160px]" title={inst.lastError}>⚠ {inst.lastError}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-[var(--color-text)]">
+                    {inst.phoneNumber ? `+${inst.phoneNumber}` : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={[
+                      'inline-flex items-center rounded-full px-2 py-0.5 font-semibold',
+                      inst.status === 'connected' ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' :
+                      inst.status === 'qr' ? 'bg-amber-100 text-amber-700' :
+                      'bg-[var(--color-border)] text-[var(--color-text-muted)]',
+                    ].join(' ')}>
+                      {inst.status === 'connected' ? 'Connected' : inst.status === 'qr' ? 'QR pending' : 'Disconnected'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--color-text-muted)]">{fmtRelative(inst.startedAt)}</td>
+                  <td className="px-4 py-3 text-[var(--color-text-muted)]">{fmtRelative(inst.lastActivityAt)}</td>
+                  <td className="px-4 py-3 text-center text-[var(--color-text)]">{inst.messagesSent}</td>
+                  <td className="px-4 py-3 text-center text-[var(--color-text)]">{inst.messagesReceived}</td>
+                  <td className="px-4 py-3 font-mono text-[var(--color-text-muted)]">{inst.key}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => killMutation.mutate(inst.key)}
+                      disabled={killMutation.isPending && killMutation.variables === inst.key}
+                      className="rounded-md border border-[var(--color-error)]/40 px-2.5 py-1 text-xs font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/5 disabled:opacity-40 transition-colors"
+                    >
+                      {killMutation.isPending && killMutation.variables === inst.key ? 'Killing…' : 'Kill'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
 
