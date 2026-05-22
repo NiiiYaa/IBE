@@ -108,6 +108,13 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: 'Misc',
+    sellerOnly: true,
+    items: [
+      { href: '/admin/config/misc/pricing', label: 'Pricing', sellerOnly: true },
+    ],
+  },
+  {
     title: 'Configuration',
     items: [
       { href: '/admin/config/properties', label: 'Properties', sellerOnly: true },
