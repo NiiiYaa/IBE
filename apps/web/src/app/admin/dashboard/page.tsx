@@ -9,7 +9,7 @@ import {
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../property-context'
-import type { DashboardStats, OrgRecord, EventCalendarEvent, ChainEventCalendarEvents } from '@ibe/shared'
+import type { DashboardStats, OrgRecord, EventCalendarEvent, ChainEventCalendarEvents, CompSetInsightResponse } from '@ibe/shared'
 
 const AI_CHANNEL_LABELS: Record<string, string> = {
   aiSearchBar: 'AI Search Bar',
@@ -78,6 +78,7 @@ const SECTIONS = [
   { id: 'ai',        label: 'AI Search Analytics' },
   { id: 'marketing', label: 'Marketing' },
   { id: 'events',    label: 'Upcoming Events' },
+  { id: 'compset-insights', label: 'CompSet Insights' },
 ] as const
 
 type SectionId = typeof SECTIONS[number]['id']
@@ -250,6 +251,38 @@ function UpcomingEventsSection({ propertyId, orgId }: { propertyId: number | und
 
   return (
     <p className="mt-2 text-sm text-[var(--color-text-muted)]">Select a property or organisation to see upcoming events.</p>
+  )
+}
+
+function CompSetInsightsCard({ propertyId }: { propertyId: number }) {
+  const insightQuery = useQuery({
+    queryKey: ['compset-insight', propertyId],
+    queryFn: () => apiClient.getCompSetInsight(propertyId),
+    staleTime: 2 * 60_000,
+  })
+
+  const insight = insightQuery.data?.insight
+  if (!insight) return null
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">CompSet Analysis</p>
+          <p className="text-sm font-medium text-[var(--color-text)]">{insight.content.summary}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Analyzed{' '}
+            {new Date(insight.analyzedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </p>
+        </div>
+      </div>
+      <a
+        href="/admin/intelligence/compset"
+        className="inline-block text-xs font-medium text-[var(--color-primary)] hover:underline"
+      >
+        View Full Analysis →
+      </a>
+    </div>
   )
 }
 
@@ -692,6 +725,14 @@ export default function DashboardPage() {
         <div className="space-y-3">
           <SectionTitle>Upcoming Events</SectionTitle>
           <UpcomingEventsSection propertyId={propertyId} orgId={orgId} />
+        </div>
+      )}
+
+      {/* CompSet Insights */}
+      {visibleSections.has('compset-insights') && propertyId != null && (
+        <div className="space-y-3">
+          <SectionTitle>CompSet Insights</SectionTitle>
+          <CompSetInsightsCard propertyId={propertyId} />
         </div>
       )}
     </div>
