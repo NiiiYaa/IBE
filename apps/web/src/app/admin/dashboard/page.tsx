@@ -9,7 +9,7 @@ import {
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../property-context'
-import type { DashboardStats, OrgRecord, EventCalendarEvent, ChainEventCalendarEvents, CompSetInsightResponse } from '@ibe/shared'
+import type { DashboardStats, OrgRecord, EventCalendarEvent, ChainEventCalendarEvents, CompSetInsightResponse, DayRateAdminEntry } from '@ibe/shared'
 
 const AI_CHANNEL_LABELS: Record<string, string> = {
   aiSearchBar: 'AI Search Bar',
@@ -79,6 +79,7 @@ const SECTIONS = [
   { id: 'marketing', label: 'Marketing' },
   { id: 'events',    label: 'Upcoming Events' },
   { id: 'compset-insights', label: 'CompSet Insights' },
+  { id: 'pricing-anomalies', label: 'Price Anomalies' },
 ] as const
 
 type SectionId = typeof SECTIONS[number]['id']
@@ -293,6 +294,107 @@ function CompSetInsightsCard({ propertyId }: { propertyId: number }) {
   )
 }
 
+function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({ high: true, low: true, diff: true })
+  const statusQuery = useQuery({
+    queryKey: ['pricing-status', propertyId],
+    queryFn: () => apiClient.getPricingStatus(propertyId),
+  })
+  const ratesQuery = useQuery({
+    queryKey: ['pricing-admin-data', propertyId],
+    queryFn: () => apiClient.getAdminPricingData(propertyId),
+    enabled: (statusQuery.data?.dayCount ?? 0) > 0,
+  })
+
+  if (!statusQuery.data || statusQuery.data.dayCount === 0) {
+    return (
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies</p>
+        <p className="mt-3 text-sm text-[var(--color-text-muted)]">No price data collected yet.</p>
+      </div>
+    )
+  }
+
+  const rates = ratesQuery.data ?? []
+  const highAnomalies = rates.filter(r => r.anomalyType === 'high').sort((a, b) => {
+    const da = a.rollingAvg && a.rollingAvg > 0 ? (a.price / a.rollingAvg - 1) : 0
+    const db = b.rollingAvg && b.rollingAvg > 0 ? (b.price / b.rollingAvg - 1) : 0
+    return db - da
+  })
+  const lowAnomalies = rates.filter(r => r.anomalyType === 'low').sort((a, b) => {
+    const da = a.rollingAvg && a.rollingAvg > 0 ? (1 - a.price / a.rollingAvg) : 0
+    const db = b.rollingAvg && b.rollingAvg > 0 ? (1 - b.price / b.rollingAvg) : 0
+    return db - da
+  })
+  const diffAnomalies = rates.filter(r => r.anomalyType === 'diff')
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const currency = rates[0]?.currency ?? ''
+
+  function AnomalyTable({ title, rows, type }: { title: string; rows: DayRateAdminEntry[]; type: string }) {
+    return (
+      <div className="border-t border-[var(--color-border)] pt-4 mt-4">
+        <button
+          onClick={() => setOpen(o => ({ ...o, [type]: !o[type] }))}
+          className="flex w-full items-center justify-between text-sm font-medium text-[var(--color-text)]"
+        >
+          <span>{title} <span className="ml-1 text-xs text-[var(--color-text-muted)]">({rows.length})</span></span>
+          <span>{open[type] ? '▲' : '▼'}</span>
+        </button>
+        {open[type] && (
+          rows.length === 0
+            ? <p className="mt-2 text-xs text-[var(--color-text-muted)]">No anomalies detected.</p>
+            : (
+              <table className="mt-2 w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[var(--color-text-muted)]">
+                    <th className="pb-1 pr-2">Date</th>
+                    <th className="pb-1 pr-2">Day</th>
+                    <th className="pb-1 pr-2">Price</th>
+                    <th className="pb-1 pr-2">Avg</th>
+                    <th className="pb-1">Dev %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => {
+                    const dev = r.rollingAvg && r.rollingAvg > 0
+                      ? ((r.price / r.rollingAvg - 1) * 100).toFixed(1)
+                      : '—'
+                    return (
+                      <tr key={r.date} className="border-t border-[var(--color-border)]">
+                        <td className="py-1 pr-2">{r.date}</td>
+                        <td className="py-1 pr-2">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
+                        <td className="py-1 pr-2">{r.price.toFixed(0)} {currency}</td>
+                        <td className="py-1 pr-2">{r.rollingAvg?.toFixed(0) ?? '—'}</td>
+                        <td className="py-1">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies</p>
+        <span className="text-xs text-[var(--color-text-muted)]">
+          {statusQuery.data.lastCollectedAt
+            ? `Updated ${new Date(statusQuery.data.lastCollectedAt).toLocaleDateString()}`
+            : ''}
+        </span>
+      </div>
+      <AnomalyTable title="High Price" rows={highAnomalies} type="high" />
+      <AnomalyTable title="Low Price" rows={lowAnomalies} type="low" />
+      <AnomalyTable title="Day Difference" rows={diffAnomalies} type="diff" />
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { admin } = useAdminAuth()
   const { orgId: contextOrgId, propertyId: contextPropertyId } = useAdminProperty()
@@ -398,6 +500,14 @@ export default function DashboardPage() {
           <SectionTitle>CompSet Insights</SectionTitle>
           <CompSetInsightsCard propertyId={propertyId} />
         </div>
+      )}
+
+      {/* Price Anomalies */}
+      {visibleSections.has('pricing-anomalies') && propertyId != null && (
+        <section>
+          <SectionTitle>Price Anomalies</SectionTitle>
+          <PricingAnomalyCard propertyId={propertyId} />
+        </section>
       )}
 
       {/* KPI cards */}
