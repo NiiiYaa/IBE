@@ -60,6 +60,14 @@ async function start() {
     logger.warn({ err }, '[EventCalendar] Cron setup failed (non-fatal)'),
   )
 
+  // Start pricing cron + BullMQ worker (non-fatal)
+  void import('./services/pricing-cron.service.js').then(m => m.startPricingCron()).catch(err =>
+    logger.warn({ err }, '[Pricing] Cron setup failed (non-fatal)'),
+  )
+  void import('./services/pricing-queue.service.js').then(m => m.startPricingWorker()).catch(err =>
+    logger.warn({ err }, '[Pricing] Worker setup failed (non-fatal)'),
+  )
+
   // Restore WhatsApp sessions from DB (non-fatal)
   void import('./services/whatsapp-manager.service.js').then(m => m.initAllSessions()).catch(err =>
     logger.warn({ err }, '[Server] WhatsApp session restore failed (non-fatal)'),
@@ -105,6 +113,12 @@ async function shutdown(signal: string) {
   try {
     const { stopEventCalendarCron } = await import('./services/event-calendar-cron.service.js')
     stopEventCalendarCron()
+  } catch { /* ignore */ }
+  try {
+    const { stopPricingCron } = await import('./services/pricing-cron.service.js')
+    stopPricingCron()
+    const { closePricingQueue } = await import('./services/pricing-queue.service.js')
+    await closePricingQueue()
   } catch { /* ignore */ }
   await prisma.$disconnect()
   process.exit(0)
