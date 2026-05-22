@@ -209,8 +209,40 @@ export async function updateSearchParam(id: number, data: Partial<CompSetSearchP
 export async function deleteSearchParam(id: number): Promise<boolean> {
   const existing = await prisma.compSetSearchParam.findUnique({ where: { id } })
   if (!existing) return false
-  await prisma.compSetSearchParam.delete({ where: { id } })
+  await prisma.compSetSearchParam.update({ where: { id }, data: { isActive: false } })
   return true
+}
+
+export async function updateSearchParamActive(
+  id: number,
+  scope: { orgId: number | null; propertyId: number | null },
+  isActive: boolean,
+): Promise<CompSetSearchParam | null> {
+  const param = await prisma.compSetSearchParam.findUnique({ where: { id } })
+  if (!param) return null
+
+  const paramTier: Tier = param.propertyId ? 'hotel' : param.orgId ? 'chain' : 'system'
+  const scopeTier: Tier = scope.propertyId ? 'hotel' : scope.orgId ? 'chain' : 'system'
+
+  if (paramTier === scopeTier) {
+    // Own param — update isActive directly
+    const updated = await prisma.compSetSearchParam.update({ where: { id }, data: { isActive } })
+    return toParam(updated, paramTier, updated.isActive)
+  }
+
+  // Inherited param — upsert override for this scope
+  const existingOverride = await prisma.compSetSearchParamOverride.findFirst({
+    where: { searchParamId: id, orgId: scope.orgId, propertyId: scope.propertyId },
+  })
+  if (existingOverride) {
+    await prisma.compSetSearchParamOverride.update({ where: { id: existingOverride.id }, data: { isActive } })
+  } else {
+    await prisma.compSetSearchParamOverride.create({
+      data: { searchParamId: id, orgId: scope.orgId, propertyId: scope.propertyId, isActive },
+    })
+  }
+
+  return toParam(param, paramTier, isActive)
 }
 
 // ── CompSetCompetitor ─────────────────────────────────────────────────────────
