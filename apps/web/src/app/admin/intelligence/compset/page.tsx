@@ -19,6 +19,9 @@ import type {
   CompSetRoomMapping,
   CompSetRunStatus,
   EventCalendarEvent,
+  InsightContent,
+  CompSetInsight,
+  CompSetInsightResponse,
 } from '@ibe/shared'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -1807,9 +1810,113 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   )
 }
 
+// ── Section: Insights & Actions ───────────────────────────────────────────────
+
+const INSIGHT_SECTIONS: Array<{ key: keyof InsightContent; title: string; icon: string }> = [
+  { key: 'pricingInsights',          title: 'Pricing Insights',           icon: '💰' },
+  { key: 'competitorPositioning',    title: 'Competitor Positioning',     icon: '🏨' },
+  { key: 'recommendedActions',       title: 'Recommended Actions',        icon: '✅' },
+  { key: 'anomalies',                title: 'Anomalies',                  icon: '⚠️' },
+  { key: 'strategicRecommendations', title: 'Strategic Recommendations',  icon: '🎯' },
+]
+
+function InsightsSection({ propertyId }: { propertyId: number }) {
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const insightQuery = useQuery({
+    queryKey: ['compset-insight', propertyId],
+    queryFn: () => apiClient.getCompSetInsight(propertyId),
+  })
+
+  const data = insightQuery.data
+  const insight: CompSetInsight | null = data?.insight ?? null
+  const hasNewData = data?.hasNewData ?? false
+  const hasResults = data?.hasResults ?? false
+
+  async function handleAnalyze() {
+    setIsGenerating(true)
+    setGenError(null)
+    try {
+      await apiClient.generateCompSetInsight(propertyId)
+      await queryClient.invalidateQueries({ queryKey: ['compset-insight', propertyId] })
+    } catch {
+      setGenError('Analysis failed. Please check your AI configuration and try again.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  if (insightQuery.isLoading) return null
+
+  return (
+    <section className="space-y-4">
+      {/* No results at all */}
+      {!hasResults && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">Run a competitor search first to enable analysis.</p>
+        </div>
+      )}
+
+      {/* New data banner */}
+      {hasNewData && hasResults && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            {insight ? 'New comparison results are available. Would you like me to analyze them?' : 'Comparison data is ready. Would you like me to generate an analysis?'}
+          </p>
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={isGenerating}
+            className="flex-shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {isGenerating ? 'Analyzing…' : 'Analyze'}
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {genError && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{genError}</p>
+      )}
+
+      {/* Insight content */}
+      {insight && (
+        <div className="space-y-4">
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Last analyzed:{' '}
+            {new Date(insight.analyzedAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+
+          {INSIGHT_SECTIONS.map(({ key, title, icon }) => {
+            const items = insight.content[key] as string[]
+            if (!items || items.length === 0) return null
+            return (
+              <div key={key} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+                <p className="mb-3 text-sm font-semibold text-[var(--color-text)]">{icon} {title}</p>
+                <ul className="space-y-1.5">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-[var(--color-text)]">
+                      <span className="mt-0.5 text-[var(--color-text-muted)]">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Results', 'Competitors', 'Search Configurations'] as const
+const TABS = ['Results', 'Competitors', 'Search Configurations', 'Insights & Actions'] as const
 type Tab = typeof TABS[number]
 
 export default function CompSetPage() {
@@ -1887,6 +1994,17 @@ export default function CompSetPage() {
         ) : (
           <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
             Select a property to view results.
+          </p>
+        )
+      )}
+
+      {/* Tab: Insights & Actions */}
+      {activeTab === 'Insights & Actions' && (
+        propertyId !== null ? (
+          <InsightsSection propertyId={propertyId} />
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+            Select a property to view insights.
           </p>
         )
       )}
