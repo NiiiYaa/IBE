@@ -134,6 +134,7 @@ import type {
   TestBookingBookResponse,
   TestBookingCancelResponse,
   SystemCompSetConfig,
+  CompSetConfig,
   CompSetSearchParam,
   CompSetSearchParamCreate,
   CompSetCompetitor,
@@ -2123,6 +2124,22 @@ export const apiClient = {
 
   updateCompSetSystemConfig(data: Partial<SystemCompSetConfig>): Promise<SystemCompSetConfig> {
     return apiRequest('/api/v1/admin/intelligence/compset/system-config', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getCompSetConfig(opts: { orgId?: number | null; propertyId?: number | null }): Promise<CompSetConfig> {
+    const qs = new URLSearchParams()
+    if (opts.orgId != null) qs.set('orgId', String(opts.orgId))
+    if (opts.propertyId != null) qs.set('propertyId', String(opts.propertyId))
+    const q = qs.toString()
+    return apiRequest(`/api/v1/admin/intelligence/compset/config${q ? `?${q}` : ''}`)
+  },
+
+  updateCompSetConfig(opts: { orgId?: number | null; propertyId?: number | null }, data: Partial<CompSetConfig>): Promise<CompSetConfig> {
+    const qs = new URLSearchParams()
+    if (opts.orgId != null) qs.set('orgId', String(opts.orgId))
+    if (opts.propertyId != null) qs.set('propertyId', String(opts.propertyId))
+    const q = qs.toString()
+    return apiRequest(`/api/v1/admin/intelligence/compset/config${q ? `?${q}` : ''}`, { method: 'PUT', body: JSON.stringify(data) })
   },
 
   getCompSetSearchParams(opts?: { propertyId?: number; orgId?: number; effective?: boolean }): Promise<CompSetSearchParam[]> {

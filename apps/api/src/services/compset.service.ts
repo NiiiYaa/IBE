@@ -4,6 +4,7 @@ import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import type {
   SystemCompSetConfig,
+  CompSetConfig,
   CompSetSearchParam,
   CompSetSearchParamCreate,
   CompSetCompetitor,
@@ -28,6 +29,7 @@ export async function getSystemCompSetConfig(): Promise<SystemCompSetConfig> {
   const row = await prisma.systemCompSetConfig.findFirst()
   return {
     maxCompetitorsPerProperty: row?.maxCompetitorsPerProperty ?? 5,
+    maxActivePatterns: row?.maxActivePatterns ?? 4,
     cronSchedule: row?.cronSchedule ?? '0 3 * * *',
     enabled: row?.enabled ?? false,
   }
@@ -39,14 +41,59 @@ export async function upsertSystemCompSetConfig(data: Partial<SystemCompSetConfi
     ? await prisma.systemCompSetConfig.update({ where: { id: existing.id }, data })
     : await prisma.systemCompSetConfig.create({ data: {
         maxCompetitorsPerProperty: data.maxCompetitorsPerProperty ?? 5,
+        maxActivePatterns: data.maxActivePatterns ?? 4,
         cronSchedule: data.cronSchedule ?? '0 3 * * *',
         enabled: data.enabled ?? false,
       } })
   return {
     maxCompetitorsPerProperty: row.maxCompetitorsPerProperty,
+    maxActivePatterns: row.maxActivePatterns,
     cronSchedule: row.cronSchedule,
     enabled: row.enabled,
   }
+}
+
+// ── CompSetConfig (chain/hotel overrides) ─────────────────────────────────────
+
+async function resolveMaxActivePatterns(orgId: number | null, propertyId: number | null): Promise<number> {
+  if (propertyId !== null) {
+    const prop = await prisma.compSetConfig.findFirst({ where: { propertyId } })
+    if (prop?.maxActivePatterns != null) return prop.maxActivePatterns
+  }
+  if (orgId !== null) {
+    const chain = await prisma.compSetConfig.findFirst({ where: { orgId, propertyId: null } })
+    if (chain?.maxActivePatterns != null) return chain.maxActivePatterns
+  }
+  const sys = await prisma.systemCompSetConfig.findFirst()
+  return sys?.maxActivePatterns ?? 4
+}
+
+export async function getCompSetConfig(scope: { orgId: number | null; propertyId: number | null }): Promise<CompSetConfig> {
+  const where = scope.propertyId !== null
+    ? { propertyId: scope.propertyId }
+    : { orgId: scope.orgId, propertyId: null as null }
+  const [row, resolved] = await Promise.all([
+    prisma.compSetConfig.findFirst({ where }),
+    resolveMaxActivePatterns(scope.orgId, scope.propertyId),
+  ])
+  return { maxActivePatterns: row?.maxActivePatterns ?? null, resolvedMaxActivePatterns: resolved }
+}
+
+export async function upsertCompSetConfig(
+  scope: { orgId: number | null; propertyId: number | null },
+  data: { maxActivePatterns?: number | null },
+): Promise<CompSetConfig> {
+  const where = scope.propertyId !== null
+    ? { propertyId: scope.propertyId }
+    : { orgId: scope.orgId, propertyId: null as null }
+  const existing = await prisma.compSetConfig.findFirst({ where })
+  if (existing) {
+    await prisma.compSetConfig.update({ where: { id: existing.id }, data })
+  } else {
+    await prisma.compSetConfig.create({ data: { ...scope, ...data } })
+  }
+  const resolved = await resolveMaxActivePatterns(scope.orgId, scope.propertyId)
+  return { maxActivePatterns: data.maxActivePatterns ?? null, resolvedMaxActivePatterns: resolved }
 }
 
 // ── CompSetSearchParam ────────────────────────────────────────────────────────
@@ -223,9 +270,23 @@ export async function updateSearchParamActive(
   id: number,
   scope: { orgId: number | null; propertyId: number | null },
   isActive: boolean,
-): Promise<CompSetSearchParam | null> {
+): Promise<CompSetSearchParam | { error: string } | null> {
   const param = await prisma.compSetSearchParam.findUnique({ where: { id } })
   if (!param) return null
+
+  if (isActive && scope.propertyId !== null) {
+    const [prop, effectiveParams] = await Promise.all([
+      prisma.property.findUnique({ where: { propertyId: scope.propertyId }, select: { organizationId: true } }),
+      getEffectiveSearchParams(scope.propertyId),
+    ])
+    const orgId = prop?.organizationId ?? null
+    const max = await resolveMaxActivePatterns(orgId, scope.propertyId)
+    const currentActive = effectiveParams.filter(p => p.resolvedIsActive)
+    const thisAlreadyActive = currentActive.some(p => p.id === id)
+    if (!thisAlreadyActive && currentActive.length >= max) {
+      return { error: `Maximum active patterns (${max}) reached. Deactivate another pattern first.` }
+    }
+  }
 
   const paramTier: Tier = param.propertyId ? 'hotel' : param.orgId ? 'chain' : 'system'
   const scopeTier: Tier = scope.propertyId ? 'hotel' : scope.orgId ? 'chain' : 'system'

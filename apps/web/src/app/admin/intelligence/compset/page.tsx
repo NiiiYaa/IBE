@@ -1,5 +1,6 @@
 'use client'
 
+import * as XLSX from 'xlsx'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
@@ -117,6 +118,7 @@ function SystemConfigPanel() {
 
   const [enabled, setEnabled] = useState(true)
   const [maxCompetitors, setMaxCompetitors] = useState(10)
+  const [maxActivePatterns, setMaxActivePatterns] = useState(4)
   const [cronSchedule, setCronSchedule] = useState('0 2 * * *')
 
   const sysQuery = useQuery({
@@ -128,6 +130,7 @@ function SystemConfigPanel() {
     if (sysQuery.data && !dirty) {
       setEnabled(sysQuery.data.enabled)
       setMaxCompetitors(sysQuery.data.maxCompetitorsPerProperty)
+      setMaxActivePatterns(sysQuery.data.maxActivePatterns)
       setCronSchedule(sysQuery.data.cronSchedule)
     }
   }, [sysQuery.data, dirty])
@@ -137,6 +140,7 @@ function SystemConfigPanel() {
       apiClient.updateCompSetSystemConfig({
         enabled,
         maxCompetitorsPerProperty: maxCompetitors,
+        maxActivePatterns,
         cronSchedule,
       }),
     onSuccess: () => {
@@ -180,6 +184,24 @@ function SystemConfigPanel() {
           value={maxCompetitors}
           onChange={(e) => {
             setMaxCompetitors(Number(e.target.value))
+            markDirty()
+          }}
+          className={inputClass('max-w-[120px]')}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-[var(--color-text)]">
+          Max active patterns per hotel
+        </label>
+        <p className="text-xs text-[var(--color-text-muted)]">Limits how many search patterns can be active for comparison runs. Overridable per chain or hotel.</p>
+        <input
+          type="number"
+          min={1}
+          max={50}
+          value={maxActivePatterns}
+          onChange={(e) => {
+            setMaxActivePatterns(Number(e.target.value))
             markDirty()
           }}
           className={inputClass('max-w-[120px]')}
@@ -524,12 +546,40 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
   const [activeErr, setActiveErr] = useState<string | null>(null)
   const [editErr, setEditErr] = useState<string | null>(null)
+  const [maxOverride, setMaxOverride] = useState<string>('')
+  const [maxOverrideDirty, setMaxOverrideDirty] = useState(false)
 
   const currentTier: 'system' | 'chain' | 'hotel' = propertyId
     ? 'hotel'
     : orgId
     ? 'chain'
     : 'system'
+
+  const configQuery = useQuery({
+    queryKey: ['compset-config', orgId, propertyId],
+    queryFn: () => apiClient.getCompSetConfig({
+      ...(propertyId !== null ? { propertyId } : {}),
+      ...(orgId !== null && propertyId === null ? { orgId } : {}),
+    }),
+    enabled: currentTier !== 'system',
+  })
+
+  useEffect(() => {
+    if (configQuery.data && !maxOverrideDirty) {
+      setMaxOverride(configQuery.data.maxActivePatterns !== null ? String(configQuery.data.maxActivePatterns) : '')
+    }
+  }, [configQuery.data, maxOverrideDirty])
+
+  const saveMaxMutation = useMutation({
+    mutationFn: () => apiClient.updateCompSetConfig(
+      { ...(propertyId !== null ? { propertyId } : {}), ...(orgId !== null && propertyId === null ? { orgId } : {}) },
+      { maxActivePatterns: maxOverride === '' ? null : Number(maxOverride) },
+    ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['compset-config'] })
+      setMaxOverrideDirty(false)
+    },
+  })
 
   const paramsQuery = useQuery({
     queryKey: ['compset-search-params', propertyId, orgId],
@@ -595,24 +645,91 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
 
   const inheritedParams = params.filter((p) => tierOrder[p.tier] < currentTierOrder)
   const ownParams = params.filter((p) => p.tier === currentTier)
+  const activeCount = params.filter(p => p.resolvedIsActive).length
+  const resolvedMax = configQuery.data?.resolvedMaxActivePatterns ?? null
 
   return (
     <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[var(--color-text)]">Search Configurations</h2>
-        {!showAdd && (
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-background,#f9fafb)] transition-colors"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {resolvedMax !== null && (
+            <span className={[
+              'text-xs font-medium px-2 py-0.5 rounded-full',
+              activeCount >= resolvedMax
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-[var(--color-background,#f9fafb)] text-[var(--color-text-muted)]',
+            ].join(' ')}>
+              {activeCount} / {resolvedMax} active
+            </span>
+          )}
+          {!showAdd && (
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-background,#f9fafb)] transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add
+            </button>
+          )}
+        </div>
       </div>
+
+      {currentTier !== 'system' && (
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background,#f9fafb)] px-4 py-3">
+          <div className="flex-1">
+            <p className="text-xs font-medium text-[var(--color-text)]">Max active patterns</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {configQuery.data?.maxActivePatterns !== null
+                ? `Overriding system default`
+                : `Inherited — effective limit: ${resolvedMax ?? '…'}`}
+            </p>
+          </div>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            placeholder={String(resolvedMax ?? '…')}
+            value={maxOverride}
+            onChange={(e) => { setMaxOverride(e.target.value); setMaxOverrideDirty(true) }}
+            className={inputClass('w-20 text-center')}
+          />
+          {maxOverrideDirty && (
+            <>
+              <button
+                type="button"
+                onClick={() => saveMaxMutation.mutate()}
+                disabled={saveMaxMutation.isPending}
+                className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {saveMaxMutation.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMaxOverride(configQuery.data?.maxActivePatterns !== null ? String(configQuery.data?.maxActivePatterns) : '')
+                  setMaxOverrideDirty(false)
+                }}
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          {!maxOverrideDirty && maxOverride !== '' && (
+            <button
+              type="button"
+              onClick={() => { setMaxOverride(''); setMaxOverrideDirty(true) }}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error,#dc2626)]"
+            >
+              Clear override
+            </button>
+          )}
+        </div>
+      )}
 
       {paramsQuery.isLoading ? (
         <div className="h-12 animate-pulse rounded-lg bg-[var(--color-border)]" />
@@ -1388,7 +1505,59 @@ function ResultCell({ result }: { result: CompSetResult | undefined }) {
   )
 }
 
+function exportCompSetToExcel(
+  results: CompSetResult[],
+  params: CompSetSearchParam[],
+  competitors: CompSetCompetitor[],
+  propertyName: string,
+  propertyId: number,
+) {
+  const paramById = new Map(params.map(p => [p.id, p]))
+  const compById = new Map(competitors.map(c => [c.id, c]))
+  const today = new Date().toISOString().split('T')[0]!
+  const fresh = results.filter(r => r.checkIn >= today)
+
+  const rows = fresh.map(r => {
+    const param = paramById.get(r.searchParamId)
+    const compName = r.competitorId === null ? 'My Hotel' : (compById.get(r.competitorId)?.name ?? `Competitor ${r.competitorId}`)
+    return {
+      'Pattern': param?.label ?? `Config #${r.searchParamId}`,
+      'Offset Days': param?.offsetDays ?? '',
+      'Nights': param?.nights ?? r.nights,
+      'Adults': param?.adults ?? r.adults,
+      'Children': param?.children ?? 0,
+      'Check-in': r.checkIn,
+      'Check-out': r.checkOut,
+      'Competitor': compName,
+      'Room': r.roomName ?? '',
+      'Board': r.board ?? '',
+      'Cancellation': r.cancellation ?? '',
+      'Status': r.searchStatus,
+      'Price/Night': r.pricePerNight ?? '',
+      'Total': r.total ?? '',
+      'Currency': r.currency ?? '',
+    }
+  })
+
+  if (rows.length === 0) return
+
+  const d = new Date()
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const dateStr = `${String(d.getDate()).padStart(2,'0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`
+  const filename = `CompSet ${propertyName} ${propertyId}_${dateStr}.xlsx`
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'CompSet Results')
+  XLSX.writeFile(wb, filename)
+}
+
 function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: number | null }) {
+  const propertyQuery = useQuery({
+    queryKey: ['property-detail', propertyId],
+    queryFn: () => apiClient.getProperty(propertyId),
+  })
+
   const resultsQuery = useQuery({
     queryKey: ['compset-results', propertyId],
     queryFn: () => apiClient.getCompSetResults(propertyId),
@@ -1413,8 +1582,9 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   const results = resultsQuery.data ?? []
   const competitors = competitorsQuery.data ?? []
   const params = paramsQuery.data ?? []
+  const propertyName = propertyQuery.data?.name ?? `Property ${propertyId}`
 
-  if (resultsQuery.isLoading) return null
+  if (resultsQuery.isLoading || paramsQuery.isLoading) return null
 
   const compById = new Map(competitors.map(c => [c.id, c]))
   const paramById = new Map(params.map(p => [p.id, p]))
@@ -1423,8 +1593,9 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   const today = new Date().toISOString().split('T')[0]!
   const freshResults = results.filter(r => r.checkIn >= today)
 
-  // unique param IDs ordered by first appearance in fresh results
+  // unique param IDs ordered by first appearance, filtered to currently active params only
   const paramIds = [...new Set(freshResults.map(r => r.searchParamId))]
+    .filter(id => paramById.get(id)?.resolvedIsActive === true)
   // unique competitor IDs ordered by first appearance
   const competitorIds = [...new Set(
     freshResults.map(r => r.competitorId).filter((id): id is number => id !== null)
@@ -1441,7 +1612,6 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
     return rows[0]
   }
 
-  const hasOwnResults = freshResults.some(r => r.competitorId === null)
 
   function fmtDate(iso: string): string {
     try {
@@ -1457,9 +1627,23 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
     <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[var(--color-text)]">Results</h2>
-        {lastFetch && (
-          <span className="text-xs text-[var(--color-text-muted)]">Last run: {lastFetch}</span>
-        )}
+        <div className="flex items-center gap-3">
+          {lastFetch && (
+            <span className="text-xs text-[var(--color-text-muted)]">Last run: {lastFetch}</span>
+          )}
+          {results.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportCompSetToExcel(results, params, competitors, propertyName, propertyId)}
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text)] hover:bg-[var(--color-background,#f9fafb)] transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
       {freshResults.length === 0 ? (
@@ -1501,7 +1685,7 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)]">
-                      {hasOwnResults && (() => {
+                      {(() => {
                         const result = bestResult(paramId, null)
                         return (
                           <tr key="own" className="bg-[var(--color-primary)]/5">

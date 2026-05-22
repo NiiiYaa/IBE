@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import {
   getSystemCompSetConfig,
   upsertSystemCompSetConfig,
+  getCompSetConfig,
+  upsertCompSetConfig,
   getAdminSearchParams,
   createSearchParam,
   updateSearchParam,
@@ -31,6 +33,25 @@ export async function compsetRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/intelligence/compset/system-config', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Super admin only' })
     return reply.send(await upsertSystemCompSetConfig(request.body as Record<string, unknown>))
+  })
+
+  // GET chain/hotel config override
+  fastify.get('/admin/intelligence/compset/config', async (request, reply) => {
+    const query = request.query as Record<string, string>
+    const propertyId = query.propertyId ? parseInt(query.propertyId, 10) : null
+    const rawOrgId = query.orgId ? parseInt(query.orgId, 10) : null
+    const orgId = request.admin.role === 'super' ? rawOrgId : (request.admin.organizationId ?? null)
+    return reply.send(await getCompSetConfig({ orgId, propertyId }))
+  })
+
+  // PUT chain/hotel config override
+  fastify.put('/admin/intelligence/compset/config', async (request, reply) => {
+    const query = request.query as Record<string, string>
+    const propertyId = query.propertyId ? parseInt(query.propertyId, 10) : null
+    const rawOrgId = query.orgId ? parseInt(query.orgId, 10) : null
+    const orgId = request.admin.role === 'super' ? rawOrgId : (request.admin.organizationId ?? null)
+    const body = request.body as { maxActivePatterns?: number | null }
+    return reply.send(await upsertCompSetConfig({ orgId, propertyId }, body))
   })
 
   // GET search params (admin view: own + inherited rows for propertyId, or scoped for orgId/system)
@@ -104,6 +125,7 @@ export async function compsetRoutes(fastify: FastifyInstance) {
 
     const result = await updateSearchParamActive(id, { orgId, propertyId }, body.isActive)
     if (!result) return reply.status(404).send({ error: 'Not found' })
+    if ('error' in result) return reply.status(409).send({ error: result.error })
     return reply.send(result)
   })
 

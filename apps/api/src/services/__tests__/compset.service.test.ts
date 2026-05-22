@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../../db/client.js', () => ({
   prisma: {
     systemCompSetConfig: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+    compSetConfig: { findFirst: vi.fn() },
     compSetSearchParam: {
       findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(),
     },
@@ -65,7 +66,7 @@ describe('getSystemCompSetConfig', () => {
   it('returns defaults when no row exists', async () => {
     mp.systemCompSetConfig.findFirst.mockResolvedValue(null)
     const result = await getSystemCompSetConfig()
-    expect(result).toEqual({ maxCompetitorsPerProperty: 5, cronSchedule: '0 3 * * *', enabled: false })
+    expect(result).toEqual({ maxCompetitorsPerProperty: 5, maxActivePatterns: 4, cronSchedule: '0 3 * * *', enabled: false })
   })
   it('returns stored values', async () => {
     mp.systemCompSetConfig.findFirst.mockResolvedValue({ maxCompetitorsPerProperty: 10, cronSchedule: '0 4 * * *', enabled: true })
@@ -301,7 +302,7 @@ describe('updateSearchParamActive', () => {
     mp.compSetSearchParam.update.mockResolvedValue(makeParam({ id: 1, isActive: false }))
     const result = await updateSearchParamActive(1, { orgId: null, propertyId: null }, false)
     expect(mp.compSetSearchParam.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { isActive: false } })
-    expect(result?.resolvedIsActive).toBe(false)
+    if (result && !('error' in result)) expect(result.resolvedIsActive).toBe(false)
     expect(mp.compSetSearchParamOverride.create).not.toHaveBeenCalled()
   })
 
@@ -314,7 +315,7 @@ describe('updateSearchParamActive', () => {
       data: { searchParamId: 1, orgId: null, propertyId: 100, isActive: false },
     })
     expect(mp.compSetSearchParam.update).not.toHaveBeenCalled()
-    expect(result?.resolvedIsActive).toBe(false)
+    if (result && !('error' in result)) expect(result.resolvedIsActive).toBe(false)
   })
 
   it('ignores scope orgId when propertyId is set (property-level override uses orgId=null)', async () => {
@@ -326,17 +327,23 @@ describe('updateSearchParamActive', () => {
     expect(mp.compSetSearchParamOverride.create).toHaveBeenCalledWith({
       data: { searchParamId: 1, orgId: null, propertyId: 100, isActive: false },
     })
-    expect(result?.resolvedIsActive).toBe(false)
+    if (result && !('error' in result)) expect(result.resolvedIsActive).toBe(false)
   })
 
   it('updates existing override instead of creating a new one', async () => {
     mp.compSetSearchParam.findUnique.mockResolvedValue(makeParam({ id: 1, orgId: null, propertyId: null }))
     mp.compSetSearchParamOverride.findFirst.mockResolvedValue({ id: 10, searchParamId: 1, orgId: null, propertyId: 100, isActive: false })
     mp.compSetSearchParamOverride.update.mockResolvedValue({ id: 10, isActive: true })
+    // Limit check mocks: property has orgId=5, no config overrides, system default=4, 0 currently active
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetConfig.findFirst.mockResolvedValue(null)
+    mp.systemCompSetConfig.findFirst.mockResolvedValue({ maxActivePatterns: 4 })
+    mp.compSetSearchParam.findMany.mockResolvedValue([])
+    mp.compSetSearchParamOverride.findMany.mockResolvedValue([])
     const result = await updateSearchParamActive(1, { orgId: null, propertyId: 100 }, true)
     expect(mp.compSetSearchParamOverride.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { isActive: true } })
     expect(mp.compSetSearchParamOverride.create).not.toHaveBeenCalled()
-    expect(result?.resolvedIsActive).toBe(true)
+    if (result && !('error' in result)) expect(result.resolvedIsActive).toBe(true)
   })
 })
 

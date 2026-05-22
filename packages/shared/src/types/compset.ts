@@ -1,7 +1,13 @@
 export interface SystemCompSetConfig {
   maxCompetitorsPerProperty: number
+  maxActivePatterns: number
   cronSchedule: string
   enabled: boolean
+}
+
+export interface CompSetConfig {
+  maxActivePatterns: number | null        // override for this scope (null = inheriting)
+  resolvedMaxActivePatterns: number       // effective value after inheritance
 }
 
 export interface CompSetSearchParam {
