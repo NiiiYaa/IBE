@@ -148,17 +148,23 @@ export async function getEffectiveSearchParams(propertyId: number): Promise<Comp
   const prop = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
   const orgId = prop?.organizationId ?? null
 
-  const [systemRows, chainRows, hotelRows] = await Promise.all([
+  const [systemRows, chainRows, hotelRows, overrides] = await Promise.all([
     prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
-    orgId ? prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null }, orderBy: { sortOrder: 'asc' } }) : [],
+    orgId ? prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null }, orderBy: { sortOrder: 'asc' } }) : Promise.resolve([]),
     prisma.compSetSearchParam.findMany({ where: { propertyId }, orderBy: { sortOrder: 'asc' } }),
+    prisma.compSetSearchParamOverride.findMany({
+      where: { OR: [{ propertyId }, ...(orgId ? [{ orgId, propertyId: null }] : [])] },
+    }),
   ])
 
-  return [
-    ...systemRows.map(r => toParam(r, 'system', r.isActive)),
-    ...chainRows.map(r => toParam(r, 'chain', r.isActive)),
-    ...hotelRows.map(r => toParam(r, 'hotel', r.isActive)),
+  const resolveScope = { orgId, propertyId }
+  const all = [
+    ...systemRows.map(r => toParam(r, 'system', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
+    ...chainRows.map(r => toParam(r, 'chain', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
+    ...hotelRows.map(r => toParam(r, 'hotel', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
   ]
+
+  return all.filter(p => p.resolvedIsActive)
 }
 
 export async function createSearchParam(scope: { orgId?: number | null; propertyId?: number | null }, data: CompSetSearchParamCreate): Promise<CompSetSearchParam> {
