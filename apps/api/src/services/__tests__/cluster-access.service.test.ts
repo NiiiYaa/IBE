@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../db/client.js', () => ({
   prisma: {
-    clusterHotel: { findMany: vi.fn() },
+    clusterHotel: { findMany: vi.fn(), findFirst: vi.fn() },
     clusterUser: { findMany: vi.fn() },
   },
 }))
@@ -51,15 +51,16 @@ describe('resolveAccessiblePropertyIds', () => {
 describe('assertPropertyAccess', () => {
   it('does not throw for global admin', async () => {
     await expect(assertPropertyAccess(makeAdmin({ clusterScope: false } as any), 100)).resolves.toBeUndefined()
+    expect(mp.clusterHotel.findFirst).not.toHaveBeenCalled()
   })
 
   it('does not throw when property is in cluster', async () => {
-    mp.clusterHotel.findMany.mockResolvedValue([{ propertyId: 100 }])
+    mp.clusterHotel.findFirst.mockResolvedValue({ id: 1 })
     await expect(assertPropertyAccess(makeAdmin({ clusterScope: true } as any), 100)).resolves.toBeUndefined()
   })
 
   it('throws 403 when property is not in any cluster', async () => {
-    mp.clusterHotel.findMany.mockResolvedValue([{ propertyId: 200 }])
+    mp.clusterHotel.findFirst.mockResolvedValue(null)
     await expect(assertPropertyAccess(makeAdmin({ clusterScope: true } as any), 100)).rejects.toThrow('No access to this property')
   })
 })

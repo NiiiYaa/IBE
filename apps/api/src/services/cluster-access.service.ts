@@ -14,8 +14,17 @@ export async function resolveAccessiblePropertyIds(admin: AdminPayload & { clust
 }
 
 export async function assertPropertyAccess(admin: AdminPayload & { clusterScope?: boolean }, propertyId: number): Promise<void> {
-  const ids = await resolveAccessiblePropertyIds(admin)
-  if (ids !== 'all' && !ids.includes(propertyId)) {
+  if (admin.role === 'super') return
+  if (!admin.clusterScope) return
+
+  const hit = await prisma.clusterHotel.findFirst({
+    where: {
+      propertyId,
+      cluster: { status: 'active', users: { some: { adminUserId: admin.adminId } } },
+    },
+    select: { id: true },
+  })
+  if (!hit) {
     throw Object.assign(new Error('No access to this property'), { statusCode: 403 })
   }
 }
