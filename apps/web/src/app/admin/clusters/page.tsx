@@ -356,7 +356,100 @@ function ConfigurationsTab({ orgId }: { orgId: number | null }) {
 // ─── Placeholder tabs (filled in Tasks 11-12) ─────────────────────────────────
 
 function HotelsTab({ orgId }: { orgId: number | null }) {
-  return <p className="text-sm text-[var(--color-text-muted)] italic">Loading hotels…</p>
+  const hotelsQuery = useQuery({
+    queryKey: ['clusters-hotels', orgId],
+    queryFn: () => apiClient.listClustersHotels(orgId ?? undefined),
+  })
+  const clustersQuery = useQuery({
+    queryKey: ['clusters', orgId],
+    queryFn: () => apiClient.listClusters(orgId ?? undefined),
+  })
+  const qc = useQueryClient()
+  const [managingId, setManagingId] = useState<number | null>(null)
+  const [addClusterId, setAddClusterId] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+
+  const addMutation = useMutation({
+    mutationFn: ({ propertyId }: { propertyId: number }) =>
+      apiClient.addHotelToCluster(parseInt(addClusterId, 10), { propertyId }, orgId ?? undefined),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['clusters-hotels', orgId] })
+      setAddClusterId('')
+      setErr(null)
+    },
+    onError: (e) => setErr(e instanceof Error ? e.message : 'Failed'),
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: ({ clusterId, propertyId }: { clusterId: number; propertyId: number }) =>
+      apiClient.removeHotelFromCluster(clusterId, propertyId, orgId ?? undefined),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['clusters-hotels', orgId] }),
+  })
+
+  const hotels = hotelsQuery.data ?? []
+  const clusters = clustersQuery.data ?? []
+
+  if (hotelsQuery.isLoading) return <div className="h-12 animate-pulse rounded-xl bg-[var(--color-border)]" />
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[var(--color-border)]">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)]">Hotel</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)]">Clusters</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)]"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--color-border)]">
+          {hotels.map(hotel => {
+            const isManaging = managingId === hotel.propertyId
+            const assignedClusterIds = new Set(hotel.clusters.map(c => c.id))
+            const availableClusters = clusters.filter(c => !assignedClusterIds.has(c.id) && c.status === 'active')
+            return (
+              <tr key={hotel.propertyId}>
+                <td className="px-4 py-3 font-medium text-[var(--color-text)]">{hotel.propertyName}</td>
+                <td className="px-4 py-3">
+                  {hotel.clusters.length === 0 ? (
+                    <span className="text-xs italic text-[var(--color-text-muted)]">Unassigned</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {hotel.clusters.map(c => (
+                        <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary)]/10 px-2 py-0.5 text-xs text-[var(--color-primary)]">
+                          {c.name}
+                          <button type="button" onClick={() => removeMutation.mutate({ clusterId: c.id, propertyId: hotel.propertyId })}
+                            className="hover:text-[var(--color-error,#dc2626)]">✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {isManaging ? (
+                    <div className="flex items-center gap-2">
+                      <select value={addClusterId} onChange={e => setAddClusterId(e.target.value)} className={inputClass('text-xs py-1')}>
+                        <option value="">Select cluster…</option>
+                        {availableClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <button type="button" disabled={!addClusterId || addMutation.isPending}
+                        onClick={() => addMutation.mutate({ propertyId: hotel.propertyId })}
+                        className="text-xs text-[var(--color-primary)] disabled:opacity-50">Add</button>
+                      <button type="button" onClick={() => { setManagingId(null); setAddClusterId(''); setErr(null) }}
+                        className="text-xs text-[var(--color-text-muted)]">Done</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => { setManagingId(hotel.propertyId); setAddClusterId('') }}
+                      className="text-xs text-[var(--color-primary)] hover:opacity-80">Manage</button>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {err && <p className="px-4 py-2 text-xs text-[var(--color-error,#dc2626)]">{err}</p>}
+    </div>
+  )
 }
 
 function UsersTab({ orgId }: { orgId: number | null }) {
