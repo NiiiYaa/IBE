@@ -7,6 +7,7 @@ export interface AdminPayload {
   organizationId: number | null  // null for super admins
   role: string
   propertyIds?: number[]  // populated for 'user' role
+  clusterScope?: boolean
   mustChangePassword?: boolean
   impersonatorId?: number  // present only during impersonation; holds the real super admin's adminId
 }
@@ -17,13 +18,14 @@ export function canImpersonate(caller: AdminPayload): boolean {
 
 export function buildImpersonatePayload(
   caller: AdminPayload,
-  target: { id: number; organizationId: number | null; role: string; propertyIds?: number[] | undefined },
+  target: { id: number; organizationId: number | null; role: string; propertyIds?: number[] | undefined; clusterScope?: boolean },
 ): AdminPayload {
   const realSuperAdminId = caller.impersonatorId ?? caller.adminId
   const payload: AdminPayload = {
     adminId: target.id,
     organizationId: target.organizationId,
     role: target.role,
+    clusterScope: target.clusterScope ?? false,
     impersonatorId: realSuperAdminId,
   }
   if (target.propertyIds !== undefined) {
@@ -79,6 +81,7 @@ export async function resolveAdminLogin(
         adminId: user.id,
         organizationId: user.organizationId,
         role: user.role,
+        clusterScope: user.clusterScope,
         mustChangePassword: user.mustChangePassword,
         ...(propertyIds !== undefined && { propertyIds }),
       },
@@ -175,6 +178,7 @@ export async function getAdminById(id: number) {
       role: true,
       organizationId: true,
       isActive: true,
+      clusterScope: true,
       mustChangePassword: true,
       adminUserProperties: { select: { propertyId: true } },
     },
@@ -203,6 +207,7 @@ export async function getAdminById(id: number) {
     role: user.role,
     organizationId: user.organizationId,
     isActive: user.isActive,
+    clusterScope: user.clusterScope,
     mustChangePassword: user.mustChangePassword,
     propertyIds: user.role === 'user' ? user.adminUserProperties.map(p => p.propertyId) : undefined,
     orgName,

@@ -159,6 +159,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       organizationId: target.organizationId,
       role: target.role,
       propertyIds: target.propertyIds,
+      clusterScope: target.clusterScope,
     })
     setCookieAndRespond(fastify, reply, payload)
     return reply.send({ ok: true })
