@@ -1505,10 +1505,17 @@ function ResultCell({ result }: { result: CompSetResult | undefined }) {
   )
 }
 
+function formatCancellation(raw: string | null): string {
+  if (raw === 'NR') return 'Non-Refundable'
+  if (raw === 'Flexi') return 'Flexible (Refundable)'
+  return raw ?? ''
+}
+
 function exportCompSetToExcel(
   results: CompSetResult[],
   params: CompSetSearchParam[],
   competitors: CompSetCompetitor[],
+  mappings: CompSetRoomMapping[],
   propertyName: string,
   propertyId: number,
 ) {
@@ -1517,9 +1524,47 @@ function exportCompSetToExcel(
   const today = new Date().toISOString().split('T')[0]!
   const fresh = results.filter(r => r.checkIn >= today)
 
+  // mapping lookup: competitorId → compRoomName → ownRoomName
+  const mappingByComp = new Map<number, Map<string, string>>()
+  for (const m of mappings) {
+    if (!mappingByComp.has(m.competitorId)) mappingByComp.set(m.competitorId, new Map())
+    mappingByComp.get(m.competitorId)!.set(m.compRoomName, m.ownRoomName)
+  }
+
+  // my hotel results: paramId+roomName+board+cancellation → pricePerNight
+  const myHotelRows = fresh.filter(r => r.competitorId === null && r.searchStatus === 'found' && r.pricePerNight != null)
+  function findMyHotelRate(paramId: number, ownRoomName: string, board: string | null, cancellation: string | null): number | null {
+    return myHotelRows.find(r =>
+      r.searchParamId === paramId &&
+      r.roomName === ownRoomName &&
+      r.board === board &&
+      r.cancellation === cancellation,
+    )?.pricePerNight ?? null
+  }
+
   const rows = fresh.map(r => {
     const param = paramById.get(r.searchParamId)
-    const compName = r.competitorId === null ? 'My Hotel' : (compById.get(r.competitorId)?.name ?? `Competitor ${r.competitorId}`)
+    const isMyHotel = r.competitorId === null
+    const comp = isMyHotel ? null : compById.get(r.competitorId!)
+    const compName = isMyHotel ? 'My Hotel' : (comp?.name ?? `Competitor ${r.competitorId}`)
+
+    let impliedRoomType = ''
+    let impliedRate: number | '' = ''
+    let difference = ''
+
+    if (!isMyHotel && r.roomName && comp?.comparisonMode === 'room_mapping' && r.searchStatus === 'found' && r.pricePerNight != null) {
+      const ownRoomName = mappingByComp.get(r.competitorId!)?.get(r.roomName) ?? ''
+      impliedRoomType = ownRoomName
+      if (ownRoomName) {
+        const myRate = findMyHotelRate(r.searchParamId, ownRoomName, r.board, r.cancellation)
+        if (myRate != null) {
+          impliedRate = myRate
+          const pct = (r.pricePerNight - myRate) / myRate * 100
+          difference = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+        }
+      }
+    }
+
     return {
       'Pattern': param?.label ?? `Config #${r.searchParamId}`,
       'Offset Days': param?.offsetDays ?? '',
@@ -1531,11 +1576,14 @@ function exportCompSetToExcel(
       'Competitor': compName,
       'Room': r.roomName ?? '',
       'Board': r.board ?? '',
-      'Cancellation': r.cancellation ?? '',
+      'Cancellation Policy': formatCancellation(r.cancellation),
       'Status': r.searchStatus,
       'Price/Night': r.pricePerNight ?? '',
       'Total': r.total ?? '',
       'Currency': r.currency ?? '',
+      'My Hotel – Implied Room Type': impliedRoomType,
+      'My Hotel – Implied Rate': impliedRate,
+      'Difference': difference,
     }
   })
 
@@ -1583,6 +1631,15 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   const competitors = competitorsQuery.data ?? []
   const params = paramsQuery.data ?? []
   const propertyName = propertyQuery.data?.name ?? `Property ${propertyId}`
+
+  const allMappingsQuery = useQuery({
+    queryKey: ['compset-all-mappings', competitors.map(c => c.id)],
+    queryFn: () =>
+      Promise.all(competitors.map(c => apiClient.getCompSetRoomMappings(c.id))).then(r => r.flat()),
+    enabled: competitors.length > 0,
+    staleTime: 60_000,
+  })
+  const allMappings: CompSetRoomMapping[] = allMappingsQuery.data ?? []
 
   if (resultsQuery.isLoading || paramsQuery.isLoading) return null
 
@@ -1634,7 +1691,7 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
           {results.length > 0 && (
             <button
               type="button"
-              onClick={() => exportCompSetToExcel(results, params, competitors, propertyName, propertyId)}
+              onClick={() => exportCompSetToExcel(results, params, competitors, allMappings, propertyName, propertyId)}
               className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text)] hover:bg-[var(--color-background,#f9fafb)] transition-colors"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
