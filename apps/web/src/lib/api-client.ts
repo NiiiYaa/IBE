@@ -2145,6 +2145,16 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/intelligence/compset/search-params/${id}`, { method: 'DELETE' })
   },
 
+  patchCompSetSearchParamActive(
+    id: number,
+    data: { isActive: boolean; orgId?: number | null; propertyId?: number | null },
+  ): Promise<CompSetSearchParam> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/search-params/${id}/active`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
   getCompSetCompetitors(propertyId: number): Promise<CompSetCompetitor[]> {
     return apiRequest(`/api/v1/admin/intelligence/compset/competitors?propertyId=${propertyId}`)
   },
@@ -2163,6 +2173,10 @@ export const apiClient = {
 
   runCompSet(propertyId: number): Promise<CompSetRunResponse> {
     return apiRequest(`/api/v1/admin/intelligence/compset/run?propertyId=${propertyId}`, { method: 'POST' })
+  },
+
+  runSingleCompSet(competitorId: number): Promise<CompSetRunResponse> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/run`, { method: 'POST' })
   },
 
   getCompSetResults(propertyId: number): Promise<CompSetResult[]> {
