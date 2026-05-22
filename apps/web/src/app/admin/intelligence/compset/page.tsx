@@ -18,6 +18,7 @@ import type {
   CompSetResult,
   CompSetRoomMapping,
   CompSetRunStatus,
+  EventCalendarEvent,
 } from '@ibe/shared'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -1518,6 +1519,7 @@ function exportCompSetToExcel(
   mappings: CompSetRoomMapping[],
   propertyName: string,
   propertyId: number,
+  events: EventCalendarEvent[],
 ) {
   const paramById = new Map(params.map(p => [p.id, p]))
   const compById = new Map(competitors.map(c => [c.id, c]))
@@ -1540,6 +1542,13 @@ function exportCompSetToExcel(
       r.board === board &&
       r.cancellation === cancellation,
     )?.pricePerNight ?? null
+  }
+
+  function eventsForRow(checkIn: string, checkOut: string): string {
+    return events
+      .filter(e => e.startDate <= checkOut && e.endDate >= checkIn)
+      .map(e => e.name)
+      .join(', ')
   }
 
   const rows = fresh.map(r => {
@@ -1584,6 +1593,7 @@ function exportCompSetToExcel(
       'My Hotel – Implied Room Type': impliedRoomType,
       'My Hotel – Implied Rate': impliedRate,
       'Difference': difference,
+      'Events': eventsForRow(r.checkIn, r.checkOut),
     }
   })
 
@@ -1641,14 +1651,28 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
   })
   const allMappings: CompSetRoomMapping[] = allMappingsQuery.data ?? []
 
+  const today = new Date().toISOString().split('T')[0]!
+  const freshResults = results.filter(r => r.checkIn >= today)
+
+  const eventFrom = freshResults.length > 0
+    ? freshResults.reduce((min, r) => r.checkIn < min ? r.checkIn : min, freshResults[0]!.checkIn)
+    : today
+  const eventTo = freshResults.length > 0
+    ? freshResults.reduce((max, r) => r.checkOut > max ? r.checkOut : max, freshResults[0]!.checkOut)
+    : today
+
+  const eventsQuery = useQuery({
+    queryKey: ['event-calendar-events', propertyId, eventFrom, eventTo],
+    queryFn: () => apiClient.getEventCalendarEvents(propertyId, eventFrom, eventTo),
+    enabled: freshResults.length > 0,
+    staleTime: 5 * 60_000,
+  })
+  const calendarEvents: EventCalendarEvent[] = eventsQuery.data ?? []
+
   if (resultsQuery.isLoading || paramsQuery.isLoading) return null
 
   const compById = new Map(competitors.map(c => [c.id, c]))
   const paramById = new Map(params.map(p => [p.id, p]))
-
-  // Hide results whose check-in date has already passed
-  const today = new Date().toISOString().split('T')[0]!
-  const freshResults = results.filter(r => r.checkIn >= today)
 
   // unique param IDs ordered by first appearance, filtered to currently active params only
   const paramIds = [...new Set(freshResults.map(r => r.searchParamId))]
@@ -1691,7 +1715,7 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
           {results.length > 0 && (
             <button
               type="button"
-              onClick={() => exportCompSetToExcel(results, params, competitors, allMappings, propertyName, propertyId)}
+              onClick={() => exportCompSetToExcel(results, params, competitors, allMappings, propertyName, propertyId, calendarEvents)}
               className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text)] hover:bg-[var(--color-background,#f9fafb)] transition-colors"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
