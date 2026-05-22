@@ -64,6 +64,7 @@ model Organization {
   orgDataProviderConfig       OrgDataProviderConfig?
   externalIBEConfig           ExternalIBEConfig?
   compSetSearchParams         CompSetSearchParam[]
+  orgPricingConfig            OrgPricingConfig?
 }
 
 // roles: super | admin | observer | user
@@ -472,6 +473,8 @@ model Property {
   compSetInsight              CompSetInsight?
   eventCalendarConfig         PropertyEventCalendarConfig?
   eventCalendarEvents         EventCalendarEvent[]
+  propertyPricingConfig       PropertyPricingConfig?
+  dailyRates                  DailyRate[]
 
   @@index([organizationId])
 }
@@ -1800,6 +1803,71 @@ model CompSetInsight {
   content    String   @db.Text
 
   property Property @relation(fields: [propertyId], references: [propertyId])
+}
+
+// ── Pricing Intelligence ──────────────────────────────────────────────────────
+
+model SystemPricingConfig {
+  id                  Int      @id @default(autoincrement())
+  enabled             Boolean  @default(false)
+  openToAll           Boolean  @default(true)
+  refreshIntervalDays Int      @default(1)
+  highPricePct        Float    @default(15)
+  lowPricePct         Float    @default(15)
+  highAnomalyPct      Float    @default(30)
+  lowAnomalyPct       Float    @default(30)
+  dayDifferencePct    Float    @default(35)
+  dayDifferenceWindow Int      @default(7)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model OrgPricingConfig {
+  id                    Int          @id @default(autoincrement())
+  organizationId        Int          @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  enabled               Boolean?
+  systemServiceDisabled Boolean      @default(false)
+  highPricePct          Float?
+  lowPricePct           Float?
+  highAnomalyPct        Float?
+  lowAnomalyPct         Float?
+  dayDifferencePct      Float?
+  dayDifferenceWindow   Int?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model PropertyPricingConfig {
+  id                  Int      @id @default(autoincrement())
+  propertyId          Int      @unique
+  property            Property @relation(fields: [propertyId], references: [propertyId], map: "PropertyPricingConfig_propertyId_fkey")
+  enabled             Boolean?
+  orgServiceDisabled  Boolean  @default(false)
+  highPricePct        Float?
+  lowPricePct         Float?
+  highAnomalyPct      Float?
+  lowAnomalyPct       Float?
+  dayDifferencePct    Float?
+  dayDifferenceWindow Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model DailyRate {
+  id            Int      @id @default(autoincrement())
+  propertyId    Int
+  property      Property @relation(fields: [propertyId], references: [propertyId], map: "DailyRate_propertyId_fkey")
+  date          String
+  minSellPrice  Float
+  currency      String
+  available     Boolean  @default(true)
+  calendarColor String   @default("normal")
+  anomalyType   String?
+  rollingAvg    Float?
+  collectedAt   DateTime @default(now())
+
+  @@unique([propertyId, date])
 }
 
 // ── Event Calendar ────────────────────────────────────────────────────────────
