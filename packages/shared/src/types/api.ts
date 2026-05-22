@@ -307,11 +307,74 @@ export interface HotelDesignConfig {
   priceComparisonEnabled: boolean
   affiliateMarketplace: boolean
   affiliateDefaultCommissionRate: number | null
+  pricingEnabled: boolean
   chainHeroImageUrl: string | null
   emailEnabled: boolean
   whatsappEnabled: boolean
   checkInTime: string | null
   checkOutTime: string | null
+}
+
+// ── Pricing ───────────────────────────────────────────────────────────────────
+
+export interface DayPriceEntry {
+  date: string
+  price: number
+  currency: string
+  available: boolean
+  calendarColor: 'low' | 'normal' | 'high'
+}
+
+export interface DayRateAdminEntry extends DayPriceEntry {
+  anomalyType: 'high' | 'low' | 'diff' | null
+  rollingAvg: number | null
+}
+
+export interface PricingConfigValues {
+  highPricePct: number
+  lowPricePct: number
+  highAnomalyPct: number
+  lowAnomalyPct: number
+  dayDifferencePct: number
+  dayDifferenceWindow: number
+}
+
+export interface SystemPricingConfigResponse extends PricingConfigValues {
+  enabled: boolean
+  openToAll: boolean
+  refreshIntervalDays: number
+}
+
+export interface OrgPricingConfigResponse {
+  enabled: boolean | null
+  systemServiceDisabled: boolean
+  highPricePct: number | null
+  lowPricePct: number | null
+  highAnomalyPct: number | null
+  lowAnomalyPct: number | null
+  dayDifferencePct: number | null
+  dayDifferenceWindow: number | null
+  // Resolved effective values (from system → org)
+  effective: SystemPricingConfigResponse
+}
+
+export interface PropertyPricingConfigResponse {
+  enabled: boolean | null
+  orgServiceDisabled: boolean
+  highPricePct: number | null
+  lowPricePct: number | null
+  highAnomalyPct: number | null
+  lowAnomalyPct: number | null
+  dayDifferencePct: number | null
+  dayDifferenceWindow: number | null
+  // Resolved effective values (from system → org → property)
+  effective: SystemPricingConfigResponse
+}
+
+export interface PricingJobStatus {
+  status: 'idle' | 'queued' | 'running'
+  lastCollectedAt: string | null
+  dayCount: number
 }
 
 export interface UpdateDesignConfigRequest {
