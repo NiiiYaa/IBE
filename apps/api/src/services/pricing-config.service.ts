@@ -87,7 +87,7 @@ export async function getPropertyPricingConfig(propertyId: number): Promise<Prop
   ])
 
   const orgEffective = resolveOrgEffective(system, org)
-  const effective = resolvePropertyEffective(orgEffective, org, prop)
+  const effective = resolvePropertyEffective(orgEffective, prop)
   return {
     enabled: prop?.enabled ?? null,
     orgServiceDisabled: prop?.orgServiceDisabled ?? false,
@@ -134,9 +134,10 @@ export async function getEnabledPropertyIds(): Promise<number[]> {
       const prop = p.propertyPricingConfig
       if (org?.systemServiceDisabled) return false
       if (prop?.orgServiceDisabled) return false
-      const effectiveEnabled = prop?.enabled ?? org?.enabled ?? system.enabled
-      if (!system.openToAll && effectiveEnabled !== true) return false
-      return effectiveEnabled === true
+      const fallback = system.openToAll ? system.enabled : false
+      const effectiveEnabled = prop?.enabled ?? org?.enabled ?? fallback
+      if (!effectiveEnabled) return false
+      return true
     })
     .map(p => p.propertyId)
 }
@@ -163,7 +164,6 @@ function resolveOrgEffective(
 
 function resolvePropertyEffective(
   orgEffective: SystemPricingConfigResponse,
-  _org: { systemServiceDisabled: boolean } | null,
   prop: { enabled: boolean | null; orgServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null } | null,
 ): SystemPricingConfigResponse {
   if (prop?.orgServiceDisabled) return { ...orgEffective, enabled: false }
