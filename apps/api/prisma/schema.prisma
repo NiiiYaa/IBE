@@ -469,6 +469,7 @@ model Property {
   compSetSearchParams         CompSetSearchParam[]
   compSetCompetitors          CompSetCompetitor[]
   compSetResults              CompSetResult[]
+  compSetInsight              CompSetInsight?
   eventCalendarConfig         PropertyEventCalendarConfig?
   eventCalendarEvents         EventCalendarEvent[]
 
@@ -1790,6 +1791,15 @@ model CompSetResult {
   property     Property           @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade, map: "CompSetResult_propertyId_fkey")
   competitor   CompSetCompetitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
   searchParam  CompSetSearchParam @relation(fields: [searchParamId], references: [id], onDelete: Cascade)
+}
+
+model CompSetInsight {
+  id         Int      @id @default(autoincrement())
+  propertyId Int      @unique
+  analyzedAt DateTime
+  content    String   @db.Text
+
+  property Property @relation(fields: [propertyId], references: [propertyId])
 }
 
 // ── Event Calendar ────────────────────────────────────────────────────────────
