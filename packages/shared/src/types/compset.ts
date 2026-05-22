@@ -108,3 +108,25 @@ export interface CompSetRunStatus {
   errors: number
   runLabel?: string // 'all' for Run All, competitor name for single run
 }
+
+export interface InsightContent {
+  summary: string
+  pricingInsights: string[]
+  competitorPositioning: string[]
+  recommendedActions: string[]
+  anomalies: string[]
+  strategicRecommendations: string[]
+}
+
+export interface CompSetInsight {
+  id: number
+  propertyId: number
+  analyzedAt: string
+  content: InsightContent
+}
+
+export interface CompSetInsightResponse {
+  insight: CompSetInsight | null
+  hasNewData: boolean
+  hasResults: boolean
+}
