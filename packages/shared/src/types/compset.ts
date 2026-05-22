@@ -16,6 +16,8 @@ export interface CompSetSearchParam {
   label: string
   sortOrder: number
   tier: 'system' | 'chain' | 'hotel'
+  isActive: boolean
+  resolvedIsActive: boolean
 }
 
 export interface CompSetSearchParamCreate {
