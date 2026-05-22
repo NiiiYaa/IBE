@@ -93,10 +93,10 @@ export async function sendEmail(orgId: number, payload: EmailPayload, propertyId
       formData.append('html', payload.html)
       if (payload.replyTo) formData.append('h:Reply-To', payload.replyTo)
       payload.attachments?.forEach(a => {
-        formData.append('attachment', new Blob([a.content], { type: a.contentType }), a.filename)
+        formData.append('attachment', new Blob([a.content as BlobPart], { type: a.contentType }), a.filename)
       })
       payload.inlineImages?.forEach(img => {
-        formData.append('inline', new Blob([img.content], { type: img.contentType }), img.cid)
+        formData.append('inline', new Blob([img.content as BlobPart], { type: img.contentType }), img.cid)
       })
       const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
         method: 'POST',

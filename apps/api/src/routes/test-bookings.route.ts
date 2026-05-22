@@ -35,7 +35,7 @@ export async function testBookingsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const rates = await searchForTestBooking({ ...body, childrenAges, rooms })
+      const rates = await searchForTestBooking({ ...body, childrenAges, ...(rooms !== undefined && { rooms }) })
       return reply.send({ rates })
     } catch (err) {
       return reply.status(502).send({ error: err instanceof Error ? err.message : 'Search failed' })
