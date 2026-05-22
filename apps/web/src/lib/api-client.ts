@@ -145,6 +145,8 @@ import type {
   CompSetRunStatus,
   CompSetRoomMapping,
   CompSetRoomMappingUpsert,
+  CompSetInsight,
+  CompSetInsightResponse,
   SystemEventCalendarConfig,
   PropertyEventCalendarConfig,
   EventCalendarEvent,
@@ -2314,6 +2316,17 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/mappings/auto`, {
       method: 'POST',
       body: JSON.stringify({ compRooms, ownRooms }),
+    })
+  },
+
+  getCompSetInsight(propertyId: number): Promise<CompSetInsightResponse> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/insights?propertyId=${propertyId}`)
+  },
+
+  generateCompSetInsight(propertyId: number): Promise<CompSetInsight> {
+    return apiRequest('/api/v1/admin/intelligence/compset/insights', {
+      method: 'POST',
+      body: JSON.stringify({ propertyId }),
     })
   },
 
