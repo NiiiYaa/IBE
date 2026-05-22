@@ -131,7 +131,11 @@ export async function communicationRoutes(fastify: FastifyInstance) {
 
     const { orgId: _omit, ...safeData } = body
     await updateCommSettings(orgId, safeData as never)
-    if ((safeData as any).whatsappProvider === 'wwebjs' && (safeData as any).whatsappEnabled) void initClient({ orgId })
+    if ((safeData as any).whatsappProvider === 'wwebjs' && (safeData as any).whatsappEnabled) {
+      void initClient({ orgId })
+    } else if ((safeData as any).whatsappUseOwn === false || (safeData as any).whatsappEnabled === false) {
+      void disconnectClient({ orgId })
+    }
     return reply.send({ ok: true })
   })
 
@@ -322,6 +326,9 @@ export async function communicationRoutes(fastify: FastifyInstance) {
       ...(body.twilioAuthToken !== undefined && { whatsappTwilioAuthToken: body.twilioAuthToken as string }),
       ...(body.twilioNumber !== undefined && { whatsappTwilioNumber: body.twilioNumber as string }),
       ...(body.systemServiceDisabled !== undefined && { whatsappSystemServiceDisabled: body.systemServiceDisabled as boolean }),
+    }
+    if (data.useOwnWhatsapp === false || data.whatsappEnabled === false) {
+      void disconnectClient({ propertyId })
     }
     return reply.send(await upsertPropertyWhatsAppSettings(propertyId, data))
   })

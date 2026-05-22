@@ -189,7 +189,7 @@ export async function getCommSettings(organizationId: number): Promise<CommSetti
     } : { smsEnabled: false }),
     // WhatsApp: same pattern
     ...(useOwnWhatsapp ? {} : sys.whatsappSharedWithOrgs ? (() => {
-      const inhHasCredentials = !!(sys.whatsappAccessToken || sys.whatsappTwilioAuthToken || sys.whatsappWebjsServiceUrl)
+      const inhHasCredentials = sys.whatsappProvider === 'wwebjs' || !!(sys.whatsappAccessToken || sys.whatsappTwilioAuthToken)
       return {
         whatsappEnabled: row.whatsappSystemServiceDisabled ? false : (sys.whatsappEnabled && inhHasCredentials),
         whatsappProvider: sys.whatsappProvider,
@@ -495,7 +495,7 @@ export async function getPropertyWhatsAppSettingsAdmin(propertyId: number): Prom
     prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
   ])
   const { settings: inh, from: inheritedFrom, blocked: inheritedBlocked } = await resolvePropertyInheritedWhatsApp(prop?.organizationId ?? null)
-  const inhHasCredentials = !!(inh.whatsappAccessToken || inh.whatsappTwilioAuthToken || inh.whatsappWebjsServiceUrl)
+  const inhHasCredentials = inh.whatsappProvider === 'wwebjs' || !!(inh.whatsappAccessToken || inh.whatsappTwilioAuthToken)
   return {
     useOwn: propRow?.useOwnWhatsapp ?? false,
     enabled: propRow?.whatsappEnabled ?? false,
