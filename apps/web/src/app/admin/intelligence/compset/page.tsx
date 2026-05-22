@@ -413,7 +413,7 @@ function ParamRow({
     return (
       <EditParamForm
         param={param}
-        onSave={(data) => onEditSave?.(data)}
+        onSave={(data) => onEditSave!(data)}
         isPending={isEditSaving ?? false}
         onCancel={() => onEditCancel?.()}
       />
@@ -514,6 +514,8 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [editingParamId, setEditingParamId] = useState<number | null>(null)
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
+  const [activeErr, setActiveErr] = useState<string | null>(null)
+  const [editErr, setEditErr] = useState<string | null>(null)
 
   const currentTier: 'system' | 'chain' | 'hotel' = propertyId
     ? 'hotel'
@@ -549,7 +551,9 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['compset-search-params'] })
       setEditingParamId(null)
+      setEditErr(null)
     },
+    onError: (e) => setEditErr(e instanceof Error ? e.message : 'Save failed'),
   })
 
   const deleteMutation = useMutation({
@@ -569,7 +573,11 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
         orgId: orgId ?? null,
         propertyId: propertyId ?? null,
       }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['compset-search-params'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['compset-search-params'] })
+      setActiveErr(null)
+    },
+    onError: (e) => setActiveErr(e instanceof Error ? e.message : 'Toggle failed'),
   })
 
   const params = paramsQuery.data ?? []
@@ -605,7 +613,7 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
           {inheritedParams.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
-                Inherited — toggle to activate or deactivate
+                Inherited — you can activate or deactivate
               </p>
               {inheritedParams.map((param) => (
                 <ParamRow
@@ -672,6 +680,12 @@ function SearchConfigSection({ propertyId, orgId, isSuper }: SearchConfigSection
 
       {deleteErr && (
         <p className="text-xs text-[var(--color-error,#dc2626)]">{deleteErr}</p>
+      )}
+      {activeErr && (
+        <p className="text-xs text-[var(--color-error,#dc2626)]">{activeErr}</p>
+      )}
+      {editErr && (
+        <p className="text-xs text-[var(--color-error,#dc2626)]">{editErr}</p>
       )}
     </section>
   )
