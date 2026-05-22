@@ -1704,12 +1704,26 @@ model CompSetSearchParam {
   childAges   String   @default("[]")
   label       String
   sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   organization Organization?   @relation(fields: [orgId], references: [id], onDelete: SetNull)
   property     Property?       @relation(fields: [propertyId], references: [propertyId], onDelete: SetNull, map: "CompSetSearchParam_propertyId_fkey")
   results      CompSetResult[]
+  overrides    CompSetSearchParamOverride[]
+}
+
+model CompSetSearchParamOverride {
+  id            Int      @id @default(autoincrement())
+  searchParamId Int
+  orgId         Int?
+  propertyId    Int?
+  isActive      Boolean
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  searchParam CompSetSearchParam @relation(fields: [searchParamId], references: [id], onDelete: Cascade)
 }
 
 model CompSetCompetitor {
