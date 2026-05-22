@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
@@ -16,9 +16,17 @@ import type {
   CompSetSearchParamCreate,
   CompSetResult,
   CompSetRoomMapping,
+  CompSetRunStatus,
 } from '@ibe/shared'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+
+function formatElapsed(sec: number): string {
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s === 0 ? `${m}m` : `${m}m ${s}s`
+}
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -793,6 +801,26 @@ function CompetitorCard({
   onDeleteRequest,
   onDeleteCancel,
 }: CompetitorCardProps) {
+  const runStatusQuery = useQuery({
+    queryKey: ['compset-competitor-run-status', competitor.id],
+    queryFn: () => apiClient.getCompSetCompetitorRunStatus(competitor.id),
+    refetchInterval: (query) => query.state.data?.status === 'running' ? 2000 : false,
+  })
+  const compRunStatus = runStatusQuery.data
+  const isThisRunning = isRunning || competitor.status === 'fetching' || compRunStatus?.status === 'running'
+
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    if (tickRef.current) clearInterval(tickRef.current)
+    if (!isThisRunning || !compRunStatus?.startedAt) { setElapsedSec(0); return }
+    const start = new Date(compRunStatus.startedAt).getTime()
+    const tick = () => setElapsedSec(Math.round((Date.now() - start) / 1000))
+    tick()
+    tickRef.current = setInterval(tick, 1000)
+    return () => { if (tickRef.current) clearInterval(tickRef.current) }
+  }, [isThisRunning, compRunStatus?.startedAt])
+
   const shortUrl = (url: string | null) => {
     if (!url) return null
     try {
@@ -833,16 +861,37 @@ function CompetitorCard({
             </span>
           )}
         </div>
+        {/* Last-run stats */}
+        {compRunStatus?.status === 'done' && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-muted)]">
+            <span className="font-medium text-[var(--color-text)]">Last run:</span>
+            {compRunStatus.durationSec !== undefined && <span>{formatElapsed(compRunStatus.durationSec)}</span>}
+            <span>·</span>
+            <span>{compRunStatus.totalParams} pattern{compRunStatus.totalParams !== 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span className="text-green-600">{compRunStatus.found} found</span>
+            <span>·</span>
+            <span>{compRunStatus.notFound} not found</span>
+            {compRunStatus.errors > 0 && (
+              <><span>·</span><span className="text-red-500">{compRunStatus.errors} error{compRunStatus.errors !== 1 ? 's' : ''}</span></>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {isThisRunning && (
+          <span className="text-xs text-[var(--color-text-muted)] tabular-nums">
+            {formatElapsed(elapsedSec)}
+          </span>
+        )}
         <button
           type="button"
-          disabled={isRunning || competitor.status === 'fetching'}
+          disabled={isThisRunning}
           onClick={onRun}
           className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
         >
-          {isRunning || competitor.status === 'fetching' ? 'Running…' : 'Run'}
+          {isThisRunning ? 'Running…' : 'Run'}
         </button>
 
         {!deleteConfirm && (
@@ -888,23 +937,25 @@ interface MappingSectionProps {
 function MappingSection({ competitor, results }: MappingSectionProps) {
   const qc = useQueryClient()
 
-  // Unique room names from latest results (no board/cancellation — those come from search results)
-  const compRooms = [...new Set(
-    results
-      .filter(r => r.competitorId === competitor.id && r.searchStatus === 'found' && r.roomName)
-      .map(r => r.roomName!),
-  )]
-
-  const ownRooms = [...new Set(
-    results
-      .filter(r => r.competitorId === null && r.searchStatus === 'found' && r.roomName)
-      .map(r => r.roomName!),
-  )]
-
   const mappingsQuery = useQuery({
     queryKey: ['compset-mappings', competitor.id],
     queryFn: () => apiClient.getCompSetRoomMappings(competitor.id),
   })
+
+  // Unique room names: current results + any rooms previously mapped (so history is preserved)
+  const compRooms = [...new Set([
+    ...results
+      .filter(r => r.competitorId === competitor.id && r.searchStatus === 'found' && r.roomName)
+      .map(r => r.roomName!),
+    ...(mappingsQuery.data ?? []).map(m => m.compRoomName),
+  ])]
+
+  const ownRooms = [...new Set([
+    ...results
+      .filter(r => r.competitorId === null && r.searchStatus === 'found' && r.roomName)
+      .map(r => r.roomName!),
+    ...(mappingsQuery.data ?? []).map(m => m.ownRoomName).filter(n => n.length > 0),
+  ])]
 
   // Local draft: compRoomName → ownRoomName (empty string = not mapped)
   const [draft, setDraft] = useState<Record<string, string>>({})
@@ -1087,6 +1138,7 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
   const [runningIds, setRunningIds] = useState<Set<number>>(new Set())
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
+  const [elapsedSec, setElapsedSec] = useState(0)
 
   const competitorsQuery = useQuery({
     queryKey: ['compset-competitors', propertyId],
@@ -1095,10 +1147,28 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
       query.state.data?.some((c) => c.status === 'fetching') ? 2000 : false,
   })
 
+  const runStatusQuery = useQuery({
+    queryKey: ['compset-run-status', propertyId],
+    queryFn: () => apiClient.getCompSetRunStatus(propertyId),
+    refetchInterval: (query) => query.state.data?.status === 'running' ? 2000 : false,
+  })
+  const runStatus: CompSetRunStatus = runStatusQuery.data ?? { status: 'idle', totalParams: 0, doneParams: 0, found: 0, notFound: 0, errors: 0 }
+  const isRunning = runStatus.status === 'running'
+
+  // Local 1-second ticker while running
+  useEffect(() => {
+    if (!isRunning || !runStatus.startedAt) { setElapsedSec(0); return }
+    const tick = () => setElapsedSec(Math.round((Date.now() - new Date(runStatus.startedAt!).getTime()) / 1000))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [isRunning, runStatus.startedAt])
+
   const runAllMutation = useMutation({
     mutationFn: () => apiClient.runCompSet(propertyId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
+      void qc.invalidateQueries({ queryKey: ['compset-run-status', propertyId] })
     },
   })
 
@@ -1118,6 +1188,7 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
     try {
       await apiClient.runSingleCompSet(id)
       void qc.invalidateQueries({ queryKey: ['compset-competitors', propertyId] })
+      void qc.invalidateQueries({ queryKey: ['compset-competitor-run-status', id] })
     } catch (e) {
       setRunError(e instanceof Error ? e.message : 'Run failed')
     } finally {
@@ -1144,17 +1215,51 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
   return (
     <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       {/* Buttons row — always at the top */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={runAllMutation.isPending || competitors.some((c) => c.status === 'fetching')}
+          disabled={runAllMutation.isPending || isRunning}
           onClick={() => runAllMutation.mutate()}
           className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text)] disabled:opacity-50 hover:bg-[var(--color-background,#f9fafb)] transition-colors"
         >
           {runAllMutation.isPending ? 'Starting…' : 'Run All'}
         </button>
 
-        <div className="relative group">
+        {/* Live progress while running */}
+        {isRunning && (
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span>
+              {formatElapsed(elapsedSec)}
+              {runStatus.totalParams > 0 && (
+                <span className="ml-2 text-[var(--color-text)]">
+                  {runStatus.doneParams}/{runStatus.totalParams} patterns
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Last-run stats when done */}
+        {runStatus.status === 'done' && !isRunning && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-muted)]">
+            <span className="font-medium text-[var(--color-text)]">
+              {runStatus.runLabel === 'all' ? 'Last run — all:' : `Last run — ${runStatus.runLabel ?? 'all'}:`}
+            </span>
+            {runStatus.durationSec !== undefined && <span>{formatElapsed(runStatus.durationSec)}</span>}
+            <span>·</span>
+            <span>{runStatus.totalParams} pattern{runStatus.totalParams !== 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span className="text-green-600">{runStatus.found} found</span>
+            <span>·</span>
+            <span className="text-[var(--color-text-muted)]">{runStatus.notFound} not found</span>
+            {runStatus.errors > 0 && (
+              <><span>·</span><span className="text-red-500">{runStatus.errors} error{runStatus.errors !== 1 ? 's' : ''}</span></>
+            )}
+          </div>
+        )}
+
+        <div className="relative group ml-auto">
           <button
             type="button"
             disabled={maxReached || showAdd}
@@ -1167,7 +1272,7 @@ function CompetitorsSection({ propertyId, orgId, maxCompetitors }: CompetitorsSe
             Add Competitor
           </button>
           {maxReached && (
-            <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover:block w-max max-w-[200px] rounded-lg bg-[var(--color-text)] px-3 py-2 text-xs text-white shadow-lg">
+            <div className="absolute right-0 top-full mt-1 z-10 hidden group-hover:block w-max max-w-[200px] rounded-lg bg-[var(--color-text)] px-3 py-2 text-xs text-white shadow-lg">
               Maximum of {maxCompetitors} competitors reached
             </div>
           )}
@@ -1439,13 +1544,13 @@ function ResultsSection({ propertyId, orgId }: { propertyId: number; orgId: numb
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Search Configurations', 'Competitors', 'Results'] as const
+const TABS = ['Results', 'Competitors', 'Search Configurations'] as const
 type Tab = typeof TABS[number]
 
 export default function CompSetPage() {
   const { admin } = useAdminAuth()
   const { propertyId, orgId } = useAdminProperty()
-  const [activeTab, setActiveTab] = useState<Tab>('Search Configurations')
+  const [activeTab, setActiveTab] = useState<Tab>('Results')
 
   if (!admin) return null
 

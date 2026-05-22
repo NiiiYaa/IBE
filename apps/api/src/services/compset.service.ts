@@ -89,14 +89,14 @@ function toParam(row: {
 
 export async function getScopedSearchParams(scope: { orgId?: number | null; propertyId?: number | null }): Promise<CompSetSearchParam[]> {
   if (scope.propertyId) {
-    const rows = await prisma.compSetSearchParam.findMany({ where: { propertyId: scope.propertyId }, orderBy: { sortOrder: 'asc' } })
+    const rows = await prisma.compSetSearchParam.findMany({ where: { propertyId: scope.propertyId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] })
     return rows.map(r => toParam(r, 'hotel', r.isActive))
   }
   if (scope.orgId) {
-    const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: scope.orgId, propertyId: null }, orderBy: { sortOrder: 'asc' } })
+    const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: scope.orgId, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] })
     return rows.map(r => toParam(r, 'chain', r.isActive))
   }
-  const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } })
+  const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] })
   return rows.map(r => toParam(r, 'system', r.isActive))
 }
 
@@ -109,9 +109,9 @@ export async function getAdminSearchParams(scope: { orgId?: number | null; prope
     const propOrgId = prop?.organizationId ?? null
 
     const [systemRows, chainRows, hotelRows, overrides] = await Promise.all([
-      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
-      propOrgId ? prisma.compSetSearchParam.findMany({ where: { orgId: propOrgId, propertyId: null }, orderBy: { sortOrder: 'asc' } }) : Promise.resolve([]),
-      prisma.compSetSearchParam.findMany({ where: { propertyId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
+      propOrgId ? prisma.compSetSearchParam.findMany({ where: { orgId: propOrgId, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }) : Promise.resolve([]),
+      prisma.compSetSearchParam.findMany({ where: { propertyId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
       prisma.compSetSearchParamOverride.findMany({
         where: { OR: [{ propertyId }, ...(propOrgId ? [{ orgId: propOrgId, propertyId: null }] : [])] },
       }),
@@ -121,26 +121,26 @@ export async function getAdminSearchParams(scope: { orgId?: number | null; prope
     return [
       ...systemRows.map(r => toParam(r, 'system', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
       ...chainRows.map(r => toParam(r, 'chain', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
-      ...hotelRows.map(r => toParam(r, 'hotel', r.isActive)),
+      ...hotelRows.map(r => toParam(r, 'hotel', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
     ]
   }
 
   if (orgId !== null) {
     const [systemRows, chainRows, overrides] = await Promise.all([
-      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
-      prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
+      prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
       prisma.compSetSearchParamOverride.findMany({ where: { orgId, propertyId: null } }),
     ])
 
     const resolveScope = { orgId, propertyId: null }
     return [
       ...systemRows.map(r => toParam(r, 'system', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
-      ...chainRows.map(r => toParam(r, 'chain', r.isActive)),
+      ...chainRows.map(r => toParam(r, 'chain', resolveIsActive(r.id, r.isActive, overrides, resolveScope))),
     ]
   }
 
-  // System level — own params only, isActive=true
-  const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null, isActive: true }, orderBy: { sortOrder: 'asc' } })
+  // System level — own params only (all, including toggled-off)
+  const rows = await prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] })
   return rows.map(r => toParam(r, 'system', r.isActive))
 }
 
@@ -149,9 +149,9 @@ export async function getEffectiveSearchParams(propertyId: number): Promise<Comp
   const orgId = prop?.organizationId ?? null
 
   const [systemRows, chainRows, hotelRows, overrides] = await Promise.all([
-    prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } }),
-    orgId ? prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null }, orderBy: { sortOrder: 'asc' } }) : Promise.resolve([]),
-    prisma.compSetSearchParam.findMany({ where: { propertyId }, orderBy: { sortOrder: 'asc' } }),
+    prisma.compSetSearchParam.findMany({ where: { orgId: null, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
+    orgId ? prisma.compSetSearchParam.findMany({ where: { orgId, propertyId: null }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }) : Promise.resolve([]),
+    prisma.compSetSearchParam.findMany({ where: { propertyId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] }),
     prisma.compSetSearchParamOverride.findMany({
       where: { OR: [{ propertyId }, ...(orgId ? [{ orgId, propertyId: null }] : [])] },
     }),
@@ -231,21 +231,27 @@ export async function updateSearchParamActive(
   const scopeTier: Tier = scope.propertyId ? 'hotel' : scope.orgId ? 'chain' : 'system'
 
   if (paramTier === scopeTier) {
-    // Own param — update isActive directly
+    // Own param — update isActive directly (admin UI shows all params regardless of isActive)
     const updated = await prisma.compSetSearchParam.update({ where: { id }, data: { isActive } })
     return toParam(updated, paramTier, updated.isActive)
   }
 
-  // Inherited param — upsert override for this scope
-  const existingOverride = await prisma.compSetSearchParamOverride.findFirst({
-    where: { searchParamId: id, orgId: scope.orgId, propertyId: scope.propertyId },
-  })
+  // Inherited param — upsert override for this scope.
+  // Property-level overrides are keyed by (searchParamId, propertyId) only — orgId is irrelevant
+  // when propertyId is set, because propertyId already uniquely identifies the scope.
+  // Chain-level overrides (propertyId=null) are keyed by (searchParamId, orgId).
+  const overrideWhere = scope.propertyId !== null
+    ? { searchParamId: id, propertyId: scope.propertyId }
+    : { searchParamId: id, orgId: scope.orgId, propertyId: null as null }
+  const overrideData = scope.propertyId !== null
+    ? { searchParamId: id, orgId: null as null, propertyId: scope.propertyId, isActive }
+    : { searchParamId: id, orgId: scope.orgId, propertyId: null as null, isActive }
+
+  const existingOverride = await prisma.compSetSearchParamOverride.findFirst({ where: overrideWhere })
   if (existingOverride) {
     await prisma.compSetSearchParamOverride.update({ where: { id: existingOverride.id }, data: { isActive } })
   } else {
-    await prisma.compSetSearchParamOverride.create({
-      data: { searchParamId: id, orgId: scope.orgId, propertyId: scope.propertyId, isActive },
-    })
+    await prisma.compSetSearchParamOverride.create({ data: overrideData })
   }
 
   return toParam(param, paramTier, isActive)
@@ -268,7 +274,7 @@ function toCompetitor(row: {
 }
 
 export async function listCompetitors(propertyId: number): Promise<CompSetCompetitor[]> {
-  const rows = await prisma.compSetCompetitor.findMany({ where: { propertyId }, orderBy: { sortOrder: 'asc' } })
+  const rows = await prisma.compSetCompetitor.findMany({ where: { propertyId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] })
   return rows.map(toCompetitor)
 }
 

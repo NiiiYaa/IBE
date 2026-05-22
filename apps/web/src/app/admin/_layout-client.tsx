@@ -102,9 +102,9 @@ const SECTIONS: Section[] = [
     title: 'Intelligence',
     sellerOnly: true,
     items: [
-      { href: '/admin/intelligence/data-provider', label: 'Data Provider', sellerOnly: true },
       { href: '/admin/intelligence/compset', label: 'CompSet', sellerOnly: true },
       { href: '/admin/intelligence/event-calendar', label: 'Event Calendar', sellerOnly: true },
+      { href: '/admin/intelligence/data-provider', label: 'Data Provider', sellerOnly: true },
     ],
   },
   {

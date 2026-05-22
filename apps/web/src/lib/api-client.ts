@@ -141,6 +141,7 @@ import type {
   CompSetCompetitorUpdate,
   CompSetResult,
   CompSetRunResponse,
+  CompSetRunStatus,
   CompSetRoomMapping,
   CompSetRoomMappingUpsert,
   SystemEventCalendarConfig,
@@ -2175,8 +2176,16 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/intelligence/compset/run?propertyId=${propertyId}`, { method: 'POST' })
   },
 
+  getCompSetRunStatus(propertyId: number): Promise<CompSetRunStatus> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/run/status?propertyId=${propertyId}`)
+  },
+
   runSingleCompSet(competitorId: number): Promise<CompSetRunResponse> {
     return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/run`, { method: 'POST' })
+  },
+
+  getCompSetCompetitorRunStatus(competitorId: number): Promise<CompSetRunStatus> {
+    return apiRequest(`/api/v1/admin/intelligence/compset/competitors/${competitorId}/run/status`)
   },
 
   getCompSetResults(propertyId: number): Promise<CompSetResult[]> {

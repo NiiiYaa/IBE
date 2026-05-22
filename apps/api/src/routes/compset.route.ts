@@ -16,6 +16,7 @@ import {
   autoMapRooms,
 } from '../services/compset.service.js'
 import { runPropertyCompSet, runSingleCompetitor } from '../services/compset-collect.service.js'
+import { getRunStatus, setRunStatus, getCompetitorRunStatus, setCompetitorRunStatus } from '../services/compset-run-status.js'
 import { prisma } from '../db/client.js'
 
 export async function compsetRoutes(fastify: FastifyInstance) {
@@ -142,10 +143,19 @@ export async function compsetRoutes(fastify: FastifyInstance) {
   // POST run single competitor (manual trigger)
   fastify.post('/admin/intelligence/compset/competitors/:id/run', async (request, reply) => {
     const id = parseInt((request.params as { id: string }).id, 10)
+    const competitor = await prisma.compSetCompetitor.findUnique({ where: { id }, select: { propertyId: true } })
+    if (!competitor) return reply.status(404).send({ error: 'Not found' })
+    setCompetitorRunStatus(id, { status: 'running', startedAt: new Date().toISOString(), totalParams: 0, doneParams: 0, found: 0, notFound: 0, errors: 0 })
     void runSingleCompetitor(id).catch(err =>
       fastify.log.warn({ err, competitorId: id }, '[CompSet] Single-competitor background run failed'),
     )
     return reply.send({ started: true })
+  })
+
+  // GET per-competitor run status (progress + last-run stats)
+  fastify.get('/admin/intelligence/compset/competitors/:id/run/status', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    return reply.send(getCompetitorRunStatus(id))
   })
 
   // POST run (manual trigger)
@@ -157,6 +167,14 @@ export async function compsetRoutes(fastify: FastifyInstance) {
       fastify.log.warn({ err, propertyId }, '[CompSet] Background run failed'),
     )
     return reply.send({ started: true })
+  })
+
+  // GET run status (progress + last-run stats)
+  fastify.get('/admin/intelligence/compset/run/status', async (request, reply) => {
+    const query = request.query as Record<string, string>
+    const propertyId = query.propertyId ? parseInt(query.propertyId, 10) : undefined
+    if (!propertyId) return reply.status(400).send({ error: 'propertyId is required' })
+    return reply.send(getRunStatus(propertyId))
   })
 
   // ── Room Mappings ─────────────────────────────────────────────────────────

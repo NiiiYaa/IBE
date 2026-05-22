@@ -7,6 +7,7 @@ import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { getEffectiveSearchParams, listCompetitors } from './compset.service.js'
+import { getRunStatus, setRunStatus, getCompetitorRunStatus, setCompetitorRunStatus } from './compset-run-status.js'
 import { refreshPropertyEvents } from './event-calendar-fetch.service.js'
 import { getSystemEventCalendarConfig } from './event-calendar.service.js'
 import { detectKnownIBE } from '@ibe/shared'
@@ -204,8 +205,125 @@ async function fetchCompetitorRates(searchUrl: string, orgId: number | null): Pr
   }
 }
 
+export async function runSingleCompetitor(competitorId: number): Promise<void> {
+  // Set running immediately (before any await) so the status endpoint reflects it right away
+  // We don't know propertyId yet, so we fetch it first synchronously-ish via a quick lookup
+  const competitor = await prisma.compSetCompetitor.findUnique({ where: { id: competitorId } })
+  if (!competitor) return
+
+  const { propertyId } = competitor
+  logger.info({ competitorId, propertyId }, '[CompSet] Starting single-competitor run')
+
+  const startedAt = new Date()
+  setCompetitorRunStatus(competitorId, { status: 'running', startedAt: startedAt.toISOString(), totalParams: 0, doneParams: 0, found: 0, notFound: 0, errors: 0 })
+
+  const params = await getEffectiveSearchParams(propertyId)
+  if (params.length === 0) {
+    logger.info({ propertyId }, '[CompSet] No search params — skipping')
+    setCompetitorRunStatus(competitorId, { status: 'done', startedAt: startedAt.toISOString(), totalParams: 0, doneParams: 0, durationSec: 0, found: 0, notFound: 0, errors: 0 })
+    return
+  }
+
+  setCompetitorRunStatus(competitorId, { status: 'running', startedAt: startedAt.toISOString(), totalParams: params.length, doneParams: 0, found: 0, notFound: 0, errors: 0 })
+
+  const prop = await prisma.property.findUnique({
+    where: { propertyId },
+    select: { organizationId: true },
+  })
+  const orgId = prop?.organizationId ?? null
+
+  await prisma.compSetCompetitor.update({
+    where: { id: competitorId },
+    data: { status: 'fetching' },
+  })
+
+  const fetchedAt = startedAt
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const toInsert: any[] = []
+  let found = 0, notFound = 0, errors = 0
+
+  for (const param of params) {
+    const checkIn = resolveDate(param.offsetDays)
+    const checkOut = resolveDate(param.offsetDays + param.nights)
+
+    if (!competitor.searchUrl) {
+      await prisma.compSetCompetitor.update({
+        where: { id: competitorId },
+        data: { status: 'error', errorMsg: 'No search URL configured', lastFetchAt: fetchedAt },
+      })
+      errors++
+    } else {
+      const guests = [
+        ...Array(param.adults).fill('A'),
+        ...param.childAges.map(String),
+      ].join(',')
+      const expandedTemplate = expandCompetitorUrl(competitor.searchUrl)
+      const builtUrl = buildExternalUrl(expandedTemplate, {
+        checkIn, checkOut, adults: param.adults,
+        nights: param.nights, countryCode: '',
+        currency: 'USD', guests,
+      })
+      logger.info({ raw: competitor.searchUrl, expanded: expandedTemplate, builtUrl }, '[CompSet] Built competitor URL')
+
+      try {
+        const rates = await fetchCompetitorRates(builtUrl, orgId)
+        for (const rate of rates) {
+          toInsert.push({
+            propertyId, competitorId: competitor.id, searchParamId: param.id,
+            fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
+            countryCode: '', searchStatus: 'found',
+            roomName: rate.roomName, board: rate.board, cancellation: rate.cancellation,
+            pricePerNight: rate.pricePerNight, total: rate.total, currency: rate.currency,
+          })
+        }
+        if (rates.length === 0) {
+          notFound++
+          toInsert.push({
+            propertyId, competitorId: competitor.id, searchParamId: param.id,
+            fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
+            countryCode: '', searchStatus: 'not_found',
+            roomName: null, board: null, cancellation: null,
+            pricePerNight: null, total: null, currency: null,
+          })
+        } else {
+          found += rates.length
+        }
+        await prisma.compSetCompetitor.update({
+          where: { id: competitorId },
+          data: { status: 'done', lastFetchAt: fetchedAt, errorMsg: null },
+        })
+      } catch (err) {
+        errors++
+        const msg = err instanceof Error ? err.message : String(err)
+        await prisma.compSetCompetitor.update({
+          where: { id: competitorId },
+          data: { status: 'error', lastFetchAt: fetchedAt, errorMsg: msg },
+        })
+      }
+    }
+
+    const prev = getCompetitorRunStatus(competitorId)
+    setCompetitorRunStatus(competitorId, { status: 'running', startedAt: startedAt.toISOString(), totalParams: params.length, doneParams: prev.doneParams + 1, found, notFound, errors })
+  }
+
+  await prisma.$transaction([
+    prisma.compSetResult.deleteMany({ where: { propertyId, competitorId: competitor.id } }),
+    prisma.compSetResult.createMany({ data: toInsert }),
+  ])
+
+  const durationSec = Math.round((Date.now() - startedAt.getTime()) / 1000)
+  const doneStatus = { status: 'done' as const, startedAt: startedAt.toISOString(), totalParams: params.length, doneParams: params.length, durationSec, found, notFound, errors }
+  setCompetitorRunStatus(competitorId, doneStatus)
+  setRunStatus(propertyId, { ...doneStatus, runLabel: competitor.name })
+  logger.info({ competitorId, rows: toInsert.length }, '[CompSet] Single-competitor run complete')
+}
+
 export async function runPropertyCompSet(propertyId: number): Promise<void> {
   logger.info({ propertyId }, '[CompSet] Starting collection run')
+
+  // Set running immediately (before any await) so the status endpoint reflects it right away
+  const startedAt = new Date()
+  setRunStatus(propertyId, { status: 'running', startedAt: startedAt.toISOString(), totalParams: 0, doneParams: 0, found: 0, notFound: 0, errors: 0, runLabel: 'all' })
 
   const [params, competitors] = await Promise.all([
     getEffectiveSearchParams(propertyId),
@@ -214,6 +332,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
 
   if (params.length === 0) {
     logger.info({ propertyId }, '[CompSet] No search params — skipping')
+    setRunStatus(propertyId, { status: 'done', startedAt: startedAt.toISOString(), totalParams: 0, doneParams: 0, durationSec: 0, found: 0, notFound: 0, errors: 0 })
     return
   }
 
@@ -230,9 +349,13 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
     })
   }
 
-  const fetchedAt = new Date()
+  // Update totalParams now that we know how many params there are
+  setRunStatus(propertyId, { status: 'running', startedAt: startedAt.toISOString(), totalParams: params.length, doneParams: 0, found: 0, notFound: 0, errors: 0, runLabel: 'all' })
+
+  const fetchedAt = startedAt
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toInsert: any[] = []
+  let found = 0, notFound = 0, errors = 0
 
   for (const param of params) {
     const checkIn = resolveDate(param.offsetDays)
@@ -250,6 +373,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         })
       }
       if (ownRates.length === 0) {
+        notFound++
         toInsert.push({
           propertyId, competitorId: null, searchParamId: param.id,
           fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
@@ -257,8 +381,11 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
           roomName: null, board: null, cancellation: null,
           pricePerNight: null, total: null, currency: null,
         })
+      } else {
+        found += ownRates.length
       }
     } catch (err) {
+      errors++
       logger.warn({ err, propertyId, paramId: param.id }, '[CompSet] Own rates fetch failed')
       toInsert.push({
         propertyId, competitorId: null, searchParamId: param.id,
@@ -271,6 +398,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
 
     for (const competitor of competitors) {
       if (!competitor.searchUrl) {
+        errors++
         await prisma.compSetCompetitor.update({
           where: { id: competitor.id },
           data: { status: 'error', errorMsg: 'No search URL configured', lastFetchAt: fetchedAt },
@@ -302,6 +430,7 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
           })
         }
         if (rates.length === 0) {
+          notFound++
           toInsert.push({
             propertyId, competitorId: competitor.id, searchParamId: param.id,
             fetchedAt, checkIn, checkOut, nights: param.nights, adults: param.adults,
@@ -309,12 +438,15 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
             roomName: null, board: null, cancellation: null,
             pricePerNight: null, total: null, currency: null,
           })
+        } else {
+          found += rates.length
         }
         await prisma.compSetCompetitor.update({
           where: { id: competitor.id },
           data: { status: 'done', lastFetchAt: fetchedAt, errorMsg: null },
         })
       } catch (err) {
+        errors++
         const msg = err instanceof Error ? err.message : String(err)
         await prisma.compSetCompetitor.update({
           where: { id: competitor.id },
@@ -322,6 +454,10 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
         })
       }
     }
+
+    // Update progress after each param completes
+    const prev = getRunStatus(propertyId)
+    setRunStatus(propertyId, { ...prev, doneParams: (prev.doneParams ?? 0) + 1, found, notFound, errors })
   }
 
   await prisma.$transaction([
@@ -329,7 +465,10 @@ export async function runPropertyCompSet(propertyId: number): Promise<void> {
     prisma.compSetResult.createMany({ data: toInsert }),
   ])
 
-  logger.info({ propertyId, rows: toInsert.length }, '[CompSet] Collection run complete')
+  const durationSec = Math.round((Date.now() - startedAt.getTime()) / 1000)
+  setRunStatus(propertyId, { status: 'done', startedAt: startedAt.toISOString(), totalParams: params.length, doneParams: params.length, durationSec, found, notFound, errors, runLabel: 'all' })
+
+  logger.info({ propertyId, rows: toInsert.length, durationSec }, '[CompSet] Collection run complete')
 
   // Trigger event calendar refresh for the same date window (non-fatal, only when enabled)
   const dates = params.map(p => ({

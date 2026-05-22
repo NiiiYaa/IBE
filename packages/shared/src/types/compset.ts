@@ -90,3 +90,15 @@ export interface CompSetResult {
 export interface CompSetRunResponse {
   started: boolean
 }
+
+export interface CompSetRunStatus {
+  status: 'idle' | 'running' | 'done'
+  startedAt?: string
+  totalParams: number
+  doneParams: number
+  durationSec?: number
+  found: number
+  notFound: number
+  errors: number
+  runLabel?: string // 'all' for Run All, competitor name for single run
+}
