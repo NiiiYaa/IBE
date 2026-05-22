@@ -132,6 +132,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: '/admin/organizations', label: 'Organizations', minRole: 'super' },
       { href: '/admin/users', label: 'Users' },
+      { href: '/admin/clusters', label: 'Clusters', minRole: 'admin' },
       { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
   },
