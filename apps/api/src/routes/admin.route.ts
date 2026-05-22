@@ -10,6 +10,7 @@ import { logger } from '../utils/logger.js'
 import { env } from '../config/env.js'
 import { prisma } from '../db/client.js'
 import { listOrgNavItems, createOrgNavItem, updateOrgNavItem, deleteOrgNavItem } from '../services/org-nav.service.js'
+import { resolveAccessiblePropertyIds } from '../services/cluster-access.service.js'
 import type { CreateOrgNavItemRequest, UpdateOrgNavItemRequest } from '@ibe/shared'
 
 export async function adminRoutes(fastify: FastifyInstance) {
@@ -136,8 +137,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const isSuper = request.admin.role === 'super'
     const settings = await getOrgSettings(organizationId)
     const showDemo = isSuper || settings.showDemoProperty
-    const properties = await listProperties(organizationId, showDemo)
-    return reply.send({ mode: settings.propertyMode, showCitySelector: settings.showCitySelector, showDemoProperty: settings.showDemoProperty, properties })
+    const [properties, accessibleIds] = await Promise.all([
+      listProperties(organizationId, showDemo),
+      resolveAccessiblePropertyIds(request.admin),
+    ])
+    const filtered = accessibleIds === 'all'
+      ? properties
+      : properties.filter(p => accessibleIds.includes(p.propertyId))
+    return reply.send({ mode: settings.propertyMode, showCitySelector: settings.showCitySelector, showDemoProperty: settings.showDemoProperty, properties: filtered })
   })
 
   fastify.get('/admin/super/properties', async (request, reply) => {
