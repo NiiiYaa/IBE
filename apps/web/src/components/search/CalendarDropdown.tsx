@@ -209,7 +209,7 @@ export function CalendarDropdown({
 
         {dailyRates && priceCurrency && (
           <p className="mt-1 text-center text-[10px] text-[var(--color-text-muted)]">
-            Prices in {priceCurrency}
+            {t('pricesIn', { currency: priceCurrency })}
           </p>
         )}
 
@@ -248,7 +248,7 @@ export function CalendarDropdown({
       </div>
       {dailyRates && priceCurrency && (
         <p className="mt-1 text-center text-[10px] text-[var(--color-text-muted)]">
-          Prices in {priceCurrency}
+          {t('pricesIn', { currency: priceCurrency })}
         </p>
       )}
     </div>

@@ -105,7 +105,8 @@
     "canAddMoreRooms": "You can add up to {count} more rooms",
     "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}.",
     "exploreActivities": "Explore Activities & Tours →",
-    "nearestAirports": "Nearest airports"
+    "nearestAirports": "Nearest airports",
+    "pricesIn": "Prices in {currency}"
   },
   "properties": {
     "bookNow": "Book now",

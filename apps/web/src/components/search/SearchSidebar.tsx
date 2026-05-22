@@ -13,6 +13,7 @@ import { useHotelConfig } from '@/hooks/use-hotel-config'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { CalendarDropdown } from './CalendarDropdown'
+import { usePreferences } from '@/context/preferences'
 import { useT, useLocale } from '@/context/translations'
 
 interface GuestRoom {
@@ -71,6 +72,7 @@ export function SearchSidebar({
 }: SearchSidebarProps) {
   const t = useT('search')
   const locale = useLocale()
+  const { currency } = usePreferences()
   const router = useRouter()
   const pathname = usePathname()
   const pageSearchParams = useSearchParams()
@@ -92,8 +94,8 @@ export function SearchSidebar({
   const { data: groupConfig } = usePublicGroupConfig(propertyId)
   const { data: hotelConfig } = useHotelConfig(propertyId)
   const { data: dailyRatesData } = useQuery({
-    queryKey: ['pricing-calendar', propertyId],
-    queryFn: () => apiClient.getPricingCalendar(propertyId),
+    queryKey: ['pricing-calendar', propertyId, currency],
+    queryFn: () => apiClient.getPricingCalendar(propertyId, currency || undefined),
     enabled: hotelConfig?.pricingEnabled === true,
     staleTime: 60 * 60 * 1000,
   })
