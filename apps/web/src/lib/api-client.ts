@@ -2389,6 +2389,48 @@ export const apiClient = {
   getEventCalendarChainEvents(orgId: number): Promise<ChainEventCalendarEvents[]> {
     return apiRequest(`/api/v1/admin/intelligence/event-calendar/events/chain?orgId=${orgId}`)
   },
+
+  // ── Pricing ───────────────────────────────────────────────────────────────
+  getPricingCalendar(propertyId: number, currency?: string): Promise<import('@ibe/shared').DayPriceEntry[]> {
+    const qs = currency ? `?currency=${currency}` : ''
+    return apiRequest(`/api/v1/pricing/calendar/${propertyId}${qs}`)
+  },
+
+  getSystemPricingConfig(): Promise<import('@ibe/shared').SystemPricingConfigResponse> {
+    return apiRequest('/api/v1/admin/pricing/config/system')
+  },
+
+  updateSystemPricingConfig(data: Partial<import('@ibe/shared').SystemPricingConfigResponse>): Promise<import('@ibe/shared').SystemPricingConfigResponse> {
+    return apiRequest('/api/v1/admin/pricing/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getOrgPricingConfig(orgId: number): Promise<import('@ibe/shared').OrgPricingConfigResponse> {
+    return apiRequest(`/api/v1/admin/pricing/config/org/${orgId}`)
+  },
+
+  updateOrgPricingConfig(orgId: number, data: Partial<import('@ibe/shared').OrgPricingConfigResponse>): Promise<import('@ibe/shared').OrgPricingConfigResponse> {
+    return apiRequest(`/api/v1/admin/pricing/config/org/${orgId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPropertyPricingConfig(propertyId: number): Promise<import('@ibe/shared').PropertyPricingConfigResponse> {
+    return apiRequest(`/api/v1/admin/pricing/config/property/${propertyId}`)
+  },
+
+  updatePropertyPricingConfig(propertyId: number, data: Partial<import('@ibe/shared').PropertyPricingConfigResponse>): Promise<import('@ibe/shared').PropertyPricingConfigResponse> {
+    return apiRequest(`/api/v1/admin/pricing/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  triggerPricingRefresh(propertyId: number): Promise<{ status: 'queued' | 'already_running' }> {
+    return apiRequest(`/api/v1/admin/pricing/refresh/${propertyId}`, { method: 'POST' })
+  },
+
+  getPricingStatus(propertyId: number): Promise<import('@ibe/shared').PricingJobStatus> {
+    return apiRequest(`/api/v1/admin/pricing/status/${propertyId}`)
+  },
+
+  getAdminPricingData(propertyId: number): Promise<import('@ibe/shared').DayRateAdminEntry[]> {
+    return apiRequest(`/api/v1/admin/pricing/data/${propertyId}`)
+  },
 }
 
 export { ApiClientError }
