@@ -6,6 +6,9 @@ vi.mock('../../db/client.js', () => ({
     compSetSearchParam: {
       findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(),
     },
+    compSetSearchParamOverride: {
+      findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(),
+    },
     compSetCompetitor: {
       findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), count: vi.fn(), groupBy: vi.fn(),
     },
@@ -18,11 +21,12 @@ import {
   buildSearchParamLabel,
   getSystemCompSetConfig,
   upsertSystemCompSetConfig,
-  getScopedSearchParams,
+  getAdminSearchParams,
   getEffectiveSearchParams,
   createSearchParam,
   updateSearchParam,
   deleteSearchParam,
+  updateSearchParamActive,
   listCompetitors,
   createCompetitor,
   updateCompetitor,
@@ -31,6 +35,14 @@ import {
 } from '../compset.service.js'
 
 const mp = prisma as any
+
+function makeParam(overrides: Partial<{ id: number; orgId: number | null; propertyId: number | null; offsetDays: number; nights: number; adults: number; isActive: boolean }> = {}) {
+  return {
+    id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]',
+    label: 'Today+7 · 5 Nights · 2 Adults', sortOrder: 0, isActive: true,
+    ...overrides,
+  }
+}
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -80,51 +92,114 @@ describe('upsertSystemCompSetConfig', () => {
   })
 })
 
-describe('getScopedSearchParams', () => {
-  it('returns system params when no scope keys provided', async () => {
-    mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'Today+7 · 5 Nights · 2 Adults', sortOrder: 0 },
-    ])
-    const result = await getScopedSearchParams({})
+describe('getAdminSearchParams', () => {
+  beforeEach(() => { mp.compSetSearchParamOverride.findMany.mockResolvedValue([]) })
+
+  it('returns system params (isActive=true only) when no scope given', async () => {
+    mp.compSetSearchParam.findMany.mockResolvedValue([makeParam()])
+    const result = await getAdminSearchParams({})
     expect(result).toHaveLength(1)
     expect(result[0]!.tier).toBe('system')
-    expect(mp.compSetSearchParam.findMany).toHaveBeenCalledWith({ where: { orgId: null, propertyId: null }, orderBy: { sortOrder: 'asc' } })
+    expect(result[0]!.resolvedIsActive).toBe(true)
+    expect(mp.compSetSearchParam.findMany).toHaveBeenCalledWith({
+      where: { orgId: null, propertyId: null, isActive: true }, orderBy: { sortOrder: 'asc' },
+    })
   })
-  it('returns chain params when orgId provided', async () => {
-    mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, children: 0, childAges: '[]', label: 'Today+3 · 3 Nights · 2 Adults', sortOrder: 0 },
-    ])
-    const result = await getScopedSearchParams({ orgId: 5 })
-    expect(result[0]!.tier).toBe('chain')
+
+  it('returns system (all) + chain (own, isActive=true) for chain scope', async () => {
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([makeParam({ id: 2, orgId: 5, isActive: true })])
+    const result = await getAdminSearchParams({ orgId: 5 })
+    expect(result).toHaveLength(2)
+    expect(result[0]!.tier).toBe('system')
+    expect(result[1]!.tier).toBe('chain')
   })
-  it('returns hotel params when propertyId provided', async () => {
-    mp.compSetSearchParam.findMany.mockResolvedValue([
-      { id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'Today+1 · 1 Night · 1 Adult', sortOrder: 0 },
+
+  it('applies org-level override to inherited system param for chain scope', async () => {
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([])
+    mp.compSetSearchParamOverride.findMany.mockResolvedValue([
+      { searchParamId: 1, orgId: 5, propertyId: null, isActive: false },
     ])
-    const result = await getScopedSearchParams({ propertyId: 100 })
-    expect(result[0]!.tier).toBe('hotel')
+    const result = await getAdminSearchParams({ orgId: 5 })
+    expect(result[0]!.resolvedIsActive).toBe(false)
+  })
+
+  it('returns system + chain (inherited, all) + hotel (own) for hotel scope', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([makeParam({ id: 2, orgId: 5 })])
+      .mockResolvedValueOnce([makeParam({ id: 3, propertyId: 100 })])
+    const result = await getAdminSearchParams({ propertyId: 100 })
+    expect(result.map(r => r.tier)).toEqual(['system', 'chain', 'hotel'])
+  })
+
+  it('property-level override takes precedence over org-level override', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    mp.compSetSearchParamOverride.findMany.mockResolvedValue([
+      { searchParamId: 1, orgId: 5, propertyId: null, isActive: false },
+      { searchParamId: 1, orgId: null, propertyId: 100, isActive: true },
+    ])
+    const result = await getAdminSearchParams({ propertyId: 100 })
+    expect(result[0]!.resolvedIsActive).toBe(true)
   })
 })
 
 describe('getEffectiveSearchParams', () => {
-  it('merges system + chain + hotel params in order', async () => {
+  beforeEach(() => { mp.compSetSearchParamOverride.findMany.mockResolvedValue([]) })
+
+  it('returns only active params (merges system + chain + hotel)', async () => {
     mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
     mp.compSetSearchParam.findMany
-      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L1', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 2, orgId: 5, propertyId: null, offsetDays: 3, nights: 3, adults: 2, children: 0, childAges: '[]', label: 'L2', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'L3', sortOrder: 0 }])
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([makeParam({ id: 2, orgId: 5 })])
+      .mockResolvedValueOnce([makeParam({ id: 3, propertyId: 100 })])
     const result = await getEffectiveSearchParams(100)
     expect(result.map(r => r.tier)).toEqual(['system', 'chain', 'hotel'])
     expect(result).toHaveLength(3)
   })
-  it('handles property with no organization (orgId null)', async () => {
+
+  it('excludes params where resolved isActive is false (override)', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    mp.compSetSearchParamOverride.findMany.mockResolvedValue([
+      { searchParamId: 1, orgId: null, propertyId: 100, isActive: false },
+    ])
+    const result = await getEffectiveSearchParams(100)
+    expect(result).toHaveLength(0)
+  })
+
+  it('hotel re-activates a param deactivated at system level via property override', async () => {
+    mp.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mp.compSetSearchParam.findMany
+      .mockResolvedValueOnce([makeParam({ id: 1, isActive: false })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    mp.compSetSearchParamOverride.findMany.mockResolvedValue([
+      { searchParamId: 1, orgId: null, propertyId: 100, isActive: true },
+    ])
+    const result = await getEffectiveSearchParams(100)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.resolvedIsActive).toBe(true)
+  })
+
+  it('handles property with no organization', async () => {
     mp.property.findUnique.mockResolvedValue({ organizationId: null })
     mp.compSetSearchParam.findMany
-      .mockResolvedValueOnce([{ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L1', sortOrder: 0 }])
-      .mockResolvedValueOnce([{ id: 3, orgId: null, propertyId: 100, offsetDays: 1, nights: 1, adults: 1, children: 0, childAges: '[]', label: 'L3', sortOrder: 0 }])
+      .mockResolvedValueOnce([makeParam({ id: 1 })])
+      .mockResolvedValueOnce([makeParam({ id: 3, propertyId: 100 })])
     const result = await getEffectiveSearchParams(100)
     expect(result.map(r => r.tier)).toEqual(['system', 'hotel'])
-    expect(result).toHaveLength(2)
   })
 })
 
@@ -199,14 +274,57 @@ describe('deleteSearchParam', () => {
     mp.compSetSearchParam.findUnique.mockResolvedValue(null)
     const result = await deleteSearchParam(999)
     expect(result).toBe(false)
-    expect(mp.compSetSearchParam.delete).not.toHaveBeenCalled()
+    expect(mp.compSetSearchParam.update).not.toHaveBeenCalled()
   })
-  it('returns true and deletes when found', async () => {
-    mp.compSetSearchParam.findUnique.mockResolvedValue({ id: 1, orgId: null, propertyId: null, offsetDays: 7, nights: 5, adults: 2, children: 0, childAges: '[]', label: 'L', sortOrder: 0 })
-    mp.compSetSearchParam.delete.mockResolvedValue({})
+  it('soft-deletes by setting isActive=false', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(makeParam({ id: 1 }))
+    mp.compSetSearchParam.update.mockResolvedValue(makeParam({ id: 1, isActive: false }))
     const result = await deleteSearchParam(1)
     expect(result).toBe(true)
-    expect(mp.compSetSearchParam.delete).toHaveBeenCalledWith({ where: { id: 1 } })
+    expect(mp.compSetSearchParam.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { isActive: false },
+    })
+    expect(mp.compSetSearchParam.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateSearchParamActive', () => {
+  it('returns null when param not found', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(null)
+    const result = await updateSearchParamActive(999, { orgId: null, propertyId: null }, false)
+    expect(result).toBeNull()
+  })
+
+  it('updates param isActive directly when scope matches param tier (own param)', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(makeParam({ id: 1, orgId: null, propertyId: null }))
+    mp.compSetSearchParam.update.mockResolvedValue(makeParam({ id: 1, isActive: false }))
+    const result = await updateSearchParamActive(1, { orgId: null, propertyId: null }, false)
+    expect(mp.compSetSearchParam.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { isActive: false } })
+    expect(result?.resolvedIsActive).toBe(false)
+    expect(mp.compSetSearchParamOverride.create).not.toHaveBeenCalled()
+  })
+
+  it('creates an override when toggling an inherited param', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(makeParam({ id: 1, orgId: null, propertyId: null }))
+    mp.compSetSearchParamOverride.findFirst.mockResolvedValue(null)
+    mp.compSetSearchParamOverride.create.mockResolvedValue({ id: 10, searchParamId: 1, orgId: null, propertyId: 100, isActive: false })
+    const result = await updateSearchParamActive(1, { orgId: null, propertyId: 100 }, false)
+    expect(mp.compSetSearchParamOverride.create).toHaveBeenCalledWith({
+      data: { searchParamId: 1, orgId: null, propertyId: 100, isActive: false },
+    })
+    expect(mp.compSetSearchParam.update).not.toHaveBeenCalled()
+    expect(result?.resolvedIsActive).toBe(false)
+  })
+
+  it('updates existing override instead of creating a new one', async () => {
+    mp.compSetSearchParam.findUnique.mockResolvedValue(makeParam({ id: 1, orgId: null, propertyId: null }))
+    mp.compSetSearchParamOverride.findFirst.mockResolvedValue({ id: 10, searchParamId: 1, orgId: null, propertyId: 100, isActive: false })
+    mp.compSetSearchParamOverride.update.mockResolvedValue({ id: 10, isActive: true })
+    const result = await updateSearchParamActive(1, { orgId: null, propertyId: 100 }, true)
+    expect(mp.compSetSearchParamOverride.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { isActive: true } })
+    expect(mp.compSetSearchParamOverride.create).not.toHaveBeenCalled()
+    expect(result?.resolvedIsActive).toBe(true)
   })
 })
 
