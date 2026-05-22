@@ -20,6 +20,7 @@ import {
 import { runPropertyCompSet, runSingleCompetitor } from '../services/compset-collect.service.js'
 import { getRunStatus, setRunStatus, getCompetitorRunStatus, setCompetitorRunStatus } from '../services/compset-run-status.js'
 import { prisma } from '../db/client.js'
+import { getLatestInsight, hasNewData, generateInsight } from '../services/compset-insight.service.js'
 
 export async function compsetRoutes(fastify: FastifyInstance) {
 
@@ -222,6 +223,37 @@ export async function compsetRoutes(fastify: FastifyInstance) {
       ownRooms: Array<{ roomName: string }>
     }
     return reply.send(await autoMapRooms(id, compRooms ?? [], ownRooms ?? []))
+  })
+
+  // GET /admin/intelligence/compset/insights?propertyId=X
+  fastify.get('/admin/intelligence/compset/insights', async (request, reply) => {
+    const query = request.query as Record<string, string>
+    const propertyId = parseInt(query.propertyId ?? '', 10)
+    if (isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
+
+    const [insight, newData, latestResult] = await Promise.all([
+      getLatestInsight(propertyId),
+      hasNewData(propertyId),
+      prisma.compSetResult.findFirst({ where: { propertyId }, select: { id: true } }),
+    ])
+
+    return reply.send({ insight, hasNewData: newData, hasResults: latestResult !== null })
+  })
+
+  // POST /admin/intelligence/compset/insights
+  fastify.post('/admin/intelligence/compset/insights', async (request, reply) => {
+    const body = request.body as { propertyId?: number }
+    const propertyId = typeof body.propertyId === 'number' ? body.propertyId : parseInt(String(body.propertyId ?? ''), 10)
+    if (isNaN(propertyId)) return reply.status(400).send({ error: 'propertyId required' })
+
+    try {
+      const insight = await generateInsight(propertyId)
+      return reply.send(insight)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Generation failed'
+      if (msg.includes('AI not configured')) return reply.status(400).send({ error: msg })
+      return reply.status(500).send({ error: msg })
+    }
   })
 
   // GET results
