@@ -2,6 +2,7 @@ import type { HotelDesignConfig, UpdateDesignConfigRequest, OrgDesignDefaultsCon
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
 import { getCommSettings, getSystemCommSettings } from './communication.service.js'
+import { resolveEffectivePricingConfig } from './pricing-config.service.js'
 
 const GOOGLE_FONTS_BASE = 'https://fonts.googleapis.com/css2'
 
@@ -124,10 +125,11 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     loadSystemDesign(),
   ])
 
-  const [orgDefaults, orgSettings, commSettings] = await Promise.all([
+  const [orgDefaults, orgSettings, commSettings, effectivePricing] = await Promise.all([
     property ? prisma.orgDesignDefaults.findUnique({ where: { organizationId: property.organizationId } }) : null,
     property ? prisma.orgSettings.findUnique({ where: { organizationId: property.organizationId } }) : null,
     property ? getCommSettings(property.organizationId).catch(() => null) : getSystemCommSettings().catch(() => null),
+    resolveEffectivePricingConfig(propertyId),
   ])
 
   // d = resolved system defaults (DB row merged with hardcoded fallback)
@@ -220,6 +222,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     showNameOnPage: config?.showNameOnPage ?? true,
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
+    pricingEnabled: effectivePricing.enabled,
     affiliateMarketplace: config?.affiliateMarketplace ?? orgSettings?.affiliateMarketplace ?? false,
     affiliateDefaultCommissionRate: config?.affiliateDefaultCommissionRate != null
       ? Number(config.affiliateDefaultCommissionRate)
@@ -317,6 +320,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     showNameOnPage: o?.showNameOnPage ?? true,
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
+    pricingEnabled: false,
     affiliateMarketplace: false,
     affiliateDefaultCommissionRate: null,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,

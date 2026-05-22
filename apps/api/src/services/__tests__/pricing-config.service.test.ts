@@ -24,7 +24,7 @@ const SYSTEM_ROW = {
 }
 
 describe('resolveEffectivePricingConfig', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it('returns system defaults when no overrides exist', async () => {
     mockPrisma.systemPricingConfig.findFirst.mockResolvedValue(SYSTEM_ROW)
