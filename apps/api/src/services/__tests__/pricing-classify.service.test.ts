@@ -50,6 +50,27 @@ describe('computeRollingAvg', () => {
     const avg = computeRollingAvg('2026-05-22', rates)
     expect(avg).toBeCloseTo(150) // only 2026-05-29 counts
   })
+
+  it('returns current price as fallback when no same-weekday data in window', async () => {
+    const { computeRollingAvg } = await import('../pricing-classify.service.js')
+    // Only one rate exists, no other same-weekday data → fallback to own price
+    const rates = [{ date: '2026-05-22', minSellPrice: 200, available: true }]
+    expect(computeRollingAvg('2026-05-22', rates)).toBe(200)
+  })
+
+  it('includes day at exactly 28 days away, excludes at 29', async () => {
+    const { computeRollingAvg } = await import('../pricing-classify.service.js')
+    // 2026-05-22 is a Friday
+    // 2026-04-24 is 28 days before — Friday, should be included
+    // 2026-04-17 is 35 days before — Friday, should be excluded
+    const rates = [
+      { date: '2026-04-24', minSellPrice: 100, available: true }, // Friday, 28 days before → included
+      { date: '2026-04-17', minSellPrice: 999, available: true }, // Friday, 35 days before → excluded
+      { date: '2026-05-22', minSellPrice: 200, available: true }, // target
+    ]
+    const avg = computeRollingAvg('2026-05-22', rates)
+    expect(avg).toBeCloseTo(100) // only 2026-04-24 is in window
+  })
 })
 
 describe('assignAnomalyType', () => {
@@ -80,5 +101,12 @@ describe('assignAnomalyType', () => {
     const { assignAnomalyType } = await import('../pricing-classify.service.js')
     const rates = [{ date: '2026-05-22', minSellPrice: 100, available: true }]
     expect(assignAnomalyType('2026-05-22', 100, 100, rates, 30, 30, 35, 7)).toBeNull()
+  })
+
+  it('returns low when price far below rolling avg', async () => {
+    const { assignAnomalyType } = await import('../pricing-classify.service.js')
+    const rates = [{ date: '2026-05-22', minSellPrice: 60, available: true }]
+    // price=60, rollingAvg=100, lowAnomalyPct=30 → 40% below → low
+    expect(assignAnomalyType('2026-05-22', 60, 100, rates, 30, 30, 35, 7)).toBe('low')
   })
 })
