@@ -2,6 +2,7 @@
 
 import * as XLSX from 'xlsx'
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { useAdminProperty } from '../../property-context'
@@ -2071,7 +2072,10 @@ type Tab = typeof TABS[number]
 export default function CompSetPage() {
   const { admin } = useAdminAuth()
   const { propertyId, orgId } = useAdminProperty()
-  const [activeTab, setActiveTab] = useState<Tab>('Results')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<Tab>(
+    searchParams.get('tab') === 'results' ? 'Results' : 'Insights & Actions'
+  )
 
   if (!admin) return null
 

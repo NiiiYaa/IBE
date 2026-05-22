@@ -219,11 +219,15 @@ function UpcomingEventsSection({ propertyId, orgId }: { propertyId: number | und
     if (events.length === 0) return (
       <p className="mt-2 text-sm text-[var(--color-text-muted)]">No upcoming events found for this property in the next 60 days.</p>
     )
+    const first = events[0]!
     return (
       <div className="mt-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <div className="divide-y divide-[var(--color-border)]">
-          {events.map(e => <EventRow key={e.id} event={e} />)}
-        </div>
+        <EventRow event={first} />
+        {events.length > 1 && (
+          <a href="/admin/intelligence/event-calendar" className="mt-1 inline-block text-xs font-medium text-[var(--color-primary)] hover:underline">
+            View all {events.length} events →
+          </a>
+        )}
       </div>
     )
   }
@@ -240,9 +244,12 @@ function UpcomingEventsSection({ propertyId, orgId }: { propertyId: number | und
         {groups.filter(g => g.events.length > 0).map(g => (
           <div key={g.propertyId} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{g.propertyName} <span className="font-normal">#{g.propertyId}</span></p>
-            <div className="divide-y divide-[var(--color-border)]">
-              {g.events.map(e => <EventRow key={e.id} event={e} />)}
-            </div>
+            <EventRow event={g.events[0]!} />
+            {g.events.length > 1 && (
+              <a href="/admin/intelligence/event-calendar" className="mt-1 inline-block text-xs font-medium text-[var(--color-primary)] hover:underline">
+                View all {g.events.length} events →
+              </a>
+            )}
           </div>
         ))}
       </div>
@@ -277,7 +284,7 @@ function CompSetInsightsCard({ propertyId }: { propertyId: number }) {
         </div>
       </div>
       <a
-        href="/admin/intelligence/compset"
+        href="/admin/intelligence/compset?tab=insights"
         className="inline-block text-xs font-medium text-[var(--color-primary)] hover:underline"
       >
         View Full Analysis →
@@ -384,6 +391,14 @@ export default function DashboardPage() {
           <SectionPicker visible={visibleSections} onChange={updateSections} />
         </div>
       </div>
+
+      {/* CompSet Insights */}
+      {visibleSections.has('compset-insights') && propertyId != null && (
+        <div className="space-y-3">
+          <SectionTitle>CompSet Insights</SectionTitle>
+          <CompSetInsightsCard propertyId={propertyId} />
+        </div>
+      )}
 
       {/* KPI cards */}
       {visibleSections.has('kpis') && <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -728,13 +743,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* CompSet Insights */}
-      {visibleSections.has('compset-insights') && propertyId != null && (
-        <div className="space-y-3">
-          <SectionTitle>CompSet Insights</SectionTitle>
-          <CompSetInsightsCard propertyId={propertyId} />
-        </div>
-      )}
     </div>
   )
 }

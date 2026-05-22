@@ -613,7 +613,7 @@ function WebjsInstancesTable() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 pb-12 space-y-4">
+    <div className="px-6 pb-12 space-y-4">
       <div>
         <h2 className="text-base font-semibold text-[var(--color-text)]">Active Local Instances</h2>
         <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">All in-process Baileys connections currently running on this server. Refreshes every 5 s.</p>
@@ -632,7 +632,7 @@ function WebjsInstancesTable() {
       )}
 
       {instances && instances.length > 0 && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
