@@ -36,10 +36,19 @@ export async function hasNewData(propertyId: number): Promise<boolean> {
   return latest.fetchedAt > insight.analyzedAt
 }
 
+function fmtCancellation(raw: string | null): string {
+  if (!raw) return ''
+  if (raw === 'NR') return 'Non-Refundable'
+  if (raw === 'Flexi') return 'Flexible (Refundable)'
+  return raw
+}
+
 function buildDataTable(
-  results: Array<{ searchParamId: number; competitorId: number | null; checkIn: string; checkOut: string; roomName: string | null; board: string | null; cancellation: string | null; searchStatus: string; pricePerNight: number | null; total: number | null; currency: string | null }>,
-  params: Array<{ id: number; label: string }>,
-  competitors: Array<{ id: number; name: string }>,
+  results: Array<{ searchParamId: number; competitorId: number | null; checkIn: string; checkOut: string; nights: number; adults: number; roomName: string | null; board: string | null; cancellation: string | null; searchStatus: string; pricePerNight: number | null; total: number | null; currency: string | null }>,
+  params: Array<{ id: number; label: string; offsetDays: number; nights: number; adults: number; children: number }>,
+  competitors: Array<{ id: number; name: string; comparisonMode: string }>,
+  mappings: Array<{ competitorId: number; compRoomName: string; ownRoomName: string }>,
+  events: Array<{ name: string; startDate: string; endDate: string; demandLevel: string; demandDescription: string }>,
 ): string {
   const today = new Date().toISOString().split('T')[0]!
   const fresh = results.filter(r => r.checkIn >= today)
@@ -48,20 +57,77 @@ function buildDataTable(
   const paramById = new Map(params.map(p => [p.id, p]))
   const compById = new Map(competitors.map(c => [c.id, c]))
 
-  const header = 'Pattern | Check-in | Check-out | Competitor | Room | Board | Cancellation | Status | Price/Night | Total | Currency'
-  const rows = fresh.map(r => [
-    paramById.get(r.searchParamId)?.label ?? `Config #${r.searchParamId}`,
-    r.checkIn,
-    r.checkOut,
-    r.competitorId === null ? 'My Hotel' : (compById.get(r.competitorId)?.name ?? `Competitor ${r.competitorId}`),
-    r.roomName ?? '',
-    r.board ?? '',
-    r.cancellation ?? '',
-    r.searchStatus,
-    r.pricePerNight ?? '',
-    r.total ?? '',
-    r.currency ?? '',
-  ].join(' | '))
+  // mapping lookup: competitorId → compRoomName → ownRoomName
+  const mappingByComp = new Map<number, Map<string, string>>()
+  for (const m of mappings) {
+    if (!mappingByComp.has(m.competitorId)) mappingByComp.set(m.competitorId, new Map())
+    mappingByComp.get(m.competitorId)!.set(m.compRoomName, m.ownRoomName)
+  }
+
+  // my hotel results index: "paramId|roomName|board|cancellation" → pricePerNight
+  const myRateIndex = new Map<string, number>()
+  for (const r of fresh) {
+    if (r.competitorId === null && r.searchStatus === 'found' && r.pricePerNight != null && r.roomName) {
+      myRateIndex.set(`${r.searchParamId}|${r.roomName}|${r.board ?? ''}|${r.cancellation ?? ''}`, r.pricePerNight)
+    }
+  }
+
+  const impactLabel: Record<string, string> = { high: 'High Impact', medium: 'Medium Impact', low: 'Low Impact' }
+  function eventsForRow(checkIn: string, checkOut: string): string {
+    const matching = events.filter(e => e.startDate <= checkOut && e.endDate >= checkIn)
+    if (matching.length === 0) return ''
+    return matching.map(e => {
+      const tag = impactLabel[e.demandLevel] ?? 'Impact'
+      const detail = e.demandDescription?.trim() ? `${e.name} – ${e.demandDescription}` : e.name
+      return `[${tag}] ${detail}`
+    }).join('; ')
+  }
+
+  const header = 'Pattern | Offset Days | Nights | Adults | Children | Check-in | Check-out | Competitor | Room | Board | Cancellation | Status | Price/Night | Total | Currency | My Hotel Implied Room | My Hotel Implied Rate | Difference | Events'
+  const rows = fresh.map(r => {
+    const param = paramById.get(r.searchParamId)
+    const isMyHotel = r.competitorId === null
+    const comp = isMyHotel ? null : compById.get(r.competitorId!)
+    const compName = isMyHotel ? 'My Hotel' : (comp?.name ?? `Competitor ${r.competitorId}`)
+
+    let impliedRoom = ''
+    let impliedRate = ''
+    let difference = ''
+    if (!isMyHotel && r.roomName && comp?.comparisonMode === 'room_mapping' && r.searchStatus === 'found' && r.pricePerNight != null) {
+      const ownRoom = mappingByComp.get(r.competitorId!)?.get(r.roomName) ?? ''
+      impliedRoom = ownRoom
+      if (ownRoom) {
+        const myRate = myRateIndex.get(`${r.searchParamId}|${ownRoom}|${r.board ?? ''}|${r.cancellation ?? ''}`)
+        if (myRate != null) {
+          impliedRate = String(myRate)
+          const pct = (r.pricePerNight - myRate) / myRate * 100
+          difference = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+        }
+      }
+    }
+
+    return [
+      param?.label ?? `Config #${r.searchParamId}`,
+      param?.offsetDays ?? '',
+      r.nights,
+      r.adults,
+      param?.children ?? 0,
+      r.checkIn,
+      r.checkOut,
+      compName,
+      r.roomName ?? '',
+      r.board ?? '',
+      fmtCancellation(r.cancellation),
+      r.searchStatus,
+      r.pricePerNight ?? '',
+      r.total ?? '',
+      r.currency ?? '',
+      impliedRoom,
+      impliedRate,
+      difference,
+      eventsForRow(r.checkIn, r.checkOut),
+    ].join(' | ')
+  })
 
   return [header, ...rows].join('\n')
 }
@@ -90,13 +156,27 @@ export async function generateInsight(propertyId: number): Promise<CompSetInsigh
     logger.warn({ err, propertyId }, '[CompSetInsight] Could not fetch property detail, using DB name')
   }
 
-  const [results, params, competitors] = await Promise.all([
+  const [results, params, competitors, mappings, events] = await Promise.all([
     prisma.compSetResult.findMany({ where: { propertyId } }),
-    prisma.compSetSearchParam.findMany({ where: { propertyId } }),
-    prisma.compSetCompetitor.findMany({ where: { propertyId } }),
+    prisma.compSetSearchParam.findMany({
+      where: { propertyId },
+      select: { id: true, label: true, offsetDays: true, nights: true, adults: true, children: true },
+    }),
+    prisma.compSetCompetitor.findMany({
+      where: { propertyId },
+      select: { id: true, name: true, comparisonMode: true },
+    }),
+    prisma.compSetRoomMapping.findMany({
+      where: { competitor: { propertyId } },
+      select: { competitorId: true, compRoomName: true, ownRoomName: true },
+    }),
+    prisma.eventCalendarEvent.findMany({
+      where: { propertyId },
+      select: { name: true, startDate: true, endDate: true, demandLevel: true, demandDescription: true },
+    }),
   ])
 
-  const dataTable = buildDataTable(results, params, competitors)
+  const dataTable = buildDataTable(results, params, competitors, mappings, events)
   const starStr = starRating > 0 ? `${starRating}-star ` : ''
   const locationStr = [hotelCity, hotelCountry].filter(Boolean).join(', ')
   const hotelContext = locationStr ? `${hotelName}, a ${starStr}hotel located in ${locationStr}` : `${hotelName}`

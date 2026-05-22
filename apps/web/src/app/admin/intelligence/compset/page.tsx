@@ -1548,10 +1548,15 @@ function exportCompSetToExcel(
   }
 
   function eventsForRow(checkIn: string, checkOut: string): string {
+    const impactLabel: Record<string, string> = { high: 'High Impact', medium: 'Medium Impact', low: 'Low Impact' }
     return events
       .filter(e => e.startDate <= checkOut && e.endDate >= checkIn)
-      .map(e => e.name)
-      .join(', ')
+      .map(e => {
+        const tag = impactLabel[e.demandLevel] ?? 'Impact'
+        const detail = e.demandDescription?.trim() ? `${e.name} – ${e.demandDescription}` : e.name
+        return `[${tag}] ${detail}`
+      })
+      .join('\n')
   }
 
   const rows = fresh.map(r => {
