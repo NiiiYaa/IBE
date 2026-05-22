@@ -2,11 +2,11 @@ import type { FastifyInstance } from 'fastify'
 import {
   getSystemCompSetConfig,
   upsertSystemCompSetConfig,
-  getScopedSearchParams,
-  getEffectiveSearchParams,
+  getAdminSearchParams,
   createSearchParam,
   updateSearchParam,
   deleteSearchParam,
+  updateSearchParamActive,
   listCompetitors,
   createCompetitor,
   updateCompetitor,
@@ -15,7 +15,7 @@ import {
   replaceRoomMappings,
   autoMapRooms,
 } from '../services/compset.service.js'
-import { runPropertyCompSet } from '../services/compset-collect.service.js'
+import { runPropertyCompSet, runSingleCompetitor } from '../services/compset-collect.service.js'
 import { prisma } from '../db/client.js'
 
 export async function compsetRoutes(fastify: FastifyInstance) {
@@ -32,29 +32,25 @@ export async function compsetRoutes(fastify: FastifyInstance) {
     return reply.send(await upsertSystemCompSetConfig(request.body as Record<string, unknown>))
   })
 
-  // GET search params (effective set for propertyId, or scoped for orgId/system)
+  // GET search params (admin view: own + inherited rows for propertyId, or scoped for orgId/system)
   fastify.get('/admin/intelligence/compset/search-params', async (request, reply) => {
     const query = request.query as Record<string, string>
     const propertyId = query.propertyId ? parseInt(query.propertyId, 10) : undefined
     const rawOrgId = query.orgId ? parseInt(query.orgId, 10) : undefined
 
     if (propertyId) {
-      return reply.send(await getEffectiveSearchParams(propertyId))
+      return reply.send(await getAdminSearchParams({ propertyId }))
     }
 
     const orgId = request.admin.role === 'super'
       ? (rawOrgId ?? request.admin.organizationId)
       : request.admin.organizationId
 
-    if (query.effective === 'false') {
-      return reply.send(await getScopedSearchParams({ orgId: orgId ?? null }))
-    }
-
     if (request.admin.role === 'super' && !orgId) {
-      return reply.send(await getScopedSearchParams({}))
+      return reply.send(await getAdminSearchParams({}))
     }
 
-    return reply.send(await getScopedSearchParams({ orgId: orgId ?? null }))
+    return reply.send(await getAdminSearchParams({ orgId: orgId ?? null }))
   })
 
   // POST search param
@@ -95,6 +91,21 @@ export async function compsetRoutes(fastify: FastifyInstance) {
     return reply.status(204).send()
   })
 
+  // PATCH activate/deactivate a search param (own: update isActive; inherited: upsert override)
+  fastify.patch('/admin/intelligence/compset/search-params/:id/active', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    const body = request.body as { isActive: boolean; orgId?: number | null; propertyId?: number | null }
+
+    const orgId = (request.admin.role === 'super'
+      ? (body.orgId ?? request.admin.organizationId)
+      : request.admin.organizationId) ?? null
+    const propertyId = body.propertyId ?? null
+
+    const result = await updateSearchParamActive(id, { orgId, propertyId }, body.isActive)
+    if (!result) return reply.status(404).send({ error: 'Not found' })
+    return reply.send(result)
+  })
+
   // GET competitors
   fastify.get('/admin/intelligence/compset/competitors', async (request, reply) => {
     const query = request.query as Record<string, string>
@@ -126,6 +137,15 @@ export async function compsetRoutes(fastify: FastifyInstance) {
     const deleted = await deleteCompetitor(id)
     if (!deleted) return reply.status(404).send({ error: 'Not found' })
     return reply.status(204).send()
+  })
+
+  // POST run single competitor (manual trigger)
+  fastify.post('/admin/intelligence/compset/competitors/:id/run', async (request, reply) => {
+    const id = parseInt((request.params as { id: string }).id, 10)
+    void runSingleCompetitor(id).catch(err =>
+      fastify.log.warn({ err, competitorId: id }, '[CompSet] Single-competitor background run failed'),
+    )
+    return reply.send({ started: true })
   })
 
   // POST run (manual trigger)
