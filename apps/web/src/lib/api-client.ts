@@ -150,6 +150,16 @@ import type {
   EventCalendarEvent,
   EventCalendarRunResponse,
   ChainEventCalendarEvents,
+  Cluster,
+  ClusterDetail,
+  HotelClusterRow,
+  AdminClusterSummary,
+  CreateClusterRequest,
+  UpdateClusterRequest,
+  AddHotelToClusterRequest,
+  AddUserToClusterRequest,
+  UpdateUserClusterRoleRequest,
+  SetClusterScopeRequest,
 } from '@ibe/shared'
 
 // Use '' (empty string) so all API calls go to the same origin as the frontend.
@@ -2114,6 +2124,82 @@ export const apiClient = {
     commissionRate: number | null; discountRate: number | null; status: string; url: string; createdAt: string
   }[]> {
     return apiRequest('/api/v1/affiliate/links', { cache: 'no-store' })
+  },
+
+  // ── Clusters ──────────────────────────────────────────────────────────────
+
+  listClusters(orgId?: number): Promise<Cluster[]> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters${qs}`)
+  },
+
+  createCluster(data: CreateClusterRequest, orgId?: number): Promise<Cluster> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters${qs}`, { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  getClusterDetail(id: number, orgId?: number): Promise<ClusterDetail> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${id}${qs}`)
+  },
+
+  updateCluster(id: number, data: UpdateClusterRequest, orgId?: number): Promise<Cluster> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${id}${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  activateCluster(id: number, orgId?: number): Promise<Cluster> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${id}/activate${qs}`, { method: 'POST' })
+  },
+
+  deactivateCluster(id: number, orgId?: number): Promise<Cluster> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${id}/deactivate${qs}`, { method: 'POST' })
+  },
+
+  deleteCluster(id: number, orgId?: number): Promise<void> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${id}${qs}`, { method: 'DELETE' })
+  },
+
+  addHotelToCluster(clusterId: number, data: AddHotelToClusterRequest, orgId?: number): Promise<{ ok: boolean }> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${clusterId}/hotels${qs}`, { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  removeHotelFromCluster(clusterId: number, propertyId: number, orgId?: number): Promise<void> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${clusterId}/hotels/${propertyId}${qs}`, { method: 'DELETE' })
+  },
+
+  addUserToCluster(clusterId: number, data: AddUserToClusterRequest, orgId?: number): Promise<{ ok: boolean }> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${clusterId}/users${qs}`, { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  updateUserClusterRole(clusterId: number, adminUserId: number, data: UpdateUserClusterRoleRequest, orgId?: number): Promise<{ ok: boolean }> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${clusterId}/users/${adminUserId}${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  removeUserFromCluster(clusterId: number, adminUserId: number, orgId?: number): Promise<void> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters/${clusterId}/users/${adminUserId}${qs}`, { method: 'DELETE' })
+  },
+
+  listClustersHotels(orgId?: number): Promise<HotelClusterRow[]> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters-hotels${qs}`)
+  },
+
+  listClustersUsers(orgId?: number): Promise<AdminClusterSummary[]> {
+    const qs = orgId != null ? `?orgId=${orgId}` : ''
+    return apiRequest(`/api/v1/admin/clusters-users${qs}`)
+  },
+
+  setAdminUserClusterScope(adminUserId: number, data: SetClusterScopeRequest): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/v1/admin/admin-users/${adminUserId}/cluster-scope`, { method: 'PATCH', body: JSON.stringify(data) })
   },
 
   // ── CompSet ───────────────────────────────────────────────────────────────
