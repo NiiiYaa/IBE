@@ -13,6 +13,9 @@ import { useAiMode } from '@/context/ai-mode'
 import { useSearchSelection } from '@/context/search-selection'
 import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
+import { useHotelConfig } from '@/hooks/use-hotel-config'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
 import { CalendarDropdown } from './CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from './GuestsDropdown'
 import { NationalityDropdown } from './NationalityDropdown'
@@ -141,6 +144,20 @@ export function SearchBar({
   const { currency } = usePreferences()
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(selectedPropertyId)
   const { data: groupConfig } = usePublicGroupConfig(selectedPropertyId)
+  const { data: hotelConfig } = useHotelConfig(selectedPropertyId)
+  const { data: dailyRatesData } = useQuery({
+    queryKey: ['pricing-calendar', selectedPropertyId, currency],
+    queryFn: () => apiClient.getPricingCalendar(selectedPropertyId, currency || undefined),
+    enabled: hotelConfig?.pricingEnabled === true,
+    staleTime: 60 * 60 * 1000,
+  })
+  const dailyRatesMap = dailyRatesData
+    ? Object.fromEntries(dailyRatesData.map(d => [d.date, d]))
+    : undefined
+  const pricingCurrency: string | undefined = dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency
+  const calendarPriceProps = dailyRatesMap && pricingCurrency
+    ? { dailyRates: dailyRatesMap, priceCurrency: pricingCurrency }
+    : {}
   const groupsHref = groupConfig?.enabled
     ? `/groups?hotelId=${selectedPropertyId}&returnTo=${encodeURIComponent(pageSearchParams.toString() ? `${pathname}?${pageSearchParams.toString()}` : pathname)}`
     : undefined
@@ -544,6 +561,7 @@ export function SearchBar({
                 variant="inline"
                 minNights={minNights}
                 maxNights={maxNights}
+                {...calendarPriceProps}
               />
             </MobileSection>
 
@@ -697,6 +715,7 @@ export function SearchBar({
           onClose={() => setActivePanel(null)}
           minNights={minNights}
           maxNights={maxNights}
+          {...calendarPriceProps}
         />
       )}
 

@@ -9,6 +9,9 @@ import { COUNTRIES, countryFlag } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { usePublicGroupConfig } from '@/hooks/use-public-group-config'
+import { useHotelConfig } from '@/hooks/use-hotel-config'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
 import { CalendarDropdown } from './CalendarDropdown'
 import { useT, useLocale } from '@/context/translations'
 
@@ -87,6 +90,20 @@ export function SearchSidebar({
 
   const { minNights, maxNights, minRooms, maxRooms } = useOffersConstraints(propertyId)
   const { data: groupConfig } = usePublicGroupConfig(propertyId)
+  const { data: hotelConfig } = useHotelConfig(propertyId)
+  const { data: dailyRatesData } = useQuery({
+    queryKey: ['pricing-calendar', propertyId],
+    queryFn: () => apiClient.getPricingCalendar(propertyId),
+    enabled: hotelConfig?.pricingEnabled === true,
+    staleTime: 60 * 60 * 1000,
+  })
+  const dailyRatesMap = dailyRatesData
+    ? Object.fromEntries(dailyRatesData.map(d => [d.date, d]))
+    : undefined
+  const pricingCurrency: string | undefined = dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency
+  const calendarPriceProps = dailyRatesMap && pricingCurrency
+    ? { dailyRates: dailyRatesMap, priceCurrency: pricingCurrency }
+    : {}
   const groupsHref = groupConfig?.enabled
     ? `/groups?hotelId=${propertyId}&returnTo=${encodeURIComponent(pageSearchParams.toString() ? `${pathname}?${pageSearchParams.toString()}` : pathname)}`
     : undefined
@@ -314,6 +331,7 @@ export function SearchSidebar({
                 variant="inline"
                 minNights={minNights}
                 maxNights={maxNights}
+                {...calendarPriceProps}
               />
             </div>
           )}

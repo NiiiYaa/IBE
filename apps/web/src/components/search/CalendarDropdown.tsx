@@ -2,6 +2,7 @@
 
 import { useState, useRef, useMemo } from 'react'
 import { nightsBetween, todayIso, addDays } from '@ibe/shared'
+import type { DayPriceEntry } from '@ibe/shared'
 import {
   addMonths,
   currentYearMonth,
@@ -12,6 +13,18 @@ import {
   displayDate,
 } from '@/lib/calendar-utils'
 import { useT, useLocale } from '@/context/translations'
+
+function formatCompactPrice(price: number): string {
+  if (price >= 1_000_000) return `${(price / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (price >= 1_000) return `${(price / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(Math.round(price))
+}
+
+function colorClass(calendarColor: 'low' | 'normal' | 'high'): string {
+  if (calendarColor === 'low') return 'text-green-600'
+  if (calendarColor === 'high') return 'text-red-500'
+  return 'text-blue-500'
+}
 
 interface CalendarDropdownProps {
   checkIn: string
@@ -25,6 +38,8 @@ interface CalendarDropdownProps {
   labelDuration?: string
   minNights?: number
   maxNights?: number
+  dailyRates?: Record<string, DayPriceEntry>
+  priceCurrency?: string
 }
 
 export function CalendarDropdown({
@@ -39,6 +54,8 @@ export function CalendarDropdown({
   labelDuration,
   minNights = 1,
   maxNights = 365,
+  dailyRates,
+  priceCurrency,
 }: CalendarDropdownProps) {
   const t = useT('search')
   const locale = useLocale()
@@ -188,7 +205,13 @@ export function CalendarDropdown({
         </div>
 
         {/* Month grid */}
-        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} />
+        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
+
+        {dailyRates && priceCurrency && (
+          <p className="mt-1 text-center text-[10px] text-[var(--color-text-muted)]">
+            Prices in {priceCurrency}
+          </p>
+        )}
 
         {/* Summary */}
         <div className="mt-3 grid grid-cols-3 gap-1 border-t border-[var(--color-border)] pt-3">
@@ -217,12 +240,17 @@ export function CalendarDropdown({
         >
           ‹
         </NavBtn>
-        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} locale={locale} {...dayProps} />
-        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} locale={locale} {...dayProps} />
+        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} locale={locale} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
+        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} locale={locale} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
         <NavBtn onClick={() => setViewMonth(m => addMonths(m, 1))} aria-label="Next month">
           ›
         </NavBtn>
       </div>
+      {dailyRates && priceCurrency && (
+        <p className="mt-1 text-center text-[10px] text-[var(--color-text-muted)]">
+          Prices in {priceCurrency}
+        </p>
+      )}
     </div>
   )
 }
@@ -248,6 +276,7 @@ interface InlineMonthGridProps extends DayProps {
   ym: string
   monthShortFn: (ym: string) => string
   weekdays: string[]
+  dailyRates?: Record<string, DayPriceEntry>
 }
 
 function InlineMonthGrid({
@@ -264,6 +293,7 @@ function InlineMonthGrid({
   onMouseLeave,
   monthShortFn,
   weekdays,
+  dailyRates,
 }: InlineMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
   const startPad = firstWeekday(year, month)
@@ -333,10 +363,14 @@ function InlineMonthGrid({
               || (isStart && !!rangeEnd && checkIn !== rangeEnd)
               || (isEnd && !!checkIn)
 
+            const dayData = dailyRates?.[date]
+            const hasPrice = dayData && !isOverflow && !isPast && !isDisabled
+            const isUnavailable = !!(dayData?.available === false && !isPast && !isOverflow)
+
             return (
               <div
                 key={date}
-                className={['relative h-9', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
+                className={['relative flex flex-col items-center pb-0.5', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
                 onClick={() => !isDisabled && onDayClick(date)}
                 onMouseEnter={() => !isDisabled && onDayHover(date)}
               >
@@ -351,23 +385,33 @@ function InlineMonthGrid({
                 )}
 
                 {/* Day circle */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className={[
-                    'relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs transition-colors',
-                    isDisabled
-                      ? 'cursor-not-allowed text-[var(--color-text-muted)] opacity-30'
-                      : (isStart || isEnd)
-                      ? 'bg-[var(--color-text)] font-semibold text-white'
-                      : isOverflow
-                      ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)]'
-                      : 'font-medium text-[var(--color-text)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
-                  ].join(' ')}>
+                <div className={[
+                  'relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs transition-colors mt-0.5',
+                  isDisabled
+                    ? 'cursor-not-allowed text-[var(--color-text-muted)] opacity-30'
+                    : (isStart || isEnd)
+                    ? 'bg-[var(--color-text)] font-semibold text-white'
+                    : isOverflow
+                    ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)]'
+                    : 'font-medium text-[var(--color-text)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
+                ].join(' ')}>
+                  <span className={isUnavailable ? 'line-through opacity-60' : ''}>
                     {parseInt(date.slice(-2), 10)}
-                    {date === today && (
-                      <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[var(--color-error)]" />
-                    )}
-                  </div>
+                  </span>
+                  {date === today && (
+                    <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[var(--color-error)]" />
+                  )}
                 </div>
+
+                {/* Price label */}
+                {dailyRates && (
+                  <div className="relative z-10 text-center" style={{ fontSize: '9px', lineHeight: '1', marginTop: '1px' }}>
+                    {hasPrice && dayData.available
+                      ? <span className={colorClass(dayData.calendarColor)}>{formatCompactPrice(dayData.price)}</span>
+                      : <span className="text-[var(--color-text-muted)] opacity-40">·</span>
+                    }
+                  </div>
+                )}
               </div>
             )
           })}
@@ -383,6 +427,7 @@ interface DropdownMonthGridProps extends DayProps {
   ym: string
   weekdays: string[]
   locale: string
+  dailyRates?: Record<string, DayPriceEntry>
 }
 
 function DropdownMonthGrid({
@@ -399,6 +444,7 @@ function DropdownMonthGrid({
   onMouseLeave,
   weekdays,
   locale,
+  dailyRates,
 }: DropdownMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
   const days = daysInMonth(year, month)
@@ -441,10 +487,15 @@ function DropdownMonthGrid({
             || (isStart && !!rangeEnd && checkIn !== rangeEnd)
             || (isEnd && !!checkIn)
 
+          const dayData = dailyRates?.[date]
+          const isOverflow = false
+          const hasPrice = dayData && !isOverflow && !isPast && !isDisabled
+          const isUnavailable = !!(dayData?.available === false && !isPast && !isOverflow)
+
           return (
             <div
               key={date}
-              className={['relative h-9', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
+              className={['relative flex flex-col items-center pb-0.5', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
               onClick={() => !isDisabled && onDayClick(date)}
               onMouseEnter={() => !isDisabled && onDayHover(date)}
             >
@@ -456,21 +507,31 @@ function DropdownMonthGrid({
                   'left-0 right-0',
                 ].join(' ')} />
               )}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className={[
-                  'relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium select-none transition-colors',
-                  isDisabled
-                    ? 'cursor-not-allowed text-[var(--color-text-muted)] opacity-40'
-                    : (isStart || isEnd)
-                    ? 'bg-[var(--color-text)] font-semibold text-white'
-                    : 'text-[var(--color-text)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
-                ].join(' ')}>
+              <div className={[
+                'relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium select-none transition-colors mt-0.5',
+                isDisabled
+                  ? 'cursor-not-allowed text-[var(--color-text-muted)] opacity-40'
+                  : (isStart || isEnd)
+                  ? 'bg-[var(--color-text)] font-semibold text-white'
+                  : 'text-[var(--color-text)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)]',
+              ].join(' ')}>
+                <span className={isUnavailable ? 'line-through opacity-60' : ''}>
                   {parseInt(date.slice(-2), 10)}
-                  {date === today && (
-                    <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[var(--color-error)]" />
-                  )}
-                </div>
+                </span>
+                {date === today && (
+                  <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[var(--color-error)]" />
+                )}
               </div>
+
+              {/* Price label */}
+              {dailyRates && (
+                <div className="relative z-10 text-center" style={{ fontSize: '9px', lineHeight: '1', marginTop: '1px' }}>
+                  {hasPrice && dayData.available
+                    ? <span className={colorClass(dayData.calendarColor)}>{formatCompactPrice(dayData.price)}</span>
+                    : <span className="text-[var(--color-text-muted)] opacity-40">·</span>
+                  }
+                </div>
+              )}
             </div>
           )
         })}
