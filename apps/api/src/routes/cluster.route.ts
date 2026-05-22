@@ -6,6 +6,7 @@ import {
   listOrgHotelsWithClusters, listOrgUsersWithClusters, setAdminUserClusterScope,
 } from '../services/cluster.service.js'
 import type { ClusterRole } from '@ibe/shared'
+import { prisma } from '../db/client.js'
 
 function resolveOrgId(request: FastifyRequest): number | null {
   const admin = (request as any).admin
@@ -40,6 +41,7 @@ export async function clusterRoutes(fastify: FastifyInstance) {
     if (!orgId) return reply.status(400).send({ error: 'orgId required' })
     const id = parseInt((request.params as { id: string }).id, 10)
     const { name } = request.body as { name: string }
+    if (!name?.trim()) return reply.status(400).send({ error: 'name is required' })
     const result = await updateCluster(id, orgId, { name: name.trim() })
     if (!result) return reply.status(404).send({ error: 'Cluster not found' })
     return reply.send(result)
@@ -168,6 +170,15 @@ export async function clusterRoutes(fastify: FastifyInstance) {
     }
     const id = parseInt((request.params as { id: string }).id, 10)
     const { clusterScope } = request.body as { clusterScope: boolean }
+
+    if (request.admin.role !== 'super') {
+      const targetUser = await prisma.adminUser.findFirst({
+        where: { id, organizationId: request.admin.organizationId! },
+        select: { id: true },
+      })
+      if (!targetUser) return reply.status(404).send({ error: 'User not found' })
+    }
+
     await setAdminUserClusterScope(id, clusterScope)
     return reply.send({ ok: true })
   })

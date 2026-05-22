@@ -106,6 +106,8 @@ async function assertClusterInOrg(clusterId: number, organizationId: number): Pr
 
 export async function addHotelToCluster(clusterId: number, propertyId: number, organizationId: number): Promise<void> {
   await assertClusterInOrg(clusterId, organizationId)
+  const prop = await prisma.property.findFirst({ where: { propertyId, organizationId }, select: { propertyId: true } })
+  if (!prop) throw new Error('Property not found in organisation')
   await prisma.clusterHotel.create({ data: { clusterId, propertyId } })
 }
 
@@ -116,6 +118,8 @@ export async function removeHotelFromCluster(clusterId: number, propertyId: numb
 
 export async function addUserToCluster(clusterId: number, adminUserId: number, role: ClusterRole, organizationId: number): Promise<void> {
   await assertClusterInOrg(clusterId, organizationId)
+  const user = await prisma.adminUser.findFirst({ where: { id: adminUserId, organizationId }, select: { id: true } })
+  if (!user) throw new Error('User not found in organisation')
   await prisma.clusterUser.create({ data: { clusterId, adminUserId, role } })
 }
 

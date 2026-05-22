@@ -10,8 +10,8 @@ vi.mock('../../db/client.js', () => ({
     clusterUser: {
       create: vi.fn(), update: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(),
     },
-    adminUser: { findMany: vi.fn(), update: vi.fn() },
-    property: { findMany: vi.fn() },
+    adminUser: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    property: { findMany: vi.fn(), findFirst: vi.fn() },
   },
 }))
 
@@ -82,6 +82,7 @@ describe('softDeleteCluster', () => {
 describe('addHotelToCluster', () => {
   it('creates a ClusterHotel row', async () => {
     mp.cluster.findFirst.mockResolvedValue({ id: 1 })
+    mp.property.findFirst.mockResolvedValue({ propertyId: 100 })
     mp.clusterHotel.create.mockResolvedValue({})
     await addHotelToCluster(1, 100, 5)
     expect(mp.clusterHotel.create).toHaveBeenCalledWith({ data: { clusterId: 1, propertyId: 100 } })
@@ -91,14 +92,27 @@ describe('addHotelToCluster', () => {
     mp.cluster.findFirst.mockResolvedValue(null)
     await expect(addHotelToCluster(1, 100, 5)).rejects.toThrow('Cluster not found')
   })
+
+  it('throws when property not in org', async () => {
+    mp.cluster.findFirst.mockResolvedValue({ id: 1 })
+    mp.property.findFirst.mockResolvedValue(null)
+    await expect(addHotelToCluster(1, 100, 5)).rejects.toThrow('Property not found in organisation')
+  })
 })
 
 describe('addUserToCluster', () => {
   it('creates a ClusterUser row with role', async () => {
     mp.cluster.findFirst.mockResolvedValue({ id: 1 })
+    mp.adminUser.findFirst.mockResolvedValue({ id: 42 })
     mp.clusterUser.create.mockResolvedValue({})
     await addUserToCluster(1, 42, 'admin', 5)
     expect(mp.clusterUser.create).toHaveBeenCalledWith({ data: { clusterId: 1, adminUserId: 42, role: 'admin' } })
+  })
+
+  it('throws when user not in org', async () => {
+    mp.cluster.findFirst.mockResolvedValue({ id: 1 })
+    mp.adminUser.findFirst.mockResolvedValue(null)
+    await expect(addUserToCluster(1, 99, 'admin', 5)).rejects.toThrow('User not found in organisation')
   })
 })
 
