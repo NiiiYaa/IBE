@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { AdminUserRecord, CreateAdminUserRequest, OrgRecord } from '@ibe/shared'
+import type { AdminUserRecord, CreateAdminUserRequest, OrgRecord, ClusterRole } from '@ibe/shared'
 import { apiClient, ApiClientError } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { CredentialsModal, type CredentialsInfo } from '../_components/CredentialsModal'
@@ -163,8 +163,30 @@ export default function UsersPage() {
     enabled: !isSuper,
   })
 
+  // clusters (non-super only)
+  const { data: orgClusters = [] } = useQuery({
+    queryKey: ['admin-clusters'],
+    queryFn: () => apiClient.listClusters(),
+    enabled: !isSuper,
+    staleTime: 60_000,
+  })
+
+  const { data: clusterUserSummaries = [] } = useQuery({
+    queryKey: ['clusters-users-summary'],
+    queryFn: () => apiClient.listClustersUsers(),
+    enabled: !isSuper,
+    staleTime: 60_000,
+  })
+
+  const clusterSummaryMap = useMemo(
+    () => new Map(clusterUserSummaries.map(s => [s.adminUserId, s])),
+    [clusterUserSummaries],
+  )
+
   // invite form
   const [form, setForm] = useState<CreateAdminUserRequest>({ email: '', name: '', role: 'admin', phone: '' })
+  const [formClusterIds, setFormClusterIds] = useState<number[]>([])
+  const [formClusterRole, setFormClusterRole] = useState<ClusterRole>('observer')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -225,10 +247,20 @@ export default function UsersPage() {
     setSaveError(null); setIsSaving(true)
     try {
       const result = await apiClient.createAdminUser(form)
+      if (formClusterIds.length > 0) {
+        await Promise.all(
+          formClusterIds.map(clusterId =>
+            apiClient.addUserToCluster(clusterId, { adminUserId: result.id, role: formClusterRole }),
+          ),
+        )
+        await qc.invalidateQueries({ queryKey: ['clusters-users-summary'] })
+      }
       await qc.invalidateQueries({ queryKey: ['admin-users'] })
       const loginUrl = `${window.location.origin}/admin/login`
       setCredentialsInfo({ label: `${result.name} — account created`, name: result.name, email: result.email, ...(result.phone != null ? { phone: result.phone } : {}), temporaryPassword: result.temporaryPassword, loginUrl, orgId: form.orgId ?? null })
       setForm({ email: '', name: '', role: 'admin', phone: '', ...(isSuper && form.orgId ? { orgId: form.orgId } : {}) })
+      setFormClusterIds([])
+      setFormClusterRole('observer')
     } catch (err) {
       setSaveError(err instanceof ApiClientError ? err.message : 'Failed to create user')
     } finally { setIsSaving(false) }
@@ -378,6 +410,48 @@ export default function UsersPage() {
             </select>
           </div>
         </div>
+        {!isSuper && orgClusters.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+            <label className={labelCls}>
+              Assign to clusters{' '}
+              <span className="normal-case font-normal text-[var(--color-text-muted)]">(optional)</span>
+            </label>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {orgClusters.map(c => {
+                const checked = formClusterIds.includes(c.id)
+                return (
+                  <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-xs text-[var(--color-text)] transition-colors hover:border-[var(--color-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setFormClusterIds(ids =>
+                          checked ? ids.filter(id => id !== c.id) : [...ids, c.id],
+                        )
+                      }
+                      className="accent-[var(--color-primary)]"
+                    />
+                    {c.name}
+                  </label>
+                )
+              })}
+            </div>
+            {formClusterIds.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="shrink-0 text-xs text-[var(--color-text-muted)]">Role in selected clusters:</span>
+                <select
+                  value={formClusterRole}
+                  onChange={e => setFormClusterRole(e.target.value as ClusterRole)}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="user">User</option>
+                  <option value="observer">Observer</option>
+                </select>
+              </div>
+            )}
+          </div>
+        )}
         {saveError && !editingId && <p className="mt-3 text-sm text-[var(--color-error)]">{saveError}</p>}
         <button
           onClick={handleCreate}
@@ -481,10 +555,27 @@ export default function UsersPage() {
                           onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)}
                           className={`${inputCls} py-1`} />
                       ) : (
-                        <span className="font-medium text-[var(--color-text)]">
-                          {u.name}
-                          {isMe && <span className="ml-2 text-xs text-[var(--color-text-muted)]">(you)</span>}
-                        </span>
+                        <>
+                          <span className="font-medium text-[var(--color-text)]">
+                            {u.name}
+                            {isMe && <span className="ml-2 text-xs text-[var(--color-text-muted)]">(you)</span>}
+                          </span>
+                          {!isSuper && (() => {
+                            const summary = clusterSummaryMap.get(u.id)
+                            if (!summary?.assignments.length) return null
+                            return (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {summary.assignments.map(a => (
+                                  <span key={a.clusterId} className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-light)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
+                                    {a.clusterName}
+                                    <span className="opacity-60">·</span>
+                                    <span className="capitalize">{a.role}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )
+                          })()}
+                        </>
                       )}
                     </td>
 
