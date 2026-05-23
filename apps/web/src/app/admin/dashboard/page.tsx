@@ -364,6 +364,12 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
 
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const currency = rates[0]?.currency ?? ''
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  function fmtAnomalyDate(iso: string) {
+    const d = new Date(iso + 'T00:00:00Z')
+    return `${String(d.getUTCDate()).padStart(2,'0')}-${MONTHS[d.getUTCMonth()]}-${d.getUTCFullYear()}`
+  }
+  function fmtAmt(n: number) { return Math.round(n).toLocaleString() }
 
   function AnomalyTable({ title, rows, type }: { title: string; rows: DayRateAdminEntry[]; type: string }) {
     return (
@@ -381,7 +387,7 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
             : (
               <table className="mt-2 w-full table-fixed text-xs">
                 <colgroup>
-                  <col className="w-[92px]" />
+                  <col className="w-[100px]" />
                   <col className="w-[38px]" />
                   <col className="w-[80px]" />
                   <col className="w-[52px]" />
@@ -409,10 +415,10 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
                       : '—'
                     return (
                       <tr key={r.date} className="border-t border-[var(--color-border)]">
-                        <td className="py-1 pr-2">{r.date}</td>
+                        <td className="py-1 pr-2">{fmtAnomalyDate(r.date)}</td>
                         <td className="py-1 pr-2">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
-                        <td className="py-1 pr-2 font-medium text-[var(--color-primary)]">{r.price.toFixed(0)} {currency}</td>
-                        <td className="py-1 pr-2">{r.rollingAvg?.toFixed(0) ?? '—'}</td>
+                        <td className="py-1 pr-2 font-medium text-[var(--color-primary)]">{fmtAmt(r.price)} {currency}</td>
+                        <td className="py-1 pr-2">{r.rollingAvg != null ? fmtAmt(r.rollingAvg) : '—'}</td>
                         <td className="py-1 pr-2">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
                         <td className="py-1 pr-2 truncate">{r.cheapestRoomName ?? '—'}</td>
                         <td className="py-1 pr-2">{r.cheapestBoard ?? '—'}</td>
