@@ -1824,6 +1824,7 @@ model SystemPricingConfig {
   dayDifferencePct     Float    @default(35)
   dayDifferenceWindow  Int      @default(7)
   maxOffersForAnalysis Int      @default(10)
+  weekendDays          String   @default("0,6")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }
@@ -1842,6 +1843,7 @@ model OrgPricingConfig {
   dayDifferenceWindow   Int?
   searchAdults          Int?
   maxOffersForAnalysis  Int?
+  weekendDays           String?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }
@@ -1860,6 +1862,7 @@ model PropertyPricingConfig {
   dayDifferenceWindow  Int?
   searchAdults         Int?
   maxOffersForAnalysis Int?
+  weekendDays          String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

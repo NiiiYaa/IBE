@@ -8,6 +8,22 @@ import { resolveEffectivePricingConfig } from './pricing-config.service.js'
 const WINDOW_DAYS = 29
 const TOTAL_DAYS = 365
 
+// Near-term windows use a small checkIn span so HG returns rates representative of each specific date.
+// Searching checkIn=today for 29 nights would bias many future nights toward NR (cancellation window
+// for the FIRST night has already passed, so HG may only surface NR rate plans).
+function buildSearchWindows(): Array<{ offset: number; size: number }> {
+  const windows: Array<{ offset: number; size: number }> = [
+    { offset: 0, size: 2 },  // today + tomorrow
+    { offset: 2, size: 6 },  // today+2 → today+8
+  ]
+  let offset = 8
+  while (offset < TOTAL_DAYS) {
+    windows.push({ offset, size: Math.min(WINDOW_DAYS, TOTAL_DAYS - offset) })
+    offset += WINDOW_DAYS
+  }
+  return windows
+}
+
 interface NightlyPrice {
   date: string
   minSellPrice: number
@@ -29,18 +45,24 @@ interface OfferEntry {
   currency: string
 }
 
-// A rate is Flexi if at least one cancellation deadline is still in the future (same logic as search service).
-// NR rates either have no policies or all penalties start at/before check-in (deadline already past at search time).
+// A rate is Free only if the FIRST penalty window hasn't opened yet (i.e., we're before the earliest penalty deadline).
+// HG encodes NR-at-checkin as timeFromCheckIn:0 + another policy with larger timeFromCheckIn.
+// Using .some() would see the timeFromCheckIn:0 deadline (= checkIn date, always future) and wrongly classify NR as Free.
+// Correct approach: find the MINIMUM deadline across all policies — that's when the first penalty kicks in.
+// If that earliest deadline is still in the future, the free-cancel window is still open.
 export function deriveCancellationLabel(policies: HGCancellationPolicy[], checkIn: string): 'Free' | 'Non-refundable' {
   if (policies.length === 0) return 'Non-refundable'
   const now = Date.now()
-  const hasFutureDeadline = policies.some(p => {
-    if (!p.timeSetting) return false
+  let earliestPenaltyMs: number | null = null
+  for (const p of policies) {
+    if (!p.timeSetting) continue
     const deadline = calculateCancellationDeadline(checkIn, p.timeSetting.timeFromCheckIn, p.timeSetting.timeFromCheckInType, p.cancellationDeadlineHour)
     const ms = Date.parse(deadline)
-    return !isNaN(ms) && ms > now
-  })
-  return hasFutureDeadline ? 'Free' : 'Non-refundable'
+    if (isNaN(ms)) continue
+    if (earliestPenaltyMs === null || ms < earliestPenaltyMs) earliestPenaltyMs = ms
+  }
+  if (earliestPenaltyMs === null) return 'Non-refundable'
+  return earliestPenaltyMs > now ? 'Free' : 'Non-refundable'
 }
 
 export interface CollectProgressCallback {
@@ -59,15 +81,14 @@ export async function collectHotelPrices(propertyId: number, onProgress?: Collec
 
   const today = todayIso()
   const prices: NightlyPrice[] = []
-  const totalWindows = Math.ceil(TOTAL_DAYS / WINDOW_DAYS)
+  const searchWindows = buildSearchWindows()
+  const totalWindows = searchWindows.length
   let windowsDone = 0
   let totalOfferCount = 0
 
-  let offset = 0
-  while (offset < TOTAL_DAYS) {
-    const windowSize = Math.min(WINDOW_DAYS, TOTAL_DAYS - offset)
-    const checkIn = addDays(today, offset)
-    const checkOut = addDays(today, offset + windowSize)
+  for (const win of searchWindows) {
+    const checkIn = addDays(today, win.offset)
+    const checkOut = addDays(today, win.offset + win.size)
 
     try {
       const hgResponse = await searchAvailability({
@@ -76,15 +97,15 @@ export async function collectHotelPrices(propertyId: number, onProgress?: Collec
         checkOut,
         rooms: [{ adults: searchAdults }],
       })
-      const { prices: windowPrices, offersByDate } = extractNightlyData(hgResponse, checkIn, windowSize)
+      const { prices: windowPrices, offersByDate } = extractNightlyData(hgResponse, checkIn, win.size)
       prices.push(...windowPrices)
       await upsertDailyRateOffers(propertyId, offersByDate, maxOffersForAnalysis)
       for (const offers of offersByDate.values()) totalOfferCount += offers.length
     } catch (err) {
       logger.warn({ err, propertyId, checkIn }, '[Pricing] Batch search failed — marking window unavailable')
-      for (let i = 0; i < windowSize; i++) {
+      for (let i = 0; i < win.size; i++) {
         prices.push({
-          date: addDays(today, offset + i),
+          date: addDays(today, win.offset + i),
           minSellPrice: 0, currency: 'USD', available: false,
           cheapestRoomId: null, cheapestRoomName: null, cheapestBoard: null, cheapestCancellationLabel: null,
         })
@@ -93,7 +114,6 @@ export async function collectHotelPrices(propertyId: number, onProgress?: Collec
 
     windowsDone++
     onProgress?.(windowsDone, totalWindows, totalOfferCount)
-    offset += windowSize
   }
 
   logger.info({ propertyId, priceCount: prices.length }, '[Pricing] collectHotelPrices upserting')

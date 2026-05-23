@@ -359,6 +359,7 @@ export interface SystemPricingConfigResponse extends PricingConfigValues {
   refreshIntervalHours: number
   searchAdults: 1 | 2
   maxOffersForAnalysis: number
+  weekendDays: number[]
 }
 
 export interface OrgPricingConfigResponse {
@@ -372,6 +373,7 @@ export interface OrgPricingConfigResponse {
   dayDifferenceWindow: number | null
   searchAdults: 1 | 2 | null
   maxOffersForAnalysis: number | null
+  weekendDays: number[] | null
   // Resolved effective values (from system → org)
   effective: SystemPricingConfigResponse
 }
@@ -387,6 +389,7 @@ export interface PropertyPricingConfigResponse {
   dayDifferenceWindow: number | null
   searchAdults: 1 | 2 | null
   maxOffersForAnalysis: number | null
+  weekendDays: number[] | null
   // Resolved effective values (from system → org → property)
   effective: SystemPricingConfigResponse
 }

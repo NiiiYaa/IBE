@@ -102,6 +102,27 @@ describe('deriveCancellationLabel', () => {
     ]
     expect(deriveCancellationLabel(policies, futureCheckIn)).toBe('Non-refundable')
   })
+
+  it('returns Free when earliest penalty is in the future (multi-policy: timeFromCheckIn 0 + 7)', async () => {
+    // Real HG structure: [{ tfi:0, 100% at checkIn }, { tfi:7, 1-night within 7 days }]
+    // Far-future checkIn: earliest penalty (7-day window) hasn't opened yet → Free
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    const policies = [
+      { daysBefore: 0, penaltyType: CancellationPenaltyType.Percent, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'days' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Nights, amount: 1, timeSetting: { timeFromCheckIn: 7, timeFromCheckInType: 'days' as const } },
+    ]
+    expect(deriveCancellationLabel(policies, futureCheckIn)).toBe('Free')
+  })
+
+  it('returns Non-refundable when earliest penalty already passed (multi-policy: timeFromCheckIn 0 + 7)', async () => {
+    // Same structure but checkIn is in the past: earliest penalty (7-day window) already triggered → NR
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    const policies = [
+      { daysBefore: 0, penaltyType: CancellationPenaltyType.Percent, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'days' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Nights, amount: 1, timeSetting: { timeFromCheckIn: 7, timeFromCheckInType: 'days' as const } },
+    ]
+    expect(deriveCancellationLabel(policies, pastCheckIn)).toBe('Non-refundable')
+  })
 })
 
 describe('offer collection', () => {
@@ -119,11 +140,13 @@ describe('offer collection', () => {
       enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
       maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
       highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+      weekendDays: [0, 6],
     })
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
-    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(13)
-    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(13)
+    // 2 lead windows + 13 regular 29-day windows = 15 total
+    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(15)
+    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(15)
   })
 
   it('writes rank-1 offer details into dailyRateOffer.createMany', async () => {
@@ -132,6 +155,7 @@ describe('offer collection', () => {
       enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
       maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
       highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+      weekendDays: [0, 6],
     })
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
@@ -178,6 +202,7 @@ describe('offer collection', () => {
       maxOffersForAnalysis: 2, // cap at 2, response has 3 offers
       highPricePct: 15, lowPricePct: 15,
       highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+      weekendDays: [0, 6],
     })
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
@@ -197,12 +222,13 @@ describe('offer collection', () => {
       enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
       maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
       highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+      weekendDays: [0, 6],
     })
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
-    // 13 windows total, 1 failed — deleteMany called only 12 times (not 13)
-    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(12)
-    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(12)
+    // 15 windows total, 1 failed — deleteMany called only 14 times (not 15)
+    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(14)
+    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(14)
   })
 })
 
@@ -217,23 +243,25 @@ describe('collectHotelPrices', () => {
       enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
       maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
       highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+      weekendDays: [0, 6],
     })
   })
 
-  it('calls searchAvailability in 29-day windows covering 365 days', async () => {
+  it('calls searchAvailability with the custom lead windows then 29-day windows', async () => {
     mockSearch.mockResolvedValue(makeHGResponse(29))
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
 
-    // 12 full windows of 29 days + 1 final window of 17 = 13 calls total
-    expect(mockSearch).toHaveBeenCalledTimes(13)
+    // 2 lead windows (size 1 + size 6) + 13 regular 29-day windows = 15 total
+    expect(mockSearch).toHaveBeenCalledTimes(15)
   })
 
-  it('upserts a DailyRate row for each night', async () => {
+  it('upserts a DailyRate row for each collected night', async () => {
     mockSearch.mockResolvedValue(makeHGResponse(29))
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
 
+    // 365 nights: offset 0-1 (2) + offset 2-7 (6) + offset 8-364 (357)
     expect(mockPrisma.dailyRate.upsert).toHaveBeenCalledTimes(365)
   })
 

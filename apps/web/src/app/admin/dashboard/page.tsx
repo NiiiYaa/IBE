@@ -304,12 +304,38 @@ function xlsxDate() {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
 }
 
-function exportAnomaliesExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
+const BOARD_LABELS: Record<string, string> = {
+  RO: 'Room Only',
+  BB: 'Bed & Breakfast',
+  HB: 'Half Board',
+  FB: 'Full Board',
+  AI: 'All Inclusive',
+  SC: 'Self Catering',
+}
+
+function boardLabel(code: string): string {
+  return BOARD_LABELS[code.toUpperCase()] ?? code
+}
+
+function cancellationLabel(raw: string): string {
+  if (raw === 'Free') return 'Free (Refundable)'
+  if (raw === 'Non-refundable') return 'Non-Refundable'
+  return raw
+}
+
+function exportAnomaliesExcel(
+  rates: DayRateAdminEntry[],
+  propertyId: number,
+  propertyName: string,
+  propertyAddress: string,
+) {
   const ANOMALY_LABEL: Record<string, string> = { high: 'High Price', low: 'Low Price', diff: 'Day Diff' }
+  const header = [[propertyName], [propertyAddress], []]
+  const ws = XLSX.utils.aoa_to_sheet(header)
   const rows = rates
     .filter(r => r.anomalyType !== null)
     .map(r => ({
-      'Date': r.date,
+      'Date': new Date(r.date + 'T00:00:00'),
       'Day': DAYS_FULL[new Date(r.date + 'T00:00:00Z').getUTCDay()],
       'Min Sell Price': r.price,
       'Currency': r.currency,
@@ -319,16 +345,21 @@ function exportAnomaliesExcel(rates: DayRateAdminEntry[], propertyId: number, pr
         : '',
       'Anomaly Type': ANOMALY_LABEL[r.anomalyType ?? ''] ?? r.anomalyType ?? '',
       'Room': r.cheapestRoomName ?? '',
-      'Board': r.cheapestBoard ?? '',
-      'Cancellation': r.cheapestCancellationLabel ?? '',
+      'Board': boardLabel(r.cheapestBoard ?? ''),
+      'Cancellation': cancellationLabel(r.cheapestCancellationLabel ?? ''),
     }))
-  const ws = XLSX.utils.json_to_sheet(rows)
+  XLSX.utils.sheet_add_json(ws, rows, { origin: header.length, cellDates: true })
+  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1')
+  for (let r = header.length + 1; r <= range.e.r; r++) {
+    const ref = XLSX.utils.encode_cell({ r, c: 0 })
+    if (ws[ref]) ws[ref].z = 'dd-mmm-yyyy'
+  }
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Anomalies')
   XLSX.writeFile(wb, `Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
-function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; propertyName: string }) {
+function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { propertyId: number; propertyName: string; propertyAddress: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>({ high: true, low: true, diff: true })
   const statusQuery = useQuery({
     queryKey: ['pricing-status', propertyId],
@@ -388,20 +419,20 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
               <table className="mt-2 w-full table-fixed text-xs">
                 <colgroup>
                   <col className="w-[100px]" />
-                  <col className="w-[38px]" />
-                  <col className="w-[80px]" />
-                  <col className="w-[52px]" />
-                  <col className="w-[58px]" />
+                  <col className="w-[34px]" />
+                  <col className="w-[130px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[68px]" />
                   <col />{/* Room — takes remaining */}
-                  <col className="w-[44px]" />
-                  <col className="w-[108px]" />
+                  <col className="w-[34px]" />
+                  <col className="w-[100px]" />
                 </colgroup>
                 <thead>
                   <tr className="text-left text-[var(--color-text-muted)]">
                     <th className="pb-1 pr-2 font-medium">Date</th>
                     <th className="pb-1 pr-2 font-medium">Day</th>
-                    <th className="pb-1 pr-2 font-medium">Price</th>
-                    <th className="pb-1 pr-2 font-medium">Avg</th>
+                    <th className="pb-1 pr-4 font-medium">Price ({currency})</th>
+                    <th className="pb-1 pr-4 font-medium">Avg ({currency})</th>
                     <th className="pb-1 pr-2 font-medium">Dev %</th>
                     <th className="pb-1 pr-2 font-medium">Room</th>
                     <th className="pb-1 pr-2 font-medium">Board</th>
@@ -417,8 +448,8 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
                       <tr key={r.date} className="border-t border-[var(--color-border)]">
                         <td className="py-1 pr-2">{fmtAnomalyDate(r.date)}</td>
                         <td className="py-1 pr-2">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
-                        <td className="py-1 pr-2 font-medium text-[var(--color-primary)]">{fmtAmt(r.price)} {currency}</td>
-                        <td className="py-1 pr-2">{r.rollingAvg != null ? fmtAmt(r.rollingAvg) : '—'}</td>
+                        <td className="py-1 pr-4 font-medium text-[var(--color-primary)]">{fmtAmt(r.price)}</td>
+                        <td className="py-1 pr-4">{r.rollingAvg != null ? fmtAmt(r.rollingAvg) : '—'}</td>
                         <td className="py-1 pr-2">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
                         <td className="py-1 pr-2 truncate">{r.cheapestRoomName ?? '—'}</td>
                         <td className="py-1 pr-2">{r.cheapestBoard ?? '—'}</td>
@@ -446,7 +477,7 @@ function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; 
           </span>
           {rates.some(r => r.anomalyType !== null) && (
             <button
-              onClick={() => exportAnomaliesExcel(rates, propertyId, propertyName)}
+              onClick={() => exportAnomaliesExcel(rates, propertyId, propertyName, propertyAddress)}
               className="rounded-lg bg-[var(--color-primary)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 transition-opacity"
             >
               Export Anomalies
@@ -505,7 +536,8 @@ export default function DashboardPage() {
   const { currency } = data
   const hasSearchData = data.searchesTotal > 0
 
-  const propDetail = qc.getQueryData<{ name?: string | null }>(['property', propertyId])
+  const propDetail = qc.getQueryData<{ name?: string | null; location?: { address?: string; city?: string; countryCode?: string } }>(['property', propertyId])
+  const propAddress = [propDetail?.location?.address, propDetail?.location?.city, propDetail?.location?.countryCode].filter(Boolean).join(', ')
   const allOrgs = qc.getQueryData<OrgRecord[]>(['super-orgs']) ?? []
 
   const scopeLabel = propertyId
@@ -915,7 +947,7 @@ export default function DashboardPage() {
       {visibleSections.has('pricing-anomalies') && propertyId != null && (
         <div className="space-y-3">
           <SectionTitle>Price Anomalies</SectionTitle>
-          <PricingAnomalyCard propertyId={propertyId} propertyName={propDetail?.name ?? ''} />
+          <PricingAnomalyCard propertyId={propertyId} propertyName={propDetail?.name ?? ''} propertyAddress={propAddress} />
         </div>
       )}
 

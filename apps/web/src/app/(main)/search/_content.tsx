@@ -351,7 +351,7 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
             <div className={`flex gap-6 items-stretch ${sidebarOnRight ? 'flex-row-reverse' : ''}`}>
 
               {/* Collapsible sidebar — desktop only */}
-              <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-14'}`}>
+              <aside className={`hidden shrink-0 lg:block transition-all duration-200 ${sidebarOpen ? 'w-80' : 'w-14'}`}>
                 <SearchSidebar
                   propertyId={searchParams.hotelId}
                   initialCheckIn={searchParams.checkIn}

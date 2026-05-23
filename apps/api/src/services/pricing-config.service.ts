@@ -17,6 +17,16 @@ const SYSTEM_DEFAULTS: SystemPricingConfigResponse = {
   dayDifferenceWindow: 7,
   searchAdults: 1,
   maxOffersForAnalysis: 10,
+  weekendDays: [0, 6],
+}
+
+function parseWeekendDays(s: string | null | undefined): number[] {
+  if (!s) return SYSTEM_DEFAULTS.weekendDays
+  return s.split(',').map(Number).filter(n => n >= 0 && n <= 6)
+}
+
+function serializeWeekendDays(days: number[]): string {
+  return [...days].sort((a, b) => a - b).join(',')
 }
 
 export async function getSystemPricingConfig(): Promise<SystemPricingConfigResponse> {
@@ -33,14 +43,18 @@ export async function getSystemPricingConfig(): Promise<SystemPricingConfigRespo
     dayDifferenceWindow: row.dayDifferenceWindow,
     searchAdults: (row.searchAdults as 1 | 2),
     maxOffersForAnalysis: row.maxOffersForAnalysis,
+    weekendDays: parseWeekendDays(row.weekendDays),
   } : SYSTEM_DEFAULTS
 }
 
 export async function upsertSystemPricingConfig(data: Partial<SystemPricingConfigResponse>): Promise<SystemPricingConfigResponse> {
+  const { weekendDays, ...rest } = data
+  const dbData = { ...rest, ...(weekendDays !== undefined && { weekendDays: serializeWeekendDays(weekendDays) }) }
   const existing = await prisma.systemPricingConfig.findFirst()
+  const defaults = { ...SYSTEM_DEFAULTS, weekendDays: serializeWeekendDays(SYSTEM_DEFAULTS.weekendDays) }
   const row = existing
-    ? await prisma.systemPricingConfig.update({ where: { id: existing.id }, data })
-    : await prisma.systemPricingConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
+    ? await prisma.systemPricingConfig.update({ where: { id: existing.id }, data: dbData })
+    : await prisma.systemPricingConfig.create({ data: { ...defaults, ...dbData } })
   return {
     enabled: row.enabled, openToAll: row.openToAll, refreshIntervalHours: row.refreshIntervalHours,
     highPricePct: row.highPricePct, lowPricePct: row.lowPricePct,
@@ -48,6 +62,7 @@ export async function upsertSystemPricingConfig(data: Partial<SystemPricingConfi
     dayDifferencePct: row.dayDifferencePct, dayDifferenceWindow: row.dayDifferenceWindow,
     searchAdults: (row.searchAdults as 1 | 2),
     maxOffersForAnalysis: row.maxOffersForAnalysis,
+    weekendDays: parseWeekendDays(row.weekendDays),
   }
 }
 
@@ -68,12 +83,14 @@ export async function getOrgPricingConfig(orgId: number): Promise<OrgPricingConf
     dayDifferenceWindow: org?.dayDifferenceWindow ?? null,
     searchAdults: (org?.searchAdults as 1 | 2 | null) ?? null,
     maxOffersForAnalysis: org?.maxOffersForAnalysis ?? null,
+    weekendDays: org?.weekendDays != null ? parseWeekendDays(org.weekendDays) : null,
     effective,
   }
 }
 
 export async function upsertOrgPricingConfig(orgId: number, data: Partial<OrgPricingConfigResponse>): Promise<OrgPricingConfigResponse> {
-  const { effective: _e, ...fields } = data
+  const { effective: _e, weekendDays, ...rest } = data
+  const fields = { ...rest, ...(weekendDays !== undefined && { weekendDays: weekendDays != null ? serializeWeekendDays(weekendDays) : null }) }
   await prisma.orgPricingConfig.upsert({
     where: { organizationId: orgId },
     create: { organizationId: orgId, ...fields },
@@ -107,12 +124,14 @@ export async function getPropertyPricingConfig(propertyId: number): Promise<Prop
     dayDifferenceWindow: prop?.dayDifferenceWindow ?? null,
     searchAdults: (prop?.searchAdults as 1 | 2 | null) ?? null,
     maxOffersForAnalysis: prop?.maxOffersForAnalysis ?? null,
+    weekendDays: prop?.weekendDays != null ? parseWeekendDays(prop.weekendDays) : null,
     effective,
   }
 }
 
 export async function upsertPropertyPricingConfig(propertyId: number, data: Partial<PropertyPricingConfigResponse>): Promise<PropertyPricingConfigResponse> {
-  const { effective: _e, ...fields } = data
+  const { effective: _e, weekendDays, ...rest } = data
+  const fields = { ...rest, ...(weekendDays !== undefined && { weekendDays: weekendDays != null ? serializeWeekendDays(weekendDays) : null }) }
   await prisma.propertyPricingConfig.upsert({
     where: { propertyId },
     create: { propertyId, ...fields },
@@ -156,7 +175,7 @@ export async function getEnabledPropertyIds(): Promise<number[]> {
 
 function resolveOrgEffective(
   system: SystemPricingConfigResponse,
-  org: { enabled: boolean | null; systemServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; searchAdults: number | null; maxOffersForAnalysis: number | null } | null,
+  org: { enabled: boolean | null; systemServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; searchAdults: number | null; maxOffersForAnalysis: number | null; weekendDays: string | null } | null,
 ): SystemPricingConfigResponse {
   if (org?.systemServiceDisabled) return { ...system, enabled: false }
   return {
@@ -171,12 +190,13 @@ function resolveOrgEffective(
     dayDifferenceWindow: org?.dayDifferenceWindow ?? system.dayDifferenceWindow,
     searchAdults: (org?.searchAdults as 1 | 2 | null) ?? system.searchAdults,
     maxOffersForAnalysis: org?.maxOffersForAnalysis ?? system.maxOffersForAnalysis,
+    weekendDays: org?.weekendDays != null ? parseWeekendDays(org.weekendDays) : system.weekendDays,
   }
 }
 
 function resolvePropertyEffective(
   orgEffective: SystemPricingConfigResponse,
-  prop: { enabled: boolean | null; orgServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; searchAdults: number | null; maxOffersForAnalysis: number | null } | null,
+  prop: { enabled: boolean | null; orgServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; searchAdults: number | null; maxOffersForAnalysis: number | null; weekendDays: string | null } | null,
 ): SystemPricingConfigResponse {
   if (prop?.orgServiceDisabled) return { ...orgEffective, enabled: false }
   return {
@@ -191,5 +211,6 @@ function resolvePropertyEffective(
     dayDifferenceWindow: prop?.dayDifferenceWindow ?? orgEffective.dayDifferenceWindow,
     searchAdults: (prop?.searchAdults as 1 | 2 | null) ?? orgEffective.searchAdults,
     maxOffersForAnalysis: prop?.maxOffersForAnalysis ?? orgEffective.maxOffersForAnalysis,
+    weekendDays: prop?.weekendDays != null ? parseWeekendDays(prop.weekendDays) : orgEffective.weekendDays,
   }
 }

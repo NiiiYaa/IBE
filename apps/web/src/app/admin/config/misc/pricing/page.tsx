@@ -64,45 +64,153 @@ function PctField({ label, value, onChange, inherited }: { label: string; value:
   )
 }
 
+const DAY_ORDER: { label: string; value: number }[] = [
+  { label: 'Mon', value: 1 }, { label: 'Tue', value: 2 }, { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 }, { label: 'Fri', value: 5 }, { label: 'Sat', value: 6 },
+  { label: 'Sun', value: 0 },
+]
+
+function weekendDaysLabel(days: number[]): string {
+  return DAY_ORDER.filter(d => days.includes(d.value)).map(d => d.label).join(', ') || 'None'
+}
+
+function WeekendDaysField({
+  value, onChange, inherited,
+}: {
+  value: number[] | null
+  onChange: (v: number[] | null) => void
+  inherited?: number[]
+}) {
+  const effective = value ?? inherited ?? [0, 6]
+  const isInheriting = value === null && inherited !== undefined
+
+  function toggle(dayValue: number) {
+    const current = value ?? inherited ?? [0, 6]
+    const next = current.includes(dayValue) ? current.filter(d => d !== dayValue) : [...current, dayValue]
+    onChange(next)
+  }
+
+  return (
+    <div className="flex items-start justify-between py-2">
+      <span className="text-sm text-[var(--color-text)] pt-1">Weekend days</span>
+      <div className="flex flex-col items-end gap-1.5">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">({weekendDaysLabel(inherited!)} inherited)</span>
+        )}
+        <div className="flex gap-1">
+          {DAY_ORDER.map(d => {
+            const active = effective.includes(d.value)
+            return (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => toggle(d.value)}
+                className={[
+                  'rounded px-1.5 py-0.5 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                ].join(' ')}
+              >
+                {d.label}
+              </button>
+            )
+          })}
+        </div>
+        {value !== null && inherited !== undefined && (
+          <button onClick={() => onChange(null)} className="text-xs text-[var(--color-primary)] underline">Reset</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Export helpers ────────────────────────────────────────────────────────────
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+const BOARD_LABELS: Record<string, string> = {
+  RO: 'Room Only',
+  BB: 'Bed & Breakfast',
+  HB: 'Half Board',
+  FB: 'Full Board',
+  AI: 'All Inclusive',
+  SC: 'Self Catering',
+}
+
+function boardLabel(code: string): string {
+  return BOARD_LABELS[code.toUpperCase()] ?? code
+}
+
+function cancellationLabel(raw: string): string {
+  if (raw === 'Free') return 'Free (Refundable)'
+  if (raw === 'Non-refundable') return 'Non-Refundable'
+  return raw
+}
 
 function xlsxDate() {
   const d = new Date()
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
 }
 
-function exportCalendarExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
+function applyDateFormat(ws: XLSX.WorkSheet, colIndex: number, dataStartRow: number) {
+  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1')
+  for (let r = dataStartRow; r <= range.e.r; r++) {
+    const ref = XLSX.utils.encode_cell({ r, c: colIndex })
+    if (ws[ref]) ws[ref].z = 'dd-mmm-yyyy'
+  }
+}
+
+function buildPropertyHeader(propertyName: string, address: string): (string | number)[][] {
+  return [[propertyName], [address], []]
+}
+
+function exportCalendarExcel(
+  rates: DayRateAdminEntry[],
+  propertyId: number,
+  propertyName: string,
+  address: string,
+) {
+  const header = buildPropertyHeader(propertyName, address)
+  const ws = XLSX.utils.aoa_to_sheet(header)
   const rows = rates.map(r => ({
-    'Date': r.date,
+    'Date': new Date(r.date + 'T00:00:00'),
     'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
     'Min Sell Price': r.price,
     'Currency': r.currency,
     'Available': r.available ? 'Y' : 'N',
     'Color': r.calendarColor,
     'Room': r.cheapestRoomName ?? '',
-    'Board': r.cheapestBoard ?? '',
-    'Cancellation': r.cheapestCancellationLabel ?? '',
+    'Board': boardLabel(r.cheapestBoard ?? ''),
+    'Cancellation': cancellationLabel(r.cheapestCancellationLabel ?? ''),
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
+  XLSX.utils.sheet_add_json(ws, rows, { origin: header.length, cellDates: true })
+  applyDateFormat(ws, 0, header.length + 1)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Calendar Rates')
   XLSX.writeFile(wb, `Calendar Rates_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
-function exportRawDataExcel(offers: DayOfferAdminEntry[], propertyId: number, propertyName: string) {
+function exportRawDataExcel(
+  offers: DayOfferAdminEntry[],
+  propertyId: number,
+  propertyName: string,
+  address: string,
+) {
+  const header = buildPropertyHeader(propertyName, address)
+  const ws = XLSX.utils.aoa_to_sheet(header)
   const rows = offers.map(o => ({
-    'Date': o.date,
+    'Date': new Date(o.date + 'T00:00:00'),
     'Day': DAYS[new Date(o.date + 'T00:00:00Z').getUTCDay()],
     'Rank': o.rank,
     'Room': o.roomName,
-    'Board': o.board,
-    'Cancellation': o.cancellationLabel,
+    'Board': boardLabel(o.board),
+    'Cancellation': cancellationLabel(o.cancellationLabel),
     'Sell Price': o.sellPrice,
     'Currency': o.currency,
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
+  XLSX.utils.sheet_add_json(ws, rows, { origin: header.length, cellDates: true })
+  applyDateFormat(ws, 0, header.length + 1)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Raw Data')
   XLSX.writeFile(wb, `Raw Data Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
@@ -198,6 +306,10 @@ function SystemPricingSection() {
             className={inputCls}
           />
         </div>
+        <WeekendDaysField
+          value={form.weekendDays}
+          onChange={v => set('weekendDays')(v ?? [0, 6])}
+        />
       </div>
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
@@ -290,6 +402,11 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
           )}
         </div>
       </div>
+      <WeekendDaysField
+        value={form.weekendDays}
+        onChange={v => set('weekendDays')(v)}
+        inherited={eff.weekendDays}
+      />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -304,6 +421,11 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.getProperty(propertyId),
   })
   const propertyName = propertyDetail?.name ?? ''
+  const propertyAddress = [
+    propertyDetail?.location?.address,
+    propertyDetail?.location?.city,
+    propertyDetail?.location?.countryCode,
+  ].filter(Boolean).join(', ')
   const { data: config } = useQuery({
     queryKey: ['pricing-config-property', propertyId],
     queryFn: () => apiClient.getPropertyPricingConfig(propertyId),
@@ -405,6 +527,11 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
           )}
         </div>
       </div>
+      <WeekendDaysField
+        value={form.weekendDays}
+        onChange={v => set('weekendDays')(v)}
+        inherited={eff.weekendDays}
+      />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
 
       <div className="mt-4 border-t border-[var(--color-border)] pt-4">
@@ -426,14 +553,14 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
             {refreshMutation.isPending ? 'Triggering…' : 'Refresh Now'}
           </button>
           <button
-            onClick={() => ratesData && exportCalendarExcel(ratesData, propertyId, propertyName)}
+            onClick={() => ratesData && exportCalendarExcel(ratesData, propertyId, propertyName, propertyAddress)}
             disabled={!ratesData || ratesData.length === 0}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             Export Calendar
           </button>
           <button
-            onClick={() => offersData && exportRawDataExcel(offersData, propertyId, propertyName)}
+            onClick={() => offersData && exportRawDataExcel(offersData, propertyId, propertyName, propertyAddress)}
             disabled={!offersData || offersData.length === 0}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
