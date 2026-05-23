@@ -1,5 +1,5 @@
 import { addDays, todayIso } from '@ibe/shared'
-import type { HGSearchResponse } from '@ibe/shared'
+import type { HGSearchResponse, HGCancellationPolicy } from '@ibe/shared'
 import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
@@ -13,6 +13,29 @@ interface NightlyPrice {
   minSellPrice: number
   currency: string
   available: boolean
+  cheapestRoomId: number | null
+  cheapestRoomName: string | null
+  cheapestBoard: string | null
+  cheapestCancellationLabel: string | null
+}
+
+interface OfferEntry {
+  date: string
+  roomId: number
+  roomName: string
+  board: string
+  cancellationLabel: 'Free' | 'Non-refundable' | 'Partial'
+  sellPrice: number
+  currency: string
+}
+
+export function deriveCancellationLabel(policies: HGCancellationPolicy[]): 'Free' | 'Non-refundable' | 'Partial' {
+  if (policies.length === 0) return 'Free'
+  const hasZero = policies.some(p => p.amount === 0)
+  const hasNonZero = policies.some(p => p.amount > 0)
+  if (hasZero && hasNonZero) return 'Partial'
+  if (hasNonZero) return 'Non-refundable'
+  return 'Free'
 }
 
 export async function collectHotelPrices(propertyId: number): Promise<void> {
@@ -23,7 +46,7 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
   })
   if (!property) throw new Error(`Property ${propertyId} not found`)
 
-  const { searchAdults } = await resolveEffectivePricingConfig(propertyId)
+  const { searchAdults, maxOffersForAnalysis } = await resolveEffectivePricingConfig(propertyId)
 
   const today = todayIso()
   const prices: NightlyPrice[] = []
@@ -41,11 +64,17 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
         checkOut,
         rooms: [{ adults: searchAdults }],
       })
-      prices.push(...extractNightlyPrices(hgResponse, checkIn, windowSize))
+      const { prices: windowPrices, offersByDate } = extractNightlyData(hgResponse, checkIn, windowSize)
+      prices.push(...windowPrices)
+      await upsertDailyRateOffers(propertyId, offersByDate, maxOffersForAnalysis)
     } catch (err) {
       logger.warn({ err, propertyId, checkIn }, '[Pricing] Batch search failed — marking window unavailable')
       for (let i = 0; i < windowSize; i++) {
-        prices.push({ date: addDays(today, offset + i), minSellPrice: 0, currency: 'USD', available: false })
+        prices.push({
+          date: addDays(today, offset + i),
+          minSellPrice: 0, currency: 'USD', available: false,
+          cheapestRoomId: null, cheapestRoomName: null, cheapestBoard: null, cheapestCancellationLabel: null,
+        })
       }
     }
 
@@ -57,19 +86,31 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
   logger.info({ propertyId }, '[Pricing] collectHotelPrices done')
 }
 
-function extractNightlyPrices(hgResponse: HGSearchResponse, checkIn: string, windowSize: number): NightlyPrice[] {
-  const byDate = new Map<string, number>()
+function extractNightlyData(
+  hgResponse: HGSearchResponse,
+  checkIn: string,
+  windowSize: number,
+): { prices: NightlyPrice[]; offersByDate: Map<string, OfferEntry[]> } {
+  const byDateMin = new Map<string, number>()
+  const offersByDate = new Map<string, OfferEntry[]>()
   let currency = 'USD'
 
   for (const result of hgResponse.results) {
     for (const room of result.rooms) {
+      const { roomId, roomName } = room
       for (const rp of room.ratePlans) {
         currency = rp.prices.sell.currency
+        const board = rp.board as string
+        const cancellationLabel = deriveCancellationLabel(rp.cancellationPolicies)
+
         for (const night of rp.nightlyBreakdown) {
-          const existing = byDate.get(night.date)
-          if (existing === undefined || night.prices.sell.price < existing) {
-            byDate.set(night.date, night.prices.sell.price)
-          }
+          const price = night.prices.sell.price
+          const existing = byDateMin.get(night.date)
+          if (existing === undefined || price < existing) byDateMin.set(night.date, price)
+
+          const offers = offersByDate.get(night.date) ?? []
+          offers.push({ date: night.date, roomId, roomName, board, cancellationLabel, sellPrice: price, currency })
+          offersByDate.set(night.date, offers)
         }
       }
     }
@@ -78,14 +119,53 @@ function extractNightlyPrices(hgResponse: HGSearchResponse, checkIn: string, win
   const prices: NightlyPrice[] = []
   for (let i = 0; i < windowSize; i++) {
     const date = addDays(checkIn, i)
-    const price = byDate.get(date)
+    const price = byDateMin.get(date)
+    const dateOffers = offersByDate.get(date)
+    const cheapest = dateOffers ? [...dateOffers].sort((a, b) => a.sellPrice - b.sellPrice)[0] : undefined
+
     prices.push(
       price !== undefined
-        ? { date, minSellPrice: price, currency, available: true }
-        : { date, minSellPrice: 0, currency, available: false },
+        ? {
+            date, minSellPrice: price, currency, available: true,
+            cheapestRoomId: cheapest?.roomId ?? null,
+            cheapestRoomName: cheapest?.roomName ?? null,
+            cheapestBoard: cheapest?.board ?? null,
+            cheapestCancellationLabel: cheapest?.cancellationLabel ?? null,
+          }
+        : { date, minSellPrice: 0, currency, available: false, cheapestRoomId: null, cheapestRoomName: null, cheapestBoard: null, cheapestCancellationLabel: null },
     )
   }
-  return prices
+
+  return { prices, offersByDate }
+}
+
+async function upsertDailyRateOffers(
+  propertyId: number,
+  offersByDate: Map<string, OfferEntry[]>,
+  maxOffers: number,
+): Promise<void> {
+  const dates = [...offersByDate.keys()]
+  if (dates.length === 0) return
+
+  await prisma.dailyRateOffer.deleteMany({ where: { propertyId, date: { in: dates } } })
+
+  const rows: Array<{
+    propertyId: number; date: string; roomId: number; roomName: string
+    board: string; cancellationLabel: string; sellPrice: number; currency: string; rank: number
+  }> = []
+
+  for (const [date, offers] of offersByDate.entries()) {
+    const sorted = [...offers].sort((a, b) => a.sellPrice - b.sellPrice).slice(0, maxOffers)
+    sorted.forEach((o, i) => {
+      rows.push({
+        propertyId, date, roomId: o.roomId, roomName: o.roomName,
+        board: o.board, cancellationLabel: o.cancellationLabel,
+        sellPrice: o.sellPrice, currency: o.currency, rank: i + 1,
+      })
+    })
+  }
+
+  if (rows.length > 0) await prisma.dailyRateOffer.createMany({ data: rows })
 }
 
 async function upsertDailyRates(propertyId: number, prices: NightlyPrice[]): Promise<void> {
@@ -95,10 +175,14 @@ async function upsertDailyRates(propertyId: number, prices: NightlyPrice[]): Pro
       create: {
         propertyId, date: p.date, minSellPrice: p.minSellPrice,
         currency: p.currency, available: p.available, collectedAt: new Date(),
+        cheapestRoomId: p.cheapestRoomId, cheapestRoomName: p.cheapestRoomName,
+        cheapestBoard: p.cheapestBoard, cheapestCancellationLabel: p.cheapestCancellationLabel,
       },
       update: {
         minSellPrice: p.minSellPrice, currency: p.currency,
         available: p.available, collectedAt: new Date(),
+        cheapestRoomId: p.cheapestRoomId, cheapestRoomName: p.cheapestRoomName,
+        cheapestBoard: p.cheapestBoard, cheapestCancellationLabel: p.cheapestCancellationLabel,
       },
     })
   }

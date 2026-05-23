@@ -7,14 +7,24 @@ vi.mock('../../db/client.js', () => ({
   prisma: {
     property: { findUnique: vi.fn() },
     dailyRate: { upsert: vi.fn() },
+    dailyRateOffer: { deleteMany: vi.fn(), createMany: vi.fn() },
   },
+}))
+vi.mock('../pricing-config.service.js', () => ({
+  resolveEffectivePricingConfig: vi.fn(),
 }))
 
 import { searchAvailability } from '../../adapters/hyperguest/search.js'
 import { prisma } from '../../db/client.js'
+import { resolveEffectivePricingConfig } from '../pricing-config.service.js'
+import { todayIso } from '@ibe/shared'
 
 const mockSearch = searchAvailability as ReturnType<typeof vi.fn>
-const mockPrisma = prisma as unknown as { property: { findUnique: ReturnType<typeof vi.fn> }; dailyRate: { upsert: ReturnType<typeof vi.fn> } }
+const mockPrisma = prisma as unknown as {
+  property: { findUnique: ReturnType<typeof vi.fn> }
+  dailyRate: { upsert: ReturnType<typeof vi.fn> }
+  dailyRateOffer: { deleteMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> }
+}
 
 function makeHGResponse(nights: number, basePrice = 100, currency = 'USD') {
   return {
@@ -40,10 +50,10 @@ function makeHGResponse(nights: number, basePrice = 100, currency = 'USD') {
             fees: [],
           },
           nightlyBreakdown: Array.from({ length: nights }, (_, i) => {
-            const d = new Date('2026-05-22')
-            d.setDate(d.getDate() + i)
+            const base = new Date(todayIso())
+            base.setDate(base.getDate() + i)
             return {
-              date: d.toISOString().slice(0, 10),
+              date: base.toISOString().slice(0, 10),
               prices: {
                 net: { price: basePrice * 0.8, currency, taxes: [] },
                 sell: { price: basePrice, currency, taxes: [] },
@@ -59,11 +69,91 @@ function makeHGResponse(nights: number, basePrice = 100, currency = 'USD') {
   }
 }
 
+describe('deriveCancellationLabel', () => {
+  it('returns Free when policies array is empty', async () => {
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    expect(deriveCancellationLabel([])).toBe('Free')
+  })
+
+  it('returns Free when all policy amounts are 0', async () => {
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    const policies = [
+      { daysBefore: 7, penaltyType: 'currency' as const, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+    ]
+    expect(deriveCancellationLabel(policies)).toBe('Free')
+  })
+
+  it('returns Non-refundable when all policy amounts are > 0', async () => {
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    const policies = [
+      { daysBefore: 0, penaltyType: 'currency' as const, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+    ]
+    expect(deriveCancellationLabel(policies)).toBe('Non-refundable')
+  })
+
+  it('returns Partial when some amounts are 0 and some are > 0', async () => {
+    const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    const policies = [
+      { daysBefore: 7, penaltyType: 'currency' as const, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 0, penaltyType: 'currency' as const, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+    ]
+    expect(deriveCancellationLabel(policies)).toBe('Partial')
+  })
+})
+
+describe('offer collection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPrisma.property.findUnique.mockResolvedValue({ organizationId: 1 })
+    mockPrisma.dailyRate.upsert.mockResolvedValue({})
+    mockPrisma.dailyRateOffer.deleteMany.mockResolvedValue({ count: 0 })
+    mockPrisma.dailyRateOffer.createMany.mockResolvedValue({ count: 0 })
+  })
+
+  it('calls dailyRateOffer.deleteMany and createMany for each window', async () => {
+    mockSearch.mockResolvedValue(makeHGResponse(29))
+    vi.mocked(resolveEffectivePricingConfig).mockResolvedValue({
+      enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
+      maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
+      highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+    })
+    const { collectHotelPrices } = await import('../pricing-collect.service.js')
+    await collectHotelPrices(1)
+    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(13)
+    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(13)
+  })
+
+  it('writes rank-1 offer details into dailyRateOffer.createMany', async () => {
+    mockSearch.mockResolvedValue(makeHGResponse(1))
+    vi.mocked(resolveEffectivePricingConfig).mockResolvedValue({
+      enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
+      maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
+      highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+    })
+    const { collectHotelPrices } = await import('../pricing-collect.service.js')
+    await collectHotelPrices(1)
+    // Find any createMany call that has a rank:1 entry and verify its offer fields
+    const allRows = mockPrisma.dailyRateOffer.createMany.mock.calls
+      .flatMap((call: [{ data: Array<{ rank: number; roomName: string; board: string; cancellationLabel: string }> }]) => call[0].data)
+    const rank1 = allRows.find((r) => r.rank === 1)
+    expect(rank1?.roomName).toBe('Standard')
+    expect(rank1?.board).toBe('BB')
+    expect(rank1?.cancellationLabel).toBe('Free')
+  })
+})
+
 describe('collectHotelPrices', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPrisma.property.findUnique.mockResolvedValue({ organizationId: 1, propertyId: 1 })
     mockPrisma.dailyRate.upsert.mockResolvedValue({})
+    mockPrisma.dailyRateOffer.deleteMany.mockResolvedValue({ count: 0 })
+    mockPrisma.dailyRateOffer.createMany.mockResolvedValue({ count: 0 })
+    vi.mocked(resolveEffectivePricingConfig).mockResolvedValue({
+      enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
+      maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
+      highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+    })
   })
 
   it('calls searchAvailability in 29-day windows covering 365 days', async () => {
