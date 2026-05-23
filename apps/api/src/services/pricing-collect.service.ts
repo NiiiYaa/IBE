@@ -3,6 +3,7 @@ import type { HGSearchResponse } from '@ibe/shared'
 import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { prisma } from '../db/client.js'
 import { logger } from '../utils/logger.js'
+import { resolveEffectivePricingConfig } from './pricing-config.service.js'
 
 const WINDOW_DAYS = 29
 const TOTAL_DAYS = 365
@@ -15,11 +16,14 @@ interface NightlyPrice {
 }
 
 export async function collectHotelPrices(propertyId: number): Promise<void> {
+  logger.info({ propertyId }, '[Pricing] collectHotelPrices started')
   const property = await prisma.property.findUnique({
     where: { propertyId },
     select: { organizationId: true },
   })
   if (!property) throw new Error(`Property ${propertyId} not found`)
+
+  const { searchAdults } = await resolveEffectivePricingConfig(propertyId)
 
   const today = todayIso()
   const prices: NightlyPrice[] = []
@@ -35,7 +39,7 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
         hotelId: propertyId,
         checkIn,
         checkOut,
-        rooms: [{ adults: 1 }],
+        rooms: [{ adults: searchAdults }],
       })
       prices.push(...extractNightlyPrices(hgResponse, checkIn, windowSize))
     } catch (err) {
@@ -48,7 +52,9 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
     offset += windowSize
   }
 
+  logger.info({ propertyId, priceCount: prices.length }, '[Pricing] collectHotelPrices upserting')
   await upsertDailyRates(propertyId, prices)
+  logger.info({ propertyId }, '[Pricing] collectHotelPrices done')
 }
 
 function extractNightlyPrices(hgResponse: HGSearchResponse, checkIn: string, windowSize: number): NightlyPrice[] {

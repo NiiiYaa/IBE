@@ -7,6 +7,11 @@ import {
   resolveEffectivePricingConfig,
 } from '../services/pricing-config.service.js'
 import { enqueuePricingJob, getPricingJobStatus } from '../services/pricing-queue.service.js'
+import { collectHotelPrices } from '../services/pricing-collect.service.js'
+import { classifyDailyRates } from '../services/pricing-classify.service.js'
+import { logger } from '../utils/logger.js'
+
+const _runningDirect = new Set<number>()
 import { getExchangeRates } from '../services/rates.service.js'
 import { cacheGet, cacheSet } from '../utils/cache.js'
 import type { DayPriceEntry, DayRateAdminEntry, PricingJobStatus } from '@ibe/shared'
@@ -103,8 +108,33 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
     '/api/v1/admin/pricing/refresh/:propertyId',
     async (request, reply) => {
       const propertyId = parseInt(request.params.propertyId, 10)
-      const status = await enqueuePricingJob(propertyId, 'manual')
-      return reply.send({ status })
+      if (_runningDirect.has(propertyId)) return reply.send({ status: 'already_running' })
+
+      // Try BullMQ first; fall back to direct background run if Redis is unavailable
+      try {
+        const bullStatus = await Promise.race([
+          enqueuePricingJob(propertyId, 'manual'),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+        ])
+        if (bullStatus === 'already_running') return reply.send({ status: 'already_running' })
+        // BullMQ accepted the job — also run directly so it works without a worker
+      } catch {
+        logger.warn({ propertyId }, '[Pricing] BullMQ unavailable — running collection directly')
+      }
+
+      _runningDirect.add(propertyId)
+      void (async () => {
+        try {
+          await collectHotelPrices(propertyId)
+          await classifyDailyRates(propertyId)
+        } catch (err) {
+          logger.warn({ err, propertyId }, '[Pricing] Direct collection failed')
+        } finally {
+          _runningDirect.delete(propertyId)
+        }
+      })()
+
+      return reply.send({ status: 'queued' })
     },
   )
 
@@ -113,7 +143,7 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
     async (request) => {
       const propertyId = parseInt(request.params.propertyId, 10)
       const [jobStatus, lastRate, dayCount] = await Promise.all([
-        getPricingJobStatus(propertyId),
+        _runningDirect.has(propertyId) ? Promise.resolve<'running'>('running') : getPricingJobStatus(propertyId),
         prisma.dailyRate.findFirst({
           where: { propertyId },
           orderBy: { collectedAt: 'desc' },

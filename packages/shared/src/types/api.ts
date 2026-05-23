@@ -342,7 +342,8 @@ export interface PricingConfigValues {
 export interface SystemPricingConfigResponse extends PricingConfigValues {
   enabled: boolean
   openToAll: boolean
-  refreshIntervalDays: number
+  refreshIntervalHours: number
+  searchAdults: 1 | 2
 }
 
 export interface OrgPricingConfigResponse {

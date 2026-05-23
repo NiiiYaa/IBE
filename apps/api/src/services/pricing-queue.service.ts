@@ -33,11 +33,18 @@ export async function enqueuePricingJob(propertyId: number, triggeredBy: 'cron' 
 }
 
 export async function getPricingJobStatus(propertyId: number): Promise<'idle' | 'queued' | 'running'> {
-  const queue = getQueue()
-  const [active, waiting] = await Promise.all([queue.getActive(), queue.getWaiting()])
-  if (active.some(j => j.data.propertyId === propertyId)) return 'running'
-  if (waiting.some(j => j.data.propertyId === propertyId)) return 'queued'
-  return 'idle'
+  try {
+    const queue = getQueue()
+    const [active, waiting] = await Promise.race([
+      Promise.all([queue.getActive(), queue.getWaiting()]),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+    ])
+    if (active.some(j => j.data.propertyId === propertyId)) return 'running'
+    if (waiting.some(j => j.data.propertyId === propertyId)) return 'queued'
+    return 'idle'
+  } catch {
+    return 'idle'
+  }
 }
 
 export function startPricingWorker(): Worker<PricingJobData> {

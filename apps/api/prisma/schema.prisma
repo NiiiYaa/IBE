@@ -1808,11 +1808,12 @@ model CompSetInsight {
 // ── Pricing Intelligence ──────────────────────────────────────────────────────
 
 model SystemPricingConfig {
-  id                  Int      @id @default(autoincrement())
-  enabled             Boolean  @default(false)
-  openToAll           Boolean  @default(true)
-  refreshIntervalDays Int      @default(1)
-  highPricePct        Float    @default(15)
+  id                   Int      @id @default(autoincrement())
+  enabled              Boolean  @default(false)
+  openToAll            Boolean  @default(true)
+  refreshIntervalHours Int      @default(24)
+  searchAdults         Int      @default(1)
+  highPricePct         Float    @default(15)
   lowPricePct         Float    @default(15)
   highAnomalyPct      Float    @default(30)
   lowAnomalyPct       Float    @default(30)

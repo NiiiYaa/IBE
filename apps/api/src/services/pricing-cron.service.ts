@@ -6,7 +6,7 @@ import { enqueuePricingJob } from './pricing-queue.service.js'
 let _task: ReturnType<typeof cron.schedule> | undefined
 
 export function startPricingCron(): void {
-  const schedule = '0 2 * * *' // 2am UTC daily
+  const schedule = '0 * * * *' // every hour at :00
 
   if (!cron.validate(schedule)) {
     logger.warn({ schedule }, '[Pricing] Invalid cron expression, skipping')
@@ -20,6 +20,8 @@ export function startPricingCron(): void {
         logger.debug('[Pricing] Cron fired but system pricing is disabled, skipping')
         return
       }
+      const hour = new Date().getUTCHours()
+      if (hour % config.refreshIntervalHours !== 0) return
       const propertyIds = await getEnabledPropertyIds()
       logger.info({ count: propertyIds.length }, '[Pricing] Cron enqueuing jobs')
       for (const propertyId of propertyIds) {

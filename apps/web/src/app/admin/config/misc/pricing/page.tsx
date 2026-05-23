@@ -119,9 +119,16 @@ function SystemPricingSection() {
         <Toggle checked={form.openToAll} onChange={set('openToAll')} />
       </div>
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-[var(--color-text)]">Refresh interval (days)</span>
-        <input type="number" min={1} max={30} value={form.refreshIntervalDays}
-          onChange={e => set('refreshIntervalDays')(Number(e.target.value))} className={inputCls} />
+        <span className="text-sm text-[var(--color-text)]">Refresh interval (hours)</span>
+        <input type="number" min={1} max={168} value={form.refreshIntervalHours}
+          onChange={e => set('refreshIntervalHours')(Number(e.target.value))} className={inputCls} />
+      </div>
+      <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-[var(--color-text)]">Search adults</span>
+        <select value={form.searchAdults} onChange={e => set('searchAdults')(Number(e.target.value) as 1 | 2)} className={inputCls}>
+          <option value={1}>1 Adult</option>
+          <option value={2}>2 Adults</option>
+        </select>
       </div>
       <div className="border-t border-[var(--color-border)] pt-3 mt-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Calendar thresholds</p>
@@ -302,7 +309,7 @@ export default function PricingConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-text)]">Pricing</h1>
+        <h1 className="text-xl font-bold text-[var(--color-text)]">Calendar Rates</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">Configure price calendar and anomaly detection thresholds.</p>
       </div>
 

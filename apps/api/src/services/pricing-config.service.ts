@@ -8,13 +8,14 @@ import type {
 const SYSTEM_DEFAULTS: SystemPricingConfigResponse = {
   enabled: false,
   openToAll: true,
-  refreshIntervalDays: 1,
+  refreshIntervalHours: 24,
   highPricePct: 15,
   lowPricePct: 15,
   highAnomalyPct: 30,
   lowAnomalyPct: 30,
   dayDifferencePct: 35,
   dayDifferenceWindow: 7,
+  searchAdults: 1,
 }
 
 export async function getSystemPricingConfig(): Promise<SystemPricingConfigResponse> {
@@ -22,13 +23,14 @@ export async function getSystemPricingConfig(): Promise<SystemPricingConfigRespo
   return row ? {
     enabled: row.enabled,
     openToAll: row.openToAll,
-    refreshIntervalDays: row.refreshIntervalDays,
+    refreshIntervalHours: row.refreshIntervalHours,
     highPricePct: row.highPricePct,
     lowPricePct: row.lowPricePct,
     highAnomalyPct: row.highAnomalyPct,
     lowAnomalyPct: row.lowAnomalyPct,
     dayDifferencePct: row.dayDifferencePct,
     dayDifferenceWindow: row.dayDifferenceWindow,
+    searchAdults: (row.searchAdults as 1 | 2),
   } : SYSTEM_DEFAULTS
 }
 
@@ -38,10 +40,11 @@ export async function upsertSystemPricingConfig(data: Partial<SystemPricingConfi
     ? await prisma.systemPricingConfig.update({ where: { id: existing.id }, data })
     : await prisma.systemPricingConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
   return {
-    enabled: row.enabled, openToAll: row.openToAll, refreshIntervalDays: row.refreshIntervalDays,
+    enabled: row.enabled, openToAll: row.openToAll, refreshIntervalHours: row.refreshIntervalHours,
     highPricePct: row.highPricePct, lowPricePct: row.lowPricePct,
     highAnomalyPct: row.highAnomalyPct, lowAnomalyPct: row.lowAnomalyPct,
     dayDifferencePct: row.dayDifferencePct, dayDifferenceWindow: row.dayDifferenceWindow,
+    searchAdults: (row.searchAdults as 1 | 2),
   }
 }
 
@@ -152,13 +155,14 @@ function resolveOrgEffective(
   return {
     enabled: org?.enabled ?? system.enabled,
     openToAll: system.openToAll,
-    refreshIntervalDays: system.refreshIntervalDays,
+    refreshIntervalHours: system.refreshIntervalHours,
     highPricePct: org?.highPricePct ?? system.highPricePct,
     lowPricePct: org?.lowPricePct ?? system.lowPricePct,
     highAnomalyPct: org?.highAnomalyPct ?? system.highAnomalyPct,
     lowAnomalyPct: org?.lowAnomalyPct ?? system.lowAnomalyPct,
     dayDifferencePct: org?.dayDifferencePct ?? system.dayDifferencePct,
     dayDifferenceWindow: org?.dayDifferenceWindow ?? system.dayDifferenceWindow,
+    searchAdults: system.searchAdults,
   }
 }
 
@@ -170,12 +174,13 @@ function resolvePropertyEffective(
   return {
     enabled: prop?.enabled ?? orgEffective.enabled,
     openToAll: orgEffective.openToAll,
-    refreshIntervalDays: orgEffective.refreshIntervalDays,
+    refreshIntervalHours: orgEffective.refreshIntervalHours,
     highPricePct: prop?.highPricePct ?? orgEffective.highPricePct,
     lowPricePct: prop?.lowPricePct ?? orgEffective.lowPricePct,
     highAnomalyPct: prop?.highAnomalyPct ?? orgEffective.highAnomalyPct,
     lowAnomalyPct: prop?.lowAnomalyPct ?? orgEffective.lowAnomalyPct,
     dayDifferencePct: prop?.dayDifferencePct ?? orgEffective.dayDifferencePct,
     dayDifferenceWindow: prop?.dayDifferenceWindow ?? orgEffective.dayDifferenceWindow,
+    searchAdults: orgEffective.searchAdults,
   }
 }

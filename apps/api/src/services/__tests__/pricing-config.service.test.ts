@@ -18,7 +18,7 @@ const mockPrisma = prisma as unknown as {
 }
 
 const SYSTEM_ROW = {
-  enabled: true, openToAll: true, refreshIntervalDays: 1,
+  enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
   highPricePct: 15, lowPricePct: 15, highAnomalyPct: 30,
   lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
 }
