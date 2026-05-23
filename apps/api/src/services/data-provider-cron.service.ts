@@ -7,6 +7,11 @@ import { getSystemConfig } from './data-provider.service.js'
 let _task: ReturnType<typeof cron.schedule> | undefined
 
 export function startDataProviderCron(): void {
+  if (process.env['NODE_ENV'] !== 'production') {
+    logger.info('[DataProvider] Cron disabled in non-production environment')
+    return
+  }
+
   const schedule = env.DATA_PROVIDER_CRON
 
   if (!cron.validate(schedule)) {

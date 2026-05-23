@@ -6,6 +6,11 @@ import { refreshPropertyEvents } from './event-calendar-fetch.service.js'
 let _task: ReturnType<typeof cron.schedule> | undefined
 
 export function startEventCalendarCron(): void {
+  if (process.env['NODE_ENV'] !== 'production') {
+    logger.info('[EventCalendar] Cron disabled in non-production environment')
+    return
+  }
+
   const DEFAULT_SCHEDULE = '0 4 * * *'
 
   getSystemEventCalendarConfig().then(config => {

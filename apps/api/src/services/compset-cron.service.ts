@@ -6,6 +6,11 @@ import { runPropertyCompSet } from './compset-collect.service.js'
 let _task: ReturnType<typeof cron.schedule> | undefined
 
 export function startCompSetCron(): void {
+  if (process.env['NODE_ENV'] !== 'production') {
+    logger.info('[CompSet] Cron disabled in non-production environment')
+    return
+  }
+
   const schedule = '0 3 * * *'
 
   if (!cron.validate(schedule)) {
