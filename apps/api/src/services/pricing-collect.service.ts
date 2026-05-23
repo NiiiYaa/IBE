@@ -106,13 +106,15 @@ function extractNightlyData(
       for (const rp of room.ratePlans) {
         currency = rp.prices.sell.currency
         const board = rp.board as string
-        const cancellationLabel = deriveCancellationLabel(rp.cancellationPolicies, checkIn)
 
         for (const night of rp.nightlyBreakdown) {
           const price = night.prices.sell.price
           const existing = byDateMin.get(night.date)
           if (existing === undefined || price < existing) byDateMin.set(night.date, price)
 
+          // Use the night's own date as checkIn so the deadline check reflects
+          // whether free cancellation is still available for that specific stay date
+          const cancellationLabel = deriveCancellationLabel(rp.cancellationPolicies, night.date)
           const offers = offersByDate.get(night.date) ?? []
           offers.push({ date: night.date, roomId, roomName, board, cancellationLabel, sellPrice: price, currency })
           offersByDate.set(night.date, offers)
