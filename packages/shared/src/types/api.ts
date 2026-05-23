@@ -328,6 +328,9 @@ export interface DayPriceEntry {
 export interface DayRateAdminEntry extends DayPriceEntry {
   anomalyType: 'high' | 'low' | 'diff' | null
   rollingAvg: number | null
+  cheapestRoomName: string | null
+  cheapestBoard: string | null
+  cheapestCancellationLabel: string | null
 }
 
 export interface PricingConfigValues {
@@ -344,6 +347,7 @@ export interface SystemPricingConfigResponse extends PricingConfigValues {
   openToAll: boolean
   refreshIntervalHours: number
   searchAdults: 1 | 2
+  maxOffersForAnalysis: number
 }
 
 export interface OrgPricingConfigResponse {
@@ -355,6 +359,7 @@ export interface OrgPricingConfigResponse {
   lowAnomalyPct: number | null
   dayDifferencePct: number | null
   dayDifferenceWindow: number | null
+  maxOffersForAnalysis: number | null
   // Resolved effective values (from system → org)
   effective: SystemPricingConfigResponse
 }
@@ -368,6 +373,7 @@ export interface PropertyPricingConfigResponse {
   lowAnomalyPct: number | null
   dayDifferencePct: number | null
   dayDifferenceWindow: number | null
+  maxOffersForAnalysis: number | null
   // Resolved effective values (from system → org → property)
   effective: SystemPricingConfigResponse
 }
