@@ -168,7 +168,11 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
       const rates = await prisma.dailyRate.findMany({
         where: { propertyId },
         orderBy: { date: 'asc' },
-        select: { date: true, minSellPrice: true, currency: true, available: true, calendarColor: true, anomalyType: true, rollingAvg: true },
+        select: {
+          date: true, minSellPrice: true, currency: true, available: true,
+          calendarColor: true, anomalyType: true, rollingAvg: true,
+          cheapestRoomName: true, cheapestBoard: true, cheapestCancellationLabel: true,
+        },
       })
       const result: DayRateAdminEntry[] = rates.map(r => ({
         date: r.date,
@@ -178,6 +182,9 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
         calendarColor: r.calendarColor as 'low' | 'normal' | 'high',
         anomalyType: r.anomalyType as 'high' | 'low' | 'diff' | null,
         rollingAvg: r.rollingAvg,
+        cheapestRoomName: r.cheapestRoomName ?? null,
+        cheapestBoard: r.cheapestBoard ?? null,
+        cheapestCancellationLabel: r.cheapestCancellationLabel ?? null,
       }))
       return result
     },
