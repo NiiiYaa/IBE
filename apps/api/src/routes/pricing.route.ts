@@ -44,24 +44,36 @@ export async function pricingPublicRoutes(fastify: FastifyInstance) {
       })
       if (rates.length === 0) return reply.send([])
 
-      const nativeCurrency = rates[0]!.currency
-      let fxRate = 1
+      // Use the most common currency to avoid stale rows with a different currency skewing detection
+      const currencyCounts = rates.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] ?? 0) + 1; return acc }, {} as Record<string, number>)
+      const nativeCurrency = Object.entries(currencyCounts).sort((a, b) => b[1] - a[1])[0]![0]
+      const nativeRates = rates.filter(r => r.currency === nativeCurrency)
+      let fxRate: number | null = null
       if (currency && currency !== nativeCurrency) {
         try {
           const fx = await getExchangeRates(nativeCurrency, rateProvider)
-          fxRate = fx.rates[currency] ?? 1
-        } catch { /* skip conversion */ }
+          fxRate = fx.rates[currency] ?? null
+        } catch { /* fxRate stays null — will fall back to native */ }
       }
 
-      const result: DayPriceEntry[] = rates.map(r => ({
+      const conversionOk = !currency || currency === nativeCurrency || fxRate !== null
+      const effectiveCurrency = conversionOk ? (currency ?? nativeCurrency) : nativeCurrency
+      const rate = fxRate ?? 1
+
+      if (!conversionOk) {
+        logger.warn({ propertyId, requestedCurrency: currency, nativeCurrency }, '[Pricing] FX conversion failed — returning native currency')
+      }
+
+      const result: DayPriceEntry[] = nativeRates.map(r => ({
         date: r.date,
-        price: Math.round(r.minSellPrice * fxRate * 100) / 100,
-        currency: currency ?? nativeCurrency,
+        price: Math.round(r.minSellPrice * rate * 100) / 100,
+        currency: effectiveCurrency,
         available: r.available,
         calendarColor: r.calendarColor as 'low' | 'normal' | 'high',
       }))
 
-      await cacheSet(cacheKey, result, CALENDAR_TTL)
+      // Don't cache if FX conversion failed — retry on next request
+      if (conversionOk) await cacheSet(cacheKey, result, CALENDAR_TTL)
       return result
     },
   )
