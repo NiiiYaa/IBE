@@ -957,7 +957,7 @@ model DailyRate {
 model DailyRateOffer {
   id                Int      @id @default(autoincrement())
   propertyId        Int
-  property          Property @relation(fields: [propertyId], references: [propertyId])
+  property          Property @relation(fields: [propertyId], references: [propertyId], map: "DailyRateOffer_propertyId_fkey")
   date              String
   roomId            Int
   roomName          String
