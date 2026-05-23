@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as XLSX from 'xlsx'
 import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -294,7 +295,40 @@ function CompSetInsightsCard({ propertyId }: { propertyId: number }) {
   )
 }
 
-function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
+// ── Anomaly export ────────────────────────────────────────────────────────────
+
+const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function xlsxDate() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
+}
+
+function exportAnomaliesExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
+  const ANOMALY_LABEL: Record<string, string> = { high: 'High Price', low: 'Low Price', diff: 'Day Diff' }
+  const rows = rates
+    .filter(r => r.anomalyType !== null)
+    .map(r => ({
+      'Date': r.date,
+      'Day': DAYS_FULL[new Date(r.date + 'T00:00:00Z').getUTCDay()],
+      'Min Sell Price': r.price,
+      'Currency': r.currency,
+      'Rolling Avg': r.rollingAvg ?? '',
+      '% vs Avg': r.rollingAvg && r.rollingAvg > 0
+        ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
+        : '',
+      'Anomaly Type': ANOMALY_LABEL[r.anomalyType ?? ''] ?? r.anomalyType ?? '',
+      'Room': r.cheapestRoomName ?? '',
+      'Board': r.cheapestBoard ?? '',
+      'Cancellation': r.cheapestCancellationLabel ?? '',
+    }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Anomalies')
+  XLSX.writeFile(wb, `Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
+}
+
+function PricingAnomalyCard({ propertyId, propertyName }: { propertyId: number; propertyName: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>({ high: true, low: true, diff: true })
   const statusQuery = useQuery({
     queryKey: ['pricing-status', propertyId],
@@ -345,17 +379,27 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
           rows.length === 0
             ? <p className="mt-2 text-xs text-[var(--color-text-muted)]">No anomalies detected.</p>
             : (
-              <table className="mt-2 w-full text-xs">
+              <table className="mt-2 w-full table-fixed text-xs">
+                <colgroup>
+                  <col className="w-[92px]" />
+                  <col className="w-[38px]" />
+                  <col className="w-[80px]" />
+                  <col className="w-[52px]" />
+                  <col className="w-[58px]" />
+                  <col />{/* Room — takes remaining */}
+                  <col className="w-[44px]" />
+                  <col className="w-[108px]" />
+                </colgroup>
                 <thead>
                   <tr className="text-left text-[var(--color-text-muted)]">
-                    <th className="pb-1 pr-2">Date</th>
-                    <th className="pb-1 pr-2">Day</th>
-                    <th className="pb-1 pr-2">Price</th>
-                    <th className="pb-1 pr-2">Avg</th>
-                    <th className="pb-1 pr-2">Dev %</th>
-                    <th className="pb-1 pr-2">Room</th>
-                    <th className="pb-1 pr-2">Board</th>
-                    <th className="pb-1">Cancellation</th>
+                    <th className="pb-1 pr-2 font-medium">Date</th>
+                    <th className="pb-1 pr-2 font-medium">Day</th>
+                    <th className="pb-1 pr-2 font-medium">Price</th>
+                    <th className="pb-1 pr-2 font-medium">Avg</th>
+                    <th className="pb-1 pr-2 font-medium">Dev %</th>
+                    <th className="pb-1 pr-2 font-medium">Room</th>
+                    <th className="pb-1 pr-2 font-medium">Board</th>
+                    <th className="pb-1 font-medium">Cancellation</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -367,12 +411,12 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
                       <tr key={r.date} className="border-t border-[var(--color-border)]">
                         <td className="py-1 pr-2">{r.date}</td>
                         <td className="py-1 pr-2">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
-                        <td className="py-1 pr-2">{r.price.toFixed(0)} {currency}</td>
+                        <td className="py-1 pr-2 font-medium text-[var(--color-primary)]">{r.price.toFixed(0)} {currency}</td>
                         <td className="py-1 pr-2">{r.rollingAvg?.toFixed(0) ?? '—'}</td>
                         <td className="py-1 pr-2">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
-                        <td className="py-1 pr-2">{r.cheapestRoomName ?? '—'}</td>
+                        <td className="py-1 pr-2 truncate">{r.cheapestRoomName ?? '—'}</td>
                         <td className="py-1 pr-2">{r.cheapestBoard ?? '—'}</td>
-                        <td className="py-1">{r.cheapestCancellationLabel ?? '—'}</td>
+                        <td className="py-1 truncate">{r.cheapestCancellationLabel ?? '—'}</td>
                       </tr>
                     )
                   })}
@@ -388,11 +432,21 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies</p>
-        <span className="text-xs text-[var(--color-text-muted)]">
-          {statusQuery.data.lastCollectedAt
-            ? `Updated ${new Date(statusQuery.data.lastCollectedAt).toLocaleDateString()}`
-            : ''}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {statusQuery.data.lastCollectedAt
+              ? `Updated ${new Date(statusQuery.data.lastCollectedAt).toLocaleDateString()}`
+              : ''}
+          </span>
+          {rates.some(r => r.anomalyType !== null) && (
+            <button
+              onClick={() => exportAnomaliesExcel(rates, propertyId, propertyName)}
+              className="rounded-lg bg-[var(--color-primary)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+            >
+              Export Anomalies
+            </button>
+          )}
+        </div>
       </div>
       <AnomalyTable title="High Price" rows={highAnomalies} type="high" />
       <AnomalyTable title="Low Price" rows={lowAnomalies} type="low" />
@@ -506,14 +560,6 @@ export default function DashboardPage() {
           <SectionTitle>CompSet Insights</SectionTitle>
           <CompSetInsightsCard propertyId={propertyId} />
         </div>
-      )}
-
-      {/* Price Anomalies */}
-      {visibleSections.has('pricing-anomalies') && propertyId != null && (
-        <section>
-          <SectionTitle>Price Anomalies</SectionTitle>
-          <PricingAnomalyCard propertyId={propertyId} />
-        </section>
       )}
 
       {/* KPI cards */}
@@ -856,6 +902,14 @@ export default function DashboardPage() {
         <div className="space-y-3">
           <SectionTitle>Upcoming Events</SectionTitle>
           <UpcomingEventsSection propertyId={propertyId} orgId={orgId} />
+        </div>
+      )}
+
+      {/* Price Anomalies */}
+      {visibleSections.has('pricing-anomalies') && propertyId != null && (
+        <div className="space-y-3">
+          <SectionTitle>Price Anomalies</SectionTitle>
+          <PricingAnomalyCard propertyId={propertyId} propertyName={propDetail?.name ?? ''} />
         </div>
       )}
 
