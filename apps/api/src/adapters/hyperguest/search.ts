@@ -89,7 +89,7 @@ export async function searchAvailability(
   const response = await hgGet<HGSearchResponse>(url, creds)
 
   // Only cache B2C responses — B2B results are buyer-specific
-  if (!buyerOrgId && response.results.length > 0) {
+  if (!buyerOrgId && response.results.some(r => r.rooms?.length > 0)) {
     await cacheSet(cacheKey, response, env.SEARCH_CACHE_TTL)
   }
 

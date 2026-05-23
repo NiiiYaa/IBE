@@ -201,10 +201,12 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
           cheapestRoomName: true, cheapestBoard: true, cheapestCancellationLabel: true,
         },
       })
-      // Filter to most common currency to exclude stale rows from previous collection runs
-      const currencyCounts = rates.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] ?? 0) + 1; return acc }, {} as Record<string, number>)
+      // Filter available rows to the most common currency to exclude stale rows from previous runs.
+      // Unavailable rows are always included regardless of currency (their currency is a meaningless default).
+      const availableRates = rates.filter(r => r.available)
+      const currencyCounts = availableRates.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] ?? 0) + 1; return acc }, {} as Record<string, number>)
       const nativeCurrency = Object.entries(currencyCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
-      const filtered = nativeCurrency ? rates.filter(r => r.currency === nativeCurrency) : rates
+      const filtered = rates.filter(r => !r.available || r.currency === nativeCurrency)
       const result: DayRateAdminEntry[] = filtered.map(r => ({
         date: r.date,
         price: r.minSellPrice,

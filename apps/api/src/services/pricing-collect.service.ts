@@ -121,7 +121,8 @@ async function searchWithBinarySplit(
       checkOut,
       rooms: [{ adults: searchAdults }],
     })
-    if (hgResponse.results.length > 0) {
+    const hasRooms = hgResponse.results.some(r => r.rooms?.length > 0)
+    if (hasRooms) {
       return extractNightlyData(hgResponse, checkIn, size)
     }
   } catch (err) {
