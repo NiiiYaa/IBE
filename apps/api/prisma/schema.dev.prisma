@@ -404,6 +404,7 @@ model Property {
   propertyScore               PropertyScore?
   propertyPricingConfig       PropertyPricingConfig?
   dailyRates                  DailyRate[]
+  dailyRateOffers             DailyRateOffer[]
 
   @@index([organizationId])
 }
@@ -891,10 +892,11 @@ model SystemPricingConfig {
   lowPricePct         Float    @default(15)
   highAnomalyPct      Float    @default(30)
   lowAnomalyPct       Float    @default(30)
-  dayDifferencePct    Float    @default(35)
-  dayDifferenceWindow Int      @default(7)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  dayDifferencePct     Float    @default(35)
+  dayDifferenceWindow  Int      @default(7)
+  maxOffersForAnalysis Int      @default(10)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model OrgPricingConfig {
@@ -909,6 +911,7 @@ model OrgPricingConfig {
   lowAnomalyPct         Float?
   dayDifferencePct      Float?
   dayDifferenceWindow   Int?
+  maxOffersForAnalysis  Int?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }
@@ -923,10 +926,11 @@ model PropertyPricingConfig {
   lowPricePct         Float?
   highAnomalyPct      Float?
   lowAnomalyPct       Float?
-  dayDifferencePct    Float?
-  dayDifferenceWindow Int?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  dayDifferencePct     Float?
+  dayDifferenceWindow  Int?
+  maxOffersForAnalysis Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model DailyRate {
@@ -942,5 +946,27 @@ model DailyRate {
   rollingAvg    Float?
   collectedAt   DateTime @default(now())
 
+  cheapestRoomId            Int?
+  cheapestRoomName          String?
+  cheapestBoard             String?
+  cheapestCancellationLabel String?
+
   @@unique([propertyId, date])
+}
+
+model DailyRateOffer {
+  id                Int      @id @default(autoincrement())
+  propertyId        Int
+  property          Property @relation(fields: [propertyId], references: [propertyId])
+  date              String
+  roomId            Int
+  roomName          String
+  board             String
+  cancellationLabel String
+  sellPrice         Float
+  currency          String
+  rank              Int
+  collectedAt       DateTime @default(now())
+
+  @@unique([propertyId, date, rank])
 }
