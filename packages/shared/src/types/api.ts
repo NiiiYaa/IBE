@@ -308,6 +308,7 @@ export interface HotelDesignConfig {
   affiliateMarketplace: boolean
   affiliateDefaultCommissionRate: number | null
   pricingEnabled: boolean
+  rateProvider: string
   chainHeroImageUrl: string | null
   emailEnabled: boolean
   whatsappEnabled: boolean
@@ -439,6 +440,7 @@ export interface UpdateDesignConfigRequest {
   affiliateDefaultCommissionRate?: number | null
   checkInTime?: string | null
   checkOutTime?: string | null
+  rateProvider?: string | null
 }
 
 export interface GlobalDesignAdminResponse {
@@ -502,6 +504,7 @@ export interface OrgDesignDefaultsConfig {
   chainExcludedPropertyImageIds: number[] | null
   checkInTime?: string | null
   checkOutTime?: string | null
+  rateProvider?: string | null
 }
 
 export interface OrgNavItem {

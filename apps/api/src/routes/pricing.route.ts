@@ -13,6 +13,8 @@ import { logger } from '../utils/logger.js'
 
 const _runningDirect = new Set<number>()
 import { getExchangeRates } from '../services/rates.service.js'
+import type { RateProvider } from '../services/rates.service.js'
+import { getHotelDesignConfig } from '../services/config.service.js'
 import { cacheGet, cacheSet } from '../utils/cache.js'
 import type { DayPriceEntry, DayRateAdminEntry, PricingJobStatus } from '@ibe/shared'
 
@@ -30,8 +32,10 @@ export async function pricingPublicRoutes(fastify: FastifyInstance) {
       const cached = await cacheGet<DayPriceEntry[]>(cacheKey)
       if (cached) return cached
 
-      const config = await resolveEffectivePricingConfig(propertyId)
-      if (!config.enabled) return reply.send([])
+      const designConfig = await getHotelDesignConfig(propertyId)
+      if (!designConfig.pricingEnabled) return reply.send([])
+
+      const rateProvider = (designConfig.rateProvider ?? 'fawazahmed0') as RateProvider
 
       const rates = await prisma.dailyRate.findMany({
         where: { propertyId },
@@ -44,7 +48,7 @@ export async function pricingPublicRoutes(fastify: FastifyInstance) {
       let fxRate = 1
       if (currency && currency !== nativeCurrency) {
         try {
-          const fx = await getExchangeRates(nativeCurrency)
+          const fx = await getExchangeRates(nativeCurrency, rateProvider)
           fxRate = fx.rates[currency] ?? 1
         } catch { /* skip conversion */ }
       }

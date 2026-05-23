@@ -342,6 +342,7 @@ model HotelConfig {
   tripadvisorHotelKey             String?                        // e.g. "g293916-d305496"
   priceComparisonEnabled          Boolean  @default(true)
 
+  rateProvider                    String?
   isActive                        Boolean  @default(true)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
@@ -450,6 +451,7 @@ model OrgDesignDefaults {
   payAtHotelEnabled            Boolean?
   payAtHotelCardGuaranteeRequired Boolean?
   chainHeroImageUrl            String?
+  rateProvider                 String?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

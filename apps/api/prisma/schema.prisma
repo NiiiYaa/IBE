@@ -396,6 +396,7 @@ model HotelConfig {
   affiliateDefaultCommissionRate       Decimal?
   checkInTime                          String?
   checkOutTime                         String?
+  rateProvider                         String?
   isActive                             Boolean  @default(true)
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
@@ -543,6 +544,7 @@ model OrgDesignDefaults {
   searchAiLayoutDefault        Boolean?
   chainHeroImageUrl            String?
   chainExcludedPropertyImageIds String  @default("[]")
+  rateProvider                 String?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1126,6 +1128,7 @@ model SystemDesignConfig {
   payAtHotelCardGuaranteeRequired Boolean?
   aiLayoutDefault               Boolean?
   searchAiLayoutDefault         Boolean?
+  rateProvider                  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

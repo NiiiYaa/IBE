@@ -39,6 +39,7 @@ const HARDCODED_DEFAULTS = {
   enabledLocales: ['en'],
   localeAlphabetical: false,
   enabledCurrencies: ['EUR'],
+  rateProvider: 'fawazahmed0',
 }
 
 // Cached in-process; refreshed on each write or first load
@@ -60,6 +61,7 @@ function rowToSystemDesign(row: {
   infantMaxAge: number | null; childMaxAge: number | null
   onlinePaymentEnabled: boolean | null; payAtHotelEnabled: boolean | null; payAtHotelCardGuaranteeRequired: boolean | null
   aiLayoutDefault: boolean | null; searchAiLayoutDefault: boolean | null
+  rateProvider?: string | null
 } | null): OrgDesignDefaultsConfig {
   return {
     displayName: row?.displayName ?? null,
@@ -103,6 +105,7 @@ function rowToSystemDesign(row: {
     payAtHotelCardGuaranteeRequired: row?.payAtHotelCardGuaranteeRequired ?? null,
     aiLayoutDefault: row?.aiLayoutDefault ?? null,
     searchAiLayoutDefault: row?.searchAiLayoutDefault ?? null,
+    rateProvider: row?.rateProvider ?? null,
     showNameOnPage: null,
     chainHeroImageUrl: null,
     chainExcludedPropertyImageIds: [],
@@ -153,6 +156,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     enabledLocales:        sys.enabledLocales        ?? HARDCODED_DEFAULTS.enabledLocales,
     localeAlphabetical:    sys.localeAlphabetical    ?? HARDCODED_DEFAULTS.localeAlphabetical,
     enabledCurrencies:     sys.enabledCurrencies     ?? HARDCODED_DEFAULTS.enabledCurrencies,
+    rateProvider:          sys.rateProvider          ?? HARDCODED_DEFAULTS.rateProvider,
   }
   const o = orgDefaults
   const c = config
@@ -182,6 +186,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
   const enabledLocales       = safeParseJson<string[]>(c?.enabledLocales ?? o?.enabledLocales ?? null, d.enabledLocales)
   const localeAlphabetical   = c?.localeAlphabetical ?? o?.localeAlphabetical ?? d.localeAlphabetical
   const enabledCurrencies    = safeParseJson<string[]>(c?.enabledCurrencies ?? o?.enabledCurrencies ?? null, d.enabledCurrencies)
+  const rateProvider         = c?.rateProvider ?? o?.rateProvider ?? d.rateProvider
 
   if (!config) {
     logger.debug({ propertyId }, '[Config] No property config found, using org/system defaults')
@@ -223,6 +228,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     tripadvisorHotelKey: config?.tripadvisorHotelKey ?? null,
     priceComparisonEnabled: config?.priceComparisonEnabled ?? true,
     pricingEnabled: effectivePricing.enabled,
+    rateProvider,
     affiliateMarketplace: config?.affiliateMarketplace ?? orgSettings?.affiliateMarketplace ?? false,
     affiliateDefaultCommissionRate: config?.affiliateDefaultCommissionRate != null
       ? Number(config.affiliateDefaultCommissionRate)
@@ -263,6 +269,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     enabledLocales:        sys.enabledLocales        ?? HARDCODED_DEFAULTS.enabledLocales,
     localeAlphabetical:    sys.localeAlphabetical    ?? HARDCODED_DEFAULTS.localeAlphabetical,
     enabledCurrencies:     sys.enabledCurrencies     ?? HARDCODED_DEFAULTS.enabledCurrencies,
+    rateProvider:          sys.rateProvider          ?? HARDCODED_DEFAULTS.rateProvider,
   }
 
   const fontFamily = o?.fontFamily ?? d.fontFamily
@@ -321,6 +328,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     tripadvisorHotelKey: null,
     priceComparisonEnabled: true,
     pricingEnabled: false,
+    rateProvider: o?.rateProvider ?? d.rateProvider,
     affiliateMarketplace: false,
     affiliateDefaultCommissionRate: null,
     chainHeroImageUrl: o?.chainHeroImageUrl ?? null,
@@ -391,6 +399,7 @@ export async function upsertHotelDesignConfig(
     ...(updates.affiliateDefaultCommissionRate !== undefined && { affiliateDefaultCommissionRate: updates.affiliateDefaultCommissionRate }),
     ...(updates.checkInTime !== undefined && { checkInTime: updates.checkInTime }),
     ...(updates.checkOutTime !== undefined && { checkOutTime: updates.checkOutTime }),
+    ...(updates.rateProvider !== undefined && { rateProvider: updates.rateProvider }),
   }
 
   await prisma.hotelConfig.upsert({
@@ -491,6 +500,7 @@ export async function upsertSystemDesignDefaults(updates: Partial<OrgDesignDefau
     'defaultCurrency', 'defaultLocale', 'textDirection',
     'heroStyle', 'heroImageMode', 'searchResultsImageUrl', 'searchResultsImageMode',
     'searchSidebarPosition', 'propertyListLayout', 'roomSearchLayout',
+    'rateProvider',
   ] as const
   const numFields = ['borderRadius', 'heroCarouselInterval', 'searchResultsCarouselInterval', 'infantMaxAge', 'childMaxAge'] as const
   const boolFields = [
@@ -544,6 +554,7 @@ export async function upsertOrgDesignDefaults(
     'aiLayoutDefault', 'searchAiLayoutDefault', 'showNameOnPage',
     'localeAlphabetical',
     'chainHeroImageUrl',
+    'rateProvider',
   ]
   for (const f of fields) {
     if (updates[f] !== undefined) data[f] = updates[f]
@@ -582,6 +593,7 @@ function rowToOrgDefaults(row: {
   chainExcludedPropertyImageIds?: string | null
   checkInTime?: string | null
   checkOutTime?: string | null
+  rateProvider?: string | null
 } | null): OrgDesignDefaultsConfig {
   return {
     colorPrimary: row?.colorPrimary ?? null,
@@ -630,6 +642,7 @@ function rowToOrgDefaults(row: {
     chainExcludedPropertyImageIds: safeParseJson<number[]>(row?.chainExcludedPropertyImageIds ?? null, []),
     checkInTime: row?.checkInTime ?? null,
     checkOutTime: row?.checkOutTime ?? null,
+    rateProvider: row?.rateProvider ?? null,
   }
 }
 

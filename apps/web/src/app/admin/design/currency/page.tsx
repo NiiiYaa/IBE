@@ -20,9 +20,15 @@ function currencyLabel(code: string) {
 
 const RATE_PROVIDERS = [
   {
+    key: 'fawazahmed0',
+    name: 'Fawaz Ahmed Currency API',
+    description: '170+ world currencies · Free, no API key required · CDN-hosted · Updated daily',
+    url: 'https://github.com/fawazahmed0/exchange-api',
+  },
+  {
     key: 'frankfurter',
     name: 'Frankfurter',
-    description: 'European Central Bank rates · Free, no API key required · Updated daily',
+    description: 'European Central Bank rates · 29 major currencies · Free, no API key required · Updated daily',
     url: 'https://www.frankfurter.dev',
   },
 ]
@@ -56,16 +62,6 @@ function SystemCurrencyEditor() {
     queryKey: ['system-design-defaults'],
     queryFn: () => apiClient.getSystemDesignDefaults(),
     staleTime: 0,
-  })
-
-  const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
-  })
-
-  const providerMutation = useMutation({
-    mutationFn: (provider: string) => apiClient.setRateProvider(provider),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-org'] }),
   })
 
   useEffect(() => {
@@ -107,7 +103,7 @@ function SystemCurrencyEditor() {
   }
 
   const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? 'USD'
-  const activeProvider = orgSettings?.rateProvider ?? 'frankfurter'
+  const activeProvider = (draft.rateProvider as string | null | undefined) ?? 'fawazahmed0'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -166,7 +162,7 @@ function SystemCurrencyEditor() {
         </Section>
 
         <Section title="Exchange Rate Provider">
-          <RateProviderSelector activeProvider={activeProvider} onSelect={key => providerMutation.mutate(key)} />
+          <RateProviderSelector activeProvider={activeProvider} onSelect={key => set('rateProvider', key)} />
         </Section>
       </div>
 
@@ -192,16 +188,6 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
     queryKey: qKey,
     queryFn: () => apiClient.getGlobalDesignDefaults(superOrgId),
     staleTime: 0,
-  })
-
-  const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
-  })
-
-  const providerMutation = useMutation({
-    mutationFn: (provider: string) => apiClient.setRateProvider(provider),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-org'] }),
   })
 
   useEffect(() => {
@@ -250,7 +236,7 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
   const sysDefs = data?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
   const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? (sysDefs.defaultCurrency ?? 'USD')
-  const activeProvider = orgSettings?.rateProvider ?? 'frankfurter'
+  const activeProvider = (draft.rateProvider as string | null | undefined) ?? sysDefs.rateProvider ?? 'fawazahmed0'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -309,7 +295,7 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
         </Section>
 
         <Section title="Exchange Rate Provider">
-          <RateProviderSelector activeProvider={activeProvider} onSelect={key => providerMutation.mutate(key)} />
+          <RateProviderSelector activeProvider={activeProvider} onSelect={key => set('rateProvider', key)} />
         </Section>
       </div>
 
@@ -331,16 +317,6 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
     queryKey: ['property-design-admin', propertyId],
     queryFn: () => apiClient.getPropertyDesignAdmin(propertyId),
     staleTime: Infinity,
-  })
-
-  const { data: orgSettings } = useQuery({
-    queryKey: ['admin-org'],
-    queryFn: () => apiClient.getOrgSettings(),
-  })
-
-  const providerMutation = useMutation({
-    mutationFn: (provider: string) => apiClient.setRateProvider(provider),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-org'] }),
   })
 
   useEffect(() => {
@@ -387,7 +363,10 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
     ...ORDERED_CURRENCIES.filter(c => !activeCurrencies.includes(c)),
   ].map(code => ({ code, label: `${currencySymbol(code)} ${code}` }))
 
-  const activeProvider = orgSettings?.rateProvider ?? 'frankfurter'
+  const activeProvider = (draft.rateProvider as string | null | undefined)
+    ?? (orgDefaults.rateProvider as string | null | undefined)
+    ?? (sysDefs.rateProvider as string | null | undefined)
+    ?? 'fawazahmed0'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -440,7 +419,7 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
         </Section>
 
         <Section title="Exchange Rate Provider">
-          <RateProviderSelector activeProvider={activeProvider} onSelect={key => providerMutation.mutate(key)} />
+          <RateProviderSelector activeProvider={activeProvider} onSelect={key => set('rateProvider', key)} />
         </Section>
       </div>
 
