@@ -255,15 +255,12 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Search adults</span>
         <div className="flex items-center gap-2">
-          {form.searchAdults === null && (
-            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
-          )}
           <select
             value={form.searchAdults ?? ''}
             onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
             className={inputCls}
           >
-            <option value="">—</option>
+            <option value="">{eff.searchAdults} Adult{eff.searchAdults === 2 ? 's' : ''} (inherited)</option>
             <option value={1}>1 Adult</option>
             <option value={2}>2 Adults</option>
           </select>
@@ -370,15 +367,12 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Search adults</span>
         <div className="flex items-center gap-2">
-          {form.searchAdults === null && (
-            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
-          )}
           <select
             value={form.searchAdults ?? ''}
             onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
             className={inputCls}
           >
-            <option value="">—</option>
+            <option value="">{eff.searchAdults} Adult{eff.searchAdults === 2 ? 's' : ''} (inherited)</option>
             <option value={1}>1 Adult</option>
             <option value={2}>2 Adults</option>
           </select>
