@@ -16,6 +16,7 @@ const SYSTEM_DEFAULTS: SystemPricingConfigResponse = {
   dayDifferencePct: 35,
   dayDifferenceWindow: 7,
   searchAdults: 1,
+  maxOffersForAnalysis: 10,
 }
 
 export async function getSystemPricingConfig(): Promise<SystemPricingConfigResponse> {
@@ -31,6 +32,7 @@ export async function getSystemPricingConfig(): Promise<SystemPricingConfigRespo
     dayDifferencePct: row.dayDifferencePct,
     dayDifferenceWindow: row.dayDifferenceWindow,
     searchAdults: (row.searchAdults as 1 | 2),
+    maxOffersForAnalysis: row.maxOffersForAnalysis,
   } : SYSTEM_DEFAULTS
 }
 
@@ -45,6 +47,7 @@ export async function upsertSystemPricingConfig(data: Partial<SystemPricingConfi
     highAnomalyPct: row.highAnomalyPct, lowAnomalyPct: row.lowAnomalyPct,
     dayDifferencePct: row.dayDifferencePct, dayDifferenceWindow: row.dayDifferenceWindow,
     searchAdults: (row.searchAdults as 1 | 2),
+    maxOffersForAnalysis: row.maxOffersForAnalysis,
   }
 }
 
@@ -63,6 +66,7 @@ export async function getOrgPricingConfig(orgId: number): Promise<OrgPricingConf
     lowAnomalyPct: org?.lowAnomalyPct ?? null,
     dayDifferencePct: org?.dayDifferencePct ?? null,
     dayDifferenceWindow: org?.dayDifferenceWindow ?? null,
+    maxOffersForAnalysis: org?.maxOffersForAnalysis ?? null,
     effective,
   }
 }
@@ -100,6 +104,7 @@ export async function getPropertyPricingConfig(propertyId: number): Promise<Prop
     lowAnomalyPct: prop?.lowAnomalyPct ?? null,
     dayDifferencePct: prop?.dayDifferencePct ?? null,
     dayDifferenceWindow: prop?.dayDifferenceWindow ?? null,
+    maxOffersForAnalysis: prop?.maxOffersForAnalysis ?? null,
     effective,
   }
 }
@@ -149,7 +154,7 @@ export async function getEnabledPropertyIds(): Promise<number[]> {
 
 function resolveOrgEffective(
   system: SystemPricingConfigResponse,
-  org: { enabled: boolean | null; systemServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null } | null,
+  org: { enabled: boolean | null; systemServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; maxOffersForAnalysis: number | null } | null,
 ): SystemPricingConfigResponse {
   if (org?.systemServiceDisabled) return { ...system, enabled: false }
   return {
@@ -163,12 +168,13 @@ function resolveOrgEffective(
     dayDifferencePct: org?.dayDifferencePct ?? system.dayDifferencePct,
     dayDifferenceWindow: org?.dayDifferenceWindow ?? system.dayDifferenceWindow,
     searchAdults: system.searchAdults,
+    maxOffersForAnalysis: org?.maxOffersForAnalysis ?? system.maxOffersForAnalysis,
   }
 }
 
 function resolvePropertyEffective(
   orgEffective: SystemPricingConfigResponse,
-  prop: { enabled: boolean | null; orgServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null } | null,
+  prop: { enabled: boolean | null; orgServiceDisabled: boolean; highPricePct: number | null; lowPricePct: number | null; highAnomalyPct: number | null; lowAnomalyPct: number | null; dayDifferencePct: number | null; dayDifferenceWindow: number | null; maxOffersForAnalysis: number | null } | null,
 ): SystemPricingConfigResponse {
   if (prop?.orgServiceDisabled) return { ...orgEffective, enabled: false }
   return {
@@ -182,5 +188,6 @@ function resolvePropertyEffective(
     dayDifferencePct: prop?.dayDifferencePct ?? orgEffective.dayDifferencePct,
     dayDifferenceWindow: prop?.dayDifferenceWindow ?? orgEffective.dayDifferenceWindow,
     searchAdults: orgEffective.searchAdults,
+    maxOffersForAnalysis: prop?.maxOffersForAnalysis ?? orgEffective.maxOffersForAnalysis,
   }
 }
