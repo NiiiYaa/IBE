@@ -6,6 +6,11 @@ import { enqueuePricingJob } from './pricing-queue.service.js'
 let _task: ReturnType<typeof cron.schedule> | undefined
 
 export function startPricingCron(): void {
+  if (process.env['NODE_ENV'] !== 'production') {
+    logger.info('[Pricing] Cron disabled in non-production environment')
+    return
+  }
+
   const schedule = '0 * * * *' // every hour at :00
 
   if (!cron.validate(schedule)) {
