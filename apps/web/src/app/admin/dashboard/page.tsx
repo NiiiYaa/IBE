@@ -352,7 +352,10 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
                     <th className="pb-1 pr-2">Day</th>
                     <th className="pb-1 pr-2">Price</th>
                     <th className="pb-1 pr-2">Avg</th>
-                    <th className="pb-1">Dev %</th>
+                    <th className="pb-1 pr-2">Dev %</th>
+                    <th className="pb-1 pr-2">Room</th>
+                    <th className="pb-1 pr-2">Board</th>
+                    <th className="pb-1">Cancellation</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -366,7 +369,10 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
                         <td className="py-1 pr-2">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
                         <td className="py-1 pr-2">{r.price.toFixed(0)} {currency}</td>
                         <td className="py-1 pr-2">{r.rollingAvg?.toFixed(0) ?? '—'}</td>
-                        <td className="py-1">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
+                        <td className="py-1 pr-2">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
+                        <td className="py-1 pr-2 text-xs">{r.cheapestRoomName ?? '—'}</td>
+                        <td className="py-1 pr-2 text-xs">{r.cheapestBoard ?? '—'}</td>
+                        <td className="py-1 text-xs">{r.cheapestCancellationLabel ?? '—'}</td>
                       </tr>
                     )
                   })}
