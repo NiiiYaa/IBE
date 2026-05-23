@@ -2431,6 +2431,10 @@ export const apiClient = {
   getAdminPricingData(propertyId: number): Promise<import('@ibe/shared').DayRateAdminEntry[]> {
     return apiRequest(`/api/v1/admin/pricing/data/${propertyId}`)
   },
+
+  getAdminPricingOffers(propertyId: number): Promise<import('@ibe/shared').DayOfferAdminEntry[]> {
+    return apiRequest(`/api/v1/admin/pricing/offers/${propertyId}`)
+  },
 }
 
 export { ApiClientError }

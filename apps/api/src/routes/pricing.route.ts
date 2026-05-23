@@ -16,7 +16,7 @@ import { getExchangeRates } from '../services/rates.service.js'
 import type { RateProvider } from '../services/rates.service.js'
 import { getHotelDesignConfig } from '../services/config.service.js'
 import { cacheGet, cacheSet } from '../utils/cache.js'
-import type { DayPriceEntry, DayRateAdminEntry, PricingJobStatus } from '@ibe/shared'
+import type { DayPriceEntry, DayRateAdminEntry, DayOfferAdminEntry, PricingJobStatus } from '@ibe/shared'
 
 const CALENDAR_TTL = 3600
 
@@ -190,7 +190,11 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
           cheapestRoomName: true, cheapestBoard: true, cheapestCancellationLabel: true,
         },
       })
-      const result: DayRateAdminEntry[] = rates.map(r => ({
+      // Filter to most common currency to exclude stale rows from previous collection runs
+      const currencyCounts = rates.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] ?? 0) + 1; return acc }, {} as Record<string, number>)
+      const nativeCurrency = Object.entries(currencyCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+      const filtered = nativeCurrency ? rates.filter(r => r.currency === nativeCurrency) : rates
+      const result: DayRateAdminEntry[] = filtered.map(r => ({
         date: r.date,
         price: r.minSellPrice,
         currency: r.currency,
@@ -201,6 +205,33 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
         cheapestRoomName: r.cheapestRoomName ?? null,
         cheapestBoard: r.cheapestBoard ?? null,
         cheapestCancellationLabel: r.cheapestCancellationLabel ?? null,
+      }))
+      return result
+    },
+  )
+
+  // ── All offers per date (raw offer-level data for export) ─────────────────
+  fastify.get<{ Params: { propertyId: string } }>(
+    '/api/v1/admin/pricing/offers/:propertyId',
+    async (request) => {
+      const propertyId = parseInt(request.params.propertyId, 10)
+      const offers = await prisma.dailyRateOffer.findMany({
+        where: { propertyId },
+        orderBy: [{ date: 'asc' }, { rank: 'asc' }],
+        select: { date: true, rank: true, roomName: true, board: true, cancellationLabel: true, sellPrice: true, currency: true },
+      })
+      // Filter to most common currency to exclude stale rows
+      const currencyCounts = offers.reduce((acc, r) => { acc[r.currency] = (acc[r.currency] ?? 0) + 1; return acc }, {} as Record<string, number>)
+      const nativeCurrency = Object.entries(currencyCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+      const filtered = nativeCurrency ? offers.filter(r => r.currency === nativeCurrency) : offers
+      const result: DayOfferAdminEntry[] = filtered.map(r => ({
+        date: r.date,
+        rank: r.rank,
+        roomName: r.roomName,
+        board: r.board,
+        cancellationLabel: r.cancellationLabel,
+        sellPrice: r.sellPrice,
+        currency: r.currency,
       }))
       return result
     },

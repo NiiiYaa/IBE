@@ -12,6 +12,7 @@ import type {
   OrgPricingConfigResponse,
   PropertyPricingConfigResponse,
   DayRateAdminEntry,
+  DayOfferAdminEntry,
 } from '@ibe/shared'
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
@@ -89,27 +90,20 @@ function exportCalendarExcel(rates: DayRateAdminEntry[], propertyId: number, pro
   XLSX.writeFile(wb, `Calendar Rates_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
-function exportRawDataExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
-  const ANOMALY_LABEL: Record<string, string> = { high: 'High Price', low: 'Low Price', diff: 'Day Diff' }
-  const rows = rates.map(r => ({
-    'Date': r.date,
-    'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
-    'Min Sell Price': r.price,
-    'Currency': r.currency,
-    'Available': r.available ? 'Y' : 'N',
-    'Color': r.calendarColor,
-    'Rolling Avg': r.rollingAvg ?? '',
-    '% vs Avg': r.rollingAvg && r.rollingAvg > 0
-      ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
-      : '',
-    'Anomaly Type': r.anomalyType ? (ANOMALY_LABEL[r.anomalyType] ?? r.anomalyType) : '',
-    'Room': r.cheapestRoomName ?? '',
-    'Board': r.cheapestBoard ?? '',
-    'Cancellation': r.cheapestCancellationLabel ?? '',
+function exportRawDataExcel(offers: DayOfferAdminEntry[], propertyId: number, propertyName: string) {
+  const rows = offers.map(o => ({
+    'Date': o.date,
+    'Day': DAYS[new Date(o.date + 'T00:00:00Z').getUTCDay()],
+    'Rank': o.rank,
+    'Room': o.roomName,
+    'Board': o.board,
+    'Cancellation': o.cancellationLabel,
+    'Sell Price': o.sellPrice,
+    'Currency': o.currency,
   }))
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Raw Data Anomalies')
+  XLSX.utils.book_append_sheet(wb, ws, 'Raw Data')
   XLSX.writeFile(wb, `Raw Data Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
@@ -280,6 +274,11 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
     queryFn: () => apiClient.getAdminPricingData(propertyId),
     enabled: (status?.dayCount ?? 0) > 0,
   })
+  const { data: offersData } = useQuery({
+    queryKey: ['pricing-admin-offers', propertyId],
+    queryFn: () => apiClient.getAdminPricingOffers(propertyId),
+    enabled: (status?.dayCount ?? 0) > 0,
+  })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<PropertyPricingConfigResponse>) => apiClient.updatePropertyPricingConfig(propertyId, u),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pricing-config-property', propertyId] }) },
@@ -369,8 +368,8 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
             Export Calendar
           </button>
           <button
-            onClick={() => ratesData && exportRawDataExcel(ratesData, propertyId, propertyName)}
-            disabled={!ratesData || ratesData.length === 0}
+            onClick={() => offersData && exportRawDataExcel(offersData, propertyId, propertyName)}
+            disabled={!offersData || offersData.length === 0}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             Export Raw Data Anomalies

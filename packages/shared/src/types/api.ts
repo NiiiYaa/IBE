@@ -334,6 +334,16 @@ export interface DayRateAdminEntry extends DayPriceEntry {
   cheapestCancellationLabel: string | null
 }
 
+export interface DayOfferAdminEntry {
+  date: string
+  rank: number
+  roomName: string
+  board: string
+  cancellationLabel: string
+  sellPrice: number
+  currency: string
+}
+
 export interface PricingConfigValues {
   highPricePct: number
   lowPricePct: number
