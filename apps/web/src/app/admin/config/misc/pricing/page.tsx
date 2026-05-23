@@ -255,6 +255,9 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Search adults</span>
         <div className="flex items-center gap-2">
+          {form.searchAdults === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
+          )}
           <select
             value={form.searchAdults ?? ''}
             onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
@@ -367,6 +370,9 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Search adults</span>
         <div className="flex items-center gap-2">
+          {form.searchAdults === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
+          )}
           <select
             value={form.searchAdults ?? ''}
             onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
