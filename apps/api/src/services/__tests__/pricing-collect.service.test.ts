@@ -70,34 +70,37 @@ function makeHGResponse(nights: number, basePrice = 100, currency = 'USD') {
 }
 
 describe('deriveCancellationLabel', () => {
-  it('returns Free when policies array is empty', async () => {
+  const futureCheckIn = '2099-12-31'
+  const pastCheckIn = '2000-01-01'
+
+  it('returns Non-refundable when policies array is empty', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
-    expect(deriveCancellationLabel([])).toBe('Free')
+    expect(deriveCancellationLabel([], futureCheckIn)).toBe('Non-refundable')
   })
 
-  it('returns Free when all policy amounts are 0', async () => {
+  it('returns Free when a policy deadline is in the future', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
+    // 7-day free cancel window: penalty starts 7 days before check-in, deadline is far in future
     const policies = [
-      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 7, timeFromCheckInType: 'days' as const } },
     ]
-    expect(deriveCancellationLabel(policies)).toBe('Free')
+    expect(deriveCancellationLabel(policies, futureCheckIn)).toBe('Free')
   })
 
-  it('returns Non-refundable when all policy amounts are > 0', async () => {
+  it('returns Non-refundable when all policy deadlines are in the past', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
     const policies = [
-      { daysBefore: 0, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 7, timeFromCheckInType: 'days' as const } },
     ]
-    expect(deriveCancellationLabel(policies)).toBe('Non-refundable')
+    expect(deriveCancellationLabel(policies, pastCheckIn)).toBe('Non-refundable')
   })
 
-  it('returns Partial when some amounts are 0 and some are > 0', async () => {
+  it('returns Non-refundable when policies have no timeSetting', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
     const policies = [
-      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
-      { daysBefore: 0, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 0, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: null as unknown as { timeFromCheckIn: number; timeFromCheckInType: 'hours' } },
     ]
-    expect(deriveCancellationLabel(policies)).toBe('Partial')
+    expect(deriveCancellationLabel(policies, futureCheckIn)).toBe('Non-refundable')
   })
 })
 
@@ -138,7 +141,7 @@ describe('offer collection', () => {
     const rank1 = allRows.find((r) => r.rank === 1)
     expect(rank1?.roomName).toBe('Standard')
     expect(rank1?.board).toBe('BB')
-    expect(rank1?.cancellationLabel).toBe('Free')
+    expect(rank1?.cancellationLabel).toBe('Non-refundable')
   })
 
   it('caps stored offers at maxOffersForAnalysis', async () => {

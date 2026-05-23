@@ -1,4 +1,4 @@
-import { addDays, todayIso } from '@ibe/shared'
+import { addDays, todayIso, calculateCancellationDeadline } from '@ibe/shared'
 import type { HGSearchResponse, HGCancellationPolicy } from '@ibe/shared'
 import { searchAvailability } from '../adapters/hyperguest/search.js'
 import { prisma } from '../db/client.js'
@@ -24,19 +24,23 @@ interface OfferEntry {
   roomId: number
   roomName: string
   board: string
-  cancellationLabel: 'Free' | 'Non-refundable' | 'Partial'
+  cancellationLabel: 'Free' | 'Non-refundable'
   sellPrice: number
   currency: string
 }
 
-// Simplification: 'amount' is checked without considering penaltyType ('nights' penalty treated same as currency/percent)
-export function deriveCancellationLabel(policies: HGCancellationPolicy[]): 'Free' | 'Non-refundable' | 'Partial' {
-  if (policies.length === 0) return 'Free'
-  const hasZero = policies.some(p => p.amount === 0)
-  const hasNonZero = policies.some(p => p.amount > 0)
-  if (hasZero && hasNonZero) return 'Partial'
-  if (hasNonZero) return 'Non-refundable'
-  return 'Free'
+// A rate is Flexi if at least one cancellation deadline is still in the future (same logic as search service).
+// NR rates either have no policies or all penalties start at/before check-in (deadline already past at search time).
+export function deriveCancellationLabel(policies: HGCancellationPolicy[], checkIn: string): 'Free' | 'Non-refundable' {
+  if (policies.length === 0) return 'Non-refundable'
+  const now = Date.now()
+  const hasFutureDeadline = policies.some(p => {
+    if (!p.timeSetting) return false
+    const deadline = calculateCancellationDeadline(checkIn, p.timeSetting.timeFromCheckIn, p.timeSetting.timeFromCheckInType, p.cancellationDeadlineHour)
+    const ms = Date.parse(deadline)
+    return !isNaN(ms) && ms > now
+  })
+  return hasFutureDeadline ? 'Free' : 'Non-refundable'
 }
 
 export async function collectHotelPrices(propertyId: number): Promise<void> {
@@ -102,7 +106,7 @@ function extractNightlyData(
       for (const rp of room.ratePlans) {
         currency = rp.prices.sell.currency
         const board = rp.board as string
-        const cancellationLabel = deriveCancellationLabel(rp.cancellationPolicies)
+        const cancellationLabel = deriveCancellationLabel(rp.cancellationPolicies, checkIn)
 
         for (const night of rp.nightlyBreakdown) {
           const price = night.prices.sell.price
