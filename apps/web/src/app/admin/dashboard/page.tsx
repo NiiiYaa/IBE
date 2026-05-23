@@ -356,11 +356,30 @@ function exportAnomaliesExcel(
   }
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Anomalies')
+
+  const unavailable = rates
+    .filter(r => !r.available)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  if (unavailable.length > 0) {
+    const wsU = XLSX.utils.aoa_to_sheet([[propertyName], [propertyAddress], []])
+    const unavRows = unavailable.map(r => ({
+      'Date': new Date(r.date + 'T00:00:00'),
+      'Day': DAYS_FULL[new Date(r.date + 'T00:00:00Z').getUTCDay()],
+    }))
+    XLSX.utils.sheet_add_json(wsU, unavRows, { origin: 3, cellDates: true })
+    const rangeU = XLSX.utils.decode_range(wsU['!ref'] ?? 'A1')
+    for (let r = 4; r <= rangeU.e.r; r++) {
+      const ref = XLSX.utils.encode_cell({ r, c: 0 })
+      if (wsU[ref]) wsU[ref].z = 'dd-mmm-yyyy'
+    }
+    XLSX.utils.book_append_sheet(wb, wsU, 'Days without Availability')
+  }
+
   XLSX.writeFile(wb, `Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
 function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { propertyId: number; propertyName: string; propertyAddress: string }) {
-  const [open, setOpen] = useState<Record<string, boolean>>({ high: true, low: true, diff: true })
+  const [open, setOpen] = useState<Record<string, boolean>>({ high: true, low: true, diff: true, unavailable: true })
   const statusQuery = useQuery({
     queryKey: ['pricing-status', propertyId],
     queryFn: () => apiClient.getPricingStatus(propertyId),
@@ -374,7 +393,7 @@ function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { pro
   if (!statusQuery.data || statusQuery.data.dayCount === 0) {
     return (
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies and Days without Availability</p>
         <p className="mt-3 text-sm text-[var(--color-text-muted)]">No price data collected yet.</p>
       </div>
     )
@@ -392,6 +411,7 @@ function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { pro
     return db - da
   })
   const diffAnomalies = rates.filter(r => r.anomalyType === 'diff')
+  const unavailableDays = rates.filter(r => !r.available).sort((a, b) => a.date.localeCompare(b.date))
 
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const currency = rates[0]?.currency ?? ''
@@ -468,14 +488,14 @@ function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { pro
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Price Anomalies and Days without Availability</p>
         <div className="flex items-center gap-3">
           <span className="text-xs text-[var(--color-text-muted)]">
             {statusQuery.data.lastCollectedAt
               ? `Updated ${new Date(statusQuery.data.lastCollectedAt).toLocaleDateString()}`
               : ''}
           </span>
-          {rates.some(r => r.anomalyType !== null) && (
+          {(rates.some(r => r.anomalyType !== null) || unavailableDays.length > 0) && (
             <button
               onClick={() => exportAnomaliesExcel(rates, propertyId, propertyName, propertyAddress)}
               className="rounded-lg bg-[var(--color-primary)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 transition-opacity"
@@ -488,6 +508,41 @@ function PricingAnomalyCard({ propertyId, propertyName, propertyAddress }: { pro
       <AnomalyTable title="High Price" rows={highAnomalies} type="high" />
       <AnomalyTable title="Low Price" rows={lowAnomalies} type="low" />
       <AnomalyTable title="Day Difference" rows={diffAnomalies} type="diff" />
+      <div className="border-t border-[var(--color-border)] pt-4 mt-4">
+        <button
+          onClick={() => setOpen(o => ({ ...o, unavailable: !o.unavailable }))}
+          className="flex w-full items-center justify-between text-sm font-medium text-[var(--color-text)]"
+        >
+          <span>Days without Availability <span className="ml-1 text-xs text-[var(--color-text-muted)]">({unavailableDays.length})</span></span>
+          <span>{open.unavailable ? '▲' : '▼'}</span>
+        </button>
+        {open.unavailable && (
+          unavailableDays.length === 0
+            ? <p className="mt-2 text-xs text-[var(--color-text-muted)]">No unavailable days.</p>
+            : (
+              <table className="mt-2 w-full table-fixed text-xs">
+                <colgroup>
+                  <col className="w-[120px]" />
+                  <col />
+                </colgroup>
+                <thead>
+                  <tr className="text-left text-[var(--color-text-muted)]">
+                    <th className="pb-1 pr-2 font-medium">Date</th>
+                    <th className="pb-1 font-medium">Day</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unavailableDays.map(r => (
+                    <tr key={r.date} className="border-t border-[var(--color-border)]">
+                      <td className="py-1 pr-2">{fmtAnomalyDate(r.date)}</td>
+                      <td className="py-1">{DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+        )}
+      </div>
     </div>
   )
 }
