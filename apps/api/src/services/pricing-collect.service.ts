@@ -88,29 +88,12 @@ export async function collectHotelPrices(propertyId: number, onProgress?: Collec
 
   for (const win of searchWindows) {
     const checkIn = addDays(today, win.offset)
-    const checkOut = addDays(today, win.offset + win.size)
-
-    try {
-      const hgResponse = await searchAvailability({
-        hotelId: propertyId,
-        checkIn,
-        checkOut,
-        rooms: [{ adults: searchAdults }],
-      })
-      const { prices: windowPrices, offersByDate } = extractNightlyData(hgResponse, checkIn, win.size)
-      prices.push(...windowPrices)
-      await upsertDailyRateOffers(propertyId, offersByDate, maxOffersForAnalysis)
-      for (const offers of offersByDate.values()) totalOfferCount += offers.length
-    } catch (err) {
-      logger.warn({ err, propertyId, checkIn }, '[Pricing] Batch search failed — marking window unavailable')
-      for (let i = 0; i < win.size; i++) {
-        prices.push({
-          date: addDays(today, win.offset + i),
-          minSellPrice: 0, currency: 'USD', available: false,
-          cheapestRoomId: null, cheapestRoomName: null, cheapestBoard: null, cheapestCancellationLabel: null,
-        })
-      }
-    }
+    const { prices: windowPrices, offersByDate } = await searchWithBinarySplit(
+      propertyId, checkIn, win.size, searchAdults,
+    )
+    prices.push(...windowPrices)
+    await upsertDailyRateOffers(propertyId, offersByDate, maxOffersForAnalysis)
+    for (const offers of offersByDate.values()) totalOfferCount += offers.length
 
     windowsDone++
     onProgress?.(windowsDone, totalWindows, totalOfferCount)
@@ -119,6 +102,49 @@ export async function collectHotelPrices(propertyId: number, onProgress?: Collec
   logger.info({ propertyId, priceCount: prices.length }, '[Pricing] collectHotelPrices upserting')
   await upsertDailyRates(propertyId, prices)
   logger.info({ propertyId }, '[Pricing] collectHotelPrices done')
+}
+
+// Searches a date window, splitting in half recursively when HG returns zero results.
+// HG treats a search as a complete stay — one blocked night in a 29-night window returns nothing.
+// Binary splitting isolates the blocked nights while keeping the working sub-windows intact.
+async function searchWithBinarySplit(
+  propertyId: number,
+  checkIn: string,
+  size: number,
+  searchAdults: number,
+): Promise<{ prices: NightlyPrice[]; offersByDate: Map<string, OfferEntry[]> }> {
+  const checkOut = addDays(checkIn, size)
+  try {
+    const hgResponse = await searchAvailability({
+      hotelId: propertyId,
+      checkIn,
+      checkOut,
+      rooms: [{ adults: searchAdults }],
+    })
+    if (hgResponse.results.length > 0) {
+      return extractNightlyData(hgResponse, checkIn, size)
+    }
+  } catch (err) {
+    logger.warn({ err, propertyId, checkIn, size }, '[Pricing] Window search threw — splitting')
+  }
+
+  if (size === 1) {
+    return {
+      prices: [{ date: checkIn, minSellPrice: 0, currency: 'USD', available: false, cheapestRoomId: null, cheapestRoomName: null, cheapestBoard: null, cheapestCancellationLabel: null }],
+      offersByDate: new Map(),
+    }
+  }
+
+  logger.debug({ propertyId, checkIn, size }, '[Pricing] Window empty — splitting in half')
+  const half = Math.floor(size / 2)
+  const [first, second] = await Promise.all([
+    searchWithBinarySplit(propertyId, checkIn, half, searchAdults),
+    searchWithBinarySplit(propertyId, addDays(checkIn, half), size - half, searchAdults),
+  ])
+  return {
+    prices: [...first.prices, ...second.prices],
+    offersByDate: new Map([...first.offersByDate, ...second.offersByDate]),
+  }
 }
 
 function extractNightlyData(
