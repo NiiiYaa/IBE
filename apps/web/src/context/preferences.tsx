@@ -25,13 +25,17 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlLang = params.get('lang') ?? params.get('locale')
+    const urlCurrency = params.get('currency')
     const savedLocale = urlLang || localStorage.getItem('ibe-locale')
-    const savedCurrency = localStorage.getItem('ibe-currency')
+    const savedCurrency = urlCurrency || localStorage.getItem('ibe-currency')
     if (savedLocale) {
       setLocaleState(savedLocale)
       localStorage.setItem('ibe-locale', savedLocale)
     }
-    if (savedCurrency) setCurrencyState(savedCurrency)
+    if (savedCurrency) {
+      setCurrencyState(savedCurrency)
+      if (urlCurrency) localStorage.setItem('ibe-currency', urlCurrency)
+    }
   }, [])
 
   useEffect(() => {
