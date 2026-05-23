@@ -6,16 +6,29 @@ import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse, GlobalDesign
 import { useAdminAuth } from '@/hooks/use-admin-auth'
 import { useAdminProperty } from '../../property-context'
 import { apiClient } from '@/lib/api-client'
-import { ALL_CURRENCIES, TOP_CURRENCIES, currencyName, currencySymbol } from '@/lib/currencies'
+import { getProviderCurrencies, currencyName, currencySymbol } from '@/lib/currencies'
 import { SaveBar, Section } from '../components'
 import { OverrideSelectRow, OverrideLocalesRow } from '../override-helpers'
 
-const TOP_SET = new Set(TOP_CURRENCIES)
-// Full sorted list: top currencies first, then the rest alphabetically
-const ORDERED_CURRENCIES = [...TOP_CURRENCIES, ...ALL_CURRENCIES.filter(c => !TOP_SET.has(c))]
-
 function currencyLabel(code: string) {
   return `${currencySymbol(code)}  ${code} · ${currencyName(code)}`
+}
+
+function chipLabel(code: string) {
+  return `${code} · ${currencyName(code)} · ${currencySymbol(code)}`
+}
+
+function matchesCurrencyQuery(code: string, q: string): boolean {
+  return code.toLowerCase().includes(q) || currencyName(code).toLowerCase().includes(q)
+}
+
+function sortForDisplay(providerCurrencies: string[], enabled: string[], defaultCurrency: string): string[] {
+  const enabledSet = new Set(enabled)
+  return [
+    ...(providerCurrencies.includes(defaultCurrency) ? [defaultCurrency] : []),
+    ...providerCurrencies.filter(c => c !== defaultCurrency && enabledSet.has(c)),
+    ...providerCurrencies.filter(c => c !== defaultCurrency && !enabledSet.has(c)),
+  ]
 }
 
 const RATE_PROVIDERS = [
@@ -91,19 +104,15 @@ function SystemCurrencyEditor() {
   if (isLoading) return <Spinner />
 
   const enabledCurrencies: string[] = (draft.enabledCurrencies as string[] | undefined) ?? []
-  // Active currencies float to top, then the rest in default order
-  const sortedCurrencies = [
-    ...ORDERED_CURRENCIES.filter(c => enabledCurrencies.includes(c)),
-    ...ORDERED_CURRENCIES.filter(c => !enabledCurrencies.includes(c)),
-  ]
+  const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? 'USD'
+  const activeProvider = (draft.rateProvider as string | null | undefined) ?? 'fawazahmed0'
+  const providerCurrencies = getProviderCurrencies(activeProvider)
+  const sortedCurrencies = sortForDisplay(providerCurrencies, enabledCurrencies, defaultCurrency)
 
   function toggleCurrency(code: string) {
     const current = enabledCurrencies
     set('enabledCurrencies', current.includes(code) ? current.filter(c => c !== code) : [...current, code])
   }
-
-  const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? 'USD'
-  const activeProvider = (draft.rateProvider as string | null | undefined) ?? 'fawazahmed0'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -116,22 +125,11 @@ function SystemCurrencyEditor() {
 
       <div className="space-y-6">
         <Section title="Enabled Currencies">
-          <div className="flex flex-wrap gap-2">
-            {sortedCurrencies.map(code => {
-              const active = enabledCurrencies.includes(code)
-              return (
-                <button key={code} type="button" onClick={() => toggleCurrency(code)}
-                  className={['rounded-full border px-3 py-1 text-xs font-medium transition-all',
-                    active
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]',
-                  ].join(' ')}
-                >
-                  {currencySymbol(code)} {code}
-                </button>
-              )
-            })}
-          </div>
+          <CurrencyChipGrid
+            currencies={sortedCurrencies}
+            enabled={enabledCurrencies}
+            onToggle={toggleCurrency}
+          />
         </Section>
 
         <Section title="Default and Order">
@@ -147,7 +145,7 @@ function SystemCurrencyEditor() {
               onChange={e => set('defaultCurrency', e.target.value)}
               className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
             >
-              {(enabledCurrencies.length > 0 ? enabledCurrencies : ORDERED_CURRENCIES).map(code => (
+              {(enabledCurrencies.length > 0 ? enabledCurrencies : providerCurrencies).map(code => (
                 <option key={code} value={code}>{currencyLabel(code)}</option>
               ))}
             </select>
@@ -223,20 +221,17 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
   if (isLoading) return <Spinner />
 
+  const sysDefs = data?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
   const enabledCurrencies: string[] = (draft.enabledCurrencies as string[] | undefined) ?? []
-  const sortedCurrencies = [
-    ...ORDERED_CURRENCIES.filter(c => enabledCurrencies.includes(c)),
-    ...ORDERED_CURRENCIES.filter(c => !enabledCurrencies.includes(c)),
-  ]
+  const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? (sysDefs.defaultCurrency ?? 'USD')
+  const activeProvider = (draft.rateProvider as string | null | undefined) ?? sysDefs.rateProvider ?? 'fawazahmed0'
+  const providerCurrencies = getProviderCurrencies(activeProvider)
+  const sortedCurrencies = sortForDisplay(providerCurrencies, enabledCurrencies, defaultCurrency)
 
   function toggleCurrency(code: string) {
     const current = enabledCurrencies
     set('enabledCurrencies', current.includes(code) ? current.filter(c => c !== code) : [...current, code])
   }
-
-  const sysDefs = data?.systemDefaults ?? ({} as OrgDesignDefaultsConfig)
-  const defaultCurrency = (draft.defaultCurrency as string | undefined) ?? (sysDefs.defaultCurrency ?? 'USD')
-  const activeProvider = (draft.rateProvider as string | null | undefined) ?? sysDefs.rateProvider ?? 'fawazahmed0'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -249,22 +244,11 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
 
       <div className="space-y-6">
         <Section title="Enabled Currencies">
-          <div className="flex flex-wrap gap-2">
-            {sortedCurrencies.map(code => {
-              const active = enabledCurrencies.includes(code)
-              return (
-                <button key={code} type="button" onClick={() => toggleCurrency(code)}
-                  className={['rounded-full border px-3 py-1 text-xs font-medium transition-all',
-                    active
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]',
-                  ].join(' ')}
-                >
-                  {currencySymbol(code)} {code}
-                </button>
-              )
-            })}
-          </div>
+          <CurrencyChipGrid
+            currencies={sortedCurrencies}
+            enabled={enabledCurrencies}
+            onToggle={toggleCurrency}
+          />
         </Section>
 
         <Section title="Default and Order">
@@ -280,7 +264,7 @@ function OrgCurrencyEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
               onChange={e => set('defaultCurrency', e.target.value)}
               className="ml-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
             >
-              {(enabledCurrencies.length > 0 ? enabledCurrencies : ORDERED_CURRENCIES).map(code => (
+              {(enabledCurrencies.length > 0 ? enabledCurrencies : providerCurrencies).map(code => (
                 <option key={code} value={code}>{currencyLabel(code)}</option>
               ))}
             </select>
@@ -312,6 +296,7 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
   const [draft, setDraft] = useState<Partial<OrgDesignDefaultsConfig>>({})
   const [isDirty, setIsDirty] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const [chipQuery, setChipQuery] = useState('')
 
   const { data: designData, isLoading } = useQuery<PropertyDesignAdminResponse>({
     queryKey: ['property-design-admin', propertyId],
@@ -354,19 +339,26 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
 
   const setStr = set as (key: keyof OrgDesignDefaultsConfig, val: string) => void
 
-  // Full list, no restriction from chain — active ones float to top
-  const enabledCurrenciesOverride = draft.enabledCurrencies as string[] | null | undefined
-  const activeCurrencies: string[] = enabledCurrenciesOverride ?? (orgDefaults.enabledCurrencies ?? []) as string[]
-  const currencyOptions = (activeCurrencies.length > 0 ? activeCurrencies : ORDERED_CURRENCIES).map(code => ({ value: code, label: currencyLabel(code) }))
-  const currencyItems = [
-    ...ORDERED_CURRENCIES.filter(c => activeCurrencies.includes(c)),
-    ...ORDERED_CURRENCIES.filter(c => !activeCurrencies.includes(c)),
-  ].map(code => ({ code, label: `${currencySymbol(code)} ${code}` }))
-
   const activeProvider = (draft.rateProvider as string | null | undefined)
     ?? (orgDefaults.rateProvider as string | null | undefined)
     ?? (sysDefs.rateProvider as string | null | undefined)
     ?? 'fawazahmed0'
+  const providerCurrencies = getProviderCurrencies(activeProvider)
+
+  const enabledCurrenciesOverride = draft.enabledCurrencies as string[] | null | undefined
+  const activeCurrencies: string[] = enabledCurrenciesOverride ?? (orgDefaults.enabledCurrencies ?? []) as string[]
+  const defaultCurrency = (draft.defaultCurrency as string | undefined)
+    ?? (orgDefaults.defaultCurrency ?? sysDefs.defaultCurrency ?? 'USD')
+
+  const currencyOptions = (activeCurrencies.length > 0 ? activeCurrencies : providerCurrencies).map(code => ({ value: code, label: currencyLabel(code) }))
+  const allCurrencyItems = sortForDisplay(providerCurrencies, activeCurrencies, defaultCurrency)
+    .map(code => ({ code, label: chipLabel(code) }))
+  const cq = chipQuery.trim().toLowerCase()
+  const currencyItems = cq
+    ? allCurrencyItems.filter(({ code }) =>
+        activeCurrencies.includes(code) || matchesCurrencyQuery(code, cq)
+      )
+    : allCurrencyItems
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -377,6 +369,13 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
 
       <div className="space-y-6">
         <Section title="Enabled Currencies">
+          <input
+            type="search"
+            value={chipQuery}
+            onChange={e => setChipQuery(e.target.value)}
+            placeholder="Search by ISO or name…"
+            className="mb-3 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+          />
           <OverrideLocalesRow
             label="Currencies shown to guests"
             fieldKey="enabledCurrencies"
@@ -429,6 +428,53 @@ function PropertyCurrencyEditor({ propertyId }: { propertyId: number }) {
 }
 
 // ── Shared components ─────────────────────────────────────────────────────────
+
+function CurrencyChipGrid({
+  currencies,
+  enabled,
+  onToggle,
+}: {
+  currencies: string[]
+  enabled: string[]
+  onToggle: (code: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const visible = q
+    ? currencies.filter(c => enabled.includes(c) || matchesCurrencyQuery(c, q))
+    : currencies
+
+  return (
+    <div>
+      <input
+        type="search"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search by ISO or name…"
+        className="mb-3 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-light)]"
+      />
+      <div className="flex flex-wrap gap-2">
+        {visible.map(code => {
+          const active = enabled.includes(code)
+          return (
+            <button key={code} type="button" onClick={() => onToggle(code)}
+              className={['rounded-full border px-3 py-1 text-xs font-medium transition-all',
+                active
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)] text-[var(--color-primary)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]',
+              ].join(' ')}
+            >
+              {chipLabel(code)}
+            </button>
+          )
+        })}
+        {visible.length === 0 && (
+          <p className="text-xs text-[var(--color-text-muted)]">No currencies match &ldquo;{query}&rdquo;</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function CurrencyOrderEditor({
   currencies,

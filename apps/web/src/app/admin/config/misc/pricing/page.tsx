@@ -62,29 +62,55 @@ function PctField({ label, value, onChange, inherited }: { label: string; value:
   )
 }
 
-// ── Export helper ─────────────────────────────────────────────────────────────
+// ── Export helpers ────────────────────────────────────────────────────────────
 
-function exportToExcel(rates: DayRateAdminEntry[], propertyId: number) {
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function xlsxDate() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
+}
+
+function exportCalendarExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
   const rows = rates.map(r => ({
     'Date': r.date,
-    'Day of Week': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
+    'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
     'Min Sell Price': r.price,
     'Currency': r.currency,
     'Available': r.available ? 'Y' : 'N',
-    'Calendar Color': r.calendarColor,
-    'Anomaly Type': r.anomalyType ?? '',
-    'Rolling Avg': r.rollingAvg ?? '',
-    '% vs Avg': r.rollingAvg && r.rollingAvg > 0
-      ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
-      : '',
+    'Color': r.calendarColor,
+    'Room': r.cheapestRoomName ?? '',
+    'Board': r.cheapestBoard ?? '',
+    'Cancellation': r.cheapestCancellationLabel ?? '',
   }))
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Daily Rates')
-  const d = new Date()
-  const date = `${String(d.getDate()).padStart(2, '0')}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}-${d.getFullYear()}`
-  XLSX.writeFile(wb, `Pricing ${propertyId}_${date}.xlsx`)
+  XLSX.utils.book_append_sheet(wb, ws, 'Calendar Rates')
+  XLSX.writeFile(wb, `Calendar Rates_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
+}
+
+function exportAnomaliesExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
+  const ANOMALY_LABEL: Record<string, string> = { high: 'High Price', low: 'Low Price', diff: 'Day Diff' }
+  const rows = rates
+    .filter(r => r.anomalyType !== null)
+    .map(r => ({
+      'Date': r.date,
+      'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
+      'Min Sell Price': r.price,
+      'Currency': r.currency,
+      'Rolling Avg': r.rollingAvg ?? '',
+      '% vs Avg': r.rollingAvg && r.rollingAvg > 0
+        ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
+        : '',
+      'Anomaly Type': ANOMALY_LABEL[r.anomalyType ?? ''] ?? r.anomalyType ?? '',
+      'Room': r.cheapestRoomName ?? '',
+      'Board': r.cheapestBoard ?? '',
+      'Cancellation': r.cheapestCancellationLabel ?? '',
+    }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Anomalies')
+  XLSX.writeFile(wb, `Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
 // ── System level ──────────────────────────────────────────────────────────────
@@ -235,6 +261,11 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
 
 function PropertyPricingSection({ propertyId }: { propertyId: number }) {
   const qc = useQueryClient()
+  const { data: propertyDetail } = useQuery({
+    queryKey: ['property', propertyId],
+    queryFn: () => apiClient.getProperty(propertyId),
+  })
+  const propertyName = propertyDetail?.name ?? ''
   const { data: config } = useQuery({
     queryKey: ['pricing-config-property', propertyId],
     queryFn: () => apiClient.getPropertyPricingConfig(propertyId),
@@ -331,11 +362,18 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
             {refreshMutation.isPending ? 'Triggering…' : 'Refresh Now'}
           </button>
           <button
-            onClick={() => ratesData && exportToExcel(ratesData, propertyId)}
+            onClick={() => ratesData && exportCalendarExcel(ratesData, propertyId, propertyName)}
             disabled={!ratesData || ratesData.length === 0}
+            className="rounded-lg border border-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-light)] disabled:opacity-40 transition-colors"
+          >
+            Export Calendar
+          </button>
+          <button
+            onClick={() => ratesData && exportAnomaliesExcel(ratesData, propertyId, propertyName)}
+            disabled={!ratesData || !ratesData.some(r => r.anomalyType !== null)}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
-            Export Excel
+            Export Anomalies
           </button>
         </div>
       </div>

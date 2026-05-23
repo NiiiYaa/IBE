@@ -106,7 +106,7 @@
     "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}.",
     "exploreActivities": "Explore Activities & Tours →",
     "nearestAirports": "Nearest airports",
-    "pricesIn": "Prices in {currency}"
+    "pricesIn": "* Indicative \"Starting From\" prices in {currency} — final charge based on search criteria, in hotel currency."
   },
   "properties": {
     "bookNow": "Book now",

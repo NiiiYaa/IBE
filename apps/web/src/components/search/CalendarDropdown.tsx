@@ -208,7 +208,7 @@ export function CalendarDropdown({
         <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
 
         {dailyRates && priceCurrency && (
-          <p className="mt-1 text-center text-[10px] text-[var(--color-text-muted)]">
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
             {t('pricesIn', { currency: priceCurrency })}
           </p>
         )}
