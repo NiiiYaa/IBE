@@ -13,6 +13,7 @@ import type {
   PropertyPricingConfigResponse,
   DayRateAdminEntry,
   DayOfferAdminEntry,
+  PricingCollectionProgress,
 } from '@ibe/shared'
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
@@ -105,6 +106,29 @@ function exportRawDataExcel(offers: DayOfferAdminEntry[], propertyId: number, pr
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Raw Data')
   XLSX.writeFile(wb, `Raw Data Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
+}
+
+// ── Collection progress bar ───────────────────────────────────────────────────
+
+function CollectionProgress({ p }: { p: PricingCollectionProgress }) {
+  const pct = p.totalWindows > 0 ? Math.round((p.windowsDone / p.totalWindows) * 100) : 0
+  const mins = Math.floor(p.elapsedSeconds / 60)
+  const secs = String(p.elapsedSeconds % 60).padStart(2, '0')
+  const elapsed = mins > 0 ? `${mins}:${secs}` : `0:${secs}`
+  return (
+    <div className="mt-3 space-y-1.5">
+      <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)]">
+        <span>Window {p.windowsDone}/{p.totalWindows} · {p.offerCount.toLocaleString()} offers collected</span>
+        <span>{elapsed} elapsed</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-[var(--color-border)]">
+        <div
+          className="h-1.5 rounded-full bg-[var(--color-primary)] transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
 }
 
 // ── System level ──────────────────────────────────────────────────────────────
@@ -267,7 +291,7 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ['pricing-status', propertyId],
     queryFn: () => apiClient.getPricingStatus(propertyId),
-    refetchInterval: 8_000,
+    refetchInterval: (q) => q.state.data?.status === 'running' ? 3_000 : 8_000,
   })
   const { data: ratesData } = useQuery({
     queryKey: ['pricing-admin-data', propertyId],
@@ -343,14 +367,15 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
       </div>
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
 
-      <div className="mt-4 border-t border-[var(--color-border)] pt-4 flex items-center justify-between">
+      <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+        <div className="flex items-center justify-between">
         <div className="text-xs text-[var(--color-text-muted)]">
-          {status?.status === 'running' && 'Collecting…'}
+          {status?.status === 'running' && !status.progress && 'Starting collection…'}
           {status?.status === 'queued' && 'Queued…'}
           {status?.status === 'idle' && status.lastCollectedAt
             ? `Last collected: ${new Date(status.lastCollectedAt).toLocaleString()}`
             : status?.status === 'idle' ? 'Never collected' : ''}
-          {status && status.dayCount > 0 && ` · ${status.dayCount} days`}
+          {status?.status !== 'running' && status && status.dayCount > 0 && ` · ${status.dayCount} days`}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -375,6 +400,10 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
             Export Raw Data Anomalies
           </button>
         </div>
+        </div>
+        {status?.status === 'running' && status.progress && (
+          <CollectionProgress p={status.progress} />
+        )}
       </div>
     </div>
   )

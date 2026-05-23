@@ -389,10 +389,18 @@ export interface PropertyPricingConfigResponse {
   effective: SystemPricingConfigResponse
 }
 
+export interface PricingCollectionProgress {
+  windowsDone: number
+  totalWindows: number
+  offerCount: number
+  elapsedSeconds: number
+}
+
 export interface PricingJobStatus {
   status: 'idle' | 'queued' | 'running'
   lastCollectedAt: string | null
   dayCount: number
+  progress?: PricingCollectionProgress
 }
 
 export interface UpdateDesignConfigRequest {

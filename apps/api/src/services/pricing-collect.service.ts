@@ -43,7 +43,11 @@ export function deriveCancellationLabel(policies: HGCancellationPolicy[], checkI
   return hasFutureDeadline ? 'Free' : 'Non-refundable'
 }
 
-export async function collectHotelPrices(propertyId: number): Promise<void> {
+export interface CollectProgressCallback {
+  (windowsDone: number, totalWindows: number, offerCount: number): void
+}
+
+export async function collectHotelPrices(propertyId: number, onProgress?: CollectProgressCallback): Promise<void> {
   logger.info({ propertyId }, '[Pricing] collectHotelPrices started')
   const property = await prisma.property.findUnique({
     where: { propertyId },
@@ -55,6 +59,9 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
 
   const today = todayIso()
   const prices: NightlyPrice[] = []
+  const totalWindows = Math.ceil(TOTAL_DAYS / WINDOW_DAYS)
+  let windowsDone = 0
+  let totalOfferCount = 0
 
   let offset = 0
   while (offset < TOTAL_DAYS) {
@@ -72,6 +79,7 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
       const { prices: windowPrices, offersByDate } = extractNightlyData(hgResponse, checkIn, windowSize)
       prices.push(...windowPrices)
       await upsertDailyRateOffers(propertyId, offersByDate, maxOffersForAnalysis)
+      for (const offers of offersByDate.values()) totalOfferCount += offers.length
     } catch (err) {
       logger.warn({ err, propertyId, checkIn }, '[Pricing] Batch search failed — marking window unavailable')
       for (let i = 0; i < windowSize; i++) {
@@ -83,6 +91,8 @@ export async function collectHotelPrices(propertyId: number): Promise<void> {
       }
     }
 
+    windowsDone++
+    onProgress?.(windowsDone, totalWindows, totalOfferCount)
     offset += windowSize
   }
 

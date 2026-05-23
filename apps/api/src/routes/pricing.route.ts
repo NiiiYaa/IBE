@@ -10,13 +10,15 @@ import { enqueuePricingJob, getPricingJobStatus } from '../services/pricing-queu
 import { collectHotelPrices } from '../services/pricing-collect.service.js'
 import { classifyDailyRates } from '../services/pricing-classify.service.js'
 import { logger } from '../utils/logger.js'
-
-const _runningDirect = new Set<number>()
 import { getExchangeRates } from '../services/rates.service.js'
 import type { RateProvider } from '../services/rates.service.js'
 import { getHotelDesignConfig } from '../services/config.service.js'
 import { cacheGet, cacheSet } from '../utils/cache.js'
-import type { DayPriceEntry, DayRateAdminEntry, DayOfferAdminEntry, PricingJobStatus } from '@ibe/shared'
+import type { DayPriceEntry, DayRateAdminEntry, DayOfferAdminEntry, PricingJobStatus, PricingCollectionProgress } from '@ibe/shared'
+
+const _runningDirect = new Set<number>()
+interface RunProgress { startedAt: number; windowsDone: number; totalWindows: number; offerCount: number }
+const _progress = new Map<number, RunProgress>()
 
 const CALENDAR_TTL = 3600
 
@@ -139,14 +141,18 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
       }
 
       _runningDirect.add(propertyId)
+      _progress.set(propertyId, { startedAt: Date.now(), windowsDone: 0, totalWindows: 0, offerCount: 0 })
       void (async () => {
         try {
-          await collectHotelPrices(propertyId)
+          await collectHotelPrices(propertyId, (windowsDone, totalWindows, offerCount) => {
+            _progress.set(propertyId, { startedAt: _progress.get(propertyId)!.startedAt, windowsDone, totalWindows, offerCount })
+          })
           await classifyDailyRates(propertyId)
         } catch (err) {
           logger.warn({ err, propertyId }, '[Pricing] Direct collection failed')
         } finally {
           _runningDirect.delete(propertyId)
+          _progress.delete(propertyId)
         }
       })()
 
@@ -167,10 +173,15 @@ export async function pricingAdminRoutes(fastify: FastifyInstance) {
         }),
         prisma.dailyRate.count({ where: { propertyId } }),
       ])
+      const prog = _progress.get(propertyId)
+      const progress: PricingCollectionProgress | undefined = prog
+        ? { windowsDone: prog.windowsDone, totalWindows: prog.totalWindows, offerCount: prog.offerCount, elapsedSeconds: Math.round((Date.now() - prog.startedAt) / 1000) }
+        : undefined
       const result: PricingJobStatus = {
         status: jobStatus,
         lastCollectedAt: lastRate?.collectedAt.toISOString() ?? null,
         dayCount,
+        ...(progress !== undefined && { progress }),
       }
       return result
     },
