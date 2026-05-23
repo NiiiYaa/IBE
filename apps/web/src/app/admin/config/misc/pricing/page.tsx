@@ -253,6 +253,26 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
       <PctField label="Low Anomaly %" value={form.lowAnomalyPct} onChange={set('lowAnomalyPct')} inherited={eff.lowAnomalyPct} />
       <PctField label="Day Difference %" value={form.dayDifferencePct} onChange={set('dayDifferencePct')} inherited={eff.dayDifferencePct} />
       <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-[var(--color-text)]">Search adults</span>
+        <div className="flex items-center gap-2">
+          {form.searchAdults === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
+          )}
+          <select
+            value={form.searchAdults ?? ''}
+            onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
+            className={inputCls}
+          >
+            <option value="">—</option>
+            <option value={1}>1 Adult</option>
+            <option value={2}>2 Adults</option>
+          </select>
+          {form.searchAdults !== null && (
+            <button onClick={() => set('searchAdults')(null)} className="text-xs text-[var(--color-primary)] underline">Reset</button>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Max offers for analysis</span>
         <div className="flex items-center gap-2">
           {form.maxOffersForAnalysis === null && (
@@ -347,6 +367,26 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
       <PctField label="High Anomaly %" value={form.highAnomalyPct} onChange={set('highAnomalyPct')} inherited={eff.highAnomalyPct} />
       <PctField label="Low Anomaly %" value={form.lowAnomalyPct} onChange={set('lowAnomalyPct')} inherited={eff.lowAnomalyPct} />
       <PctField label="Day Difference %" value={form.dayDifferencePct} onChange={set('dayDifferencePct')} inherited={eff.dayDifferencePct} />
+      <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-[var(--color-text)]">Search adults</span>
+        <div className="flex items-center gap-2">
+          {form.searchAdults === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.searchAdults} inherited)</span>
+          )}
+          <select
+            value={form.searchAdults ?? ''}
+            onChange={e => set('searchAdults')(e.target.value === '' ? null : Number(e.target.value) as 1 | 2)}
+            className={inputCls}
+          >
+            <option value="">—</option>
+            <option value={1}>1 Adult</option>
+            <option value={2}>2 Adults</option>
+          </select>
+          {form.searchAdults !== null && (
+            <button onClick={() => set('searchAdults')(null)} className="text-xs text-[var(--color-primary)] underline">Reset</button>
+          )}
+        </div>
+      </div>
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Max offers for analysis</span>
         <div className="flex items-center gap-2">

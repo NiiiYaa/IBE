@@ -370,6 +370,7 @@ export interface OrgPricingConfigResponse {
   lowAnomalyPct: number | null
   dayDifferencePct: number | null
   dayDifferenceWindow: number | null
+  searchAdults: 1 | 2 | null
   maxOffersForAnalysis: number | null
   // Resolved effective values (from system → org)
   effective: SystemPricingConfigResponse
@@ -384,6 +385,7 @@ export interface PropertyPricingConfigResponse {
   lowAnomalyPct: number | null
   dayDifferencePct: number | null
   dayDifferenceWindow: number | null
+  searchAdults: 1 | 2 | null
   maxOffersForAnalysis: number | null
   // Resolved effective values (from system → org → property)
   effective: SystemPricingConfigResponse
