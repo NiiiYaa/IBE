@@ -121,7 +121,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/communication/emails', label: 'Emails', sellerOnly: true },
       { href: '/admin/communication/whatsapp', label: 'WhatsApp', sellerOnly: true },
       { href: '/admin/communication/sms', label: 'SMS', sellerOnly: true },
-      { href: '/admin/config/misc/pricing', label: 'Calendar Rates', sellerOnly: true },
+      { href: '/admin/config/misc/pricing', label: 'Calendar Rates & Anomalies', sellerOnly: true },
       { href: '/admin/config/test-bookings', label: 'Test Bookings', sellerOnly: true },
       { href: '/admin/config/manual', label: 'User Manual', minRole: 'super' },
     ],

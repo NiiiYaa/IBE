@@ -89,28 +89,28 @@ function exportCalendarExcel(rates: DayRateAdminEntry[], propertyId: number, pro
   XLSX.writeFile(wb, `Calendar Rates_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
-function exportAnomaliesExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
+function exportRawDataExcel(rates: DayRateAdminEntry[], propertyId: number, propertyName: string) {
   const ANOMALY_LABEL: Record<string, string> = { high: 'High Price', low: 'Low Price', diff: 'Day Diff' }
-  const rows = rates
-    .filter(r => r.anomalyType !== null)
-    .map(r => ({
-      'Date': r.date,
-      'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
-      'Min Sell Price': r.price,
-      'Currency': r.currency,
-      'Rolling Avg': r.rollingAvg ?? '',
-      '% vs Avg': r.rollingAvg && r.rollingAvg > 0
-        ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
-        : '',
-      'Anomaly Type': ANOMALY_LABEL[r.anomalyType ?? ''] ?? r.anomalyType ?? '',
-      'Room': r.cheapestRoomName ?? '',
-      'Board': r.cheapestBoard ?? '',
-      'Cancellation': r.cheapestCancellationLabel ?? '',
-    }))
+  const rows = rates.map(r => ({
+    'Date': r.date,
+    'Day': DAYS[new Date(r.date + 'T00:00:00Z').getUTCDay()],
+    'Min Sell Price': r.price,
+    'Currency': r.currency,
+    'Available': r.available ? 'Y' : 'N',
+    'Color': r.calendarColor,
+    'Rolling Avg': r.rollingAvg ?? '',
+    '% vs Avg': r.rollingAvg && r.rollingAvg > 0
+      ? `${((r.price / r.rollingAvg - 1) * 100).toFixed(1)}%`
+      : '',
+    'Anomaly Type': r.anomalyType ? (ANOMALY_LABEL[r.anomalyType] ?? r.anomalyType) : '',
+    'Room': r.cheapestRoomName ?? '',
+    'Board': r.cheapestBoard ?? '',
+    'Cancellation': r.cheapestCancellationLabel ?? '',
+  }))
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Anomalies')
-  XLSX.writeFile(wb, `Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
+  XLSX.utils.book_append_sheet(wb, ws, 'Raw Data Anomalies')
+  XLSX.writeFile(wb, `Raw Data Anomalies_${propertyName}_${propertyId}_${xlsxDate()}.xlsx`)
 }
 
 // ── System level ──────────────────────────────────────────────────────────────
@@ -364,16 +364,16 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
           <button
             onClick={() => ratesData && exportCalendarExcel(ratesData, propertyId, propertyName)}
             disabled={!ratesData || ratesData.length === 0}
-            className="rounded-lg border border-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-light)] disabled:opacity-40 transition-colors"
+            className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             Export Calendar
           </button>
           <button
-            onClick={() => ratesData && exportAnomaliesExcel(ratesData, propertyId, propertyName)}
-            disabled={!ratesData || !ratesData.some(r => r.anomalyType !== null)}
+            onClick={() => ratesData && exportRawDataExcel(ratesData, propertyId, propertyName)}
+            disabled={!ratesData || ratesData.length === 0}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
-            Export Anomalies
+            Export Raw Data Anomalies
           </button>
         </div>
       </div>
@@ -392,7 +392,7 @@ export default function PricingConfigPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-text)]">Calendar Rates</h1>
+        <h1 className="text-xl font-bold text-[var(--color-text)]">Calendar Rates & Anomalies</h1>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">Configure price calendar and anomaly detection thresholds.</p>
       </div>
 
