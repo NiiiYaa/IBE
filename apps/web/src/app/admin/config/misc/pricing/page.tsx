@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { apiClient } from '@/lib/api-client'
@@ -430,11 +430,19 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
     queryKey: ['pricing-config-property', propertyId],
     queryFn: () => apiClient.getPropertyPricingConfig(propertyId),
   })
+  const prevStatusRef = useRef<string | undefined>(undefined)
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ['pricing-status', propertyId],
     queryFn: () => apiClient.getPricingStatus(propertyId),
     refetchInterval: (q) => q.state.data?.status === 'running' ? 3_000 : 8_000,
   })
+  useEffect(() => {
+    if (prevStatusRef.current === 'running' && status?.status !== 'running') {
+      void qc.invalidateQueries({ queryKey: ['pricing-admin-data', propertyId] })
+      void qc.invalidateQueries({ queryKey: ['pricing-admin-offers', propertyId] })
+    }
+    prevStatusRef.current = status?.status
+  }, [status?.status, propertyId, qc])
   const { data: ratesData } = useQuery({
     queryKey: ['pricing-admin-data', propertyId],
     queryFn: () => apiClient.getAdminPricingData(propertyId),
