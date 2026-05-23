@@ -29,6 +29,7 @@ interface OfferEntry {
   currency: string
 }
 
+// Simplification: 'amount' is checked without considering penaltyType ('nights' penalty treated same as currency/percent)
 export function deriveCancellationLabel(policies: HGCancellationPolicy[]): 'Free' | 'Non-refundable' | 'Partial' {
   if (policies.length === 0) return 'Free'
   const hasZero = policies.some(p => p.amount === 0)

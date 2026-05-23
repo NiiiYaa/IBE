@@ -140,6 +140,67 @@ describe('offer collection', () => {
     expect(rank1?.board).toBe('BB')
     expect(rank1?.cancellationLabel).toBe('Free')
   })
+
+  it('caps stored offers at maxOffersForAnalysis', async () => {
+    // Response with 3 rate plans (3 different offers per date)
+    const response = makeHGResponse(1)
+    response.results[0]!.rooms[0]!.ratePlans = [
+      ...response.results[0]!.rooms[0]!.ratePlans,
+      {
+        ...response.results[0]!.rooms[0]!.ratePlans[0]!,
+        ratePlanId: 2, ratePlanCode: 'RO', ratePlanName: 'Room Only', board: 'RO',
+        prices: {
+          ...response.results[0]!.rooms[0]!.ratePlans[0]!.prices,
+          sell: { price: response.results[0]!.rooms[0]!.ratePlans[0]!.prices.sell.price * 1.1, currency: 'USD', taxes: [] },
+        },
+        nightlyBreakdown: response.results[0]!.rooms[0]!.ratePlans[0]!.nightlyBreakdown.map(n => ({
+          ...n, prices: { ...n.prices, sell: { price: n.prices.sell.price * 1.1, currency: 'USD', taxes: [] } },
+        })),
+      },
+      {
+        ...response.results[0]!.rooms[0]!.ratePlans[0]!,
+        ratePlanId: 3, ratePlanCode: 'HB', ratePlanName: 'Half Board', board: 'HB',
+        prices: {
+          ...response.results[0]!.rooms[0]!.ratePlans[0]!.prices,
+          sell: { price: response.results[0]!.rooms[0]!.ratePlans[0]!.prices.sell.price * 1.2, currency: 'USD', taxes: [] },
+        },
+        nightlyBreakdown: response.results[0]!.rooms[0]!.ratePlans[0]!.nightlyBreakdown.map(n => ({
+          ...n, prices: { ...n.prices, sell: { price: n.prices.sell.price * 1.2, currency: 'USD', taxes: [] } },
+        })),
+      },
+    ]
+    mockSearch.mockResolvedValue(response)
+    vi.mocked(resolveEffectivePricingConfig).mockResolvedValue({
+      enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
+      maxOffersForAnalysis: 2, // cap at 2, response has 3 offers
+      highPricePct: 15, lowPricePct: 15,
+      highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+    })
+    const { collectHotelPrices } = await import('../pricing-collect.service.js')
+    await collectHotelPrices(1)
+    // Find the createMany call that has offers for the date (rank 1 and 2 only, not rank 3)
+    const allRows = mockPrisma.dailyRateOffer.createMany.mock.calls
+      .flatMap((call: [{ data: Array<{ rank: number }> }]) => call[0].data)
+    const ranksForDate = allRows.map((r: { rank: number }) => r.rank)
+    expect(ranksForDate).toContain(1)
+    expect(ranksForDate).toContain(2)
+    expect(ranksForDate).not.toContain(3)
+  })
+
+  it('does not call dailyRateOffer.deleteMany when search window fails', async () => {
+    mockSearch.mockRejectedValueOnce(new Error('HG timeout')) // first window fails
+    mockSearch.mockResolvedValue(makeHGResponse(29)) // rest succeed
+    vi.mocked(resolveEffectivePricingConfig).mockResolvedValue({
+      enabled: true, openToAll: true, refreshIntervalHours: 24, searchAdults: 1,
+      maxOffersForAnalysis: 10, highPricePct: 15, lowPricePct: 15,
+      highAnomalyPct: 30, lowAnomalyPct: 30, dayDifferencePct: 35, dayDifferenceWindow: 7,
+    })
+    const { collectHotelPrices } = await import('../pricing-collect.service.js')
+    await collectHotelPrices(1)
+    // 13 windows total, 1 failed — deleteMany called only 12 times (not 13)
+    expect(mockPrisma.dailyRateOffer.deleteMany).toHaveBeenCalledTimes(12)
+    expect(mockPrisma.dailyRateOffer.createMany).toHaveBeenCalledTimes(12)
+  })
 })
 
 describe('collectHotelPrices', () => {
