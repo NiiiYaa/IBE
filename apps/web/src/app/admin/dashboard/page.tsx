@@ -370,9 +370,9 @@ function PricingAnomalyCard({ propertyId }: { propertyId: number }) {
                         <td className="py-1 pr-2">{r.price.toFixed(0)} {currency}</td>
                         <td className="py-1 pr-2">{r.rollingAvg?.toFixed(0) ?? '—'}</td>
                         <td className="py-1 pr-2">{dev !== '—' ? `${Number(dev) >= 0 ? '+' : ''}${dev}%` : '—'}</td>
-                        <td className="py-1 pr-2 text-xs">{r.cheapestRoomName ?? '—'}</td>
-                        <td className="py-1 pr-2 text-xs">{r.cheapestBoard ?? '—'}</td>
-                        <td className="py-1 text-xs">{r.cheapestCancellationLabel ?? '—'}</td>
+                        <td className="py-1 pr-2">{r.cheapestRoomName ?? '—'}</td>
+                        <td className="py-1 pr-2">{r.cheapestBoard ?? '—'}</td>
+                        <td className="py-1">{r.cheapestCancellationLabel ?? '—'}</td>
                       </tr>
                     )
                   })}
