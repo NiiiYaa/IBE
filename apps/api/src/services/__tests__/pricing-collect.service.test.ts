@@ -17,7 +17,7 @@ vi.mock('../pricing-config.service.js', () => ({
 import { searchAvailability } from '../../adapters/hyperguest/search.js'
 import { prisma } from '../../db/client.js'
 import { resolveEffectivePricingConfig } from '../pricing-config.service.js'
-import { todayIso } from '@ibe/shared'
+import { todayIso, CancellationPenaltyType } from '@ibe/shared'
 
 const mockSearch = searchAvailability as ReturnType<typeof vi.fn>
 const mockPrisma = prisma as unknown as {
@@ -78,7 +78,7 @@ describe('deriveCancellationLabel', () => {
   it('returns Free when all policy amounts are 0', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
     const policies = [
-      { daysBefore: 7, penaltyType: 'currency' as const, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
     ]
     expect(deriveCancellationLabel(policies)).toBe('Free')
   })
@@ -86,7 +86,7 @@ describe('deriveCancellationLabel', () => {
   it('returns Non-refundable when all policy amounts are > 0', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
     const policies = [
-      { daysBefore: 0, penaltyType: 'currency' as const, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 0, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
     ]
     expect(deriveCancellationLabel(policies)).toBe('Non-refundable')
   })
@@ -94,8 +94,8 @@ describe('deriveCancellationLabel', () => {
   it('returns Partial when some amounts are 0 and some are > 0', async () => {
     const { deriveCancellationLabel } = await import('../pricing-collect.service.js')
     const policies = [
-      { daysBefore: 7, penaltyType: 'currency' as const, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
-      { daysBefore: 0, penaltyType: 'currency' as const, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 7, penaltyType: CancellationPenaltyType.Currency, amount: 0, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
+      { daysBefore: 0, penaltyType: CancellationPenaltyType.Currency, amount: 100, timeSetting: { timeFromCheckIn: 0, timeFromCheckInType: 'hours' as const } },
     ]
     expect(deriveCancellationLabel(policies)).toBe('Partial')
   })
@@ -133,8 +133,8 @@ describe('offer collection', () => {
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
     // Find any createMany call that has a rank:1 entry and verify its offer fields
-    const allRows = mockPrisma.dailyRateOffer.createMany.mock.calls
-      .flatMap((call: [{ data: Array<{ rank: number; roomName: string; board: string; cancellationLabel: string }> }]) => call[0].data)
+    const allRows = (mockPrisma.dailyRateOffer.createMany.mock.calls as Array<[{ data: Array<{ rank: number; roomName: string; board: string; cancellationLabel: string }> }]>)
+      .flatMap(call => call[0].data)
     const rank1 = allRows.find((r) => r.rank === 1)
     expect(rank1?.roomName).toBe('Standard')
     expect(rank1?.board).toBe('BB')
@@ -179,9 +179,9 @@ describe('offer collection', () => {
     const { collectHotelPrices } = await import('../pricing-collect.service.js')
     await collectHotelPrices(1)
     // Find the createMany call that has offers for the date (rank 1 and 2 only, not rank 3)
-    const allRows = mockPrisma.dailyRateOffer.createMany.mock.calls
-      .flatMap((call: [{ data: Array<{ rank: number }> }]) => call[0].data)
-    const ranksForDate = allRows.map((r: { rank: number }) => r.rank)
+    const allRows = (mockPrisma.dailyRateOffer.createMany.mock.calls as Array<[{ data: Array<{ rank: number }> }]>)
+      .flatMap(call => call[0].data)
+    const ranksForDate = allRows.map(r => r.rank)
     expect(ranksForDate).toContain(1)
     expect(ranksForDate).toContain(2)
     expect(ranksForDate).not.toContain(3)
