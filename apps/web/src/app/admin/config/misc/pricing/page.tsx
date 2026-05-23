@@ -234,8 +234,8 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
         </div>
       )}
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-[var(--color-text)]">Opt out of system pricing</span>
-        <Toggle checked={form.systemServiceDisabled} onChange={set('systemServiceDisabled')} />
+        <span className="text-sm text-[var(--color-text)]">Pricing service</span>
+        <Toggle checked={!form.systemServiceDisabled} onChange={v => set('systemServiceDisabled')(!v)} />
       </div>
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Enabled override</span>
@@ -349,8 +349,8 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
         </div>
       )}
       <div className="flex items-center justify-between py-2">
-        <span className="text-sm text-[var(--color-text)]">Opt out</span>
-        <Toggle checked={form.orgServiceDisabled} onChange={set('orgServiceDisabled')} />
+        <span className="text-sm text-[var(--color-text)]">Pricing service</span>
+        <Toggle checked={!form.orgServiceDisabled} onChange={v => set('orgServiceDisabled')(!v)} />
       </div>
       <div className="flex items-center justify-between py-2">
         <span className="text-sm text-[var(--color-text)]">Enabled override</span>
