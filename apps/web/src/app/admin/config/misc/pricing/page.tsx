@@ -145,6 +145,15 @@ function SystemPricingSection() {
           <input type="number" min={1} max={90} value={form.dayDifferenceWindow}
             onChange={e => set('dayDifferenceWindow')(Number(e.target.value))} className={inputCls} />
         </div>
+        <div className="flex items-center justify-between py-2">
+          <span className="text-sm text-[var(--color-text)]">Max offers for analysis</span>
+          <input
+            type="number" min={1} max={100}
+            value={form.maxOffersForAnalysis}
+            onChange={e => set('maxOffersForAnalysis')(Number(e.target.value))}
+            className={inputCls}
+          />
+        </div>
       </div>
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
@@ -199,6 +208,24 @@ function OrgPricingSection({ orgId }: { orgId: number }) {
       <PctField label="High Anomaly %" value={form.highAnomalyPct} onChange={set('highAnomalyPct')} inherited={eff.highAnomalyPct} />
       <PctField label="Low Anomaly %" value={form.lowAnomalyPct} onChange={set('lowAnomalyPct')} inherited={eff.lowAnomalyPct} />
       <PctField label="Day Difference %" value={form.dayDifferencePct} onChange={set('dayDifferencePct')} inherited={eff.dayDifferencePct} />
+      <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-[var(--color-text)]">Max offers for analysis</span>
+        <div className="flex items-center gap-2">
+          {form.maxOffersForAnalysis === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.maxOffersForAnalysis} inherited)</span>
+          )}
+          <input
+            type="number" min={1} max={100}
+            value={form.maxOffersForAnalysis ?? ''}
+            placeholder={String(eff.maxOffersForAnalysis)}
+            onChange={e => set('maxOffersForAnalysis')(e.target.value === '' ? null : Number(e.target.value))}
+            className={inputCls}
+          />
+          {form.maxOffersForAnalysis !== null && (
+            <button onClick={() => set('maxOffersForAnalysis')(null)} className="text-xs text-[var(--color-primary)] underline">Reset</button>
+          )}
+        </div>
+      </div>
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -266,6 +293,24 @@ function PropertyPricingSection({ propertyId }: { propertyId: number }) {
       <PctField label="High Anomaly %" value={form.highAnomalyPct} onChange={set('highAnomalyPct')} inherited={eff.highAnomalyPct} />
       <PctField label="Low Anomaly %" value={form.lowAnomalyPct} onChange={set('lowAnomalyPct')} inherited={eff.lowAnomalyPct} />
       <PctField label="Day Difference %" value={form.dayDifferencePct} onChange={set('dayDifferencePct')} inherited={eff.dayDifferencePct} />
+      <div className="flex items-center justify-between py-2">
+        <span className="text-sm text-[var(--color-text)]">Max offers for analysis</span>
+        <div className="flex items-center gap-2">
+          {form.maxOffersForAnalysis === null && (
+            <span className="text-xs text-[var(--color-text-muted)]">({eff.maxOffersForAnalysis} inherited)</span>
+          )}
+          <input
+            type="number" min={1} max={100}
+            value={form.maxOffersForAnalysis ?? ''}
+            placeholder={String(eff.maxOffersForAnalysis)}
+            onChange={e => set('maxOffersForAnalysis')(e.target.value === '' ? null : Number(e.target.value))}
+            className={inputCls}
+          />
+          {form.maxOffersForAnalysis !== null && (
+            <button onClick={() => set('maxOffersForAnalysis')(null)} className="text-xs text-[var(--color-primary)] underline">Reset</button>
+          )}
+        </div>
+      </div>
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
 
       <div className="mt-4 border-t border-[var(--color-border)] pt-4 flex items-center justify-between">
