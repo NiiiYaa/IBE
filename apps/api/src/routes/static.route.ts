@@ -22,7 +22,7 @@ export async function staticRoutes(fastify: FastifyInstance) {
       const detail = await getPropertyDetail(propertyId)
       return reply.send(detail)
     } catch (err) {
-      if (err instanceof HyperGuestApiError && err.httpStatus === 404) {
+      if (err instanceof HyperGuestApiError) {
         return reply.status(404).send({ error: 'Property not found', code: IBE_ERROR_NOT_FOUND })
       }
       throw err

@@ -43,6 +43,64 @@ export function encodeSearchParams(params: SearchUrlParams): URLSearchParams {
   return qs
 }
 
+// ── Multi-city URL params ─────────────────────────────────────────────────────
+
+export interface MultiCityLegParam {
+  propertyId: number
+  checkIn: string
+  checkOut: string
+  city: string
+}
+
+export interface MultiCityUrlParams {
+  legs: MultiCityLegParam[]
+  adults: number
+  nationality?: string | undefined
+  promoCode?: string | undefined
+}
+
+/** Encodes multi-city search params into a URLSearchParams object. */
+export function encodeMultiCityParams(params: MultiCityUrlParams): URLSearchParams {
+  const qs = new URLSearchParams()
+  params.legs.forEach(leg => {
+    // Format: propertyId:checkIn:checkOut:city  (city is URI-encoded to handle spaces/special chars)
+    qs.append('l', `${leg.propertyId}:${leg.checkIn}:${leg.checkOut}:${encodeURIComponent(leg.city)}`)
+  })
+  qs.set('adults', String(params.adults))
+  if (params.nationality) qs.set('nationality', params.nationality)
+  if (params.promoCode) qs.set('promo', params.promoCode)
+  return qs
+}
+
+/** Decodes URLSearchParams into MultiCityUrlParams. Returns null if invalid. */
+export function decodeMultiCityParams(qs: URLSearchParams): MultiCityUrlParams | null {
+  const raw = qs.getAll('l')
+  if (raw.length < 1) return null
+
+  const legs: MultiCityLegParam[] = []
+  for (const s of raw) {
+    // Split on first three colons only; remaining is city (may contain colons)
+    const i1 = s.indexOf(':')
+    const i2 = s.indexOf(':', i1 + 1)
+    const i3 = s.indexOf(':', i2 + 1)
+    if (i1 < 0 || i2 < 0 || i3 < 0) return null
+    const propertyId = Number(s.slice(0, i1))
+    const checkIn = s.slice(i1 + 1, i2)
+    const checkOut = s.slice(i2 + 1, i3)
+    const city = decodeURIComponent(s.slice(i3 + 1))
+    if (!propertyId || !checkIn || !checkOut) return null
+    legs.push({ propertyId, checkIn, checkOut, city })
+  }
+
+  const adults = Number(qs.get('adults') ?? '2') || 2
+  return {
+    legs,
+    adults,
+    ...(qs.get('nationality') ? { nationality: qs.get('nationality')! } : {}),
+    ...(qs.get('promo') ? { promoCode: qs.get('promo')! } : {}),
+  }
+}
+
 /**
  * Decodes URLSearchParams into SearchUrlParams.
  * Returns null if required params are missing.

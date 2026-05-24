@@ -22,6 +22,7 @@ interface RoomCardProps {
   convert?: (amount: number) => number
   primaryImageId?: number
   selectLabel?: string
+  detailsLabel?: string
   selectDisabled?: ((rate: RateOption) => boolean) | undefined
   incentive?: IncentivePackageDisplay | null
 }
@@ -30,7 +31,7 @@ function lowestRateCurrency(room: RoomOption): string {
   return room.rates[0]?.prices.sell.currency ?? 'USD'
 }
 
-export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, selectDisabled, incentive }: RoomCardProps) {
+export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defaultExpanded = false, onRateSelect, displayCurrency, convert, primaryImageId, selectLabel, detailsLabel, selectDisabled, incentive }: RoomCardProps) {
   const t = useT('rooms')
   const tFacility = useT('room_facilities')
   const conv = convert ?? ((n: number) => n)
@@ -243,7 +244,7 @@ export function RoomCard({ room, nights, locale, roomDetail, remarks = [], defau
                 aria-expanded={expanded}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--color-primary-hover)] active:scale-95"
               >
-                {t('detailsAndBook')}
+                {detailsLabel ?? t('detailsAndBook')}
                 <svg
                   className={`h-4 w-4 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
                   fill="none"

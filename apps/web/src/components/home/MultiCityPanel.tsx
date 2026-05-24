@@ -6,7 +6,8 @@ import { useT, useLocale } from '@/context/translations'
 import { CalendarDropdown } from '@/components/search/CalendarDropdown'
 import { GuestsDropdown, type GuestRoom } from '@/components/search/GuestsDropdown'
 import { NationalityDropdown } from '@/components/search/NationalityDropdown'
-import { encodeSearchParams } from '@/lib/search-params'
+import { encodeMultiCityParams } from '@/lib/search-params'
+import { useSearchParams } from 'next/navigation'
 import { displayDate } from '@/lib/calendar-utils'
 import { countryFlag, countryName } from '@/lib/countries'
 import { useCountryDetect } from '@/hooks/use-country-detect'
@@ -410,6 +411,7 @@ export function MultiCityPanel({
 }: MultiCityPanelProps) {
   const t = useT('search')
   const locale = useLocale()
+  const currentSearchParams = useSearchParams()
   const detectedCountry = useCountryDetect()
 
   const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg()])
@@ -471,18 +473,25 @@ export function MultiCityPanel({
   }
 
   function handleCheckAvailability() {
-    for (const leg of legs) {
-      if (!leg.propertyId || !leg.checkIn || !leg.checkOut) continue
-      const qs = encodeSearchParams({
-        hotelId: leg.propertyId,
-        checkIn: leg.checkIn,
-        checkOut: leg.checkOut,
-        rooms: [{ adults: totalAdults }],
-        nationality: nationality || undefined,
-        promoCode: promoCode || undefined,
-      })
-      window.open(`/search?${qs.toString()}`, '_blank', 'noopener,noreferrer')
-    }
+    const qs = encodeMultiCityParams({
+      legs: legs
+        .filter(l => l.propertyId !== null && l.checkIn && l.checkOut)
+        .map(l => ({
+          propertyId: l.propertyId!,
+          checkIn: l.checkIn,
+          checkOut: l.checkOut,
+          city: l.city,
+        })),
+      adults: totalAdults,
+      ...(nationality ? { nationality } : {}),
+      ...(promoCode ? { promoCode } : {}),
+    })
+    // Preserve tenant routing params (used in non-subdomain dev/staging mode)
+    const chain = currentSearchParams.get('chain')
+    const hotelId = currentSearchParams.get('hotelId')
+    if (chain) qs.set('chain', chain)
+    if (hotelId) qs.set('hotelId', hotelId)
+    window.open(`/multi-city?${qs.toString()}`, '_blank', 'noopener,noreferrer')
   }
 
   return (
