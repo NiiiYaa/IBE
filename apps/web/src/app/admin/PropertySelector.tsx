@@ -17,9 +17,10 @@ interface Props {
   selected: Selection
   onSelect: (s: Selection) => void
   propertyNameMap: Record<number, string>
+  propertiesLoading?: boolean
 }
 
-export function PropertySelector({ properties, isSuper, superOrgs, selected, onSelect, propertyNameMap }: Props) {
+export function PropertySelector({ properties, isSuper, superOrgs, selected, onSelect, propertyNameMap, propertiesLoading }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -95,8 +96,8 @@ export function PropertySelector({ properties, isSuper, superOrgs, selected, onS
       const filtered = g.props.filter(matchesQuery)
       if (filtered.length > 0) groups.push({ ...g, props: filtered })
     }
-    // Include orgs that have no properties yet
-    if (superOrgs) {
+    // Include orgs that have no properties yet — only after properties have loaded to avoid ghost entries
+    if (superOrgs && !propertiesLoading) {
       const seenOrgIds = new Set(groups.map(g => g.orgId))
       for (const org of superOrgs) {
         if (seenOrgIds.has(org.id)) continue
@@ -169,6 +170,10 @@ export function PropertySelector({ properties, isSuper, superOrgs, selected, onS
               </button>
             )}
 
+            {propertiesLoading && (
+              <div className="px-3 py-2 text-[10px] text-[var(--color-text-muted)] italic">Loading properties…</div>
+            )}
+
             {groups.map((group, gi) => (
               <div key={gi}>
                 {isSuper && (
@@ -181,17 +186,18 @@ export function PropertySelector({ properties, isSuper, superOrgs, selected, onS
                       onClick={() => group.orgId !== null && select(null, group.orgId)}
                       disabled={group.orgId === null}
                       className={[
-                        'flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors',
-                        group.orgId !== null ? 'cursor-pointer hover:bg-[var(--color-background)]' : 'cursor-default',
+                        'flex w-full items-center gap-1.5 px-2 py-1.5 mt-0.5 text-left transition-colors rounded-sm',
+                        'bg-[var(--color-border)]/30',
+                        group.orgId !== null ? 'cursor-pointer hover:bg-[var(--color-border)]/60' : 'cursor-default',
                         selected.propertyId === null && selected.orgId === group.orgId
                           ? 'text-[var(--color-primary)]'
-                          : 'text-[var(--color-text-muted)]',
+                          : 'text-[var(--color-text)]',
                       ].join(' ')}
                     >
-                      <span className="text-[9px] font-bold uppercase tracking-widest">{group.name}</span>
+                      <span className="text-[10px] font-bold tracking-wide">{group.name}</span>
                       {group.orgId !== null && (
-                        <span className="text-[9px] opacity-60">
-                          {group.hgOrgId ? `(${group.hgOrgId})` : ''} ⛓ chain
+                        <span className="text-[9px] opacity-50 font-normal">
+                          {group.hgOrgId ? `(${group.hgOrgId})` : ''} ⛓
                         </span>
                       )}
                     </button>

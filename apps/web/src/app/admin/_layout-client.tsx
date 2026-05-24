@@ -191,7 +191,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     enabled: isAuthenticated && !isSuper,
   })
 
-  const { data: allPropertiesData } = useQuery({
+  const { data: allPropertiesData, isLoading: propertiesLoading } = useQuery({
     queryKey: ['admin-super-properties'],
     queryFn: () => apiClient.listAllProperties(),
     staleTime: Infinity,
@@ -726,6 +726,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 <PropertySelector
                   properties={properties}
                   isSuper={isSuper}
+                  propertiesLoading={isSuper && propertiesLoading}
                   {...(superOrgs !== undefined ? { superOrgs } : {})}
                   selected={{ propertyId, orgId }}
                   onSelect={s => setSelection(s.propertyId, s.orgId)}
