@@ -123,6 +123,8 @@
     "interHotelTransferSponsored": "Self-transfer sponsored by the hotel (up to {amount} {currency})",
     "interHotelFrom": "Starting from",
     "multiCityTrip": "Multi City Trip",
+    "multiCityCityPlural": "cities",
+    "multiCityGapWarning": "Please note that the selected dates contain the following gaps:",
     "multiCityAddCity": "Add city",
     "multiCityRemove": "Remove",
     "multiCityLeg": "City {n}",

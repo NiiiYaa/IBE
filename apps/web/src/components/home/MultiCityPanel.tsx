@@ -389,6 +389,7 @@ export function MultiCityPanel({
   childMaxAge,
 }: MultiCityPanelProps) {
   const t = useT('search')
+  const locale = useLocale()
   const detectedCountry = useCountryDetect()
 
   const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg()])
@@ -428,6 +429,22 @@ export function MultiCityPanel({
 
   const allLegsReady = legs.every(l => l.propertyId !== null && l.checkIn && l.checkOut)
   const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
+
+  // Summary stats — computed only when all legs are ready
+  const sortedLegs = [...legs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  const minCheckIn = sortedLegs[0]?.checkIn ?? null
+  const maxCheckOut = sortedLegs[sortedLegs.length - 1]?.checkOut ?? null
+  const totalNights = legs.reduce((sum, l) => sum + nightsBetween(l.checkIn, l.checkOut), 0)
+
+  // Gap detection: any consecutive sorted pair where checkOut ≠ next checkIn
+  const gaps: { from: string; to: string }[] = []
+  for (let i = 0; i < sortedLegs.length - 1; i++) {
+    const cur = sortedLegs[i]
+    const next = sortedLegs[i + 1]
+    if (cur && next && cur.checkOut < next.checkIn) {
+      gaps.push({ from: cur.checkOut, to: next.checkIn })
+    }
+  }
 
   function handleCheckAvailability() {
     for (const leg of legs) {
@@ -478,15 +495,38 @@ export function MultiCityPanel({
         )
       })}
 
-      {/* CTA + promo code */}
+      {/* Gap warning */}
+      {allLegsReady && gaps.length > 0 && (
+        <div className="hidden sm:flex flex-col gap-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="font-medium">{t('multiCityGapWarning')}</span>
+          <ul className="list-disc pl-4">
+            {gaps.map((g, i) => (
+              <li key={i}>{displayDate(g.from, locale)} – {displayDate(g.to, locale)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* CTA row + summary */}
       <div className="hidden sm:flex flex-col items-end gap-1.5 pt-1">
         {allLegsReady && (
-          <button
-            onClick={handleCheckAvailability}
-            className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
-          >
-            {t('checkAvailability')}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCheckAvailability}
+              className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
+            >
+              {t('checkAvailability')}
+            </button>
+            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+              <span>{legs.length} {legs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
+              <span>·</span>
+              <span>{displayDate(minCheckIn!, locale)}</span>
+              <span>→</span>
+              <span>{displayDate(maxCheckOut!, locale)}</span>
+              <span>·</span>
+              <span>{totalNights} {t('nightsLabel')}</span>
+            </span>
+          </div>
         )}
         <button
           onClick={() => setShowPromo(v => !v)}
