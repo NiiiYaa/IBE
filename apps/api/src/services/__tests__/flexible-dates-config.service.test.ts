@@ -10,6 +10,7 @@ vi.mock('../../db/client.js', () => ({
     },
     orgFlexibleDatesConfig: { findUnique: vi.fn(), upsert: vi.fn() },
     propertyFlexibleDatesConfig: { findUnique: vi.fn(), upsert: vi.fn() },
+    property: { findUnique: vi.fn() },
   },
 }))
 
@@ -21,6 +22,7 @@ const mockPrisma = prisma as unknown as {
   }
   orgFlexibleDatesConfig: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> }
   propertyFlexibleDatesConfig: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> }
+  property: { findUnique: ReturnType<typeof vi.fn> }
 }
 
 const SYSTEM_ROW = { id: 1, enabled: true, daysBefore: 2, daysAfter: 2 }
@@ -31,6 +33,7 @@ describe('resolveEffectiveFlexibleDatesConfig', () => {
   it('returns system defaults when no overrides exist', async () => {
     mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue(null)
     mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue(null)
+    mockPrisma.property.findUnique.mockResolvedValue(null)
     mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue(null)
 
     const { resolveEffectiveFlexibleDatesConfig } = await import('../flexible-dates-config.service.js')
@@ -44,6 +47,7 @@ describe('resolveEffectiveFlexibleDatesConfig', () => {
   it('applies system row values when present', async () => {
     mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue(SYSTEM_ROW)
     mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue(null)
+    mockPrisma.property.findUnique.mockResolvedValue(null)
     mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue(null)
 
     const { resolveEffectiveFlexibleDatesConfig } = await import('../flexible-dates-config.service.js')
@@ -58,8 +62,8 @@ describe('resolveEffectiveFlexibleDatesConfig', () => {
     mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue(SYSTEM_ROW)
     mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue({
       propertyId: 1, enabled: null, daysBefore: null, daysAfter: null,
-      property: { organizationId: 10 },
     })
+    mockPrisma.property.findUnique.mockResolvedValue({ organizationId: 10 })
     mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue({
       organizationId: 10, enabled: null, daysBefore: 3, daysAfter: null,
     })
@@ -75,8 +79,8 @@ describe('resolveEffectiveFlexibleDatesConfig', () => {
     mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue(SYSTEM_ROW)
     mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue({
       propertyId: 1, enabled: true, daysBefore: 1, daysAfter: null,
-      property: { organizationId: 10 },
     })
+    mockPrisma.property.findUnique.mockResolvedValue({ organizationId: 10 })
     mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue({
       organizationId: 10, enabled: false, daysBefore: 3, daysAfter: 3,
     })
@@ -92,11 +96,28 @@ describe('resolveEffectiveFlexibleDatesConfig', () => {
   it('returns enabled=false when system is disabled and no overrides', async () => {
     mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue({ ...SYSTEM_ROW, enabled: false })
     mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue(null)
+    mockPrisma.property.findUnique.mockResolvedValue(null)
     mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue(null)
 
     const { resolveEffectiveFlexibleDatesConfig } = await import('../flexible-dates-config.service.js')
     const result = await resolveEffectiveFlexibleDatesConfig(1)
 
     expect(result.enabled).toBe(false)
+  })
+
+  it('resolves effective config from org tier when property has no override row', async () => {
+    mockPrisma.systemFlexibleDatesConfig.findFirst.mockResolvedValue({ id: 1, enabled: false, daysBefore: 1, daysAfter: 1 })
+    mockPrisma.propertyFlexibleDatesConfig.findUnique.mockResolvedValue(null)
+    mockPrisma.property.findUnique.mockResolvedValue({ organizationId: 5 })
+    mockPrisma.orgFlexibleDatesConfig.findUnique.mockResolvedValue({
+      organizationId: 5, enabled: true, daysBefore: 2, daysAfter: 2,
+    })
+
+    const { resolveEffectiveFlexibleDatesConfig } = await import('../flexible-dates-config.service.js')
+    const result = await resolveEffectiveFlexibleDatesConfig(99)
+
+    expect(result.enabled).toBe(true)    // org override, not system default
+    expect(result.daysBefore).toBe(2)    // org override, not system default
+    expect(result.daysAfter).toBe(2)     // org override, not system default
   })
 })

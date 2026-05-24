@@ -55,15 +55,15 @@ export async function upsertOrgFlexibleDatesConfig(
 }
 
 export async function getPropertyFlexibleDatesConfig(propertyId: number): Promise<PropertyFlexibleDatesConfigResponse> {
-  const prop = await prisma.propertyFlexibleDatesConfig.findUnique({
-    where: { propertyId },
-    include: { property: { select: { organizationId: true } } },
-  })
-  const orgId = prop?.property?.organizationId
+  const [prop, propMeta] = await Promise.all([
+    prisma.propertyFlexibleDatesConfig.findUnique({ where: { propertyId } }),
+    prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } }),
+  ])
+  const orgId = propMeta?.organizationId
 
   const [system, org] = await Promise.all([
     getSystemFlexibleDatesConfig(),
-    orgId ? prisma.orgFlexibleDatesConfig.findUnique({ where: { organizationId: orgId } }) : Promise.resolve(null),
+    orgId !== undefined ? prisma.orgFlexibleDatesConfig.findUnique({ where: { organizationId: orgId } }) : Promise.resolve(null),
   ])
 
   const orgEffective = resolveOrgEffective(system, org)
