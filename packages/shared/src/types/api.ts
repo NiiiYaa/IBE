@@ -418,6 +418,60 @@ export interface PropertyFlexibleDatesConfigResponse {
   effective: FlexibleDatesEffective
 }
 
+// ── InterHotel Stay ───────────────────────────────────────────────────────────
+
+export type TransferType = 'self' | 'hotel' | 'sponsored_self'
+
+export interface InterHotelEffective {
+  enabled: boolean
+  maxRadiusKm: number
+  maxHotels: number
+  transferType: TransferType
+  sponsoredAmount: number
+  sponsoredCurrency: string
+}
+
+export interface SystemInterHotelConfigResponse extends InterHotelEffective {}
+
+export interface OrgInterHotelConfigResponse {
+  enabled: boolean | null
+  maxRadiusKm: number | null
+  maxHotels: number | null
+  transferType: TransferType | null
+  sponsoredAmount: number | null
+  sponsoredCurrency: string | null
+  effective: InterHotelEffective
+}
+
+export interface PropertyInterHotelConfigResponse {
+  enabled: boolean | null
+  maxRadiusKm: number | null
+  maxHotels: number | null
+  transferType: TransferType | null
+  sponsoredAmount: number | null
+  sponsoredCurrency: string | null
+  effective: InterHotelEffective
+}
+
+export interface InterHotelSegment {
+  checkIn: string
+  checkOut: string
+  result: PropertySearchResult
+}
+
+export interface InterHotelPackageResponse {
+  segments: InterHotelSegment[]
+  transferType: TransferType
+  sponsoredAmount: number
+  sponsoredCurrency: string
+  totalFromPrice: number
+  currency: string
+}
+
+export interface InterHotelSearchResponse {
+  packages: InterHotelPackageResponse[]
+}
+
 export interface PricingCollectionProgress {
   windowsDone: number
   totalWindows: number
