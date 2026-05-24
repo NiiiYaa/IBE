@@ -201,10 +201,13 @@ export async function generateMetadata(): Promise<Metadata> {
     const faviconUrl = rawFavicon?.startsWith('data:') && orgId
       ? `/api/v1/config/logo/${orgId}`
       : rawFavicon
+    const isSvgFavicon = rawFavicon?.startsWith('data:image/svg+xml') || faviconUrl?.endsWith('.svg')
     return {
       title,
       description: 'Book your stay directly',
-      icons: faviconUrl ? [{ rel: 'icon', url: faviconUrl }] : null,
+      icons: faviconUrl
+        ? [{ rel: 'icon', url: faviconUrl, ...(isSvgFavicon ? { type: 'image/svg+xml', sizes: 'any' } : {}) }]
+        : null,
     }
   } catch {
     return { title: 'Hotel Booking' }

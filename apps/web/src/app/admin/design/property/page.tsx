@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { OrgDesignDefaultsConfig, PropertyDesignAdminResponse } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { ALL_CURRENCIES, TOP_CURRENCIES, currencyName } from '@/lib/currencies'
 import { Section, FormRow, TextInput, SaveBar, selectCls } from '../components'
+import { compressImage } from '@/lib/compress-image'
 import { useAdminProperty } from '../../property-context'
 
 const FONT_OPTIONS = [
@@ -254,11 +255,13 @@ export default function PropertyBrandPage() {
               fieldKey="tabTitle" placeholder="e.g. Book Direct — Grand Palace"
               hgFallback={designData?.hgName ?? null}
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
-            <OverrideTextRow label="Logo URL" hint="Direct link or base64 data URL"
-              fieldKey="logoUrl" placeholder="https://..."
+            <OverrideImageRow label="Logo" hint="Direct link or upload a file (PNG, SVG, JPEG, WebP)"
+              fieldKey="logoUrl" placeholder="https://..." maxDimension={800}
+              accept="image/png,image/svg+xml,image/jpeg,image/webp"
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
-            <OverrideTextRow label="Favicon URL" hint="16×16 or 32×32 — direct link or base64 data URL"
-              fieldKey="faviconUrl" placeholder="https://..."
+            <OverrideImageRow label="Favicon" hint="Shown in the browser tab — upload a file or paste a URL"
+              fieldKey="faviconUrl" placeholder="https://..." maxDimension={256}
+              accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp"
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset} />
             <OverrideTextRow label="Check-in time" hint="Shown on the booking summary — e.g. 3:00 PM"
               fieldKey="checkInTime" placeholder="e.g. 3:00 PM"
@@ -346,6 +349,68 @@ type OverrideProps = {
   systemDefaults: OrgDesignDefaultsConfig
   onSet: (key: keyof Draft, val: Draft[keyof Draft]) => void
   onReset: (key: keyof Draft) => void
+}
+
+function OverrideImageRow({ label, hint, fieldKey, placeholder, accept, maxDimension, draft, orgDefaults, systemDefaults, onSet, onReset }: OverrideProps & {
+  label: string; hint?: string | undefined; fieldKey: keyof OrgDesignDefaultsConfig
+  placeholder?: string | undefined; accept: string; maxDimension: number
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const raw = draft[fieldKey] as string | null | undefined
+  const isOverriding = raw != null
+  const chainValue = orgDefaults[fieldKey] as string | null
+  const source = isOverriding ? 'hotel' : sourceLabel(fieldKey as string, orgDefaults)
+
+  return (
+    <FormRow label={label} hint={hint}>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          {isOverriding ? (
+            <TextInput value={raw ?? ''} onChange={v => onSet(fieldKey, v || null)} placeholder={placeholder} />
+          ) : (
+            <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-muted)] italic truncate">
+              {chainValue ?? <span className="text-[var(--color-text-muted)]/50">{placeholder ?? 'not set'}</span>}
+            </div>
+          )}
+          <SourceBadge source={source} />
+          {isOverriding ? (
+            <>
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Upload
+              </button>
+              <input ref={fileRef} type="file" accept={accept} className="sr-only"
+                onChange={async e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  onSet(fieldKey, await compressImage(file, maxDimension))
+                  e.target.value = ''
+                }} />
+              <button type="button" onClick={() => onReset(fieldKey)}
+                className="shrink-0 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
+                ↩ Reset
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => onSet(fieldKey, chainValue ?? '')}
+              className="shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+              Override
+            </button>
+          )}
+        </div>
+        {isOverriding && raw && (
+          <div className="flex items-center gap-2">
+            <img src={raw} alt={`${label} preview`}
+              className="h-8 max-w-[120px] rounded object-contain border border-[var(--color-border)] bg-[var(--color-background)] p-0.5" />
+            <button type="button" onClick={() => onSet(fieldKey, null)}
+              className="text-xs text-[var(--color-text-muted)] underline-offset-2 hover:underline">
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
+    </FormRow>
+  )
 }
 
 function OverrideTextRow({ label, hint, fieldKey, placeholder, hgFallback, draft, orgDefaults, onSet, onReset }: OverrideProps & {
