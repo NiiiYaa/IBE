@@ -2471,6 +2471,46 @@ export const apiClient = {
   ): Promise<import('@ibe/shared').PropertyFlexibleDatesConfigResponse> {
     return apiRequest(`/api/v1/admin/flexible-dates/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
   },
+
+  // ── InterHotel Stay ───────────────────────────────────────────────────────
+  async getInterHotelConfig(propertyId: number): Promise<import('@ibe/shared').InterHotelEffective> {
+    return apiRequest(`/api/v1/interhotel/config/${propertyId}`)
+  },
+
+  async searchInterHotel(params: {
+    propertyId: number; checkIn: string; checkOut: string;
+    rooms: { adults: number }[]; nationality?: string; currency?: string
+  }): Promise<import('@ibe/shared').InterHotelSearchResponse> {
+    return apiRequest('/api/v1/interhotel/search', { method: 'POST', body: JSON.stringify(params) })
+  },
+
+  async getSystemInterHotelConfig(): Promise<import('@ibe/shared').SystemInterHotelConfigResponse> {
+    return apiRequest('/api/v1/admin/interhotel/config/system')
+  },
+
+  async updateSystemInterHotelConfig(data: Partial<import('@ibe/shared').SystemInterHotelConfigResponse>): Promise<import('@ibe/shared').SystemInterHotelConfigResponse> {
+    return apiRequest('/api/v1/admin/interhotel/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  async getOrgInterHotelConfig(orgId: number): Promise<import('@ibe/shared').OrgInterHotelConfigResponse> {
+    return apiRequest(`/api/v1/admin/interhotel/config/org/${orgId}`)
+  },
+
+  async updateOrgInterHotelConfig(orgId: number, data: Partial<import('@ibe/shared').OrgInterHotelConfigResponse>): Promise<import('@ibe/shared').OrgInterHotelConfigResponse> {
+    return apiRequest(`/api/v1/admin/interhotel/config/org/${orgId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  async getPropertyInterHotelConfig(propertyId: number): Promise<import('@ibe/shared').PropertyInterHotelConfigResponse> {
+    return apiRequest(`/api/v1/admin/interhotel/config/property/${propertyId}`)
+  },
+
+  async updatePropertyInterHotelConfig(propertyId: number, data: Partial<import('@ibe/shared').PropertyInterHotelConfigResponse>): Promise<import('@ibe/shared').PropertyInterHotelConfigResponse> {
+    return apiRequest(`/api/v1/admin/interhotel/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  async refreshInterHotelNearby(orgId: number): Promise<{ count: number }> {
+    return apiRequest(`/api/v1/admin/interhotel/refresh/org/${orgId}`, { method: 'POST', body: JSON.stringify({}) })
+  },
 }
 
 export { ApiClientError }
