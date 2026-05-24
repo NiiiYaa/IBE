@@ -232,11 +232,16 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   const headerItems = navItems.filter(n => n.section === 'header')
   const footerItems = navItems.filter(n => n.section === 'footer')
+  const hotelSpecificId = reqHeaders.get('x-tenant-hotel')
   const displayName = isChain
-    ? (config?.displayName || null)
+    ? (hotelSpecificId
+        ? (hotelConfig?.displayName || property?.name || config?.displayName || null)
+        : (config?.displayName || null))
     : (config?.displayName || property?.name || null)
   const logoUrl = isChain
-    ? (config?.logoUrl || null)
+    ? (hotelSpecificId
+        ? (hotelConfig?.logoUrl || property?.logo || config?.logoUrl || null)
+        : (config?.logoUrl || null))
     : (config?.logoUrl || property?.logo || null)
   const cssVars = config ? buildCssVars(config) : ''
   const fontUrl = config?.fontUrl ?? null
