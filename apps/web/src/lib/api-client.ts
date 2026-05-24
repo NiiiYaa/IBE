@@ -2525,7 +2525,7 @@ export const apiClient = {
   },
 
   async setNearbyHotelSelection(propertyId: number, nearbyPropertyId: number, selected: boolean | null): Promise<void> {
-    return apiRequest(`/api/v1/admin/interhotel/nearby/property/${propertyId}/${nearbyPropertyId}`, { method: 'PUT', body: { selected } })
+    return apiRequest(`/api/v1/admin/interhotel/nearby/property/${propertyId}/${nearbyPropertyId}`, { method: 'PUT', body: JSON.stringify({ selected }) })
   },
 
   async getOrgMultiCityEffective(orgId: number): Promise<import('@ibe/shared').MultiCityEffective> {

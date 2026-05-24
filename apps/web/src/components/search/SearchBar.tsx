@@ -148,14 +148,17 @@ export function SearchBar({
   const { data: dailyRatesData } = useQuery({
     queryKey: ['pricing-calendar', selectedPropertyId, currency],
     queryFn: () => apiClient.getPricingCalendar(selectedPropertyId, currency || undefined),
-    enabled: hotelConfig?.pricingEnabled === true,
+    enabled: !!selectedPropertyId,
     staleTime: 60 * 60 * 1000,
   })
-  const dailyRatesMap = dailyRatesData
+  const dailyRatesMap = dailyRatesData?.length
     ? Object.fromEntries(dailyRatesData.map(d => [d.date, d]))
     : undefined
-  const pricingCurrency: string | undefined = dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency
-  const calendarPriceProps = dailyRatesMap && pricingCurrency
+  // Show prices only when pricing is enabled; availability strikethrough works regardless
+  const pricingCurrency: string | undefined = hotelConfig?.pricingEnabled
+    ? (dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency)
+    : undefined
+  const calendarPriceProps = dailyRatesMap
     ? { dailyRates: dailyRatesMap, priceCurrency: pricingCurrency }
     : {}
   const groupsHref = groupConfig?.enabled
@@ -561,6 +564,7 @@ export function SearchBar({
                 variant="inline"
                 minNights={minNights}
                 maxNights={maxNights}
+                weekendHighlight={hotelConfig?.weekendHighlight}
                 {...calendarPriceProps}
               />
             </MobileSection>
@@ -715,6 +719,7 @@ export function SearchBar({
           onClose={() => setActivePanel(null)}
           minNights={minNights}
           maxNights={maxNights}
+          weekendHighlight={hotelConfig?.weekendHighlight}
           {...calendarPriceProps}
         />
       )}

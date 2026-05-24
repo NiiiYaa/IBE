@@ -314,7 +314,10 @@ export interface HotelDesignConfig {
   whatsappEnabled: boolean
   checkInTime: string | null
   checkOutTime: string | null
+  weekendHighlight: boolean
 }
+
+
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
 
@@ -584,6 +587,7 @@ export interface UpdateDesignConfigRequest {
   affiliateDefaultCommissionRate?: number | null
   checkInTime?: string | null
   checkOutTime?: string | null
+  weekendHighlight?: boolean | null
   rateProvider?: string | null
 }
 
@@ -648,6 +652,7 @@ export interface OrgDesignDefaultsConfig {
   chainExcludedPropertyImageIds: number[] | null
   checkInTime?: string | null
   checkOutTime?: string | null
+  weekendHighlight?: boolean | null
   rateProvider?: string | null
 }
 

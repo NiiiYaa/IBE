@@ -1,0 +1,1 @@
+ALTER TABLE "HotelConfig" ADD COLUMN IF NOT EXISTS "weekendHighlight" BOOLEAN NOT NULL DEFAULT false;

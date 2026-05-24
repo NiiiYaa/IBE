@@ -35,7 +35,7 @@ export async function pricingPublicRoutes(fastify: FastifyInstance) {
       if (cached) return cached
 
       const designConfig = await getHotelDesignConfig(propertyId)
-      if (!designConfig.pricingEnabled) return reply.send([])
+      const pricingEnabled = designConfig.pricingEnabled
 
       const rateProvider = (designConfig.rateProvider ?? 'fawazahmed0') as RateProvider
 
@@ -44,6 +44,19 @@ export async function pricingPublicRoutes(fastify: FastifyInstance) {
         orderBy: { date: 'asc' },
         select: { date: true, minSellPrice: true, currency: true, available: true, calendarColor: true },
       })
+      // When pricing is disabled, still return availability flags so the calendar can show strikethrough
+      if (!pricingEnabled) {
+        if (rates.length === 0) return reply.send([])
+        const availabilityOnly: DayPriceEntry[] = rates.map(r => ({
+          date: r.date,
+          price: 0,
+          currency: '',
+          available: r.available,
+          calendarColor: 'normal' as const,
+        }))
+        await cacheSet(cacheKey, availabilityOnly, CALENDAR_TTL)
+        return reply.send(availabilityOnly)
+      }
       if (rates.length === 0) return reply.send([])
 
       // Use the most common currency to avoid stale rows with a different currency skewing detection

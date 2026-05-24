@@ -240,6 +240,7 @@ export async function getHotelDesignConfig(propertyId: number): Promise<HotelDes
     whatsappEnabled: commSettings?.whatsappEnabled ?? false,
     checkInTime: config?.checkInTime ?? null,
     checkOutTime: config?.checkOutTime ?? null,
+    weekendHighlight: config?.weekendHighlight ?? false,
   }
 }
 
@@ -336,6 +337,7 @@ export async function getOrgDesignConfig(orgId: number): Promise<HotelDesignConf
     whatsappEnabled: false,
     checkInTime: null,
     checkOutTime: null,
+    weekendHighlight: false,
   }
 }
 
@@ -399,6 +401,7 @@ export async function upsertHotelDesignConfig(
     ...(updates.affiliateDefaultCommissionRate !== undefined && { affiliateDefaultCommissionRate: updates.affiliateDefaultCommissionRate }),
     ...(updates.checkInTime !== undefined && { checkInTime: updates.checkInTime }),
     ...(updates.checkOutTime !== undefined && { checkOutTime: updates.checkOutTime }),
+    ...(updates.weekendHighlight !== undefined && updates.weekendHighlight !== null && { weekendHighlight: updates.weekendHighlight }),
     ...(updates.rateProvider !== undefined && { rateProvider: updates.rateProvider }),
   }
 

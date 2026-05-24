@@ -39,7 +39,8 @@ interface CalendarDropdownProps {
   minNights?: number
   maxNights?: number
   dailyRates?: Record<string, DayPriceEntry>
-  priceCurrency?: string
+  priceCurrency?: string | undefined
+  weekendHighlight?: boolean | undefined
 }
 
 export function CalendarDropdown({
@@ -56,6 +57,7 @@ export function CalendarDropdown({
   maxNights = 365,
   dailyRates,
   priceCurrency,
+  weekendHighlight = false,
 }: CalendarDropdownProps) {
   const t = useT('search')
   const locale = useLocale()
@@ -205,7 +207,7 @@ export function CalendarDropdown({
         </div>
 
         {/* Month grid */}
-        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
+        <InlineMonthGrid ym={viewMonth} monthShortFn={monthShortFn} weekdays={weekdays} {...dayProps} weekendHighlight={weekendHighlight} {...(dailyRates ? { dailyRates } : {})} />
 
         {dailyRates && priceCurrency && (
           <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
@@ -240,8 +242,8 @@ export function CalendarDropdown({
         >
           ‹
         </NavBtn>
-        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} locale={locale} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
-        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} locale={locale} {...dayProps} {...(dailyRates ? { dailyRates } : {})} />
+        <DropdownMonthGrid ym={viewMonth} weekdays={weekdays} locale={locale} {...dayProps} weekendHighlight={weekendHighlight} {...(dailyRates ? { dailyRates } : {})} />
+        <DropdownMonthGrid ym={rightMonth} weekdays={weekdays} locale={locale} {...dayProps} weekendHighlight={weekendHighlight} {...(dailyRates ? { dailyRates } : {})} />
         <NavBtn onClick={() => setViewMonth(m => addMonths(m, 1))} aria-label="Next month">
           ›
         </NavBtn>
@@ -276,6 +278,7 @@ interface InlineMonthGridProps extends DayProps {
   ym: string
   monthShortFn: (ym: string) => string
   weekdays: string[]
+  weekendHighlight?: boolean
   dailyRates?: Record<string, DayPriceEntry>
 }
 
@@ -293,6 +296,7 @@ function InlineMonthGrid({
   onMouseLeave,
   monthShortFn,
   weekdays,
+  weekendHighlight,
   dailyRates,
 }: InlineMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
@@ -364,13 +368,19 @@ function InlineMonthGrid({
               || (isEnd && !!checkIn)
 
             const dayData = dailyRates?.[date]
-            const hasPrice = dayData && !isOverflow && !isPast && !isDisabled
+            const hasPrice = dayData && !isOverflow && !isPast && !isDisabled && dayData.price > 0
             const isUnavailable = !!(dayData?.available === false && !isPast && !isOverflow)
+            const dow = new Date(date + 'T00:00:00').getDay()
+            const isWeekend = weekendHighlight && !isOverflow && (dow === 0 || dow === 6)
 
             return (
               <div
                 key={date}
-                className={['relative flex flex-col items-center pb-0.5', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
+                className={[
+                  'relative flex flex-col items-center pb-0.5',
+                  !isDisabled ? 'cursor-pointer' : '',
+                  isWeekend ? 'bg-amber-50' : '',
+                ].join(' ')}
                 onClick={() => !isDisabled && onDayClick(date)}
                 onMouseEnter={() => !isDisabled && onDayHover(date)}
               >
@@ -427,6 +437,7 @@ interface DropdownMonthGridProps extends DayProps {
   ym: string
   weekdays: string[]
   locale: string
+  weekendHighlight?: boolean
   dailyRates?: Record<string, DayPriceEntry>
 }
 
@@ -444,6 +455,7 @@ function DropdownMonthGrid({
   onMouseLeave,
   weekdays,
   locale,
+  weekendHighlight,
   dailyRates,
 }: DropdownMonthGridProps) {
   const [year, month] = ym.split('-').map(Number) as [number, number]
@@ -489,13 +501,19 @@ function DropdownMonthGrid({
 
           const dayData = dailyRates?.[date]
           const isOverflow = false
-          const hasPrice = dayData && !isOverflow && !isPast && !isDisabled
+          const hasPrice = dayData && !isOverflow && !isPast && !isDisabled && dayData.price > 0
           const isUnavailable = !!(dayData?.available === false && !isPast && !isOverflow)
+          const dow = new Date(date + 'T00:00:00').getDay()
+          const isWeekend = weekendHighlight && (dow === 0 || dow === 6)
 
           return (
             <div
               key={date}
-              className={['relative flex flex-col items-center pb-0.5', !isDisabled ? 'cursor-pointer' : ''].join(' ')}
+              className={[
+                'relative flex flex-col items-center pb-0.5',
+                !isDisabled ? 'cursor-pointer' : '',
+                isWeekend ? 'bg-amber-50' : '',
+              ].join(' ')}
               onClick={() => !isDisabled && onDayClick(date)}
               onMouseEnter={() => !isDisabled && onDayHover(date)}
             >

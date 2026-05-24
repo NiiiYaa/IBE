@@ -301,6 +301,35 @@ export default function PropertyBrandPage() {
               draft={draft} orgDefaults={orgDefaults} systemDefaults={sysDefs} onSet={set} onReset={reset}
             />
           </Section>
+
+          {/* Booking Calendar */}
+          <Section title="Booking Calendar">
+            <FormRow label="Weekend highlight" hint="Show Saturday and Sunday with a subtle amber background in the date picker">
+              <div className="flex items-center gap-3">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!(draft.weekendHighlight ?? orgDefaults.weekendHighlight ?? false)}
+                    onChange={e => set('weekendHighlight', e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 accent-[var(--color-primary)]"
+                  />
+                  <span className="text-sm text-[var(--color-text)]">
+                    {(draft.weekendHighlight ?? orgDefaults.weekendHighlight ?? false) ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
+                {draft.weekendHighlight != null && (
+                  <button
+                    type="button"
+                    onClick={() => reset('weekendHighlight')}
+                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                  >
+                    Reset to chain
+                  </button>
+                )}
+                <SourceBadge source={draft.weekendHighlight != null ? 'hotel' : orgDefaults.weekendHighlight != null ? 'chain' : 'system'} />
+              </div>
+            </FormRow>
+          </Section>
         </div>
       )}
 

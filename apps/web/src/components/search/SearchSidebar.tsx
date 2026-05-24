@@ -96,14 +96,16 @@ export function SearchSidebar({
   const { data: dailyRatesData } = useQuery({
     queryKey: ['pricing-calendar', propertyId, currency],
     queryFn: () => apiClient.getPricingCalendar(propertyId, currency || undefined),
-    enabled: hotelConfig?.pricingEnabled === true,
+    enabled: !!propertyId,
     staleTime: 60 * 60 * 1000,
   })
-  const dailyRatesMap = dailyRatesData
+  const dailyRatesMap = dailyRatesData?.length
     ? Object.fromEntries(dailyRatesData.map(d => [d.date, d]))
     : undefined
-  const pricingCurrency: string | undefined = dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency
-  const calendarPriceProps = dailyRatesMap && pricingCurrency
+  const pricingCurrency: string | undefined = hotelConfig?.pricingEnabled
+    ? (dailyRatesData?.[0]?.currency ?? hotelConfig?.defaultCurrency)
+    : undefined
+  const calendarPriceProps = dailyRatesMap
     ? { dailyRates: dailyRatesMap, priceCurrency: pricingCurrency }
     : {}
   const groupsHref = groupConfig?.enabled
@@ -333,6 +335,7 @@ export function SearchSidebar({
                 variant="inline"
                 minNights={minNights}
                 maxNights={maxNights}
+                weekendHighlight={hotelConfig?.weekendHighlight}
                 {...calendarPriceProps}
               />
             </div>

@@ -399,6 +399,7 @@ model HotelConfig {
   affiliateDefaultCommissionRate       Decimal?
   checkInTime                          String?
   checkOutTime                         String?
+  weekendHighlight                     Boolean  @default(false)
   rateProvider                         String?
   isActive                             Boolean  @default(true)
   createdAt                       DateTime @default(now())
