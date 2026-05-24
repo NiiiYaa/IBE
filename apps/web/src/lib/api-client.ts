@@ -532,8 +532,9 @@ export const apiClient = {
     })
   },
 
-  setShowCitySelector(enabled: boolean): Promise<{ ok: boolean; enabled: boolean }> {
-    return apiRequest<{ ok: boolean; enabled: boolean }>('/api/v1/admin/properties/city-selector', {
+  setShowCitySelector(enabled: boolean, orgId?: number): Promise<{ ok: boolean; enabled: boolean }> {
+    const qs = orgId !== undefined ? `?orgId=${orgId}` : ''
+    return apiRequest<{ ok: boolean; enabled: boolean }>(`/api/v1/admin/properties/city-selector${qs}`, {
       method: 'PUT',
       body: JSON.stringify({ enabled }),
     })

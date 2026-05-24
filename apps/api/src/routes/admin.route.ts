@@ -67,6 +67,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       tlsCertSet: !!settings.tlsCert,
       tlsKeySet: !!settings.tlsKey,
       enabledModels: settings.enabledModels,
+      showCitySelector: settings.showCitySelector,
     })
   })
 
@@ -164,7 +165,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   })
 
   fastify.put('/admin/properties/city-selector', async (request, reply) => {
-    const organizationId = request.admin.organizationId!
+    let organizationId = request.admin.organizationId
+    if (organizationId === null) {
+      const rawOrgId = (request.query as Record<string, string>).orgId
+      if (rawOrgId) organizationId = parseInt(rawOrgId, 10)
+    }
+    if (!organizationId) return reply.status(400).send({ error: 'No organization context' })
     const { enabled } = request.body as { enabled: boolean }
     await setShowCitySelector(organizationId, !!enabled)
     return reply.send({ ok: true, enabled: !!enabled })

@@ -372,7 +372,7 @@ export default async function HomePage({
     ...(tenant.type === 'org' ? { orgId: tenant.orgId } : {}),
     ...(allPropertyOptions ? {
       properties: allPropertyOptions,
-      showCitySelector: multiCities > 1,
+      showCitySelector: propertyList?.showCitySelector ?? false,
     } : {}),
   }
 

@@ -86,11 +86,11 @@ export default function ChainPage() {
   const devB2cUrl = orgSettings?.orgSlug ? `https://${orgSettings.orgSlug}.hyperguest.net` : null
   const b2cOrigin = orgSettings?.webDomain?.replace(/\/$/, '') || subdomainOrigin
 
-  const showCitySelector = propertiesData?.showCitySelector ?? false
+  const showCitySelector = orgSettings?.showCitySelector ?? false
 
   const citySelectorMutation = useMutation({
-    mutationFn: (enabled: boolean) => apiClient.setShowCitySelector(enabled),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-properties'] }),
+    mutationFn: (enabled: boolean) => apiClient.setShowCitySelector(enabled, resolvedOrgId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: orgQKey }),
   })
 
   // Single endpoint fetches all chain-featured images for the whole org

@@ -1153,6 +1153,7 @@ export interface OrgSettingsResponse {
   tlsCertSet: boolean
   tlsKeySet: boolean
   enabledModels: SellModel[]
+  showCitySelector: boolean
 }
 
 export interface UpdateOrgSettingsRequest {
