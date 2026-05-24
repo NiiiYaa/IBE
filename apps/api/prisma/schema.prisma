@@ -65,6 +65,7 @@ model Organization {
   externalIBEConfig           ExternalIBEConfig?
   compSetSearchParams         CompSetSearchParam[]
   orgPricingConfig            OrgPricingConfig?
+  orgFlexibleDatesConfig      OrgFlexibleDatesConfig?
 }
 
 // roles: super | admin | observer | user
@@ -475,6 +476,7 @@ model Property {
   eventCalendarConfig         PropertyEventCalendarConfig?
   eventCalendarEvents         EventCalendarEvent[]
   propertyPricingConfig       PropertyPricingConfig?
+  propertyFlexibleDatesConfig PropertyFlexibleDatesConfig?
   dailyRates                  DailyRate[]
   dailyRateOffers             DailyRateOffer[]
 
@@ -1865,6 +1867,31 @@ model PropertyPricingConfig {
   weekendDays          String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+}
+
+// ── Flexible Dates ────────────────────────────────────────────────────────────
+
+model SystemFlexibleDatesConfig {
+  id         Int     @id @default(1)
+  enabled    Boolean @default(false)
+  daysBefore Int     @default(1)
+  daysAfter  Int     @default(1)
+}
+
+model OrgFlexibleDatesConfig {
+  orgId      Int          @id
+  enabled    Boolean?
+  daysBefore Int?
+  daysAfter  Int?
+  org        Organization @relation(fields: [orgId], references: [id])
+}
+
+model PropertyFlexibleDatesConfig {
+  propertyId Int      @id
+  enabled    Boolean?
+  daysBefore Int?
+  daysAfter  Int?
+  property   Property @relation(fields: [propertyId], references: [propertyId])
 }
 
 model DailyRate {
