@@ -14,6 +14,10 @@ import type {
   OrgFlexibleDatesConfigResponse,
   PropertyFlexibleDatesConfigResponse,
   FlexibleDatesEffective,
+  SystemInterHotelConfigResponse,
+  OrgInterHotelConfigResponse,
+  PropertyInterHotelConfigResponse,
+  TransferType,
 } from '@ibe/shared'
 import { BoardType, BOARD_TYPE_LABELS } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
@@ -84,7 +88,7 @@ type OffersTab = 'general' | 'flexible-dates' | 'inter-city' | 'multi-city'
 const OFFERS_TABS: { value: OffersTab; label: string }[] = [
   { value: 'general', label: 'General' },
   { value: 'flexible-dates', label: 'Flexible Dates' },
-  { value: 'inter-city', label: 'Inter-city' },
+  { value: 'inter-city', label: 'InterHotel Stay' },
   { value: 'multi-city', label: 'Multi-city' },
 ]
 
@@ -179,7 +183,16 @@ export default function OffersPage() {
         />
       )}
 
-      {(activeTab === 'inter-city' || activeTab === 'multi-city') && (
+      {activeTab === 'inter-city' && (
+        <InterHotelStayTab
+          isSuper={isSuper}
+          isSystemLevel={isSystemLevel}
+          orgId={contextOrgId}
+          propertyId={propertyId}
+        />
+      )}
+
+      {activeTab === 'multi-city' && (
         <ComingSoonCard tab={activeTab} />
       )}
     </div>
@@ -641,8 +654,8 @@ function Spinner() {
 
 // ── Coming Soon card ──────────────────────────────────────────────────────────
 
-function ComingSoonCard({ tab }: { tab: 'inter-city' | 'multi-city' }) {
-  const label = tab === 'inter-city' ? 'Inter-city' : 'Multi-city'
+function ComingSoonCard({ tab }: { tab: 'multi-city' }) {
+  const label = tab === 'multi-city' ? 'Multi-city' : tab
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
       <p className="text-base font-semibold text-[var(--color-text)]">{label} — Coming soon</p>
@@ -957,6 +970,535 @@ function FlexibleDatesTab({
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
           <p className="text-sm text-[var(--color-text-muted)]">
             Select a chain or property to configure flexible dates.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── InterHotel Stay — shared helpers ─────────────────────────────────────────
+
+const TRANSFER_TYPE_OPTIONS: { value: TransferType; label: string }[] = [
+  { value: 'self', label: 'Self Transfer' },
+  { value: 'hotel', label: 'Hotel Transfer' },
+  { value: 'sponsored_self', label: 'Sponsored Self Transfer' },
+]
+
+function IhToggle({
+  label,
+  checked,
+  inherited,
+  onChange,
+  onReset,
+}: {
+  label: string
+  checked: boolean | null
+  inherited?: boolean
+  onChange: (v: boolean) => void
+  onReset?: () => void
+}) {
+  const effective = checked ?? inherited ?? false
+  const isInheriting = checked === null && inherited !== undefined
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">(inherited)</span>
+        )}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={effective}
+          onClick={() => onChange(!effective)}
+          className={[
+            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+            effective ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
+            isInheriting ? 'opacity-60' : '',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+              effective ? 'translate-x-4' : 'translate-x-0',
+            ].join(' ')}
+          />
+        </button>
+        {onReset && checked !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IhNumberField({
+  label,
+  value,
+  inherited,
+  min,
+  max,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: number | null
+  inherited?: number
+  min?: number
+  max?: number
+  onChange: (v: number | null) => void
+  onReset?: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {value === null && inherited !== undefined && (
+          <span className="text-xs text-[var(--color-text-muted)]">({inherited} inherited)</span>
+        )}
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value ?? ''}
+          placeholder={inherited !== undefined ? String(inherited) : ''}
+          onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+          className={fdInputCls}
+        />
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IhSelectField({
+  label,
+  value,
+  inherited,
+  options,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: TransferType | null
+  inherited?: TransferType
+  options: { value: TransferType; label: string }[]
+  onChange: (v: TransferType | null) => void
+  onReset?: () => void
+}) {
+  const isInheriting = value === null && inherited !== undefined
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">({inherited} inherited)</span>
+        )}
+        <select
+          value={value ?? ''}
+          onChange={e => {
+            const v = e.target.value as TransferType | ''
+            onChange(v === '' ? null : v)
+          }}
+          className={fdInputCls}
+        >
+          {onReset && <option value="">— inherit —</option>}
+          {options.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IhTextField({
+  label,
+  value,
+  inherited,
+  placeholder,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: string | null
+  inherited?: string
+  placeholder?: string
+  onChange: (v: string | null) => void
+  onReset?: () => void
+}) {
+  const isInheriting = value === null && inherited !== undefined
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">({inherited} inherited)</span>
+        )}
+        <input
+          type="text"
+          value={value ?? ''}
+          placeholder={placeholder ?? (inherited ?? '')}
+          onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
+          className={fdInputCls}
+        />
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RefreshNearbyButton({ orgId }: { orgId: number }) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshResult, setRefreshResult] = useState<string | null>(null)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshResult(null)
+    try {
+      const result = await apiClient.refreshInterHotelNearby(orgId)
+      setRefreshResult(`${result.count} nearby hotel pairs refreshed`)
+    } catch {
+      setRefreshResult('Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  return (
+    <div className="py-2">
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={refreshing}
+        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface)] disabled:opacity-50"
+      >
+        {refreshing ? 'Refreshing…' : 'Refresh Nearby Hotels'}
+      </button>
+      {refreshResult && (
+        <p className="text-xs text-[var(--color-text-muted)] mt-1">{refreshResult}</p>
+      )}
+    </div>
+  )
+}
+
+// ── InterHotel Stay — System section ─────────────────────────────────────────
+
+function SystemInterHotelSection() {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['interhotel-system'],
+    queryFn: () => apiClient.getSystemInterHotelConfig(),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<SystemInterHotelConfigResponse>) => apiClient.updateSystemInterHotelConfig(u),
+    onSuccess: updated => { qc.setQueryData(['interhotel-system'], updated) },
+  })
+
+  const [form, setForm] = useState<SystemInterHotelConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof SystemInterHotelConfigResponse>(k: K) =>
+    (v: SystemInterHotelConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  const showSponsored = form.transferType === 'sponsored_self'
+
+  return (
+    <div className="space-y-1">
+      <IhToggle
+        label="Enabled"
+        checked={form.enabled}
+        onChange={v => set('enabled')(v)}
+      />
+      <IhNumberField
+        label="Max Radius (km)"
+        value={form.maxRadiusKm}
+        min={1}
+        max={500}
+        onChange={v => set('maxRadiusKm')(v ?? 10)}
+      />
+      <IhNumberField
+        label="Max Hotels"
+        value={form.maxHotels}
+        min={2}
+        max={5}
+        onChange={v => set('maxHotels')(v ?? 2)}
+      />
+      <IhSelectField
+        label="Transfer Type"
+        value={form.transferType}
+        options={TRANSFER_TYPE_OPTIONS}
+        onChange={v => set('transferType')(v ?? 'self')}
+      />
+      {showSponsored && (
+        <>
+          <IhNumberField
+            label="Sponsored Amount"
+            value={form.sponsoredAmount}
+            min={0}
+            onChange={v => set('sponsoredAmount')(v ?? 0)}
+          />
+          <IhTextField
+            label="Sponsored Currency"
+            value={form.sponsoredCurrency}
+            placeholder="EUR"
+            onChange={v => set('sponsoredCurrency')(v ?? 'EUR')}
+          />
+        </>
+      )}
+      <RefreshNearbyButton orgId={1} />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── InterHotel Stay — Chain/Org section ──────────────────────────────────────
+
+function OrgInterHotelSection({ orgId }: { orgId: number }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['interhotel-org', orgId],
+    queryFn: () => apiClient.getOrgInterHotelConfig(orgId),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<OrgInterHotelConfigResponse>) => apiClient.updateOrgInterHotelConfig(orgId, u),
+    onSuccess: updated => { qc.setQueryData(['interhotel-org', orgId], updated) },
+  })
+
+  const [form, setForm] = useState<OrgInterHotelConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const eff = data.effective
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof OrgInterHotelConfigResponse>(k: K) =>
+    (v: OrgInterHotelConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  const effectiveTransferType = form.transferType ?? eff.transferType
+  const showSponsored = effectiveTransferType === 'sponsored_self'
+
+  return (
+    <div className="space-y-1">
+      <IhToggle
+        label="Enabled"
+        checked={form.enabled}
+        inherited={eff.enabled}
+        onChange={v => set('enabled')(v)}
+        onReset={() => set('enabled')(null)}
+      />
+      <IhNumberField
+        label="Max Radius (km)"
+        value={form.maxRadiusKm}
+        inherited={eff.maxRadiusKm}
+        min={1}
+        max={500}
+        onChange={v => set('maxRadiusKm')(v)}
+        onReset={() => set('maxRadiusKm')(null)}
+      />
+      <IhNumberField
+        label="Max Hotels"
+        value={form.maxHotels}
+        inherited={eff.maxHotels}
+        min={2}
+        max={5}
+        onChange={v => set('maxHotels')(v)}
+        onReset={() => set('maxHotels')(null)}
+      />
+      <IhSelectField
+        label="Transfer Type"
+        value={form.transferType}
+        inherited={eff.transferType}
+        options={TRANSFER_TYPE_OPTIONS}
+        onChange={v => set('transferType')(v)}
+        onReset={() => set('transferType')(null)}
+      />
+      {showSponsored && (
+        <>
+          <IhNumberField
+            label="Sponsored Amount"
+            value={form.sponsoredAmount}
+            inherited={eff.sponsoredAmount}
+            min={0}
+            onChange={v => set('sponsoredAmount')(v)}
+            onReset={() => set('sponsoredAmount')(null)}
+          />
+          <IhTextField
+            label="Sponsored Currency"
+            value={form.sponsoredCurrency}
+            inherited={eff.sponsoredCurrency}
+            onChange={v => set('sponsoredCurrency')(v)}
+            onReset={() => set('sponsoredCurrency')(null)}
+          />
+        </>
+      )}
+      <RefreshNearbyButton orgId={orgId} />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── InterHotel Stay — Property section ───────────────────────────────────────
+
+function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['interhotel-property', propertyId],
+    queryFn: () => apiClient.getPropertyInterHotelConfig(propertyId),
+    enabled: propertyId > 0,
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<PropertyInterHotelConfigResponse>) =>
+      apiClient.updatePropertyInterHotelConfig(propertyId, u),
+    onSuccess: updated => { qc.setQueryData(['interhotel-property', propertyId], updated) },
+  })
+
+  const [form, setForm] = useState<PropertyInterHotelConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const eff = data.effective
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof PropertyInterHotelConfigResponse>(k: K) =>
+    (v: PropertyInterHotelConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  const effectiveTransferType = form.transferType ?? eff.transferType
+  const showSponsored = effectiveTransferType === 'sponsored_self'
+
+  return (
+    <div className="space-y-1">
+      <IhToggle
+        label="Enabled"
+        checked={form.enabled}
+        inherited={eff.enabled}
+        onChange={v => set('enabled')(v)}
+        onReset={() => set('enabled')(null)}
+      />
+      <IhNumberField
+        label="Max Radius (km)"
+        value={form.maxRadiusKm}
+        inherited={eff.maxRadiusKm}
+        min={1}
+        max={500}
+        onChange={v => set('maxRadiusKm')(v)}
+        onReset={() => set('maxRadiusKm')(null)}
+      />
+      <IhNumberField
+        label="Max Hotels"
+        value={form.maxHotels}
+        inherited={eff.maxHotels}
+        min={2}
+        max={5}
+        onChange={v => set('maxHotels')(v)}
+        onReset={() => set('maxHotels')(null)}
+      />
+      <IhSelectField
+        label="Transfer Type"
+        value={form.transferType}
+        inherited={eff.transferType}
+        options={TRANSFER_TYPE_OPTIONS}
+        onChange={v => set('transferType')(v)}
+        onReset={() => set('transferType')(null)}
+      />
+      {showSponsored && (
+        <>
+          <IhNumberField
+            label="Sponsored Amount"
+            value={form.sponsoredAmount}
+            inherited={eff.sponsoredAmount}
+            min={0}
+            onChange={v => set('sponsoredAmount')(v)}
+            onReset={() => set('sponsoredAmount')(null)}
+          />
+          <IhTextField
+            label="Sponsored Currency"
+            value={form.sponsoredCurrency}
+            inherited={eff.sponsoredCurrency}
+            onChange={v => set('sponsoredCurrency')(v)}
+            onReset={() => set('sponsoredCurrency')(null)}
+          />
+        </>
+      )}
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── InterHotel Stay — Tab container ──────────────────────────────────────────
+
+function InterHotelStayTab({
+  isSuper,
+  isSystemLevel,
+  orgId,
+  propertyId,
+}: {
+  isSuper: boolean
+  isSystemLevel: boolean
+  orgId: number | null
+  propertyId: number | null
+}) {
+  const showSystem = isSuper
+  const showChain = isSuper || (!isSystemLevel && orgId !== null && propertyId === null)
+  const showProperty = propertyId !== null
+
+  const chainOrgId = isSystemLevel ? null : orgId
+
+  return (
+    <div className="space-y-6">
+      {showSystem && (
+        <Section title="System Defaults" defaultOpen={isSystemLevel}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            System-wide defaults inherited by all chains.
+          </p>
+          <SystemInterHotelSection />
+        </Section>
+      )}
+
+      {showChain && chainOrgId !== null && (
+        <Section title="Chain Override" defaultOpen={!isSystemLevel && propertyId === null}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Chain overrides inherited by all properties in this chain. Leave blank to inherit from system.
+          </p>
+          <OrgInterHotelSection orgId={chainOrgId} />
+        </Section>
+      )}
+
+      {showProperty && propertyId !== null && (
+        <Section title="Hotel Settings" defaultOpen>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Property-specific overrides. Reset any field to inherit from chain defaults.
+          </p>
+          <PropertyInterHotelSection propertyId={propertyId} />
+        </Section>
+      )}
+
+      {!showSystem && !showProperty && chainOrgId === null && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Select a chain or property to configure InterHotel Stay.
           </p>
         </div>
       )}
