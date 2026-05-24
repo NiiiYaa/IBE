@@ -48,6 +48,7 @@ function Segment({
   value,
   active,
   invalid,
+  flashTrigger,
   onClick,
   panelId,
   flex = 1,
@@ -56,18 +57,24 @@ function Segment({
   value: string
   active: boolean
   invalid?: boolean
+  flashTrigger?: number
   onClick: () => void
   panelId?: string
   flex?: number
 }) {
   return (
     <button
+      key={invalid && flashTrigger ? flashTrigger : undefined}
       onClick={onClick}
       data-segment={panelId}
       style={{ flexGrow: flex, flexShrink: 1, flexBasis: '0%' }}
       className={[
         'flex min-w-0 flex-col items-start justify-center px-4 py-2 transition-colors',
-        active ? 'bg-[var(--color-primary-light)]' : invalid ? 'bg-red-50' : 'hover:bg-gray-50',
+        active
+          ? 'bg-[var(--color-primary-light)]'
+          : invalid
+            ? 'mc-field-flash bg-red-50'
+            : 'hover:bg-gray-50',
       ].join(' ')}
     >
       <span className={[
@@ -238,6 +245,7 @@ interface LegBarProps {
   canRemove: boolean
   canAdd: boolean
   showValidation: boolean
+  flashTrigger: number
   onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id'>>) => void
   onAdd: () => void
   onRemove: () => void
@@ -251,6 +259,7 @@ function LegBar({
   canRemove,
   canAdd,
   showValidation,
+  flashTrigger,
   onUpdate,
   onAdd,
   onRemove,
@@ -334,6 +343,7 @@ function LegBar({
           value={cityDisplayValue}
           active={panel === 'city'}
           invalid={showValidation && leg.propertyIds.length === 0}
+          flashTrigger={flashTrigger}
           onClick={() => setPanel(p => p === 'city' ? null : 'city')}
           flex={2.5}
         />
@@ -542,6 +552,7 @@ export function MultiCityPanel({
   const [promoCode, setPromoCode] = useState('')
   const [showPromo, setShowPromo] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
+  const [flashTrigger, setFlashTrigger] = useState(0)
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -611,6 +622,7 @@ export function MultiCityPanel({
   function handleCheckAvailability() {
     if (!allLegsReady) {
       setShowValidation(true)
+      setFlashTrigger(n => n + 1)
       return
     }
     // Expand legs with multiple propertyIds into individual search legs
@@ -663,6 +675,7 @@ export function MultiCityPanel({
             canRemove={legs.length > 1}
             canAdd={idx === legs.length - 1 && legs.length < maxLegs && leg.propertyIds.length > 0}
             showValidation={showValidation}
+            flashTrigger={flashTrigger}
             onUpdate={(patch) => updateLeg(idx, patch)}
             onAdd={() => addLeg(idx)}
             onRemove={() => removeLeg(idx)}
@@ -706,6 +719,14 @@ export function MultiCityPanel({
               <span>{displayDate(maxCheckOut!, locale)}</span>
               <span>·</span>
               <span>{totalNights} {t('nightsLabel')}</span>
+              <span>·</span>
+              <span>{totalAdults} {totalAdults !== 1 ? t('adultPlural') : t('adultSingular')}</span>
+              {nationality && (
+                <>
+                  <span>·</span>
+                  <span>{countryFlag(nationality)}</span>
+                </>
+              )}
             </span>
           )}
           <button

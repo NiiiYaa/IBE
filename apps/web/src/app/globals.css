@@ -93,3 +93,15 @@
 .ai-mode-btn-wrap:hover .ai-spark-icon {
   animation: ai-spark-icon 0.7s ease-in-out infinite;
 }
+
+/* ── Multi-city field validation flash ─────────────────────────────────────── */
+@keyframes mc-field-flash {
+  0%   { background-color: rgb(254 226 226); } /* red-100 */
+  25%  { background-color: rgb(252 165 165); } /* red-300 */
+  50%  { background-color: rgb(254 226 226); }
+  75%  { background-color: rgb(252 165 165); }
+  100% { background-color: rgb(254 226 226); }
+}
+.mc-field-flash {
+  animation: mc-field-flash 0.7s ease-in-out;
+}
