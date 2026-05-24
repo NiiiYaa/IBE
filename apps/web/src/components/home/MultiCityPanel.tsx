@@ -711,22 +711,29 @@ export function MultiCityPanel({
       <div className="hidden sm:flex flex-col items-end gap-1.5 pt-1">
         <div className="flex items-center gap-3">
           {showSummary && (
-            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              <span>{readyLegs.length} {readyLegs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
-              <span>·</span>
-              <span>{displayDate(minCheckIn!, locale)}</span>
-              <span>→</span>
-              <span>{displayDate(maxCheckOut!, locale)}</span>
-              <span>·</span>
-              <span>{totalNights} {t('nightsLabel')}</span>
-              <span>·</span>
+            <span className="flex flex-wrap items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
               <span>{totalAdults} {totalAdults !== 1 ? t('adultPlural') : t('adultSingular')}</span>
               {nationality && (
                 <>
                   <span>·</span>
-                  <span>{countryFlag(nationality)}</span>
+                  <span>{countryFlag(nationality)} {nationality}</span>
                 </>
               )}
+              <span>·</span>
+              <span>{rooms.length} {rooms.length !== 1 ? t('roomPlural') : t('roomSingular')}</span>
+              <span>·</span>
+              <span>{readyLegs.length} {readyLegs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
+              <span>·</span>
+              <span>
+                {displayDate(minCheckIn!, locale)} → {displayDate(maxCheckOut!, locale)}
+                {gaps.length > 0 && (
+                  <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-xs font-medium text-amber-700">
+                    gap
+                  </span>
+                )}
+              </span>
+              <span>·</span>
+              <span>{totalNights} {t('nightsLabel')}</span>
             </span>
           )}
           <button
