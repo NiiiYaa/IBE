@@ -719,26 +719,23 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             )}
             <div className="flex items-center gap-2">
               {logoOverriding ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
-                    Upload file
-                    <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                      onChange={async e => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        e.target.value = ''
-                        set('logoUrl', await compressImage(file, 800))
-                      }} />
-                  </label>
-                  <span className="text-xs text-[var(--color-text-muted)]">or</span>
-                  <TextInput value={logoRaw ?? ''} onChange={v => set('logoUrl', v || null)} placeholder="https://..." />
-                </div>
+                <TextInput value={logoRaw ?? ''} onChange={v => set('logoUrl', v || null)} placeholder="https://..." />
               ) : (
-                <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm italic text-[var(--color-text-muted)]">
+                <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm italic text-[var(--color-text-muted)] truncate">
                   {logoInherited ?? <span className="opacity-50">not set</span>}
                 </div>
               )}
               <SourceBadge source={logoSource} />
+              <label className="cursor-pointer shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Upload
+                <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" className="sr-only"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    e.target.value = ''
+                    set('logoUrl', await compressImage(file, 800))
+                  }} />
+              </label>
               {logoOverriding ? (
                 <button type="button" onClick={() => reset('logoUrl')}
                   className="shrink-0 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
@@ -761,26 +758,23 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
           <FormRow label="Favicon" hint="16×16 or 32×32 — direct link or base64 data URL">
             <div className="flex items-center gap-2">
               {faviconOverriding ? (
-                <div className="flex flex-1 items-center gap-2">
-                  <label className="cursor-pointer rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
-                    Upload file
-                    <input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" className="sr-only"
-                      onChange={async e => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        e.target.value = ''
-                        set('faviconUrl', await compressImage(file, 256))
-                      }} />
-                  </label>
-                  <span className="text-xs text-[var(--color-text-muted)]">or</span>
-                  <TextInput value={faviconRaw ?? ''} onChange={v => set('faviconUrl', v || null)} placeholder="https://..." />
-                </div>
+                <TextInput value={faviconRaw ?? ''} onChange={v => set('faviconUrl', v || null)} placeholder="https://..." />
               ) : (
-                <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm italic text-[var(--color-text-muted)]">
+                <div className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm italic text-[var(--color-text-muted)] truncate">
                   {faviconInherited ?? <span className="opacity-50">not set</span>}
                 </div>
               )}
               <SourceBadge source={faviconSource} />
+              <label className="cursor-pointer shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+                Upload
+                <input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" className="sr-only"
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    e.target.value = ''
+                    set('faviconUrl', await compressImage(file, 256))
+                  }} />
+              </label>
               {faviconOverriding ? (
                 <button type="button" onClick={() => reset('faviconUrl')}
                   className="shrink-0 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
