@@ -206,6 +206,25 @@ describe('searchInterHotel', () => {
     expect(mockAvailability).not.toHaveBeenCalled()
   })
 
+  it('excludes nearby hotel if its interhotel config is disabled', async () => {
+    // primary hotel: enabled; nearby hotel: disabled
+    mockConfig
+      .mockResolvedValueOnce(BASE_CONFIG)                          // primary hotel config
+      .mockResolvedValueOnce({ ...BASE_CONFIG, enabled: false })   // nearby hotel config (disabled)
+    mockNearby.mockResolvedValue([{ nearbyPropertyId: 2, distanceKm: 10 }])
+    mockPrisma.property.findUnique
+      .mockResolvedValueOnce({ organizationId: 5 })                // primary property
+      .mockResolvedValueOnce({ status: 'active', organizationId: 5 }) // nearby: active + same org
+
+    const { searchInterHotel } = await import('../interhotel-search.service.js')
+    const result = await searchInterHotel({
+      propertyId: 1, checkIn: '2026-06-01', checkOut: '2026-06-05', rooms: [{ adults: 2 }],
+    })
+    // Nearby hotel excluded (interhotel disabled) → no candidates → empty packages
+    expect(result.packages).toHaveLength(0)
+    expect(mockAvailability).not.toHaveBeenCalled()
+  })
+
   it('returns empty when Hotel B has no availability for the remaining segment', async () => {
     mockConfig.mockResolvedValue(BASE_CONFIG)
     mockNearby.mockResolvedValue([{ nearbyPropertyId: 2, distanceKm: 10 }])

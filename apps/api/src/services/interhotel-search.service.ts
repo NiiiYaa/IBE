@@ -210,7 +210,10 @@ async function filterNearbyHotels(
       prop.status === 'active' &&
       prop.organizationId === organizationId
     ) {
-      result.push(row.nearbyPropertyId)
+      const nearbyConfig = await resolveEffectiveInterHotelConfig(row.nearbyPropertyId)
+      if (nearbyConfig.enabled) {
+        result.push(row.nearbyPropertyId)
+      }
     }
   }
 
