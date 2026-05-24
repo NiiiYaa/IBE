@@ -1129,6 +1129,7 @@ function IhTextField({
   value,
   inherited,
   placeholder,
+  maxLength,
   onChange,
   onReset,
 }: {
@@ -1136,6 +1137,7 @@ function IhTextField({
   value: string | null
   inherited?: string
   placeholder?: string
+  maxLength?: number
   onChange: (v: string | null) => void
   onReset?: () => void
 }) {
@@ -1151,6 +1153,7 @@ function IhTextField({
           type="text"
           value={value ?? ''}
           placeholder={placeholder ?? (inherited ?? '')}
+          maxLength={maxLength}
           onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
           className={fdInputCls}
         />
@@ -1262,6 +1265,7 @@ function SystemInterHotelSection() {
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
             placeholder="EUR"
+            maxLength={3}
             onChange={v => set('sponsoredCurrency')(v ?? 'EUR')}
           />
         </>
@@ -1348,6 +1352,7 @@ function OrgInterHotelSection({ orgId }: { orgId: number }) {
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
             inherited={eff.sponsoredCurrency}
+            maxLength={3}
             onChange={v => set('sponsoredCurrency')(v)}
             onReset={() => set('sponsoredCurrency')(null)}
           />
@@ -1437,6 +1442,7 @@ function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
             inherited={eff.sponsoredCurrency}
+            maxLength={3}
             onChange={v => set('sponsoredCurrency')(v)}
             onReset={() => set('sponsoredCurrency')(null)}
           />
