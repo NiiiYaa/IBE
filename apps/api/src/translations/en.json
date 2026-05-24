@@ -113,7 +113,8 @@
     "flexibleDaysBefore": "{n} days before",
     "flexibleDayAfter": "1 day after",
     "flexibleDaysAfter": "{n} days after",
-    "flexibleFrom": "from"
+    "flexibleFrom": "from",
+    "flexibleChecking": "Checking nearby dates…"
   },
   "properties": {
     "bookNow": "Book now",

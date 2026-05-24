@@ -303,55 +303,58 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
       )}
 
       {data && allRooms.length === 0 && (() => {
-        const hasLoadingFlex = flexResults.some(r => r.isLoading)
-        const hasResolvedFlex = flexResults.some(r => !r.isLoading && r.data !== undefined)
+        // only fan out in single-room mode — multi-room cart integration is out of scope
+        if (!isMultiMode) {
+          const hasLoadingFlex = flexResults.some(r => r.isLoading)
+          const hasResolvedFlex = flexResults.some(r => !r.isLoading && r.data !== undefined)
 
-        if (hasResolvedFlex) {
-          // Case A: at least one flexible date window has availability
-          return (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-                <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
-                <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
+          if (hasResolvedFlex) {
+            // Case A: at least one flexible date window has availability
+            return (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                  <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
+                  <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
+                </div>
+                {flexResults
+                  .filter(r => !r.isLoading)
+                  .map(r => (
+                    <FlexibleDateSection
+                      key={r.checkIn}
+                      result={r}
+                      searchParams={searchParams}
+                      hotelConfig={hotelConfig}
+                      roomDetailMap={roomDetailMap}
+                      locale={locale}
+                      dispCur={dispCur}
+                      convert={convert}
+                      isMultiMode={isMultiMode}
+                      t={t}
+                    />
+                  ))}
               </div>
-              {flexResults
-                .filter(r => !r.isLoading)
-                .map(r => (
-                  <FlexibleDateSection
-                    key={r.label}
-                    result={r}
-                    searchParams={searchParams}
-                    hotelConfig={hotelConfig}
-                    roomDetailMap={roomDetailMap}
-                    locale={locale}
-                    dispCur={dispCur}
-                    convert={convert}
-                    isMultiMode={isMultiMode}
-                    t={t}
-                  />
-                ))}
-            </div>
-          )
+            )
+          }
+
+          if (hasLoadingFlex) {
+            // Case B: flexible searches are still in progress
+            return (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
+                <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
+                <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
+                <p className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {t('flexibleChecking')}
+                </p>
+              </div>
+            )
+          }
         }
 
-        if (hasLoadingFlex) {
-          // Case B: flexible searches are still in progress
-          return (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
-              <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
-              <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
-              <p className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
-                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Checking nearby dates…
-              </p>
-            </div>
-          )
-        }
-
-        // Case C: all flexible searches resolved with zero rooms, or feature disabled
+        // Case C: all flexible searches resolved with zero rooms, feature disabled, or multi-room mode
         return (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
             <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
@@ -609,7 +612,7 @@ function FlexibleDateSection({
           <span className="ml-2 text-sm text-muted">
             {result.checkIn} – {result.checkOut}
           </span>
-          {lowestPrice !== undefined && (
+          {lowestPrice !== undefined && lowestPrice !== Infinity && (
             <span className="ml-2 text-sm font-semibold text-primary">
               · {t('flexibleFrom')} {formatCurrency(lowestPrice, dispCur, locale)}
             </span>

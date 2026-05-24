@@ -33,6 +33,7 @@ function shiftDate(dateStr: string, deltaDays: number): string {
 /**
  * Returns a human-readable label for a date delta.
  */
+// English fallback used when getLabel is not provided (e.g. in tests)
 function deltaLabel(delta: number): string {
   const abs = Math.abs(delta)
   if (delta === -1) return '1 day before'
