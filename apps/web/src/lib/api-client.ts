@@ -2435,6 +2435,42 @@ export const apiClient = {
   getAdminPricingOffers(propertyId: number): Promise<import('@ibe/shared').DayOfferAdminEntry[]> {
     return apiRequest(`/api/v1/admin/pricing/offers/${propertyId}`)
   },
+
+  getFlexibleDatesConfig(propertyId: number): Promise<import('@ibe/shared').FlexibleDatesEffective> {
+    return apiRequest(`/api/v1/flexible-dates/config/${propertyId}`)
+  },
+
+  getSystemFlexibleDatesConfig(): Promise<import('@ibe/shared').SystemFlexibleDatesConfigResponse> {
+    return apiRequest('/api/v1/admin/flexible-dates/config/system')
+  },
+
+  updateSystemFlexibleDatesConfig(
+    data: Partial<import('@ibe/shared').FlexibleDatesEffective>,
+  ): Promise<import('@ibe/shared').SystemFlexibleDatesConfigResponse> {
+    return apiRequest('/api/v1/admin/flexible-dates/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getOrgFlexibleDatesConfig(orgId: number): Promise<import('@ibe/shared').OrgFlexibleDatesConfigResponse> {
+    return apiRequest(`/api/v1/admin/flexible-dates/config/org/${orgId}`)
+  },
+
+  updateOrgFlexibleDatesConfig(
+    orgId: number,
+    data: Partial<import('@ibe/shared').OrgFlexibleDatesConfigResponse>,
+  ): Promise<import('@ibe/shared').OrgFlexibleDatesConfigResponse> {
+    return apiRequest(`/api/v1/admin/flexible-dates/config/org/${orgId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  getPropertyFlexibleDatesConfig(propertyId: number): Promise<import('@ibe/shared').PropertyFlexibleDatesConfigResponse> {
+    return apiRequest(`/api/v1/admin/flexible-dates/config/property/${propertyId}`)
+  },
+
+  updatePropertyFlexibleDatesConfig(
+    propertyId: number,
+    data: Partial<import('@ibe/shared').PropertyFlexibleDatesConfigResponse>,
+  ): Promise<import('@ibe/shared').PropertyFlexibleDatesConfigResponse> {
+    return apiRequest(`/api/v1/admin/flexible-dates/config/property/${propertyId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
 }
 
 export { ApiClientError }
