@@ -235,12 +235,12 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const hotelSpecificId = reqHeaders.get('x-tenant-hotel')
   const displayName = isChain
     ? (hotelSpecificId
-        ? (hotelConfig?.displayName || property?.name || config?.displayName || null)
+        ? (property?.name || config?.displayName || null)
         : (config?.displayName || null))
     : (config?.displayName || property?.name || null)
   const logoUrl = isChain
     ? (hotelSpecificId
-        ? (hotelConfig?.logoUrl || property?.logo || config?.logoUrl || null)
+        ? (property?.logo || config?.logoUrl || null)
         : (config?.logoUrl || null))
     : (config?.logoUrl || property?.logo || null)
   const cssVars = config ? buildCssVars(config) : ''
