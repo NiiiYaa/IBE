@@ -72,6 +72,7 @@ import { eventCalendarRoutes } from './routes/event-calendar.route.js'
 import { pricingPublicRoutes, pricingAdminRoutes } from './routes/pricing.route.js'
 import { flexibleDatesPublicRoutes, flexibleDatesAdminRoutes } from './routes/flexible-dates.route.js'
 import { interHotelPublicRoutes, interHotelAdminRoutes } from './routes/interhotel.route.js'
+import { multiCityPublicRoutes, multiCityAdminRoutes } from './routes/multicity.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -209,6 +210,7 @@ export async function buildApp() {
   await app.register(pricingPublicRoutes)
   await app.register(flexibleDatesPublicRoutes)
   await app.register(interHotelPublicRoutes)
+  await app.register(multiCityPublicRoutes)
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
@@ -266,6 +268,7 @@ export async function buildApp() {
     await adminApp.register(pricingAdminRoutes)
     await adminApp.register(flexibleDatesAdminRoutes)
     await adminApp.register(interHotelAdminRoutes)
+    await adminApp.register(multiCityAdminRoutes)
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────
