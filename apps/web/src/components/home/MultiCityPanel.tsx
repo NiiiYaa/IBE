@@ -293,7 +293,7 @@ function MultiCityLegForm({
           )}
           {!isFetching && searchResult && searchResult.results.length === 0 && (
             <div className="text-center text-sm text-[var(--color-text-muted)] py-4">
-              {t('noResults')}
+              {t('noRoomsAvailable')}
             </div>
           )}
           {!isFetching &&

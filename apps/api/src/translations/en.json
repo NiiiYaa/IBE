@@ -124,14 +124,19 @@
     "interHotelFrom": "Starting from",
     "multiCityTrip": "Multi-city Trip",
     "multiCityAddCity": "Add city",
-    "multiCityRemoveCity": "Remove",
+    "multiCityRemove": "Remove",
     "multiCityLeg": "City {n}",
     "multiCitySummary": "Summary",
     "multiCitySelectHotel": "Select hotel",
     "multiCityBook": "Book this leg",
     "multiCityEmpty": "Select your stays for each city, then review the summary here.",
     "multiCitySelectCity": "Select city",
-    "multiCitySearchResults": "Available rooms"
+    "multiCityCity": "City",
+    "multiCityHotel": "Hotel",
+    "multiCitySearch": "Search",
+    "multiCitySelect": "Select",
+    "multiCityOfferSelected": "Offer selected",
+    "multiCityNoOfferSelected": "No offer selected yet"
   },
   "properties": {
     "bookNow": "Book now",
