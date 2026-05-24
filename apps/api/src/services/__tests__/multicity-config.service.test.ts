@@ -60,6 +60,19 @@ describe('getOrgMultiCityConfig', () => {
     expect(result.effective.maxLegs).toBe(3)
   })
 
+  it('org partial override: org maxLegs null inherits from system', async () => {
+    mockPrisma.systemMultiCityConfig.findFirst.mockResolvedValue({ id: 1, enabled: false, maxLegs: 5 })
+    mockPrisma.orgMultiCityConfig.findUnique.mockResolvedValue({ organizationId: 1, enabled: true, maxLegs: null })
+    const { getOrgMultiCityConfig } = await import('../multicity-config.service.js')
+    const result = await getOrgMultiCityConfig(1)
+    // org-level field for maxLegs should be null (not overriding)
+    expect(result.maxLegs).toBeNull()
+    // but effective maxLegs comes from system
+    expect(result.effective.maxLegs).toBe(5)
+    // org-level enabled override should be reflected
+    expect(result.effective.enabled).toBe(true)
+  })
+
   it('resolveEffectiveMultiCityConfig returns enabled:false when system disabled', async () => {
     mockPrisma.systemMultiCityConfig.findFirst.mockResolvedValue({ id: 1, enabled: false, maxLegs: 3 })
     mockPrisma.orgMultiCityConfig.findUnique.mockResolvedValue(null)
