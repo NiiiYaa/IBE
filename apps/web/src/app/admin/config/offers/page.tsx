@@ -17,6 +17,8 @@ import type {
   SystemInterHotelConfigResponse,
   OrgInterHotelConfigResponse,
   PropertyInterHotelConfigResponse,
+  SystemMultiCityConfigResponse,
+  OrgMultiCityConfigResponse,
   TransferType,
 } from '@ibe/shared'
 import { BoardType, BOARD_TYPE_LABELS } from '@ibe/shared'
@@ -146,23 +148,38 @@ export default function OffersPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--color-text)]">Offers</h1>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {isSystemLevel
-              ? 'System-wide defaults inherited by all chains.'
-              : propertyId === null
-                ? 'Chain defaults inherited by all properties. Leave a field blank to use the system default.'
-                : 'Property overrides. Leave blank to inherit from chain defaults.'}
-          </p>
-        </div>
-        {activeTab === 'general' && (
-          <ChannelTabs value={channel} onChange={setChannel} />
-        )}
+      <div>
+        <h1 className="text-xl font-bold text-[var(--color-text)]">Offers</h1>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          {isSystemLevel
+            ? 'System-wide defaults inherited by all chains.'
+            : propertyId === null
+              ? 'Chain defaults inherited by all properties. Leave a field blank to use the system default.'
+              : 'Property overrides. Leave blank to inherit from chain defaults.'}
+        </p>
       </div>
 
       <OffersTabBar value={activeTab} onChange={setTab} />
+
+      {activeTab === 'general' && (
+        <div className="flex gap-2">
+          {(['b2c', 'b2b'] as OffersChannel[]).map(ch => (
+            <button
+              key={ch}
+              type="button"
+              onClick={() => setChannel(ch)}
+              className={[
+                'w-full rounded-lg border px-4 py-3 text-sm font-medium text-left transition-colors',
+                channel === ch
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                  : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+              ].join(' ')}
+            >
+              {ch === 'b2c' ? 'B2C (Guests)' : 'B2B (Partners)'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'general' && (
         isSystemLevel ? (
@@ -193,7 +210,11 @@ export default function OffersPage() {
       )}
 
       {activeTab === 'multi-city' && (
-        <ComingSoonCard tab={activeTab} />
+        <MultiCityStayTab
+          isSuper={isSuper}
+          isSystemLevel={isSystemLevel}
+          orgId={contextOrgId}
+        />
       )}
     </div>
   )
@@ -1505,6 +1526,142 @@ function InterHotelStayTab({
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
           <p className="text-sm text-[var(--color-text-muted)]">
             Select a chain or property to configure InterHotel Stay.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Multi-City Stay — System section ─────────────────────────────────────────
+
+function SystemMultiCitySection() {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['multicity-system'],
+    queryFn: () => apiClient.getSystemMultiCityConfig(),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<SystemMultiCityConfigResponse>) => apiClient.updateSystemMultiCityConfig(u),
+    onSuccess: updated => { qc.setQueryData(['multicity-system'], updated) },
+  })
+
+  const [form, setForm] = useState<SystemMultiCityConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof SystemMultiCityConfigResponse>(k: K) =>
+    (v: SystemMultiCityConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  return (
+    <div className="space-y-1">
+      <IhToggle
+        label="Enabled"
+        checked={form.enabled}
+        onChange={v => set('enabled')(v)}
+      />
+      <IhNumberField
+        label="Max city legs"
+        value={form.maxLegs}
+        min={2}
+        max={6}
+        onChange={v => set('maxLegs')(v ?? 2)}
+      />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── Multi-City Stay — Chain/Org section ──────────────────────────────────────
+
+function OrgMultiCitySection({ orgId }: { orgId: number }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['multicity-org', orgId],
+    queryFn: () => apiClient.getOrgMultiCityConfig(orgId),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<OrgMultiCityConfigResponse>) => apiClient.updateOrgMultiCityConfig(orgId, u),
+    onSuccess: updated => { qc.setQueryData(['multicity-org', orgId], updated) },
+  })
+
+  const [form, setForm] = useState<OrgMultiCityConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const eff = form.effective
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+
+  return (
+    <div className="space-y-1">
+      <IhToggle
+        label="Enabled"
+        checked={form.enabled}
+        inherited={eff.enabled}
+        onChange={v => setForm(f => f ? { ...f, enabled: v } : f)}
+        onReset={() => setForm(f => f ? { ...f, enabled: null } : f)}
+      />
+      <IhNumberField
+        label="Max city legs"
+        value={form.maxLegs ?? eff.maxLegs}
+        min={2}
+        max={6}
+        onChange={v => setForm(f => f ? { ...f, maxLegs: v } : f)}
+      />
+      {form.maxLegs !== null && (
+        <button type="button" onClick={() => setForm(f => f ? { ...f, maxLegs: null } : f)}
+          className="text-xs text-[var(--color-primary)] underline">
+          Reset to inherited ({eff.maxLegs})
+        </button>
+      )}
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── Multi-City Stay — Tab ─────────────────────────────────────────────────────
+
+function MultiCityStayTab({
+  isSuper,
+  isSystemLevel,
+  orgId,
+}: {
+  isSuper: boolean
+  isSystemLevel: boolean
+  orgId: number | null
+}) {
+  const showSystem = isSuper
+  const showChain = isSuper || (!isSystemLevel && orgId !== null)
+  const chainOrgId = isSystemLevel ? null : orgId
+
+  return (
+    <div className="space-y-6">
+      {showSystem && (
+        <Section title="System Defaults" defaultOpen={isSystemLevel}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            System-wide defaults inherited by all chains.
+          </p>
+          <SystemMultiCitySection />
+        </Section>
+      )}
+
+      {showChain && chainOrgId !== null && (
+        <Section title="Chain Override" defaultOpen={!isSystemLevel}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Chain overrides inherited by all hotels. Leave blank to inherit from system.
+          </p>
+          <OrgMultiCitySection orgId={chainOrgId} />
+        </Section>
+      )}
+
+      {!showSystem && chainOrgId === null && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Select a chain to configure Multi-city Stay.
           </p>
         </div>
       )}
