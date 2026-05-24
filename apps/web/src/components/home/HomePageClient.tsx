@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useAiMode } from '@/context/ai-mode'
@@ -14,6 +14,8 @@ import { PixelInjector } from '@/components/tracking/PixelInjector'
 import { ChatWidget } from '@/components/chat/ChatWidget'
 import type { IncentiveSlots } from '@ibe/shared'
 import type { PropertyOption } from '@/components/search/SearchBar'
+import { useMultiCityConfig } from '@/hooks/use-multicity-config'
+import { MultiCityPanel } from '@/components/home/MultiCityPanel'
 
 const SearchBar = dynamic(
   () => import('@/components/search/SearchBar').then(m => ({ default: m.SearchBar })),
@@ -86,6 +88,14 @@ export function HomePageClient({
 }: HomePageClientProps) {
   const { aiLayout, setAiLayout } = useAiMode()
   const tProps = useT('properties')
+  const tSearch = useT('search')
+  const orgId = searchBarProps.orgId ?? null
+  const { data: multiCityConfig } = useMultiCityConfig(orgId)
+  const multiCityEligible = !aiLayout
+    && !!orgId
+    && searchBarProps.showCitySelector === true
+    && multiCityConfig?.enabled === true
+  const [multiCityMode, setMultiCityMode] = useState(false)
   const chainLabel = chainName
     ? (/^the\b/i.test(chainName) ? `Part of ${chainName} Collection` : `Part of The ${chainName} Collection`)
     : null
@@ -111,6 +121,36 @@ export function HomePageClient({
     <div className="mt-4 w-full">
       <IncentiveWidget incentive={incentiveSlot} variant="dark" />
     </div>
+  ) : null
+
+  const MultiCityToggle = multiCityEligible ? (
+    <div className="flex items-center gap-2 mb-3">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={multiCityMode}
+        onClick={() => setMultiCityMode(v => !v)}
+        className={[
+          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+          multiCityMode ? 'bg-[var(--color-primary)]' : 'bg-gray-300',
+        ].join(' ')}
+      >
+        <span className={[
+          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+          multiCityMode ? 'translate-x-4' : 'translate-x-0',
+        ].join(' ')} />
+      </button>
+      <span className="text-sm text-[var(--color-text)]">{tSearch('multiCityTrip')}</span>
+    </div>
+  ) : null
+
+  const MultiCitySearchPanel = multiCityMode && multiCityEligible ? (
+    <MultiCityPanel
+      properties={searchBarProps.properties ?? []}
+      maxLegs={multiCityConfig!.maxLegs}
+      infantMaxAge={searchBarProps.infantMaxAge ?? 2}
+      childMaxAge={searchBarProps.childMaxAge ?? 16}
+    />
   ) : null
 
   const PropertyGrid = multiProperties && multiProperties.length > 1 ? (
@@ -161,7 +201,8 @@ export function HomePageClient({
               {tagline && <p className="mt-1 sm:mt-2 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
-          <SearchBar {...searchBarProps} />
+          {MultiCityToggle}
+          {MultiCitySearchPanel ?? <SearchBar {...searchBarProps} />}
           {IncentiveBlockLight}
         </div>
         {!aiLayout && PropertyGrid}
@@ -195,7 +236,8 @@ export function HomePageClient({
               {tagline && <p className="mt-1 sm:mt-3 text-base sm:text-lg text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
-          <SearchBar {...searchBarProps} />
+          {MultiCityToggle}
+          {MultiCitySearchPanel ?? <SearchBar {...searchBarProps} />}
           {IncentiveBlockLight}
         </div>
         {!aiLayout && PropertyGrid}
@@ -222,7 +264,8 @@ export function HomePageClient({
               {tagline && <p className="mt-1 text-base text-[var(--color-text-muted)]">{tagline}</p>}
             </div>
           )}
-          <SearchBar {...searchBarProps} />
+          {MultiCityToggle}
+          {MultiCitySearchPanel ?? <SearchBar {...searchBarProps} />}
           {IncentiveBlockLight}
         </div>
       </div>
@@ -249,8 +292,9 @@ export function HomePageClient({
               {tagline && <p className="mt-2 text-xl text-white/80 drop-shadow">{tagline}</p>}
             </div>
           )}
+          {MultiCityToggle}
           <div className={`w-full ${!aiLayout ? 'mt-4' : ''}`}>
-            <SearchBar {...searchBarProps} />
+            {MultiCitySearchPanel ?? <SearchBar {...searchBarProps} />}
           </div>
           {IncentiveBlockDark}
         </div>
