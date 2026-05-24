@@ -47,6 +47,7 @@ function Segment({
   label,
   value,
   active,
+  invalid,
   onClick,
   panelId,
   flex = 1,
@@ -54,6 +55,7 @@ function Segment({
   label: string
   value: string
   active: boolean
+  invalid?: boolean
   onClick: () => void
   panelId?: string
   flex?: number
@@ -65,13 +67,19 @@ function Segment({
       style={{ flexGrow: flex, flexShrink: 1, flexBasis: '0%' }}
       className={[
         'flex min-w-0 flex-col items-start justify-center px-4 py-2 transition-colors',
-        active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
+        active ? 'bg-[var(--color-primary-light)]' : invalid ? 'bg-red-50' : 'hover:bg-gray-50',
       ].join(' ')}
     >
-      <span className="mb-0.5 whitespace-nowrap text-xs font-medium leading-none text-[var(--color-text-muted)]">
+      <span className={[
+        'mb-0.5 whitespace-nowrap text-xs font-medium leading-none',
+        invalid ? 'text-red-500' : 'text-[var(--color-text-muted)]',
+      ].join(' ')}>
         {label}
       </span>
-      <span className="block w-full truncate text-sm font-semibold text-[var(--color-text)]" title={value}>
+      <span className={[
+        'block w-full truncate text-sm font-semibold',
+        invalid ? 'text-red-500' : 'text-[var(--color-text)]',
+      ].join(' ')} title={value}>
         {value}
       </span>
     </button>
@@ -229,6 +237,7 @@ interface LegBarProps {
   takenPropertyIds: number[]
   canRemove: boolean
   canAdd: boolean
+  showValidation: boolean
   onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id'>>) => void
   onAdd: () => void
   onRemove: () => void
@@ -241,6 +250,7 @@ function LegBar({
   takenPropertyIds,
   canRemove,
   canAdd,
+  showValidation,
   onUpdate,
   onAdd,
   onRemove,
@@ -323,6 +333,7 @@ function LegBar({
           label={t('multiCityCity') ?? 'City'}
           value={cityDisplayValue}
           active={panel === 'city'}
+          invalid={showValidation && leg.propertyIds.length === 0}
           onClick={() => setPanel(p => p === 'city' ? null : 'city')}
           flex={2.5}
         />
@@ -530,6 +541,7 @@ export function MultiCityPanel({
   const [nationality, setNationality] = useState('')
   const [promoCode, setPromoCode] = useState('')
   const [showPromo, setShowPromo] = useState(false)
+  const [showValidation, setShowValidation] = useState(false)
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -561,6 +573,7 @@ export function MultiCityPanel({
   }
 
   function updateLeg(idx: number, patch: Partial<Omit<MultiCityLeg, 'id'>>) {
+    setShowValidation(false)
     setLegs(prev => {
       const updated = prev.map((leg, i) => i === idx ? { ...leg, ...patch } : leg)
       // Re-sort whenever dates change so bars always appear earliest→latest
@@ -581,19 +594,25 @@ export function MultiCityPanel({
   const showSummary = readyLegs.length > 0 && minCheckIn && maxCheckOut
 
   // Gap + overlap detection across sorted ready legs
-  const gaps: { from: string; to: string }[] = []
-  const overlaps: { cityA: string; cityB: string }[] = []
+  const gaps: { from: string; to: string; cityA: string; cityB: string }[] = []
+  const overlaps: { cityA: string; cityB: string; from: string; to: string }[] = []
   for (let i = 0; i < sortedReady.length - 1; i++) {
     const cur = sortedReady[i]!
     const next = sortedReady[i + 1]!
+    const labelA = cur.city || `Stay ${i + 1}`
+    const labelB = next.city || `Stay ${i + 2}`
     if (cur.checkOut < next.checkIn) {
-      gaps.push({ from: cur.checkOut, to: next.checkIn })
+      gaps.push({ from: cur.checkOut, to: next.checkIn, cityA: labelA, cityB: labelB })
     } else if (cur.checkOut > next.checkIn) {
-      overlaps.push({ cityA: cur.city || `Stay ${i + 1}`, cityB: next.city || `Stay ${i + 2}` })
+      overlaps.push({ cityA: labelA, cityB: labelB, from: next.checkIn, to: cur.checkOut })
     }
   }
 
   function handleCheckAvailability() {
+    if (!allLegsReady) {
+      setShowValidation(true)
+      return
+    }
     // Expand legs with multiple propertyIds into individual search legs
     const expandedLegs = legs
       .filter(l => l.propertyIds.length > 0 && l.checkIn && l.checkOut)
@@ -643,6 +662,7 @@ export function MultiCityPanel({
             takenPropertyIds={takenPropertyIds}
             canRemove={legs.length > 1}
             canAdd={idx === legs.length - 1 && legs.length < maxLegs && leg.propertyIds.length > 0}
+            showValidation={showValidation}
             onUpdate={(patch) => updateLeg(idx, patch)}
             onAdd={() => addLeg(idx)}
             onRemove={() => removeLeg(idx)}
@@ -656,7 +676,7 @@ export function MultiCityPanel({
           <span className="font-medium">{t('multiCityOverlapWarning') ?? 'Date overlap between stays:'}</span>
           <ul className="list-disc pl-4">
             {overlaps.map((o, i) => (
-              <li key={i}>{o.cityA} ↔ {o.cityB}</li>
+              <li key={i}>{o.cityA} ↔ {o.cityB}: {displayDate(o.from, locale)} – {displayDate(o.to, locale)}</li>
             ))}
           </ul>
         </div>
@@ -668,7 +688,7 @@ export function MultiCityPanel({
           <span className="font-medium">{t('multiCityGapWarning')}</span>
           <ul className="list-disc pl-4">
             {gaps.map((g, i) => (
-              <li key={i}>{displayDate(g.from, locale)} – {displayDate(g.to, locale)}</li>
+              <li key={i}>{g.cityA} → {g.cityB}: {displayDate(g.from, locale)} – {displayDate(g.to, locale)}</li>
             ))}
           </ul>
         </div>
@@ -690,8 +710,7 @@ export function MultiCityPanel({
           )}
           <button
             onClick={handleCheckAvailability}
-            disabled={!allLegsReady}
-            className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
           >
             {t('checkAvailability')}
           </button>
