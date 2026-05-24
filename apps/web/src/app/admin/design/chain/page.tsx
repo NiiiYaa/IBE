@@ -349,6 +349,12 @@ export default function ChainPage() {
               onChange={v => set('showNameOnPage', v)}
             />
           </FormRow>
+          <FormRow label="Show chain label on hotel pages" hint="Shows 'Part of The X Collection' on individual hotel pages. Hotels can override this setting.">
+            <Toggle
+              checked={draft.showChainLabel ?? true}
+              onChange={v => set('showChainLabel', v)}
+            />
+          </FormRow>
           <FormRow label="Tagline" hint="Short brand message below the display name">
             <TextInput value={draft.tagline ?? ''} onChange={v => set('tagline', v || null)} placeholder="Find your perfect stay" />
           </FormRow>

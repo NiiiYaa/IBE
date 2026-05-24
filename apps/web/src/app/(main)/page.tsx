@@ -242,8 +242,9 @@ export default async function HomePage({
   }
 
   // For single-hotel pages that belong to a multi-property org, fetch the chain display name
+  // Gated by showChainLabel — chain sets the default, hotel can override
   let chainName: string | null = null
-  if (tenant.type === 'property' && (propertyList?.properties.length ?? 0) > 1 && propertyList?.orgId) {
+  if (tenant.type === 'property' && (propertyList?.properties.length ?? 0) > 1 && propertyList?.orgId && config?.showChainLabel !== false) {
     const orgConfig = await fetchOrgConfig(propertyList.orgId)
     chainName = orgConfig?.displayName ?? null
   }

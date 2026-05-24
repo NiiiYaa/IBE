@@ -303,6 +303,7 @@ export interface HotelDesignConfig {
   aiLayoutDefault: boolean
   searchAiLayoutDefault: boolean
   showNameOnPage: boolean
+  showChainLabel: boolean
   tripadvisorHotelKey: string | null
   priceComparisonEnabled: boolean
   affiliateMarketplace: boolean
@@ -581,6 +582,7 @@ export interface UpdateDesignConfigRequest {
   aiLayoutDefault?: boolean | null
   searchAiLayoutDefault?: boolean | null
   showNameOnPage?: boolean | null
+  showChainLabel?: boolean | null
   tripadvisorHotelKey?: string | null
   priceComparisonEnabled?: boolean
   affiliateMarketplace?: boolean | null
@@ -648,6 +650,7 @@ export interface OrgDesignDefaultsConfig {
   aiLayoutDefault: boolean | null
   searchAiLayoutDefault: boolean | null
   showNameOnPage: boolean | null
+  showChainLabel: boolean | null
   chainHeroImageUrl: string | null
   chainExcludedPropertyImageIds: number[] | null
   checkInTime?: string | null

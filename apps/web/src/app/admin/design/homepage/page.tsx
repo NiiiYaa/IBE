@@ -708,6 +708,17 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             onReset={resetO}
           />
 
+          <OverrideToggleRow
+            label="Show chain label on this hotel page"
+            fieldKey="showChainLabel"
+            description="Shows 'Part of The X Collection' on this hotel's page. Overrides the chain-level setting."
+            systemDefault={true}
+            draft={draft}
+            orgDefaults={orgDefaults}
+            onSet={setB}
+            onReset={resetO}
+          />
+
           {/* Logo — inline override with HyperGuest fallback and image preview */}
           <FormRow label="Logo">
             {property?.logo && (

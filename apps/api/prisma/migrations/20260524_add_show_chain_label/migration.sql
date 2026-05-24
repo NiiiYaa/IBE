@@ -1,0 +1,2 @@
+ALTER TABLE "HotelConfig" ADD COLUMN IF NOT EXISTS "showChainLabel" BOOLEAN;
+ALTER TABLE "OrgDesignDefaults" ADD COLUMN IF NOT EXISTS "showChainLabel" BOOLEAN;
