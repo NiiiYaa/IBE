@@ -77,7 +77,7 @@ export function useFlexibleDateSearch(
           checkOut: shiftDate(baseParams!.checkOut, delta),
         }
         return {
-          queryKey: ['search', shiftedParams],
+          queryKey: ['flexible-search', shiftedParams],
           queryFn: () => apiClient.search(encodeSearchParams(shiftedParams)),
           staleTime: 4 * 60 * 1000, // 4 minutes — matches useSearch
           retry: 1,
