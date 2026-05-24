@@ -355,6 +355,8 @@ function LegBar({
           label={t('checkIn')}
           value={displayDate(leg.checkIn, locale) || t('selectDate')}
           active={panel === 'calendar' && calField === 'checkin'}
+          invalid={showValidation && !leg.checkIn}
+          flashTrigger={flashTrigger}
           onClick={() => openCalendar('checkin')}
           flex={1.8}
         />
@@ -366,6 +368,8 @@ function LegBar({
           label={t('checkOut')}
           value={displayDate(leg.checkOut, locale) || t('selectDate')}
           active={panel === 'calendar' && calField === 'checkout'}
+          invalid={showValidation && !leg.checkOut}
+          flashTrigger={flashTrigger}
           onClick={() => openCalendar('checkout')}
           flex={1.8}
         />
