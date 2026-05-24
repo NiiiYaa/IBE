@@ -40,7 +40,9 @@ describe('MultiCityPanel', () => {
   it('adds a second leg when Add city is clicked', () => {
     render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
     fireEvent.click(screen.getByText(/multiCityAddCity/))
-    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(1)
-    expect(screen.getAllByText(/multiCityRemove/).length).toBeGreaterThan(0)
+    // Both legs render the Add button; leg 1's is invisible (keeps layout width)
+    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(2)
+    // Both legs now have canRemove=true → both Remove buttons visible
+    expect(screen.getAllByText(/multiCityRemove/).length).toBe(2)
   })
 })

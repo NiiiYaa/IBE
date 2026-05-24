@@ -22,13 +22,14 @@ type MultiCityLeg = {
   checkOut: string
 }
 
-function makeLeg(offsetDays = 7): MultiCityLeg {
+function makeLeg(checkIn?: string): MultiCityLeg {
+  const ci = checkIn ?? addDays(todayIso(), 7)
   return {
     id: Math.random().toString(36).slice(2, 9),
     city: '',
     propertyId: null,
-    checkIn: addDays(todayIso(), offsetDays),
-    checkOut: addDays(todayIso(), offsetDays + 3),
+    checkIn: ci,
+    checkOut: addDays(ci, 3),
   }
 }
 
@@ -119,9 +120,7 @@ function SharedBar({
   useEffect(() => {
     if (!panel) return
     function handleOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setPanel(null)
-      }
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setPanel(null)
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
@@ -130,14 +129,11 @@ function SharedBar({
   function getSegmentLeft(panelId: string): number {
     const btn = containerRef.current?.querySelector(`[data-segment="${panelId}"]`)
     if (!btn || !containerRef.current) return 0
-    const rect = btn.getBoundingClientRect()
-    const containerRect = containerRef.current.getBoundingClientRect()
-    return rect.left - containerRect.left
+    return btn.getBoundingClientRect().left - containerRef.current.getBoundingClientRect().left
   }
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Desktop pill bar */}
       <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
         <Segment
           label={t('guests')}
@@ -156,12 +152,8 @@ function SharedBar({
         />
       </div>
 
-      {/* Guests dropdown */}
       {panel === 'guests' && (
-        <div
-          className="absolute top-full z-50 mt-2"
-          style={{ left: getSegmentLeft('shared-guests') }}
-        >
+        <div className="absolute top-full z-50 mt-2" style={{ left: getSegmentLeft('shared-guests') }}>
           <GuestsDropdown
             rooms={rooms}
             onChange={onRoomsChange}
@@ -170,13 +162,8 @@ function SharedBar({
           />
         </div>
       )}
-
-      {/* Nationality dropdown */}
       {panel === 'nationality' && (
-        <div
-          className="absolute top-full z-50 mt-2"
-          style={{ left: getSegmentLeft('shared-nationality') }}
-        >
+        <div className="absolute top-full z-50 mt-2" style={{ left: getSegmentLeft('shared-nationality') }}>
           <NationalityDropdown
             value={nationality}
             onChange={(code) => { onNationalityChange(code); setPanel(null) }}
@@ -187,12 +174,14 @@ function SharedBar({
   )
 }
 
-// ── LegBar — City + Check-in + Check-out + Add/Remove ────────────────────────
+// ── LegBar — City + Check-in + Check-out + fixed-width Add/Remove ─────────────
 
 interface LegBarProps {
   leg: MultiCityLeg
   properties: PropertyOption[]
   cities: string[]
+  /** Cities already picked in other legs — excluded from this leg's dropdown */
+  takenCities: string[]
   canRemove: boolean
   canAdd: boolean
   onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id'>>) => void
@@ -204,6 +193,7 @@ function LegBar({
   leg,
   properties,
   cities,
+  takenCities,
   canRemove,
   canAdd,
   onUpdate,
@@ -221,9 +211,7 @@ function LegBar({
   useEffect(() => {
     if (!panel) return
     function handleOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setPanel(null)
-      }
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setPanel(null)
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
@@ -234,6 +222,9 @@ function LegBar({
     setPanel(prev => prev === 'calendar' && calField === field ? null : 'calendar')
   }
 
+  // Cities available for this leg = all cities minus those taken by other legs
+  const availableCities = cities.filter(c => !takenCities.includes(c))
+
   const selectedProperty = properties.find(p => p.id === leg.propertyId)
   const cityDisplayValue = selectedProperty
     ? properties.filter(p => p.city === leg.city).length > 1
@@ -243,7 +234,6 @@ function LegBar({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Desktop pill bar */}
       <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* City */}
@@ -279,7 +269,7 @@ function LegBar({
 
         <Divider />
 
-        {/* Nights display */}
+        {/* Nights — non-interactive display */}
         <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
           <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
             {t('nightsLabel')}
@@ -289,37 +279,43 @@ function LegBar({
           </span>
         </div>
 
-        {/* Add / Remove */}
-        {(canRemove || canAdd) && (
-          <>
-            <Divider />
-            <div className="flex items-center gap-1.5 py-2 pl-1 pr-1.5">
-              {canRemove && (
-                <button
-                  onClick={onRemove}
-                  className="whitespace-nowrap rounded-full border border-[var(--color-border)] px-3 py-2 text-sm font-semibold text-[var(--color-text)] transition-colors hover:bg-gray-50"
-                >
-                  − {t('multiCityRemove') ?? 'Remove'}
-                </button>
-              )}
-              {canAdd && (
-                <button
-                  onClick={onAdd}
-                  className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
-                >
-                  + {t('multiCityAddCity') ?? 'Add city'}
-                </button>
-              )}
-            </div>
-          </>
-        )}
+        {/*
+          Button column — ALWAYS rendered at the same width so segments above
+          don't shift. Buttons that aren't active are invisible (keep space).
+        */}
+        <Divider />
+        <div className="flex shrink-0 items-center gap-1.5 py-2 pl-1 pr-1.5">
+          <button
+            onClick={onRemove}
+            className={[
+              'whitespace-nowrap rounded-full border border-[var(--color-border)] px-3 py-2 text-sm font-semibold text-[var(--color-text)] transition-colors hover:bg-gray-50',
+              !canRemove ? 'invisible pointer-events-none' : '',
+            ].join(' ')}
+          >
+            − {t('multiCityRemove') ?? 'Remove'}
+          </button>
+          <button
+            onClick={onAdd}
+            className={[
+              'whitespace-nowrap rounded-full bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white shadow transition-colors hover:opacity-90',
+              !canAdd ? 'invisible pointer-events-none' : '',
+            ].join(' ')}
+          >
+            + {t('multiCityAddCity') ?? 'Add city'}
+          </button>
+        </div>
       </div>
 
       {/* City dropdown */}
       {panel === 'city' && (
         <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
           <div className="max-h-72 overflow-y-auto">
-            {cities.map(city => {
+            {availableCities.length === 0 && (
+              <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
+                {t('multiCityNoCities') ?? 'No more cities available'}
+              </p>
+            )}
+            {availableCities.map(city => {
               const hotelsInCity = properties.filter(p => p.city === city)
               if (hotelsInCity.length === 1) {
                 const prop = hotelsInCity[0]!
@@ -395,9 +391,11 @@ export function MultiCityPanel({
   const t = useT('search')
   const detectedCountry = useCountryDetect()
 
-  const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg(7)])
+  const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg()])
   const [rooms, setRooms] = useState<GuestRoom[]>([{ adults: 2, children: 0, infants: 0 }])
   const [nationality, setNationality] = useState('')
+  const [promoCode, setPromoCode] = useState('')
+  const [showPromo, setShowPromo] = useState(false)
 
   useEffect(() => {
     if (detectedCountry && !nationality) setNationality(detectedCountry)
@@ -409,17 +407,11 @@ export function MultiCityPanel({
 
   function addLeg(afterIdx: number) {
     if (legs.length >= maxLegs) return
-    const prev = legs[afterIdx]
-    const newCheckIn = prev ? addDays(prev.checkOut, 0) : addDays(todayIso(), 10)
-    const newCheckOut = addDays(newCheckIn, 3)
-    const newLeg: MultiCityLeg = {
-      id: Math.random().toString(36).slice(2, 9),
-      city: '',
-      propertyId: null,
-      checkIn: newCheckIn,
-      checkOut: newCheckOut,
-    }
+    const prevLeg = legs[afterIdx]
+    // New leg check-in = previous leg's check-out
+    const newCheckIn = prevLeg ? prevLeg.checkOut : addDays(todayIso(), 10)
     setLegs(prev => {
+      const newLeg = makeLeg(newCheckIn)
       const next = [...prev]
       next.splice(afterIdx + 1, 0, newLeg)
       return next
@@ -435,6 +427,7 @@ export function MultiCityPanel({
   }
 
   const allLegsReady = legs.every(l => l.propertyId !== null && l.checkIn && l.checkOut)
+  const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
 
   function handleCheckAvailability() {
     for (const leg of legs) {
@@ -443,8 +436,9 @@ export function MultiCityPanel({
         hotelId: leg.propertyId,
         checkIn: leg.checkIn,
         checkOut: leg.checkOut,
-        rooms: [{ adults: rooms.reduce((s, r) => s + r.adults, 0) }],
+        rooms: [{ adults: totalAdults }],
         nationality: nationality || undefined,
+        promoCode: promoCode || undefined,
       })
       window.open(`/search?${qs.toString()}`, '_blank', 'noopener,noreferrer')
     }
@@ -462,32 +456,65 @@ export function MultiCityPanel({
         onNationalityChange={setNationality}
       />
 
-      {/* Bars 2..N: one per leg */}
-      {legs.map((leg, idx) => (
-        <LegBar
-          key={leg.id}
-          leg={leg}
-          properties={properties}
-          cities={cities}
-          canRemove={legs.length > 1}
-          canAdd={idx === legs.length - 1 && legs.length < maxLegs}
-          onUpdate={(patch) => updateLeg(idx, patch)}
-          onAdd={() => addLeg(idx)}
-          onRemove={() => removeLeg(idx)}
-        />
-      ))}
+      {/* One bar per leg */}
+      {legs.map((leg, idx) => {
+        const takenCities = legs
+          .filter((_, i) => i !== idx)
+          .map(l => l.city)
+          .filter(Boolean)
+        return (
+          <LegBar
+            key={leg.id}
+            leg={leg}
+            properties={properties}
+            cities={cities}
+            takenCities={takenCities}
+            canRemove={legs.length > 1}
+            canAdd={idx === legs.length - 1 && legs.length < maxLegs}
+            onUpdate={(patch) => updateLeg(idx, patch)}
+            onAdd={() => addLeg(idx)}
+            onRemove={() => removeLeg(idx)}
+          />
+        )
+      })}
 
-      {/* Check availability CTA */}
-      {allLegsReady && (
-        <div className="flex justify-end pt-1">
+      {/* CTA + promo code */}
+      <div className="hidden sm:flex flex-col items-end gap-1.5 pt-1">
+        {allLegsReady && (
           <button
             onClick={handleCheckAvailability}
             className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
           >
             {t('checkAvailability')}
           </button>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => setShowPromo(v => !v)}
+          className="text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+        >
+          {showPromo ? `${t('hidePromoCode')} ▴` : `${t('havePromoCode')} ▾`}
+        </button>
+        {showPromo && (
+          <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-lg ring-1 ring-black/10">
+            <input
+              type="text"
+              placeholder={t('enterPromoCode')}
+              value={promoCode}
+              onChange={e => setPromoCode(e.target.value.toUpperCase())}
+              autoFocus
+              className="w-44 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none"
+            />
+            {promoCode && (
+              <button
+                onClick={() => setPromoCode('')}
+                className="text-lg leading-none text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
