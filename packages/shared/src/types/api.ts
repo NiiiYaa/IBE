@@ -472,6 +472,21 @@ export interface InterHotelSearchResponse {
   packages: InterHotelPackageResponse[]
 }
 
+// ── Multi-City Stay ──────────────────────────────────────────────────────────
+
+export interface MultiCityEffective {
+  enabled: boolean
+  maxLegs: number
+}
+
+export interface SystemMultiCityConfigResponse extends MultiCityEffective {}
+
+export interface OrgMultiCityConfigResponse {
+  enabled: boolean | null
+  maxLegs: number | null
+  effective: MultiCityEffective
+}
+
 export interface PricingCollectionProgress {
   windowsDone: number
   totalWindows: number
