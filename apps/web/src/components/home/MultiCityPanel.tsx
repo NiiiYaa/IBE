@@ -134,6 +134,10 @@ function SharedBar({
 
   return (
     <div ref={containerRef} className="relative">
+      {/*
+        Mirror LegBar column structure so Nationality aligns with Check-out:
+        [Guests: flex=4.3] | [Nationality: flex=1.8] | [Nights spacer] | [Button spacer]
+      */}
       <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
         <Segment
           label={t('guests')}
@@ -141,6 +145,7 @@ function SharedBar({
           active={panel === 'guests'}
           onClick={() => setPanel(p => p === 'guests' ? null : 'guests')}
           panelId="shared-guests"
+          flex={4.3}
         />
         <Divider />
         <Segment
@@ -149,7 +154,21 @@ function SharedBar({
           active={panel === 'nationality'}
           onClick={() => setPanel(p => p === 'nationality' ? null : 'nationality')}
           panelId="shared-nationality"
+          flex={1.8}
         />
+        {/* Invisible section — mirrors Nights + button column so Nationality aligns with Check-out */}
+        <div className="invisible flex items-stretch" aria-hidden>
+          <Divider />
+          <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
+            <span className="mb-0.5 text-xs font-medium leading-none">0</span>
+            <span className="text-sm font-semibold">0</span>
+          </div>
+          <Divider />
+          <div className="flex shrink-0 items-center gap-1.5 py-2 pl-1 pr-1.5">
+            <span className="whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold">− Remove</span>
+            <span className="whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold">+ Add city</span>
+          </div>
+        </div>
       </div>
 
       {panel === 'guests' && (
@@ -376,6 +395,7 @@ function LegBar({
           onClose={() => setPanel(null)}
         />
       )}
+
     </div>
   )
 }
@@ -431,13 +451,16 @@ export function MultiCityPanel({
   const allLegsReady = legs.every(l => l.propertyId !== null && l.checkIn && l.checkOut)
   const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
 
-  // Summary stats — computed only when all legs are ready
-  const sortedLegs = [...legs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
-  const minCheckIn = sortedLegs[0]?.checkIn ?? null
-  const maxCheckOut = sortedLegs[sortedLegs.length - 1]?.checkOut ?? null
-  const totalNights = legs.reduce((sum, l) => sum + nightsBetween(l.checkIn, l.checkOut), 0)
+  // Summary stats — computed from configured legs (persists even when a new empty leg is added)
+  const readyLegs = legs.filter(l => l.propertyId !== null && l.checkIn && l.checkOut)
+  const sortedReady = [...readyLegs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  const minCheckIn = sortedReady[0]?.checkIn ?? null
+  const maxCheckOut = sortedReady[sortedReady.length - 1]?.checkOut ?? null
+  const totalNights = readyLegs.reduce((sum, l) => sum + nightsBetween(l.checkIn, l.checkOut), 0)
+  const showSummary = readyLegs.length > 0 && minCheckIn && maxCheckOut
 
-  // Gap detection: any consecutive sorted pair where checkOut ≠ next checkIn
+  // Gap detection across ready legs
+  const sortedLegs = [...legs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
   const gaps: { from: string; to: string }[] = []
   for (let i = 0; i < sortedLegs.length - 1; i++) {
     const cur = sortedLegs[i]
@@ -511,6 +534,17 @@ export function MultiCityPanel({
       {/* CTA row + summary */}
       <div className="hidden sm:flex flex-col items-end gap-1.5 pt-1">
         <div className="flex items-center gap-3">
+          {showSummary && (
+            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+              <span>{readyLegs.length} {readyLegs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
+              <span>·</span>
+              <span>{displayDate(minCheckIn!, locale)}</span>
+              <span>→</span>
+              <span>{displayDate(maxCheckOut!, locale)}</span>
+              <span>·</span>
+              <span>{totalNights} {t('nightsLabel')}</span>
+            </span>
+          )}
           <button
             onClick={handleCheckAvailability}
             disabled={!allLegsReady}
@@ -518,17 +552,6 @@ export function MultiCityPanel({
           >
             {t('checkAvailability')}
           </button>
-          {allLegsReady && minCheckIn && maxCheckOut && (
-            <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              <span>{legs.length} {legs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
-              <span>·</span>
-              <span>{displayDate(minCheckIn, locale)}</span>
-              <span>→</span>
-              <span>{displayDate(maxCheckOut, locale)}</span>
-              <span>·</span>
-              <span>{totalNights} {t('nightsLabel')}</span>
-            </span>
-          )}
         </div>
         <button
           onClick={() => setShowPromo(v => !v)}
