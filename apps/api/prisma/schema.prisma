@@ -67,6 +67,7 @@ model Organization {
   orgPricingConfig            OrgPricingConfig?
   orgFlexibleDatesConfig      OrgFlexibleDatesConfig?
   orgInterHotelConfig         OrgInterHotelConfig?
+  orgMultiCityConfig          OrgMultiCityConfig?
 }
 
 // roles: super | admin | observer | user
@@ -1940,6 +1941,19 @@ model NearbyHotel {
   nearbyProperty   Property @relation("NearbyHotelProperty", fields: [nearbyPropertyId], references: [propertyId])
 
   @@unique([propertyId, nearbyPropertyId])
+}
+
+model SystemMultiCityConfig {
+  id      Int     @id @default(1)
+  enabled Boolean @default(false)
+  maxLegs Int     @default(3)
+}
+
+model OrgMultiCityConfig {
+  organizationId Int          @id
+  enabled        Boolean?
+  maxLegs        Int?
+  org            Organization @relation(fields: [organizationId], references: [id])
 }
 
 model DailyRate {
