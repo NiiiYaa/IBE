@@ -129,6 +129,8 @@
     "multiCityAll": "all",
     "multiCityHotels": "hotels",
     "multiCityDone": "Done",
+    "multiCityNoResults": "No cities match",
+    "searchCity": "Search city…",
     "multiCityAddCity": "Add city",
     "multiCityRemove": "Remove",
     "multiCityLeg": "City {n}",

@@ -1956,6 +1956,7 @@ model NearbyHotel {
   propertyId       Int
   nearbyPropertyId Int
   distanceKm       Float
+  manuallySelected Boolean?
   updatedAt        DateTime @updatedAt
   property         Property @relation("PropertyNearby", fields: [propertyId], references: [propertyId])
   nearbyProperty   Property @relation("NearbyHotelProperty", fields: [nearbyPropertyId], references: [propertyId])

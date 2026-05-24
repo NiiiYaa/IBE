@@ -1,0 +1,1 @@
+ALTER TABLE "NearbyHotel" ADD COLUMN IF NOT EXISTS "manuallySelected" BOOLEAN;

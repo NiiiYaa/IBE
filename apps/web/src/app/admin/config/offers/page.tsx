@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   OrgOffersSettings,
   UpdateOffersSettingsRequest,
@@ -1392,16 +1392,32 @@ function IhPackageSelectField({
   )
 }
 
-function RefreshNearbyButton({ orgId }: { orgId: number }) {
+// ── Org-level refresh panel (no list — list lives at property level) ──────────
+
+function NearbyHotelsPanel({ orgId }: { orgId: number }) {
+  const qc = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState<string | null>(null)
+
+  const { data, refetch } = useQuery({
+    queryKey: ['interhotel-nearby-org', orgId],
+    queryFn: () => apiClient.getNearbyHotelsOrg(orgId),
+    staleTime: 60 * 1000,
+  })
+
+  const lastRefreshedAt = data?.lastRefreshedAt
+    ? new Date(data.lastRefreshedAt).toLocaleString()
+    : null
 
   async function handleRefresh() {
     setRefreshing(true)
     setRefreshResult(null)
     try {
       const result = await apiClient.refreshInterHotelNearby(orgId)
-      setRefreshResult(`${result.count} nearby hotel pairs refreshed`)
+      setRefreshResult(`${result.count} hotel pairs computed`)
+      void refetch()
+      qc.invalidateQueries({ queryKey: ['interhotel-nearby-org', orgId] })
+      qc.invalidateQueries({ queryKey: ['interhotel-nearby-property'] })
     } catch {
       setRefreshResult('Refresh failed')
     } finally {
@@ -1410,17 +1426,167 @@ function RefreshNearbyButton({ orgId }: { orgId: number }) {
   }
 
   return (
-    <div className="py-2">
-      <button
-        type="button"
-        onClick={handleRefresh}
-        disabled={refreshing}
-        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface)] disabled:opacity-50"
-      >
-        {refreshing ? 'Refreshing…' : 'Refresh Nearby Hotels'}
-      </button>
+    <div className="space-y-1.5 pt-2">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface)] disabled:opacity-50"
+        >
+          {refreshing ? 'Refreshing…' : 'Refresh Nearby Hotels'}
+        </button>
+        {lastRefreshedAt && (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Last refreshed: {lastRefreshedAt}
+            {data?.total ? ` · ${data.total} pairs` : ''}
+          </span>
+        )}
+      </div>
       {refreshResult && (
-        <p className="text-xs text-[var(--color-text-muted)] mt-1">{refreshResult}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">{refreshResult}</p>
+      )}
+    </div>
+  )
+}
+
+// ── Property-level nearby hotels panel with checkboxes ────────────────────────
+
+type NearbyRow = { nearbyPropertyId: number; distanceKm: number; manuallySelected: boolean | null; isWithinRadius: boolean }
+
+function NearbyHotelSelectRow({
+  row,
+  propertyId,
+  onToggle,
+}: {
+  row: NearbyRow
+  propertyId: number
+  onToggle: (nearbyId: number, selected: boolean | null) => void
+}) {
+  const { data: property } = useQuery({
+    queryKey: ['property-static', row.nearbyPropertyId],
+    queryFn: () => apiClient.getProperty(row.nearbyPropertyId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  const name = property?.name ?? `Hotel ${row.nearbyPropertyId}`
+  const stars = property?.starRating ?? 0
+  const address = property?.location?.address ?? ''
+
+  const isChecked = row.manuallySelected === true || (row.manuallySelected === null && row.isWithinRadius)
+  const isOverridden = row.manuallySelected !== null
+
+  function handleChange() {
+    if (isChecked) {
+      // Currently selected: if it was auto-selected (within radius), force-deselect; if manually selected, clear override
+      onToggle(row.nearbyPropertyId, row.isWithinRadius ? false : null)
+    } else {
+      // Currently deselected: if it was auto-deselected (outside radius), force-select; if manually deselected, clear override
+      onToggle(row.nearbyPropertyId, row.isWithinRadius ? null : true)
+    }
+  }
+
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 hover:bg-[var(--color-surface)] transition-colors">
+      <input
+        type="checkbox"
+        checked={isChecked}
+        onChange={handleChange}
+        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-[var(--color-primary)]"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-[var(--color-text)]">{name}</span>
+          {stars > 0 && <span className="shrink-0 text-xs text-amber-500">{'★'.repeat(stars)}</span>}
+          {isOverridden && (
+            <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700">override</span>
+          )}
+        </div>
+        {address && <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">{address}</p>}
+      </div>
+      <span className="shrink-0 text-xs font-medium text-[var(--color-text-muted)]">
+        {row.distanceKm.toFixed(1)} km
+      </span>
+    </label>
+  )
+}
+
+const PAGE_SIZE = 10
+
+function PropertyNearbyHotelsPanel({ propertyId }: { propertyId: number }) {
+  const qc = useQueryClient()
+  const [page, setPage] = useState(0)
+  const [allRows, setAllRows] = useState<NearbyRow[]>([])
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['interhotel-nearby-property', propertyId, page],
+    queryFn: () => apiClient.getNearbyHotelsProperty(propertyId, page * PAGE_SIZE, PAGE_SIZE),
+    enabled: propertyId > 0,
+    staleTime: 30 * 1000,
+  })
+
+  useEffect(() => {
+    if (!data) return
+    if (page === 0) {
+      setAllRows(data.nearby)
+    } else {
+      setAllRows(prev => {
+        const existingIds = new Set(prev.map(r => r.nearbyPropertyId))
+        return [...prev, ...data.nearby.filter(r => !existingIds.has(r.nearbyPropertyId))]
+      })
+    }
+  }, [data, page])
+
+  // Reset when propertyId changes
+  useEffect(() => { setPage(0); setAllRows([]) }, [propertyId])
+
+  async function handleToggle(nearbyId: number, selected: boolean | null) {
+    await apiClient.setNearbyHotelSelection(propertyId, nearbyId, selected)
+    // Optimistically update local state
+    setAllRows(prev => prev.map(r =>
+      r.nearbyPropertyId === nearbyId
+        ? { ...r, manuallySelected: selected }
+        : r
+    ))
+    qc.invalidateQueries({ queryKey: ['interhotel-nearby-property', propertyId] })
+  }
+
+  const total = data?.total ?? 0
+  const hasMore = allRows.length < total
+
+  if (allRows.length === 0 && !isFetching) {
+    return (
+      <p className="pt-2 text-xs text-[var(--color-text-muted)]">
+        No nearby hotels found. Use Refresh Nearby Hotels at the chain level first.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5 pt-2">
+      <p className="text-xs font-medium text-[var(--color-text-muted)]">
+        Nearby hotels {total > 0 ? `(${allRows.length} of ${total})` : ''}
+        <span className="ml-1 font-normal">· checked = shown to guests</span>
+      </p>
+      {allRows.map(row => (
+        <NearbyHotelSelectRow
+          key={row.nearbyPropertyId}
+          row={row}
+          propertyId={propertyId}
+          onToggle={handleToggle}
+        />
+      ))}
+      {isFetching && (
+        <p className="text-xs text-[var(--color-text-muted)]">Loading…</p>
+      )}
+      {hasMore && !isFetching && (
+        <button
+          type="button"
+          onClick={() => setPage(p => p + 1)}
+          className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors"
+        >
+          Load more ({total - allRows.length} remaining)
+        </button>
       )}
     </div>
   )
@@ -1526,7 +1692,7 @@ function SystemInterHotelSection() {
           onChange={v => set('incentivePackageId')(v)}
         />
       )}
-      <RefreshNearbyButton orgId={1} />
+      <NearbyHotelsPanel orgId={1} />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -1654,7 +1820,7 @@ function OrgInterHotelSection({ orgId }: { orgId: number }) {
           onReset={() => set('incentivePackageId')(null)}
         />
       )}
-      <RefreshNearbyButton orgId={orgId} />
+      <NearbyHotelsPanel orgId={orgId} />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -1756,6 +1922,7 @@ function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
         </>
       )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+      <PropertyNearbyHotelsPanel propertyId={propertyId} />
     </div>
   )
 }

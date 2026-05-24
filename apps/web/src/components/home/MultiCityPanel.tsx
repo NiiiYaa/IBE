@@ -268,7 +268,9 @@ function LegBar({
   const locale = useLocale()
   const [panel, setPanel] = useState<'city' | 'calendar' | null>(null)
   const [calField, setCalField] = useState<'checkin' | 'checkout'>('checkin')
+  const [citySearch, setCitySearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const citySearchRef = useRef<HTMLInputElement>(null)
 
   const nights = nightsBetween(leg.checkIn, leg.checkOut)
 
@@ -344,7 +346,10 @@ function LegBar({
           active={panel === 'city'}
           invalid={showValidation && leg.propertyIds.length === 0}
           flashTrigger={flashTrigger}
-          onClick={() => setPanel(p => p === 'city' ? null : 'city')}
+          onClick={() => {
+            setCitySearch('')
+            setPanel(p => p === 'city' ? null : 'city')
+          }}
           flex={2.5}
         />
 
@@ -412,13 +417,30 @@ function LegBar({
       {/* City dropdown */}
       {panel === 'city' && (
         <div className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+          {availableCities.length > 10 && (
+            <div className="border-b border-[var(--color-border)] px-3 py-2">
+              <input
+                ref={citySearchRef}
+                autoFocus
+                type="text"
+                value={citySearch}
+                onChange={e => setCitySearch(e.target.value)}
+                placeholder={t('searchCity') ?? 'Search city…'}
+                className="w-full rounded-lg bg-gray-50 px-3 py-1.5 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none ring-1 ring-[var(--color-border)] focus:ring-[var(--color-primary)]"
+              />
+            </div>
+          )}
           <div className="max-h-80 overflow-y-auto">
-            {availableCities.length === 0 && (
-              <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
-                {t('multiCityNoCities') ?? 'No more cities available'}
-              </p>
-            )}
-            {availableCities.map(city => {
+            {(() => {
+              const filtered = citySearch.trim()
+                ? availableCities.filter(c => c.toLowerCase().includes(citySearch.trim().toLowerCase()))
+                : availableCities
+              if (filtered.length === 0) return (
+                <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
+                  {citySearch ? (t('multiCityNoResults') ?? 'No cities match') : (t('multiCityNoCities') ?? 'No more cities available')}
+                </p>
+              )
+              return filtered.map((city: string) => {
               const hotelsInCity = properties.filter(p => p.city === city)
               const availableInCity = hotelsInCity.filter(h => !takenPropertyIds.includes(h.id))
 
@@ -506,7 +528,8 @@ function LegBar({
                   })}
                 </div>
               )
-            })}
+            })
+            })()}
           </div>
           {/* Close button for multi-hotel selections */}
           {leg.propertyIds.length > 0 && (

@@ -2512,6 +2512,22 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/interhotel/refresh/org/${orgId}`, { method: 'POST', body: JSON.stringify({}) })
   },
 
+  async getNearbyHotelsOrg(orgId: number): Promise<{ lastRefreshedAt: string | null; total: number }> {
+    return apiRequest(`/api/v1/admin/interhotel/nearby/org/${orgId}`)
+  },
+
+  async getNearbyHotelsProperty(propertyId: number, skip = 0, take = 10): Promise<{
+    lastRefreshedAt: string | null
+    total: number
+    nearby: { nearbyPropertyId: number; distanceKm: number; manuallySelected: boolean | null; isWithinRadius: boolean }[]
+  }> {
+    return apiRequest(`/api/v1/admin/interhotel/nearby/property/${propertyId}?skip=${skip}&take=${take}`)
+  },
+
+  async setNearbyHotelSelection(propertyId: number, nearbyPropertyId: number, selected: boolean | null): Promise<void> {
+    return apiRequest(`/api/v1/admin/interhotel/nearby/property/${propertyId}/${nearbyPropertyId}`, { method: 'PUT', body: { selected } })
+  },
+
   async getOrgMultiCityEffective(orgId: number): Promise<import('@ibe/shared').MultiCityEffective> {
     return apiRequest(`/api/v1/multi-city/config/org/${orgId}/effective`)
   },
