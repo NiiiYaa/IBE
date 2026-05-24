@@ -70,6 +70,7 @@ import { clusterRoutes } from './routes/cluster.route.js'
 import { compsetRoutes } from './routes/compset.route.js'
 import { eventCalendarRoutes } from './routes/event-calendar.route.js'
 import { pricingPublicRoutes, pricingAdminRoutes } from './routes/pricing.route.js'
+import { flexibleDatesPublicRoutes, flexibleDatesAdminRoutes } from './routes/flexible-dates.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -205,6 +206,7 @@ export async function buildApp() {
 
   // Pricing calendar (public — guest-facing, no auth)
   await app.register(pricingPublicRoutes)
+  await app.register(flexibleDatesPublicRoutes)
 
   // AI conversational search (public — guest-facing, no auth)
   await app.register(aiChatRoutes, { prefix: '/api/v1' })
@@ -260,6 +262,7 @@ export async function buildApp() {
     await adminApp.register(compsetRoutes, { prefix: '/api/v1' })
     await adminApp.register(eventCalendarRoutes, { prefix: '/api/v1' })
     await adminApp.register(pricingAdminRoutes)
+    await adminApp.register(flexibleDatesAdminRoutes)
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────
