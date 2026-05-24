@@ -84,7 +84,13 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
   const primarySearchDone = !isLoading && !isError && data !== undefined
   const primaryRoomCount = data?.results.flatMap(r => r.rooms).length ?? 0
   const primaryHasResultsForHook = primarySearchDone && primaryRoomCount > 0
-  const flexResults = useFlexibleDateSearch(searchParams, flexConfig, primaryHasResultsForHook)
+  const getFlexLabel = (delta: number): string => {
+    if (delta === -1) return t('flexibleDayBefore')
+    if (delta < -1) return t('flexibleDaysBefore', { n: Math.abs(delta) })
+    if (delta === 1) return t('flexibleDayAfter')
+    return t('flexibleDaysAfter', { n: delta })
+  }
+  const flexResults = useFlexibleDateSearch(searchParams, flexConfig, primaryHasResultsForHook, getFlexLabel)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms

@@ -64,6 +64,7 @@ export function useFlexibleDateSearch(
   baseParams: SearchUrlParams | null,
   config: FlexibleDatesEffective | undefined,
   primaryHasResults: boolean,
+  getLabel?: (delta: number) => string,
 ): FlexibleDateResult[] {
   const active = config?.enabled === true && !primaryHasResults && baseParams !== null
 
@@ -101,7 +102,7 @@ export function useFlexibleDateSearch(
 
     if (result.isLoading || result.isPending) {
       out.push({
-        label: deltaLabel(delta),
+        label: getLabel ? getLabel(delta) : deltaLabel(delta),
         checkIn: shiftedCheckIn,
         checkOut: shiftedCheckOut,
         data: undefined,
@@ -116,7 +117,7 @@ export function useFlexibleDateSearch(
     if (allRooms.length === 0) continue
 
     out.push({
-      label: deltaLabel(delta),
+      label: getLabel ? getLabel(delta) : deltaLabel(delta),
       checkIn: shiftedCheckIn,
       checkOut: shiftedCheckOut,
       data: result.data,
