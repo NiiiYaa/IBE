@@ -10,11 +10,36 @@ const SYSTEM_DEFAULTS: FlexibleDatesEffective = {
   enabled: false,
   daysBefore: 1,
   daysAfter: 1,
+  discountEnabled: false,
+  discountPercent: 0,
+  incentiveEnabled: false,
+  incentivePackageId: null,
+}
+
+type DiscountIncentiveRow = {
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
+}
+
+function rowToSystem(row: {
+  enabled: boolean; daysBefore: number; daysAfter: number
+} & DiscountIncentiveRow): SystemFlexibleDatesConfigResponse {
+  return {
+    enabled: row.enabled,
+    daysBefore: row.daysBefore,
+    daysAfter: row.daysAfter,
+    discountEnabled: row.discountEnabled ?? false,
+    discountPercent: row.discountPercent ?? 0,
+    incentiveEnabled: row.incentiveEnabled ?? false,
+    incentivePackageId: row.incentivePackageId ?? null,
+  }
 }
 
 export async function getSystemFlexibleDatesConfig(): Promise<SystemFlexibleDatesConfigResponse> {
   const row = await prisma.systemFlexibleDatesConfig.findFirst()
-  return row ? { enabled: row.enabled, daysBefore: row.daysBefore, daysAfter: row.daysAfter } : SYSTEM_DEFAULTS
+  return row ? rowToSystem(row) : SYSTEM_DEFAULTS
 }
 
 export async function upsertSystemFlexibleDatesConfig(
@@ -24,7 +49,7 @@ export async function upsertSystemFlexibleDatesConfig(
   const row = existing
     ? await prisma.systemFlexibleDatesConfig.update({ where: { id: existing.id }, data })
     : await prisma.systemFlexibleDatesConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
-  return { enabled: row.enabled, daysBefore: row.daysBefore, daysAfter: row.daysAfter }
+  return rowToSystem(row)
 }
 
 export async function getOrgFlexibleDatesConfig(orgId: number): Promise<OrgFlexibleDatesConfigResponse> {
@@ -32,11 +57,15 @@ export async function getOrgFlexibleDatesConfig(orgId: number): Promise<OrgFlexi
     getSystemFlexibleDatesConfig(),
     prisma.orgFlexibleDatesConfig.findUnique({ where: { organizationId: orgId } }),
   ])
-  const effective = resolveOrgEffective(system, org)
+  const effective = resolveOrgEffective(system, org ?? null)
   return {
     enabled: org?.enabled ?? null,
     daysBefore: org?.daysBefore ?? null,
     daysAfter: org?.daysAfter ?? null,
+    discountEnabled: org?.discountEnabled ?? null,
+    discountPercent: org?.discountPercent ?? null,
+    incentiveEnabled: org?.incentiveEnabled ?? null,
+    incentivePackageId: org?.incentivePackageId ?? null,
     effective,
   }
 }
@@ -66,12 +95,16 @@ export async function getPropertyFlexibleDatesConfig(propertyId: number): Promis
     orgId !== undefined ? prisma.orgFlexibleDatesConfig.findUnique({ where: { organizationId: orgId } }) : Promise.resolve(null),
   ])
 
-  const orgEffective = resolveOrgEffective(system, org)
-  const effective = resolvePropertyEffective(orgEffective, prop)
+  const orgEffective = resolveOrgEffective(system, org ?? null)
+  const effective = resolvePropertyEffective(orgEffective, prop ?? null)
   return {
     enabled: prop?.enabled ?? null,
     daysBefore: prop?.daysBefore ?? null,
     daysAfter: prop?.daysAfter ?? null,
+    discountEnabled: prop?.discountEnabled ?? null,
+    discountPercent: prop?.discountPercent ?? null,
+    incentiveEnabled: prop?.incentiveEnabled ?? null,
+    incentivePackageId: prop?.incentivePackageId ?? null,
     effective,
   }
 }
@@ -98,22 +131,30 @@ export async function resolveEffectiveFlexibleDatesConfig(propertyId: number): P
 
 function resolveOrgEffective(
   system: FlexibleDatesEffective,
-  org: { enabled: boolean | null; daysBefore: number | null; daysAfter: number | null } | null,
+  org: ({ enabled: boolean | null; daysBefore: number | null; daysAfter: number | null } & DiscountIncentiveRow) | null,
 ): FlexibleDatesEffective {
   return {
     enabled: org?.enabled ?? system.enabled,
     daysBefore: org?.daysBefore ?? system.daysBefore,
     daysAfter: org?.daysAfter ?? system.daysAfter,
+    discountEnabled: org?.discountEnabled ?? system.discountEnabled,
+    discountPercent: org?.discountPercent ?? system.discountPercent,
+    incentiveEnabled: org?.incentiveEnabled ?? system.incentiveEnabled,
+    incentivePackageId: org?.incentivePackageId ?? system.incentivePackageId,
   }
 }
 
 function resolvePropertyEffective(
   orgEffective: FlexibleDatesEffective,
-  prop: { enabled: boolean | null; daysBefore: number | null; daysAfter: number | null } | null,
+  prop: ({ enabled: boolean | null; daysBefore: number | null; daysAfter: number | null } & DiscountIncentiveRow) | null,
 ): FlexibleDatesEffective {
   return {
     enabled: prop?.enabled ?? orgEffective.enabled,
     daysBefore: prop?.daysBefore ?? orgEffective.daysBefore,
     daysAfter: prop?.daysAfter ?? orgEffective.daysAfter,
+    discountEnabled: prop?.discountEnabled ?? orgEffective.discountEnabled,
+    discountPercent: prop?.discountPercent ?? orgEffective.discountPercent,
+    incentiveEnabled: prop?.incentiveEnabled ?? orgEffective.incentiveEnabled,
+    incentivePackageId: prop?.incentivePackageId ?? orgEffective.incentivePackageId,
   }
 }

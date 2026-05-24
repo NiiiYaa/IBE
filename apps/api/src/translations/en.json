@@ -120,7 +120,7 @@
     "interHotelStaySegment": "Hotel Stay {n}",
     "interHotelTransferSelf": "Self Transfer",
     "interHotelTransferHotel": "Free transfer arranged by the hotel",
-    "interHotelTransferSponsored": "Sponsored Self Transfer (up to {amount} {currency})",
+    "interHotelTransferSponsored": "Self-transfer sponsored by the hotel (up to {amount} {currency})",
     "interHotelFrom": "Starting from",
     "multiCityTrip": "Multi-city Trip",
     "multiCityAddCity": "Add city",

@@ -4,12 +4,30 @@ import type { SystemMultiCityConfigResponse, OrgMultiCityConfigResponse, MultiCi
 const SYSTEM_DEFAULTS: SystemMultiCityConfigResponse = {
   enabled: false,
   maxLegs: 3,
+  discountEnabled: false,
+  discountPercent: 0,
+  incentiveEnabled: false,
+  incentivePackageId: null,
+}
+
+function rowToSystem(row: {
+  enabled: boolean; maxLegs: number
+  discountEnabled: boolean; discountPercent: number
+  incentiveEnabled: boolean; incentivePackageId: number | null
+}): SystemMultiCityConfigResponse {
+  return {
+    enabled: row.enabled,
+    maxLegs: row.maxLegs,
+    discountEnabled: row.discountEnabled,
+    discountPercent: row.discountPercent,
+    incentiveEnabled: row.incentiveEnabled,
+    incentivePackageId: row.incentivePackageId,
+  }
 }
 
 export async function getSystemMultiCityConfig(): Promise<SystemMultiCityConfigResponse> {
   const row = await prisma.systemMultiCityConfig.findFirst()
-  if (!row) return SYSTEM_DEFAULTS
-  return { enabled: row.enabled, maxLegs: row.maxLegs }
+  return row ? rowToSystem(row) : SYSTEM_DEFAULTS
 }
 
 export async function upsertSystemMultiCityConfig(
@@ -19,16 +37,24 @@ export async function upsertSystemMultiCityConfig(
   const row = existing
     ? await prisma.systemMultiCityConfig.update({ where: { id: existing.id }, data })
     : await prisma.systemMultiCityConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
-  return { enabled: row.enabled, maxLegs: row.maxLegs }
+  return rowToSystem(row)
 }
 
 function resolveOrgEffective(
   system: SystemMultiCityConfigResponse,
-  org: { enabled: boolean | null; maxLegs: number | null } | null,
+  org: {
+    enabled: boolean | null; maxLegs: number | null
+    discountEnabled: boolean | null; discountPercent: number | null
+    incentiveEnabled: boolean | null; incentivePackageId: number | null
+  } | null,
 ): MultiCityEffective {
   return {
     enabled: org?.enabled ?? system.enabled,
     maxLegs: org?.maxLegs ?? system.maxLegs,
+    discountEnabled: org?.discountEnabled ?? system.discountEnabled,
+    discountPercent: org?.discountPercent ?? system.discountPercent,
+    incentiveEnabled: org?.incentiveEnabled ?? system.incentiveEnabled,
+    incentivePackageId: org?.incentivePackageId ?? system.incentivePackageId,
   }
 }
 
@@ -40,6 +66,10 @@ export async function getOrgMultiCityConfig(orgId: number): Promise<OrgMultiCity
   return {
     enabled: org?.enabled ?? null,
     maxLegs: org?.maxLegs ?? null,
+    discountEnabled: org?.discountEnabled ?? null,
+    discountPercent: org?.discountPercent ?? null,
+    incentiveEnabled: org?.incentiveEnabled ?? null,
+    incentivePackageId: org?.incentivePackageId ?? null,
     effective: resolveOrgEffective(system, org ?? null),
   }
 }

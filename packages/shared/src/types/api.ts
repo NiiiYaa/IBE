@@ -400,6 +400,10 @@ export interface FlexibleDatesEffective {
   enabled: boolean
   daysBefore: number
   daysAfter: number
+  discountEnabled: boolean
+  discountPercent: number
+  incentiveEnabled: boolean
+  incentivePackageId: number | null
 }
 
 export interface SystemFlexibleDatesConfigResponse extends FlexibleDatesEffective {}
@@ -408,6 +412,10 @@ export interface OrgFlexibleDatesConfigResponse {
   enabled: boolean | null
   daysBefore: number | null
   daysAfter: number | null
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
   effective: FlexibleDatesEffective
 }
 
@@ -415,6 +423,10 @@ export interface PropertyFlexibleDatesConfigResponse {
   enabled: boolean | null
   daysBefore: number | null
   daysAfter: number | null
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
   effective: FlexibleDatesEffective
 }
 
@@ -429,6 +441,10 @@ export interface InterHotelEffective {
   transferType: TransferType
   sponsoredAmount: number
   sponsoredCurrency: string
+  discountEnabled: boolean
+  discountPercent: number
+  incentiveEnabled: boolean
+  incentivePackageId: number | null
 }
 
 export interface SystemInterHotelConfigResponse extends InterHotelEffective {}
@@ -440,6 +456,10 @@ export interface OrgInterHotelConfigResponse {
   transferType: TransferType | null
   sponsoredAmount: number | null
   sponsoredCurrency: string | null
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
   effective: InterHotelEffective
 }
 
@@ -477,6 +497,10 @@ export interface InterHotelSearchResponse {
 export interface MultiCityEffective {
   enabled: boolean
   maxLegs: number
+  discountEnabled: boolean
+  discountPercent: number
+  incentiveEnabled: boolean
+  incentivePackageId: number | null
 }
 
 export interface SystemMultiCityConfigResponse extends MultiCityEffective {}
@@ -484,6 +508,10 @@ export interface SystemMultiCityConfigResponse extends MultiCityEffective {}
 export interface OrgMultiCityConfigResponse {
   enabled: boolean | null
   maxLegs: number | null
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
   effective: MultiCityEffective
 }
 

@@ -34,6 +34,7 @@ const mockAvailability = vi.mocked(searchAvailability)
 const BASE_CONFIG = {
   enabled: true, maxRadiusKm: 50, maxHotels: 3,
   transferType: 'hotel' as const, sponsoredAmount: 0, sponsoredCurrency: 'USD',
+  discountEnabled: false, discountPercent: 0, incentiveEnabled: false, incentivePackageId: null,
 }
 
 // Build a minimal SearchResponse that matches the real SearchResponse type.

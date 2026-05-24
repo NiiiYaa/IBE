@@ -20,6 +20,7 @@ import type {
   SystemMultiCityConfigResponse,
   OrgMultiCityConfigResponse,
   TransferType,
+  IncentivePackage,
 } from '@ibe/shared'
 import { BoardType, BOARD_TYPE_LABELS } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
@@ -789,6 +790,10 @@ function SystemFlexibleDatesSection() {
     queryKey: ['flexible-dates-system'],
     queryFn: () => apiClient.getSystemFlexibleDatesConfig(),
   })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages-system'],
+    queryFn: () => apiClient.listIncentivePackages(),
+  })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<FlexibleDatesEffective>) => apiClient.updateSystemFlexibleDatesConfig(u),
     onSuccess: updated => { qc.setQueryData(['flexible-dates-system'], updated) },
@@ -820,6 +825,33 @@ function SystemFlexibleDatesSection() {
         value={form.daysAfter}
         onChange={v => set('daysAfter')(v ?? 0)}
       />
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+      />
+      {form.discountEnabled && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v ?? 0)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+      />
+      {form.incentiveEnabled && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+        />
+      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -832,6 +864,10 @@ function OrgFlexibleDatesSection({ orgId }: { orgId: number }) {
   const { data } = useQuery({
     queryKey: ['flexible-dates-org', orgId],
     queryFn: () => apiClient.getOrgFlexibleDatesConfig(orgId),
+  })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages', orgId],
+    queryFn: () => apiClient.listIncentivePackages(orgId),
   })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<OrgFlexibleDatesConfigResponse>) => apiClient.updateOrgFlexibleDatesConfig(orgId, u),
@@ -872,6 +908,41 @@ function OrgFlexibleDatesSection({ orgId }: { orgId: number }) {
         onChange={v => set('daysAfter')(v)}
         onReset={() => set('daysAfter')(null)}
       />
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        inherited={eff.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+        onReset={() => set('discountEnabled')(null)}
+      />
+      {(form.discountEnabled ?? eff.discountEnabled) && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          inherited={eff.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v)}
+          onReset={() => set('discountPercent')(null)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        inherited={eff.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+        onReset={() => set('incentiveEnabled')(null)}
+      />
+      {(form.incentiveEnabled ?? eff.incentiveEnabled) && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          inherited={eff.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+          onReset={() => set('incentivePackageId')(null)}
+        />
+      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -879,12 +950,16 @@ function OrgFlexibleDatesSection({ orgId }: { orgId: number }) {
 
 // ── Flexible Dates — Property settings section ────────────────────────────────
 
-function PropertyFlexibleDatesSection({ propertyId }: { propertyId: number }) {
+function PropertyFlexibleDatesSection({ propertyId, orgId }: { propertyId: number; orgId: number | null }) {
   const qc = useQueryClient()
   const { data } = useQuery({
     queryKey: ['flexible-dates-property', propertyId],
     queryFn: () => apiClient.getPropertyFlexibleDatesConfig(propertyId),
     enabled: propertyId > 0,
+  })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages', orgId ?? 'system'],
+    queryFn: () => apiClient.listIncentivePackages(orgId ?? undefined),
   })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<PropertyFlexibleDatesConfigResponse>) =>
@@ -926,6 +1001,41 @@ function PropertyFlexibleDatesSection({ propertyId }: { propertyId: number }) {
         onChange={v => set('daysAfter')(v)}
         onReset={() => set('daysAfter')(null)}
       />
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        inherited={eff.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+        onReset={() => set('discountEnabled')(null)}
+      />
+      {(form.discountEnabled ?? eff.discountEnabled) && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          inherited={eff.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v)}
+          onReset={() => set('discountPercent')(null)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        inherited={eff.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+        onReset={() => set('incentiveEnabled')(null)}
+      />
+      {(form.incentiveEnabled ?? eff.incentiveEnabled) && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          inherited={eff.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+          onReset={() => set('incentivePackageId')(null)}
+        />
+      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -983,7 +1093,7 @@ function FlexibleDatesTab({
           <p className="text-xs text-[var(--color-text-muted)]">
             Property-specific overrides. Reset any field to inherit from chain defaults.
           </p>
-          <PropertyFlexibleDatesSection propertyId={propertyId} />
+          <PropertyFlexibleDatesSection propertyId={propertyId} orgId={chainOrgId} />
         </Section>
       )}
 
@@ -1003,7 +1113,7 @@ function FlexibleDatesTab({
 const TRANSFER_TYPE_OPTIONS: { value: TransferType; label: string }[] = [
   { value: 'self', label: 'Self Transfer' },
   { value: 'hotel', label: 'Hotel Transfer' },
-  { value: 'sponsored_self', label: 'Sponsored Self Transfer' },
+  { value: 'sponsored_self', label: 'Self-transfer sponsored by the hotel' },
 ]
 
 function IhToggle({
@@ -1188,6 +1298,100 @@ function IhTextField({
   )
 }
 
+function IhCurrencySelectField({
+  label,
+  value,
+  inherited,
+  currencies,
+  defaultCurrency,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: string | null
+  inherited?: string
+  currencies: string[]
+  defaultCurrency: string
+  onChange: (v: string | null) => void
+  onReset?: () => void
+}) {
+  const isInheriting = value === null && inherited !== undefined
+  const options = [...new Set([defaultCurrency, ...currencies])]
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">({inherited} inherited)</span>
+        )}
+        <select
+          value={value ?? (isInheriting ? '' : defaultCurrency)}
+          onChange={e => onChange(e.target.value === '' ? null : e.target.value)}
+          className={fdInputCls}
+        >
+          {onReset && <option value="">— inherit —</option>}
+          {options.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IhPackageSelectField({
+  label,
+  value,
+  inherited,
+  packages,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: number | null
+  inherited?: number | null
+  packages: Pick<IncentivePackage, 'id' | 'name'>[]
+  onChange: (v: number | null) => void
+  onReset?: () => void
+}) {
+  const isInheriting = value === null && inherited !== undefined
+  const inheritedPkg = inherited != null ? packages.find(p => p.id === inherited) : null
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            ({inheritedPkg ? inheritedPkg.name : inherited != null ? `#${inherited}` : 'none'} inherited)
+          </span>
+        )}
+        <select
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+          className={fdInputCls}
+          style={{ width: 'auto', maxWidth: '160px' }}
+        >
+          {onReset && <option value="">— inherit —</option>}
+          {!onReset && <option value="">None</option>}
+          {packages.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function RefreshNearbyButton({ orgId }: { orgId: number }) {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState<string | null>(null)
@@ -1229,6 +1433,10 @@ function SystemInterHotelSection() {
   const { data } = useQuery({
     queryKey: ['interhotel-system'],
     queryFn: () => apiClient.getSystemInterHotelConfig(),
+  })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages-system'],
+    queryFn: () => apiClient.listIncentivePackages(),
   })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<SystemInterHotelConfigResponse>) => apiClient.updateSystemInterHotelConfig(u),
@@ -1282,14 +1490,41 @@ function SystemInterHotelSection() {
             min={0}
             onChange={v => set('sponsoredAmount')(v ?? 0)}
           />
-          <IhTextField
+          <IhCurrencySelectField
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
-            placeholder="EUR"
-            maxLength={3}
+            currencies={COMMON_CURRENCIES}
+            defaultCurrency="EUR"
             onChange={v => set('sponsoredCurrency')(v ?? 'EUR')}
           />
         </>
+      )}
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+      />
+      {form.discountEnabled && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v ?? 0)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+      />
+      {form.incentiveEnabled && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+        />
       )}
       <RefreshNearbyButton orgId={1} />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
@@ -1304,6 +1539,10 @@ function OrgInterHotelSection({ orgId }: { orgId: number }) {
   const { data } = useQuery({
     queryKey: ['interhotel-org', orgId],
     queryFn: () => apiClient.getOrgInterHotelConfig(orgId),
+  })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages', orgId],
+    queryFn: () => apiClient.listIncentivePackages(orgId),
   })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<OrgInterHotelConfigResponse>) => apiClient.updateOrgInterHotelConfig(orgId, u),
@@ -1369,15 +1608,51 @@ function OrgInterHotelSection({ orgId }: { orgId: number }) {
             onChange={v => set('sponsoredAmount')(v)}
             onReset={() => set('sponsoredAmount')(null)}
           />
-          <IhTextField
+          <IhCurrencySelectField
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
-            inherited={eff.sponsoredCurrency}
-            maxLength={3}
+            inherited={eff.sponsoredCurrency ?? undefined}
+            currencies={COMMON_CURRENCIES}
+            defaultCurrency={eff.sponsoredCurrency ?? 'EUR'}
             onChange={v => set('sponsoredCurrency')(v)}
             onReset={() => set('sponsoredCurrency')(null)}
           />
         </>
+      )}
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        inherited={eff.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+        onReset={() => set('discountEnabled')(null)}
+      />
+      {(form.discountEnabled ?? eff.discountEnabled) && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          inherited={eff.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v)}
+          onReset={() => set('discountPercent')(null)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        inherited={eff.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+        onReset={() => set('incentiveEnabled')(null)}
+      />
+      {(form.incentiveEnabled ?? eff.incentiveEnabled) && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          inherited={eff.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+          onReset={() => set('incentivePackageId')(null)}
+        />
       )}
       <RefreshNearbyButton orgId={orgId} />
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
@@ -1392,6 +1667,11 @@ function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
   const { data } = useQuery({
     queryKey: ['interhotel-property', propertyId],
     queryFn: () => apiClient.getPropertyInterHotelConfig(propertyId),
+    enabled: propertyId > 0,
+  })
+  const { data: hotelConfig } = useQuery({
+    queryKey: ['hotel-config-admin', propertyId],
+    queryFn: () => apiClient.getHotelConfigAdmin(propertyId),
     enabled: propertyId > 0,
   })
   const saveMutation = useMutation({
@@ -1413,6 +1693,11 @@ function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
 
   const effectiveTransferType = form.transferType ?? eff.transferType
   const showSponsored = effectiveTransferType === 'sponsored_self'
+
+  const hotelCurrencies: string[] = hotelConfig?.enabledCurrencies?.length
+    ? hotelConfig.enabledCurrencies
+    : COMMON_CURRENCIES
+  const hotelDefaultCurrency = hotelConfig?.defaultCurrency ?? hotelCurrencies[0] ?? 'EUR'
 
   return (
     <div className="space-y-1">
@@ -1459,11 +1744,12 @@ function PropertyInterHotelSection({ propertyId }: { propertyId: number }) {
             onChange={v => set('sponsoredAmount')(v)}
             onReset={() => set('sponsoredAmount')(null)}
           />
-          <IhTextField
+          <IhCurrencySelectField
             label="Sponsored Currency"
             value={form.sponsoredCurrency}
-            inherited={eff.sponsoredCurrency}
-            maxLength={3}
+            inherited={eff.sponsoredCurrency ?? undefined}
+            currencies={hotelCurrencies}
+            defaultCurrency={hotelDefaultCurrency}
             onChange={v => set('sponsoredCurrency')(v)}
             onReset={() => set('sponsoredCurrency')(null)}
           />
@@ -1541,6 +1827,10 @@ function SystemMultiCitySection() {
     queryKey: ['multicity-system'],
     queryFn: () => apiClient.getSystemMultiCityConfig(),
   })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages-system'],
+    queryFn: () => apiClient.listIncentivePackages(),
+  })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<SystemMultiCityConfigResponse>) => apiClient.updateSystemMultiCityConfig(u),
     onSuccess: updated => { qc.setQueryData(['multicity-system'], updated) },
@@ -1570,6 +1860,33 @@ function SystemMultiCitySection() {
         max={6}
         onChange={v => set('maxLegs')(v ?? 2)}
       />
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+      />
+      {form.discountEnabled && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v ?? 0)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+      />
+      {form.incentiveEnabled && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+        />
+      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
@@ -1583,6 +1900,10 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
     queryKey: ['multicity-org', orgId],
     queryFn: () => apiClient.getOrgMultiCityConfig(orgId),
   })
+  const { data: packages = [] } = useQuery({
+    queryKey: ['incentive-packages', orgId],
+    queryFn: () => apiClient.listIncentivePackages(orgId),
+  })
   const saveMutation = useMutation({
     mutationFn: (u: Partial<OrgMultiCityConfigResponse>) => apiClient.updateOrgMultiCityConfig(orgId, u),
     onSuccess: updated => { qc.setQueryData(['multicity-org', orgId], updated) },
@@ -1595,6 +1916,9 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
 
   const eff = data.effective
   const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof OrgMultiCityConfigResponse>(k: K) =>
+    (v: OrgMultiCityConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
 
   return (
     <div className="space-y-1">
@@ -1602,8 +1926,8 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
         label="Enabled"
         checked={form.enabled}
         inherited={eff.enabled}
-        onChange={v => setForm(f => f ? { ...f, enabled: v } : f)}
-        onReset={() => setForm(f => f ? { ...f, enabled: null } : f)}
+        onChange={v => set('enabled')(v)}
+        onReset={() => set('enabled')(null)}
       />
       <IhNumberField
         label="Max city legs"
@@ -1611,9 +1935,44 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
         inherited={eff.maxLegs}
         min={2}
         max={6}
-        onChange={v => setForm(f => f ? { ...f, maxLegs: v } : f)}
-        onReset={() => setForm(f => f ? { ...f, maxLegs: null } : f)}
+        onChange={v => set('maxLegs')(v)}
+        onReset={() => set('maxLegs')(null)}
       />
+      <IhToggle
+        label="Offer discount"
+        checked={form.discountEnabled}
+        inherited={eff.discountEnabled}
+        onChange={v => set('discountEnabled')(v)}
+        onReset={() => set('discountEnabled')(null)}
+      />
+      {(form.discountEnabled ?? eff.discountEnabled) && (
+        <IhNumberField
+          label="Discount %"
+          value={form.discountPercent}
+          inherited={eff.discountPercent}
+          min={0}
+          max={50}
+          onChange={v => set('discountPercent')(v)}
+          onReset={() => set('discountPercent')(null)}
+        />
+      )}
+      <IhToggle
+        label="Incentives"
+        checked={form.incentiveEnabled}
+        inherited={eff.incentiveEnabled}
+        onChange={v => set('incentiveEnabled')(v)}
+        onReset={() => set('incentiveEnabled')(null)}
+      />
+      {(form.incentiveEnabled ?? eff.incentiveEnabled) && (
+        <IhPackageSelectField
+          label="Incentive Package"
+          value={form.incentivePackageId}
+          inherited={eff.incentivePackageId}
+          packages={packages}
+          onChange={v => set('incentivePackageId')(v)}
+          onReset={() => set('incentivePackageId')(null)}
+        />
+      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )

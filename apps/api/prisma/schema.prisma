@@ -1877,47 +1877,67 @@ model PropertyPricingConfig {
 // ── Flexible Dates ────────────────────────────────────────────────────────────
 
 model SystemFlexibleDatesConfig {
-  id         Int     @id @default(1)
-  enabled    Boolean @default(false)
-  daysBefore Int     @default(1)
-  daysAfter  Int     @default(1)
+  id                 Int     @id @default(1)
+  enabled            Boolean @default(false)
+  daysBefore         Int     @default(1)
+  daysAfter          Int     @default(1)
+  discountEnabled    Boolean @default(false)
+  discountPercent    Float   @default(0)
+  incentiveEnabled   Boolean @default(false)
+  incentivePackageId Int?
 }
 
 model OrgFlexibleDatesConfig {
-  organizationId Int          @id
-  enabled        Boolean?
-  daysBefore     Int?
-  daysAfter      Int?
-  org            Organization @relation(fields: [organizationId], references: [id])
+  organizationId     Int          @id
+  enabled            Boolean?
+  daysBefore         Int?
+  daysAfter          Int?
+  discountEnabled    Boolean?
+  discountPercent    Float?
+  incentiveEnabled   Boolean?
+  incentivePackageId Int?
+  org                Organization @relation(fields: [organizationId], references: [id])
 }
 
 model PropertyFlexibleDatesConfig {
-  propertyId Int      @id
-  enabled    Boolean?
-  daysBefore Int?
-  daysAfter  Int?
-  property   Property @relation(fields: [propertyId], references: [propertyId])
+  propertyId         Int      @id
+  enabled            Boolean?
+  daysBefore         Int?
+  daysAfter          Int?
+  discountEnabled    Boolean?
+  discountPercent    Float?
+  incentiveEnabled   Boolean?
+  incentivePackageId Int?
+  property           Property @relation(fields: [propertyId], references: [propertyId])
 }
 
 model SystemInterHotelConfig {
-  id                Int     @id @default(1)
-  enabled           Boolean @default(false)
-  maxRadiusKm       Int     @default(50)
-  maxHotels         Int     @default(3)
-  transferType      String  @default("self")
-  sponsoredAmount   Float   @default(0)
-  sponsoredCurrency String  @default("USD")
+  id                 Int     @id @default(1)
+  enabled            Boolean @default(false)
+  maxRadiusKm        Int     @default(50)
+  maxHotels          Int     @default(3)
+  transferType       String  @default("self")
+  sponsoredAmount    Float   @default(0)
+  sponsoredCurrency  String  @default("USD")
+  discountEnabled    Boolean @default(false)
+  discountPercent    Float   @default(0)
+  incentiveEnabled   Boolean @default(false)
+  incentivePackageId Int?
 }
 
 model OrgInterHotelConfig {
-  organizationId    Int          @id
-  enabled           Boolean?
-  maxRadiusKm       Int?
-  maxHotels         Int?
-  transferType      String?
-  sponsoredAmount   Float?
-  sponsoredCurrency String?
-  org               Organization @relation(fields: [organizationId], references: [id])
+  organizationId     Int          @id
+  enabled            Boolean?
+  maxRadiusKm        Int?
+  maxHotels          Int?
+  transferType       String?
+  sponsoredAmount    Float?
+  sponsoredCurrency  String?
+  discountEnabled    Boolean?
+  discountPercent    Float?
+  incentiveEnabled   Boolean?
+  incentivePackageId Int?
+  org                Organization @relation(fields: [organizationId], references: [id])
 }
 
 model PropertyInterHotelConfig {
@@ -1944,16 +1964,24 @@ model NearbyHotel {
 }
 
 model SystemMultiCityConfig {
-  id      Int     @id @default(1)
-  enabled Boolean @default(false)
-  maxLegs Int     @default(3)
+  id                 Int     @id @default(1)
+  enabled            Boolean @default(false)
+  maxLegs            Int     @default(3)
+  discountEnabled    Boolean @default(false)
+  discountPercent    Float   @default(0)
+  incentiveEnabled   Boolean @default(false)
+  incentivePackageId Int?
 }
 
 model OrgMultiCityConfig {
-  organizationId Int          @id
-  enabled        Boolean?
-  maxLegs        Int?
-  org            Organization @relation(fields: [organizationId], references: [id])
+  organizationId     Int          @id
+  enabled            Boolean?
+  maxLegs            Int?
+  discountEnabled    Boolean?
+  discountPercent    Float?
+  incentiveEnabled   Boolean?
+  incentivePackageId Int?
+  org                Organization @relation(fields: [organizationId], references: [id])
 }
 
 model DailyRate {

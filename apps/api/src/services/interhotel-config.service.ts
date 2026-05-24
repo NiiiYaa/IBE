@@ -19,11 +19,23 @@ const SYSTEM_DEFAULTS: SystemInterHotelConfigResponse = {
   transferType: 'self',
   sponsoredAmount: 0,
   sponsoredCurrency: 'USD',
+  discountEnabled: false,
+  discountPercent: 0,
+  incentiveEnabled: false,
+  incentivePackageId: null,
 }
 
-export async function getSystemInterHotelConfig(): Promise<SystemInterHotelConfigResponse> {
-  const row = await prisma.systemInterHotelConfig.findFirst()
-  if (!row) return SYSTEM_DEFAULTS
+type DiscountIncentiveRow = {
+  discountEnabled: boolean | null
+  discountPercent: number | null
+  incentiveEnabled: boolean | null
+  incentivePackageId: number | null
+}
+
+function rowToSystem(row: {
+  enabled: boolean; maxRadiusKm: number; maxHotels: number
+  transferType: string; sponsoredAmount: number; sponsoredCurrency: string
+} & DiscountIncentiveRow): SystemInterHotelConfigResponse {
   return {
     enabled: row.enabled,
     maxRadiusKm: row.maxRadiusKm,
@@ -31,7 +43,16 @@ export async function getSystemInterHotelConfig(): Promise<SystemInterHotelConfi
     transferType: parseTransfer(row.transferType),
     sponsoredAmount: row.sponsoredAmount,
     sponsoredCurrency: row.sponsoredCurrency,
+    discountEnabled: row.discountEnabled ?? false,
+    discountPercent: row.discountPercent ?? 0,
+    incentiveEnabled: row.incentiveEnabled ?? false,
+    incentivePackageId: row.incentivePackageId ?? null,
   }
+}
+
+export async function getSystemInterHotelConfig(): Promise<SystemInterHotelConfigResponse> {
+  const row = await prisma.systemInterHotelConfig.findFirst()
+  return row ? rowToSystem(row) : SYSTEM_DEFAULTS
 }
 
 export async function upsertSystemInterHotelConfig(
@@ -41,14 +62,7 @@ export async function upsertSystemInterHotelConfig(
   const row = existing
     ? await prisma.systemInterHotelConfig.update({ where: { id: existing.id }, data })
     : await prisma.systemInterHotelConfig.create({ data: { ...SYSTEM_DEFAULTS, ...data } })
-  return {
-    enabled: row.enabled,
-    maxRadiusKm: row.maxRadiusKm,
-    maxHotels: row.maxHotels,
-    transferType: parseTransfer(row.transferType),
-    sponsoredAmount: row.sponsoredAmount,
-    sponsoredCurrency: row.sponsoredCurrency,
-  }
+  return rowToSystem(row)
 }
 
 export async function getOrgInterHotelConfig(orgId: number): Promise<OrgInterHotelConfigResponse> {
@@ -56,7 +70,7 @@ export async function getOrgInterHotelConfig(orgId: number): Promise<OrgInterHot
     getSystemInterHotelConfig(),
     prisma.orgInterHotelConfig.findUnique({ where: { organizationId: orgId } }),
   ])
-  const effective = resolveOrgEffective(system, org)
+  const effective = resolveOrgEffective(system, org ?? null)
   return {
     enabled: org?.enabled ?? null,
     maxRadiusKm: org?.maxRadiusKm ?? null,
@@ -64,6 +78,10 @@ export async function getOrgInterHotelConfig(orgId: number): Promise<OrgInterHot
     transferType: org?.transferType != null ? parseTransfer(org.transferType) : null,
     sponsoredAmount: org?.sponsoredAmount ?? null,
     sponsoredCurrency: org?.sponsoredCurrency ?? null,
+    discountEnabled: org?.discountEnabled ?? null,
+    discountPercent: org?.discountPercent ?? null,
+    incentiveEnabled: org?.incentiveEnabled ?? null,
+    incentivePackageId: org?.incentivePackageId ?? null,
     effective,
   }
 }
@@ -95,8 +113,8 @@ export async function getPropertyInterHotelConfig(propertyId: number): Promise<P
       : Promise.resolve(null),
   ])
 
-  const orgEffective = resolveOrgEffective(system, org)
-  const effective = resolvePropertyEffective(orgEffective, prop)
+  const orgEffective = resolveOrgEffective(system, org ?? null)
+  const effective = resolvePropertyEffective(orgEffective, prop ?? null)
   return {
     enabled: prop?.enabled ?? null,
     maxRadiusKm: prop?.maxRadiusKm ?? null,
@@ -130,7 +148,10 @@ export async function resolveEffectiveInterHotelConfig(propertyId: number): Prom
 
 function resolveOrgEffective(
   system: SystemInterHotelConfigResponse,
-  org: { enabled: boolean | null; maxRadiusKm: number | null; maxHotels: number | null; transferType: string | null; sponsoredAmount: number | null; sponsoredCurrency: string | null } | null,
+  org: ({
+    enabled: boolean | null; maxRadiusKm: number | null; maxHotels: number | null
+    transferType: string | null; sponsoredAmount: number | null; sponsoredCurrency: string | null
+  } & DiscountIncentiveRow) | null,
 ): InterHotelEffective {
   return {
     enabled: org?.enabled ?? system.enabled,
@@ -139,12 +160,19 @@ function resolveOrgEffective(
     transferType: org?.transferType != null ? parseTransfer(org.transferType) : system.transferType,
     sponsoredAmount: org?.sponsoredAmount ?? system.sponsoredAmount,
     sponsoredCurrency: org?.sponsoredCurrency ?? system.sponsoredCurrency,
+    discountEnabled: org?.discountEnabled ?? system.discountEnabled,
+    discountPercent: org?.discountPercent ?? system.discountPercent,
+    incentiveEnabled: org?.incentiveEnabled ?? system.incentiveEnabled,
+    incentivePackageId: org?.incentivePackageId ?? system.incentivePackageId,
   }
 }
 
 function resolvePropertyEffective(
   orgEffective: InterHotelEffective,
-  prop: { enabled: boolean | null; maxRadiusKm: number | null; maxHotels: number | null; transferType: string | null; sponsoredAmount: number | null; sponsoredCurrency: string | null } | null,
+  prop: ({
+    enabled: boolean | null; maxRadiusKm: number | null; maxHotels: number | null
+    transferType: string | null; sponsoredAmount: number | null; sponsoredCurrency: string | null
+  }) | null,
 ): InterHotelEffective {
   return {
     enabled: prop?.enabled ?? orgEffective.enabled,
@@ -153,5 +181,9 @@ function resolvePropertyEffective(
     transferType: prop?.transferType != null ? parseTransfer(prop.transferType) : orgEffective.transferType,
     sponsoredAmount: prop?.sponsoredAmount ?? orgEffective.sponsoredAmount,
     sponsoredCurrency: prop?.sponsoredCurrency ?? orgEffective.sponsoredCurrency,
+    discountEnabled: orgEffective.discountEnabled,
+    discountPercent: orgEffective.discountPercent,
+    incentiveEnabled: orgEffective.incentiveEnabled,
+    incentivePackageId: orgEffective.incentivePackageId,
   }
 }
