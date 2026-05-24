@@ -88,7 +88,6 @@ function MultiCitySummary({ legs }: { legs: MultiCityLeg[] }) {
         }
 
         const offer = leg.selectedOffer
-        const property = legs[idx]
 
         const qs = encodeSearchParams({
           hotelId: leg.propertyId!,
