@@ -1879,11 +1879,11 @@ model SystemFlexibleDatesConfig {
 }
 
 model OrgFlexibleDatesConfig {
-  orgId      Int          @id
-  enabled    Boolean?
-  daysBefore Int?
-  daysAfter  Int?
-  org        Organization @relation(fields: [orgId], references: [id])
+  organizationId Int          @id
+  enabled        Boolean?
+  daysBefore     Int?
+  daysAfter      Int?
+  org            Organization @relation(fields: [organizationId], references: [id])
 }
 
 model PropertyFlexibleDatesConfig {
