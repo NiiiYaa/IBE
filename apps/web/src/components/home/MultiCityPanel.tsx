@@ -409,8 +409,9 @@ export function MultiCityPanel({
   function addLeg(afterIdx: number) {
     if (legs.length >= maxLegs) return
     const prevLeg = legs[afterIdx]
-    // New leg check-in = previous leg's check-out
-    const newCheckIn = prevLeg ? prevLeg.checkOut : addDays(todayIso(), 10)
+    // Require city to be selected before adding another leg
+    if (!prevLeg?.propertyId) return
+    const newCheckIn = prevLeg.checkOut
     setLegs(prev => {
       const newLeg = makeLeg(newCheckIn)
       const next = [...prev]
@@ -487,7 +488,7 @@ export function MultiCityPanel({
             cities={cities}
             takenCities={takenCities}
             canRemove={legs.length > 1}
-            canAdd={idx === legs.length - 1 && legs.length < maxLegs}
+            canAdd={idx === legs.length - 1 && legs.length < maxLegs && leg.propertyId !== null}
             onUpdate={(patch) => updateLeg(idx, patch)}
             onAdd={() => addLeg(idx)}
             onRemove={() => removeLeg(idx)}
@@ -509,25 +510,26 @@ export function MultiCityPanel({
 
       {/* CTA row + summary */}
       <div className="hidden sm:flex flex-col items-end gap-1.5 pt-1">
-        {allLegsReady && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleCheckAvailability}
-              className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
-            >
-              {t('checkAvailability')}
-            </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCheckAvailability}
+            disabled={!allLegsReady}
+            className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t('checkAvailability')}
+          </button>
+          {allLegsReady && minCheckIn && maxCheckOut && (
             <span className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
               <span>{legs.length} {legs.length !== 1 ? (t('multiCityCityPlural') ?? 'cities') : (t('multiCityCity') ?? 'city')}</span>
               <span>·</span>
-              <span>{displayDate(minCheckIn!, locale)}</span>
+              <span>{displayDate(minCheckIn, locale)}</span>
               <span>→</span>
-              <span>{displayDate(maxCheckOut!, locale)}</span>
+              <span>{displayDate(maxCheckOut, locale)}</span>
               <span>·</span>
               <span>{totalNights} {t('nightsLabel')}</span>
             </span>
-          </div>
-        )}
+          )}
+        </div>
         <button
           onClick={() => setShowPromo(v => !v)}
           className="text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"

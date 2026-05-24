@@ -26,23 +26,26 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('MultiCityPanel', () => {
-  it('renders shared Guests/Nationality bar and one leg bar with Add city', () => {
+  it('renders SharedBar, one LegBar, and a disabled Check Availability button', () => {
     render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
+    // shared bar segments
     expect(screen.getAllByText('guests').length).toBeGreaterThan(0)
+    // CTA always visible but disabled until all legs have city
+    const cta = screen.getByText('checkAvailability')
+    expect((cta as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('Add city button is in DOM but invisible (no city selected)', () => {
+    render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
+    // Button is rendered (in DOM for fixed-width layout) but inactive
     expect(screen.getAllByText(/multiCityAddCity/).length).toBe(1)
   })
 
-  it('shows Add city button when below maxLegs', () => {
-    render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
-    expect(screen.getByText(/multiCityAddCity/)).toBeDefined()
-  })
-
-  it('adds a second leg when Add city is clicked', () => {
+  it('does not add a second leg when clicking Add with no city selected', () => {
     render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
     fireEvent.click(screen.getByText(/multiCityAddCity/))
-    // Both legs render the Add button; leg 1's is invisible (keeps layout width)
-    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(2)
-    // Both legs now have canRemove=true → both Remove buttons visible
-    expect(screen.getAllByText(/multiCityRemove/).length).toBe(2)
+    // Still only 1 Add button (no new leg)
+    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(1)
+    expect(screen.queryAllByText(/multiCityRemove/).length).toBe(1)
   })
 })
