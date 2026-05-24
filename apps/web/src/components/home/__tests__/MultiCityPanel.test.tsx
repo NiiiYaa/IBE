@@ -12,6 +12,7 @@ vi.mock('@/context/translations', () => ({
 vi.mock('@/lib/api-client', () => ({
   apiClient: { search: vi.fn().mockResolvedValue({ results: [], currency: 'USD', searchId: '', checkIn: '', checkOut: '' }) },
 }))
+vi.mock('@/hooks/use-country-detect', () => ({ useCountryDetect: () => null }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 const properties: PropertyOption[] = [
@@ -25,10 +26,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('MultiCityPanel', () => {
-  it('renders initial leg tab and Summary tab', () => {
+  it('renders shared Guests/Nationality bar and one leg bar with Add city', () => {
     render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
-    expect(screen.getByText('City 1')).toBeDefined()
-    expect(screen.getByText('multiCitySummary')).toBeDefined()
+    expect(screen.getAllByText('guests').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(1)
   })
 
   it('shows Add city button when below maxLegs', () => {
@@ -39,6 +40,7 @@ describe('MultiCityPanel', () => {
   it('adds a second leg when Add city is clicked', () => {
     render(createElement(MultiCityPanel, { properties, maxLegs: 3, infantMaxAge: 2, childMaxAge: 16 }), { wrapper })
     fireEvent.click(screen.getByText(/multiCityAddCity/))
-    expect(screen.getByText('City 2')).toBeDefined()
+    expect(screen.getAllByText(/multiCityAddCity/).length).toBe(1)
+    expect(screen.getAllByText(/multiCityRemove/).length).toBeGreaterThan(0)
   })
 })

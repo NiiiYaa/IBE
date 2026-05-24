@@ -1,26 +1,18 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
-import { addDays, todayIso } from '@ibe/shared'
-import { useT } from '@/context/translations'
-import { apiClient } from '@/lib/api-client'
+import { useState, useRef, useEffect } from 'react'
+import { addDays, todayIso, nightsBetween } from '@ibe/shared'
+import { useT, useLocale } from '@/context/translations'
+import { CalendarDropdown } from '@/components/search/CalendarDropdown'
+import { GuestsDropdown, type GuestRoom } from '@/components/search/GuestsDropdown'
+import { NationalityDropdown } from '@/components/search/NationalityDropdown'
 import { encodeSearchParams } from '@/lib/search-params'
+import { displayDate } from '@/lib/calendar-utils'
+import { countryFlag, countryName } from '@/lib/countries'
+import { useCountryDetect } from '@/hooks/use-country-detect'
 import type { PropertyOption } from '@/components/search/SearchBar'
-import type { GuestRoom } from '@/components/search/GuestsDropdown'
-import type { SearchResponse } from '@ibe/shared'
 
-// ── Internal types ────────────────────────────────────────────────────────────
-
-type MultiCitySelectedOffer = {
-  roomId: number
-  roomName: string
-  rateId: number
-  rateName: string
-  sellAmount: number
-  currency: string
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type MultiCityLeg = {
   id: string
@@ -28,25 +20,17 @@ type MultiCityLeg = {
   propertyId: number | null
   checkIn: string
   checkOut: string
-  rooms: GuestRoom[]
-  searched: boolean
-  selectedOffer: MultiCitySelectedOffer | null
 }
 
-function makeLeg(): MultiCityLeg {
+function makeLeg(offsetDays = 7): MultiCityLeg {
   return {
     id: Math.random().toString(36).slice(2, 9),
     city: '',
     propertyId: null,
-    checkIn: addDays(todayIso(), 7),
-    checkOut: addDays(todayIso(), 10),
-    rooms: [{ adults: 2, children: 0, infants: 0 }],
-    searched: false,
-    selectedOffer: null,
+    checkIn: addDays(todayIso(), offsetDays),
+    checkOut: addDays(todayIso(), offsetDays + 3),
   }
 }
-
-// ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface MultiCityPanelProps {
   properties: PropertyOption[]
@@ -55,306 +39,346 @@ export interface MultiCityPanelProps {
   childMaxAge: number
 }
 
-// ── MultiCitySummary ──────────────────────────────────────────────────────────
+// ── Segment (identical to SearchBar) ─────────────────────────────────────────
 
-function MultiCitySummary({ legs }: { legs: MultiCityLeg[] }) {
+function Segment({
+  label,
+  value,
+  active,
+  onClick,
+  panelId,
+  flex = 1,
+}: {
+  label: string
+  value: string
+  active: boolean
+  onClick: () => void
+  panelId?: string
+  flex?: number
+}) {
+  return (
+    <button
+      onClick={onClick}
+      data-segment={panelId}
+      style={{ flexGrow: flex, flexShrink: 1, flexBasis: '0%' }}
+      className={[
+        'flex min-w-0 flex-col items-start justify-center px-4 py-2 transition-colors',
+        active ? 'bg-[var(--color-primary-light)]' : 'hover:bg-gray-50',
+      ].join(' ')}
+    >
+      <span className="mb-0.5 whitespace-nowrap text-xs font-medium leading-none text-[var(--color-text-muted)]">
+        {label}
+      </span>
+      <span className="block w-full truncate text-sm font-semibold text-[var(--color-text)]" title={value}>
+        {value}
+      </span>
+    </button>
+  )
+}
+
+function Divider() {
+  return <div className="my-3 w-px shrink-0 bg-[var(--color-border)]" />
+}
+
+// ── SharedBar — Guests + Nationality ─────────────────────────────────────────
+
+function SharedBar({
+  rooms,
+  nationality,
+  infantMaxAge,
+  childMaxAge,
+  onRoomsChange,
+  onNationalityChange,
+}: {
+  rooms: GuestRoom[]
+  nationality: string
+  infantMaxAge: number
+  childMaxAge: number
+  onRoomsChange: (r: GuestRoom[]) => void
+  onNationalityChange: (code: string) => void
+}) {
   const t = useT('search')
-  const router = useRouter()
+  const [panel, setPanel] = useState<'guests' | 'nationality' | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const hasAnyOffer = legs.some((l) => l.selectedOffer !== null)
+  const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
+  const totalChildren = rooms.reduce((s, r) => s + r.children, 0)
+  const totalInfants = rooms.reduce((s, r) => s + r.infants, 0)
 
-  if (!hasAnyOffer) {
-    return (
-      <div className="p-6 text-center text-[var(--color-text-muted)]">
-        {t('multiCityEmpty')}
-      </div>
-    )
+  const guestParts = [
+    `${totalAdults} ${totalAdults !== 1 ? t('adultPlural') : t('adultSingular')}`,
+    totalChildren > 0 ? `${totalChildren} ${totalChildren !== 1 ? t('childPlural') : t('childSingular')}` : null,
+    totalInfants > 0 ? `${totalInfants} ${totalInfants !== 1 ? t('infantPlural') : t('infantSingular')}` : null,
+    `${rooms.length} ${rooms.length !== 1 ? t('roomPlural') : t('roomSingular')}`,
+  ].filter(Boolean).join(' · ')
+
+  const nationalityLabel = nationality
+    ? `${countryFlag(nationality)} ${countryName(nationality)}`
+    : t('selectNationality') ?? 'Select country'
+
+  useEffect(() => {
+    if (!panel) return
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setPanel(null)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [panel])
+
+  function getSegmentLeft(panelId: string): number {
+    const btn = containerRef.current?.querySelector(`[data-segment="${panelId}"]`)
+    if (!btn || !containerRef.current) return 0
+    const rect = btn.getBoundingClientRect()
+    const containerRect = containerRef.current.getBoundingClientRect()
+    return rect.left - containerRect.left
   }
 
   return (
-    <div className="p-4 space-y-4">
-      {legs.map((leg, idx) => {
-        if (!leg.selectedOffer) {
-          return (
-            <div
-              key={leg.id}
-              className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] opacity-50"
-            >
-              <span className="text-[var(--color-text-muted)]">
-                {t('multiCityLeg').replace('{n}', String(idx + 1))} — {t('multiCityNoOfferSelected')}
-              </span>
-            </div>
-          )
-        }
+    <div ref={containerRef} className="relative">
+      {/* Desktop pill bar */}
+      <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <Segment
+          label={t('guests')}
+          value={guestParts}
+          active={panel === 'guests'}
+          onClick={() => setPanel(p => p === 'guests' ? null : 'guests')}
+          panelId="shared-guests"
+        />
+        <Divider />
+        <Segment
+          label={t('nationality')}
+          value={nationalityLabel}
+          active={panel === 'nationality'}
+          onClick={() => setPanel(p => p === 'nationality' ? null : 'nationality')}
+          panelId="shared-nationality"
+        />
+      </div>
 
-        const offer = leg.selectedOffer
+      {/* Guests dropdown */}
+      {panel === 'guests' && (
+        <div
+          className="absolute top-full z-50 mt-2"
+          style={{ left: getSegmentLeft('shared-guests') }}
+        >
+          <GuestsDropdown
+            rooms={rooms}
+            onChange={onRoomsChange}
+            infantMaxAge={infantMaxAge}
+            childMaxAge={childMaxAge}
+          />
+        </div>
+      )}
 
-        const qs = encodeSearchParams({
-          hotelId: leg.propertyId!,
-          checkIn: leg.checkIn,
-          checkOut: leg.checkOut,
-          rooms: [{ adults: leg.rooms[0]?.adults ?? 2 }],
-        })
-
-        return (
-          <div
-            key={leg.id}
-            className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="font-semibold text-[var(--color-text)]">
-                  {t('multiCityLeg').replace('{n}', String(idx + 1))}: {leg.city}
-                </div>
-                <div className="text-sm text-[var(--color-text-muted)]">
-                  {leg.checkIn} → {leg.checkOut}
-                </div>
-                <div className="text-sm text-[var(--color-text)]">{offer.roomName}</div>
-                <div className="text-sm text-[var(--color-text-muted)]">{offer.rateName}</div>
-                <div className="font-semibold text-[var(--color-primary)]">
-                  {offer.currency} {offer.sellAmount.toFixed(2)}
-                </div>
-              </div>
-              <button
-                onClick={() => router.push(`/search?${qs.toString()}`)}
-                className="shrink-0 px-4 py-2 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                {t('multiCityBook')}
-              </button>
-            </div>
-          </div>
-        )
-      })}
+      {/* Nationality dropdown */}
+      {panel === 'nationality' && (
+        <div
+          className="absolute top-full z-50 mt-2"
+          style={{ left: getSegmentLeft('shared-nationality') }}
+        >
+          <NationalityDropdown
+            value={nationality}
+            onChange={(code) => { onNationalityChange(code); setPanel(null) }}
+          />
+        </div>
+      )}
     </div>
   )
 }
 
-// ── MultiCityLegForm ──────────────────────────────────────────────────────────
+// ── LegBar — City + Check-in + Check-out + Add/Remove ────────────────────────
 
-interface MultiCityLegFormProps {
+interface LegBarProps {
   leg: MultiCityLeg
-  legIndex: number
-  cities: string[]
   properties: PropertyOption[]
+  cities: string[]
   canRemove: boolean
-  infantMaxAge: number
-  childMaxAge: number
-  onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id' | 'searched' | 'selectedOffer'>>) => void
-  onSearch: () => void
+  canAdd: boolean
+  onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id'>>) => void
+  onAdd: () => void
   onRemove: () => void
-  onSelectOffer: (offer: MultiCitySelectedOffer) => void
 }
 
-function MultiCityLegForm({
+function LegBar({
   leg,
-  legIndex,
-  cities,
   properties,
+  cities,
   canRemove,
+  canAdd,
   onUpdate,
-  onSearch,
+  onAdd,
   onRemove,
-  onSelectOffer,
-}: MultiCityLegFormProps) {
+}: LegBarProps) {
   const t = useT('search')
+  const locale = useLocale()
+  const [panel, setPanel] = useState<'city' | 'calendar' | null>(null)
+  const [calField, setCalField] = useState<'checkin' | 'checkout'>('checkin')
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const filteredProperties = leg.city
-    ? properties.filter((p) => p.city === leg.city)
-    : properties
+  const nights = nightsBetween(leg.checkIn, leg.checkOut)
 
-  const { data: searchResult, isFetching } = useQuery<SearchResponse>({
-    queryKey: ['multicity-leg-search', leg.propertyId, leg.checkIn, leg.checkOut, leg.rooms],
-    queryFn: () => {
-      const qs = encodeSearchParams({
-        hotelId: leg.propertyId!,
-        checkIn: leg.checkIn,
-        checkOut: leg.checkOut,
-        rooms: [{ adults: leg.rooms[0]?.adults ?? 2 }],
-      })
-      return apiClient.search(qs)
-    },
-    enabled: leg.searched && !!leg.propertyId && !!leg.checkIn && !!leg.checkOut,
-    staleTime: 5 * 60 * 1000,
-  })
+  useEffect(() => {
+    if (!panel) return
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setPanel(null)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [panel])
 
-  const adults = leg.rooms[0]?.adults ?? 2
-
-  function setAdults(val: number) {
-    if (val < 1) return
-    const updated: GuestRoom[] = [{ adults: val, children: 0, infants: 0 }]
-    onUpdate({ rooms: updated })
+  function openCalendar(field: 'checkin' | 'checkout') {
+    setCalField(field)
+    setPanel(prev => prev === 'calendar' && calField === field ? null : 'calendar')
   }
 
-  function handleSearch() {
-    if (!leg.propertyId) return
-    onSearch()
-  }
+  const selectedProperty = properties.find(p => p.id === leg.propertyId)
+  const cityDisplayValue = selectedProperty
+    ? properties.filter(p => p.city === leg.city).length > 1
+      ? `${leg.city} – ${selectedProperty.name}`
+      : leg.city
+    : leg.city || (t('multiCitySelectCity') ?? 'Select city')
 
   return (
-    <div className="p-4 space-y-4 bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)]">
-      {/* City select */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-[var(--color-text)]">{t('multiCityCity')}</label>
-        <select
-          value={leg.city}
-          onChange={(e) => onUpdate({ city: e.target.value, propertyId: null })}
-          className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-        >
-          <option value="">{t('multiCitySelectCity')}</option>
-          {cities.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div ref={containerRef} className="relative">
+      {/* Desktop pill bar */}
+      <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-      {/* Hotel select — shown when city is selected */}
-      {leg.city && (
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-[var(--color-text)]">{t('multiCityHotel')}</label>
-          <select
-            value={leg.propertyId ?? ''}
-            onChange={(e) =>
-              onUpdate({ propertyId: e.target.value ? Number(e.target.value) : null })
-            }
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          >
-            <option value="">{t('multiCitySelectHotel')}</option>
-            {filteredProperties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        {/* City */}
+        <Segment
+          label={t('multiCityCity') ?? 'City'}
+          value={cityDisplayValue}
+          active={panel === 'city'}
+          onClick={() => setPanel(p => p === 'city' ? null : 'city')}
+          flex={2.5}
+        />
+
+        <Divider />
+
+        {/* Check-in */}
+        <Segment
+          label={t('checkIn')}
+          value={displayDate(leg.checkIn, locale) || t('selectDate')}
+          active={panel === 'calendar' && calField === 'checkin'}
+          onClick={() => openCalendar('checkin')}
+          flex={1.8}
+        />
+
+        <Divider />
+
+        {/* Check-out */}
+        <Segment
+          label={t('checkOut')}
+          value={displayDate(leg.checkOut, locale) || t('selectDate')}
+          active={panel === 'calendar' && calField === 'checkout'}
+          onClick={() => openCalendar('checkout')}
+          flex={1.8}
+        />
+
+        <Divider />
+
+        {/* Nights display */}
+        <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
+          <span className="mb-0.5 text-xs font-medium leading-none text-[var(--color-text-muted)]">
+            {t('nightsLabel')}
+          </span>
+          <span className="text-sm font-semibold text-[var(--color-text)]">
+            {nights > 0 ? nights : '—'}
+          </span>
         </div>
-      )}
 
-      {/* Date inputs */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-[var(--color-text)]">{t('checkIn')}</label>
-          <input
-            type="date"
-            value={leg.checkIn}
-            onChange={(e) => onUpdate({ checkIn: e.target.value })}
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-[var(--color-text)]">{t('checkOut')}</label>
-          <input
-            type="date"
-            value={leg.checkOut}
-            onChange={(e) => onUpdate({ checkOut: e.target.value })}
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-        </div>
-      </div>
-
-      {/* Adults +/- */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-[var(--color-text)]">{t('adults')}:</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAdults(adults - 1)}
-            className="w-8 h-8 rounded-full border border-[var(--color-border)] text-[var(--color-text)] flex items-center justify-center text-lg leading-none hover:bg-[var(--color-border)] transition-colors"
-            aria-label="Decrease adults"
-          >
-            −
-          </button>
-          <span className="w-6 text-center text-sm font-semibold text-[var(--color-text)]">{adults}</span>
-          <button
-            onClick={() => setAdults(adults + 1)}
-            className="w-8 h-8 rounded-full border border-[var(--color-border)] text-[var(--color-text)] flex items-center justify-center text-lg leading-none hover:bg-[var(--color-border)] transition-colors"
-            aria-label="Increase adults"
-          >
-            +
-          </button>
-        </div>
-      </div>
-
-      {/* Search button */}
-      <button
-        disabled={!leg.propertyId}
-        onClick={handleSearch}
-        className="w-full py-2 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-      >
-        {isFetching ? t('searching') : t('multiCitySearch')}
-      </button>
-
-      {/* Search results */}
-      {leg.searched && leg.propertyId && (
-        <div className="space-y-3">
-          {isFetching && (
-            <div className="text-center text-sm text-[var(--color-text-muted)] py-4">
-              {t('searching')}…
+        {/* Add / Remove */}
+        {(canRemove || canAdd) && (
+          <>
+            <Divider />
+            <div className="flex items-center gap-1.5 py-2 pl-1 pr-1.5">
+              {canRemove && (
+                <button
+                  onClick={onRemove}
+                  className="whitespace-nowrap rounded-full border border-[var(--color-border)] px-3 py-2 text-sm font-semibold text-[var(--color-text)] transition-colors hover:bg-gray-50"
+                >
+                  − {t('multiCityRemove') ?? 'Remove'}
+                </button>
+              )}
+              {canAdd && (
+                <button
+                  onClick={onAdd}
+                  className="whitespace-nowrap rounded-full bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
+                >
+                  + {t('multiCityAddCity') ?? 'Add city'}
+                </button>
+              )}
             </div>
-          )}
-          {!isFetching && searchResult && searchResult.results.length === 0 && (
-            <div className="text-center text-sm text-[var(--color-text-muted)] py-4">
-              {t('noRoomsAvailable')}
-            </div>
-          )}
-          {!isFetching &&
-            searchResult?.results.flatMap((result) =>
-              result.rooms.map((room) => {
-                const rate = room.rates[0]
-                if (!rate) return null
+          </>
+        )}
+      </div>
+
+      {/* City dropdown */}
+      {panel === 'city' && (
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+          <div className="max-h-72 overflow-y-auto">
+            {cities.map(city => {
+              const hotelsInCity = properties.filter(p => p.city === city)
+              if (hotelsInCity.length === 1) {
+                const prop = hotelsInCity[0]!
                 return (
-                  <div
-                    key={`${room.roomId}-${rate.ratePlanId}`}
-                    className="p-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] space-y-1"
+                  <button
+                    key={city}
+                    onClick={() => { onUpdate({ city, propertyId: prop.id }); setPanel(null) }}
+                    className={[
+                      'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
+                      leg.city === city ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                    ].join(' ')}
                   >
-                    <div className="font-medium text-sm text-[var(--color-text)]">{room.roomName}</div>
-                    <div className="text-xs text-[var(--color-text-muted)]">{rate.ratePlanName}</div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm text-[var(--color-primary)]">
-                        {rate.prices.sell.currency} {rate.prices.sell.amount.toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() =>
-                          onSelectOffer({
-                            roomId: room.roomId,
-                            roomName: room.roomName,
-                            rateId: rate.ratePlanId,
-                            rateName: rate.ratePlanName,
-                            sellAmount: rate.prices.sell.amount,
-                            currency: rate.prices.sell.currency,
-                          })
-                        }
-                        className="px-3 py-1 rounded-md bg-[var(--color-primary)] text-white text-xs font-medium hover:opacity-90 transition-opacity"
-                      >
-                        {t('multiCitySelect')}
-                      </button>
-                    </div>
-                  </div>
+                    <span>{city}</span>
+                    {leg.city === city && (
+                      <svg className="h-4 w-4 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
                 )
-              })
-            )}
-        </div>
-      )}
-
-      {/* Selected offer confirmation */}
-      {leg.selectedOffer && (
-        <div className="p-3 rounded-md border border-green-500 bg-green-50 space-y-1">
-          <div className="text-sm font-semibold text-green-800">{t('multiCityOfferSelected')}</div>
-          <div className="text-sm text-green-700">{leg.selectedOffer.roomName}</div>
-          <div className="text-xs text-green-600">{leg.selectedOffer.rateName}</div>
-          <div className="text-sm font-bold text-green-800">
-            {leg.selectedOffer.currency} {leg.selectedOffer.sellAmount.toFixed(2)}
+              }
+              return (
+                <div key={city}>
+                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                    {city}
+                  </div>
+                  {hotelsInCity.map(prop => (
+                    <button
+                      key={prop.id}
+                      onClick={() => { onUpdate({ city, propertyId: prop.id }); setPanel(null) }}
+                      className={[
+                        'flex w-full items-center justify-between pl-7 pr-4 py-2.5 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
+                        prop.id === leg.propertyId ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                      ].join(' ')}
+                    >
+                      <span>{prop.name}</span>
+                      {prop.id === leg.propertyId && (
+                        <svg className="h-4 w-4 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* Remove button */}
-      {canRemove && (
-        <button
-          onClick={onRemove}
-          className="text-sm text-red-500 hover:text-red-700 transition-colors"
-        >
-          {t('multiCityRemove')}
-        </button>
+      {/* Calendar dropdown */}
+      {panel === 'calendar' && (
+        <CalendarDropdown
+          checkIn={leg.checkIn}
+          checkOut={leg.checkOut}
+          initialField={calField}
+          onDatesChange={(ci, co) => { onUpdate({ checkIn: ci, checkOut: co }) }}
+          onClose={() => setPanel(null)}
+        />
       )}
     </div>
   )
@@ -369,129 +393,101 @@ export function MultiCityPanel({
   childMaxAge,
 }: MultiCityPanelProps) {
   const t = useT('search')
-  const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg()])
-  const [activeTab, setActiveTab] = useState<number | 'summary'>(0)
+  const detectedCountry = useCountryDetect()
 
-  // Derive unique cities from properties
+  const [legs, setLegs] = useState<MultiCityLeg[]>([makeLeg(7)])
+  const [rooms, setRooms] = useState<GuestRoom[]>([{ adults: 2, children: 0, infants: 0 }])
+  const [nationality, setNationality] = useState('')
+
+  useEffect(() => {
+    if (detectedCountry && !nationality) setNationality(detectedCountry)
+  }, [detectedCountry])
+
   const cities = Array.from(
-    new Set(properties.map((p) => p.city).filter((c): c is string => Boolean(c)))
+    new Set(properties.map(p => p.city).filter((c): c is string => Boolean(c)))
   )
 
-  function addLeg() {
+  function addLeg(afterIdx: number) {
     if (legs.length >= maxLegs) return
-    const newLeg = makeLeg()
-    setLegs((prev) => [...prev, newLeg])
-    setActiveTab(legs.length) // index of the new leg
+    const prev = legs[afterIdx]
+    const newCheckIn = prev ? addDays(prev.checkOut, 0) : addDays(todayIso(), 10)
+    const newCheckOut = addDays(newCheckIn, 3)
+    const newLeg: MultiCityLeg = {
+      id: Math.random().toString(36).slice(2, 9),
+      city: '',
+      propertyId: null,
+      checkIn: newCheckIn,
+      checkOut: newCheckOut,
+    }
+    setLegs(prev => {
+      const next = [...prev]
+      next.splice(afterIdx + 1, 0, newLeg)
+      return next
+    })
   }
 
   function removeLeg(idx: number) {
-    setLegs((prev) => prev.filter((_, i) => i !== idx))
-    setActiveTab(Math.max(0, idx - 1))
+    setLegs(prev => prev.filter((_, i) => i !== idx))
   }
 
   function updateLeg(idx: number, patch: Partial<Omit<MultiCityLeg, 'id'>>) {
-    setLegs((prev) =>
-      prev.map((leg, i) =>
-        i === idx
-          ? { ...leg, ...patch, searched: false, selectedOffer: null }
-          : leg
-      )
-    )
+    setLegs(prev => prev.map((leg, i) => i === idx ? { ...leg, ...patch } : leg))
   }
 
-  function triggerSearch(idx: number) {
-    setLegs((prev) =>
-      prev.map((leg, i) => (i === idx ? { ...leg, searched: true } : leg))
-    )
-  }
+  const allLegsReady = legs.every(l => l.propertyId !== null && l.checkIn && l.checkOut)
 
-  function selectOffer(idx: number, offer: MultiCitySelectedOffer) {
-    setLegs((prev) =>
-      prev.map((leg, i) => (i === idx ? { ...leg, selectedOffer: offer } : leg))
-    )
-    // Auto-advance: next leg or summary
-    const nextIdx = idx + 1
-    if (nextIdx < legs.length) {
-      setActiveTab(nextIdx)
-    } else {
-      setActiveTab('summary')
+  function handleCheckAvailability() {
+    for (const leg of legs) {
+      if (!leg.propertyId || !leg.checkIn || !leg.checkOut) continue
+      const qs = encodeSearchParams({
+        hotelId: leg.propertyId,
+        checkIn: leg.checkIn,
+        checkOut: leg.checkOut,
+        rooms: [{ adults: rooms.reduce((s, r) => s + r.adults, 0) }],
+        nationality: nationality || undefined,
+      })
+      window.open(`/search?${qs.toString()}`, '_blank', 'noopener,noreferrer')
     }
   }
 
-  const tabClass = (isActive: boolean) =>
-    [
-      'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-      isActive
-        ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-        : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
-    ].join(' ')
-
   return (
-    <div className="w-full bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] overflow-hidden">
-      {/* Tab bar */}
-      <div className="flex items-center border-b border-[var(--color-border)] overflow-x-auto">
-        {legs.map((leg, idx) => {
-          const raw = t('multiCityLeg')
-          // If translation contains {n} placeholder, replace it; otherwise use "City N"
-          const tabLabel = raw.includes('{n}')
-            ? raw.replace('{n}', String(idx + 1))
-            : `City ${idx + 1}`
-          return (
-            <button
-              key={leg.id}
-              onClick={() => setActiveTab(idx)}
-              className={tabClass(activeTab === idx)}
-            >
-              {tabLabel}
-            </button>
-          )
-        })}
+    <div className="w-full space-y-2">
+      {/* Bar 1: shared Guests + Nationality */}
+      <SharedBar
+        rooms={rooms}
+        nationality={nationality}
+        infantMaxAge={infantMaxAge}
+        childMaxAge={childMaxAge}
+        onRoomsChange={setRooms}
+        onNationalityChange={setNationality}
+      />
 
-        {/* Summary tab */}
-        <button
-          onClick={() => setActiveTab('summary')}
-          className={tabClass(activeTab === 'summary')}
-        >
-          {t('multiCitySummary')}
-        </button>
+      {/* Bars 2..N: one per leg */}
+      {legs.map((leg, idx) => (
+        <LegBar
+          key={leg.id}
+          leg={leg}
+          properties={properties}
+          cities={cities}
+          canRemove={legs.length > 1}
+          canAdd={idx === legs.length - 1 && legs.length < maxLegs}
+          onUpdate={(patch) => updateLeg(idx, patch)}
+          onAdd={() => addLeg(idx)}
+          onRemove={() => removeLeg(idx)}
+        />
+      ))}
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Add city button */}
-        {legs.length < maxLegs && (
+      {/* Check availability CTA */}
+      {allLegsReady && (
+        <div className="flex justify-end pt-1">
           <button
-            onClick={addLeg}
-            className="px-4 py-2 text-sm font-medium text-[var(--color-primary)] hover:opacity-80 transition-opacity whitespace-nowrap"
+            onClick={handleCheckAvailability}
+            className="rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:opacity-90"
           >
-            + {t('multiCityAddCity')}
+            {t('checkAvailability')}
           </button>
-        )}
-      </div>
-
-      {/* Tab content */}
-      <div className="p-4">
-        {activeTab === 'summary' ? (
-          <MultiCitySummary legs={legs} />
-        ) : (
-          typeof activeTab === 'number' &&
-          legs[activeTab] && (
-            <MultiCityLegForm
-              leg={legs[activeTab]}
-              legIndex={activeTab}
-              cities={cities}
-              properties={properties}
-              canRemove={legs.length > 1}
-              infantMaxAge={infantMaxAge}
-              childMaxAge={childMaxAge}
-              onUpdate={(patch) => updateLeg(activeTab, patch)}
-              onSearch={() => triggerSearch(activeTab)}
-              onRemove={() => removeLeg(activeTab)}
-              onSelectOffer={(offer) => selectOffer(activeTab, offer)}
-            />
-          )
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

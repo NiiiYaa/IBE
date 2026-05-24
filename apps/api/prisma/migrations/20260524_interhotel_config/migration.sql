@@ -6,6 +6,10 @@ CREATE TABLE "SystemInterHotelConfig" (
     "transferType" TEXT NOT NULL DEFAULT 'self',
     "sponsoredAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "sponsoredCurrency" TEXT NOT NULL DEFAULT 'USD',
+    "discountEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "discountPercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "incentiveEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "incentivePackageId" INTEGER,
     CONSTRAINT "SystemInterHotelConfig_pkey" PRIMARY KEY ("id")
 );
 
@@ -17,6 +21,10 @@ CREATE TABLE "OrgInterHotelConfig" (
     "transferType" TEXT,
     "sponsoredAmount" DOUBLE PRECISION,
     "sponsoredCurrency" TEXT,
+    "discountEnabled" BOOLEAN,
+    "discountPercent" DOUBLE PRECISION,
+    "incentiveEnabled" BOOLEAN,
+    "incentivePackageId" INTEGER,
     CONSTRAINT "OrgInterHotelConfig_pkey" PRIMARY KEY ("organizationId")
 );
 

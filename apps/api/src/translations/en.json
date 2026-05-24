@@ -122,7 +122,7 @@
     "interHotelTransferHotel": "Free transfer arranged by the hotel",
     "interHotelTransferSponsored": "Self-transfer sponsored by the hotel (up to {amount} {currency})",
     "interHotelFrom": "Starting from",
-    "multiCityTrip": "Multi-city Trip",
+    "multiCityTrip": "Multi City Trip",
     "multiCityAddCity": "Add city",
     "multiCityRemove": "Remove",
     "multiCityLeg": "City {n}",
