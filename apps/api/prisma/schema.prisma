@@ -66,6 +66,7 @@ model Organization {
   compSetSearchParams         CompSetSearchParam[]
   orgPricingConfig            OrgPricingConfig?
   orgFlexibleDatesConfig      OrgFlexibleDatesConfig?
+  orgInterHotelConfig         OrgInterHotelConfig?
 }
 
 // roles: super | admin | observer | user
@@ -477,6 +478,9 @@ model Property {
   eventCalendarEvents         EventCalendarEvent[]
   propertyPricingConfig       PropertyPricingConfig?
   propertyFlexibleDatesConfig PropertyFlexibleDatesConfig?
+  propertyInterHotelConfig    PropertyInterHotelConfig?
+  nearbyHotels                NearbyHotel[] @relation("PropertyNearby")
+  nearbyOfHotels              NearbyHotel[] @relation("NearbyHotelProperty")
   dailyRates                  DailyRate[]
   dailyRateOffers             DailyRateOffer[]
 
@@ -1892,6 +1896,50 @@ model PropertyFlexibleDatesConfig {
   daysBefore Int?
   daysAfter  Int?
   property   Property @relation(fields: [propertyId], references: [propertyId])
+}
+
+model SystemInterHotelConfig {
+  id                Int     @id @default(1)
+  enabled           Boolean @default(false)
+  maxRadiusKm       Int     @default(50)
+  maxHotels         Int     @default(3)
+  transferType      String  @default("self")
+  sponsoredAmount   Float   @default(0)
+  sponsoredCurrency String  @default("USD")
+}
+
+model OrgInterHotelConfig {
+  organizationId    Int          @id
+  enabled           Boolean?
+  maxRadiusKm       Int?
+  maxHotels         Int?
+  transferType      String?
+  sponsoredAmount   Float?
+  sponsoredCurrency String?
+  org               Organization @relation(fields: [organizationId], references: [id])
+}
+
+model PropertyInterHotelConfig {
+  propertyId        Int      @id
+  enabled           Boolean?
+  maxRadiusKm       Int?
+  maxHotels         Int?
+  transferType      String?
+  sponsoredAmount   Float?
+  sponsoredCurrency String?
+  property          Property @relation(fields: [propertyId], references: [propertyId])
+}
+
+model NearbyHotel {
+  id               Int      @id @default(autoincrement())
+  propertyId       Int
+  nearbyPropertyId Int
+  distanceKm       Float
+  updatedAt        DateTime @updatedAt
+  property         Property @relation("PropertyNearby", fields: [propertyId], references: [propertyId])
+  nearbyProperty   Property @relation("NearbyHotelProperty", fields: [nearbyPropertyId], references: [propertyId])
+
+  @@unique([propertyId, nearbyPropertyId])
 }
 
 model DailyRate {
