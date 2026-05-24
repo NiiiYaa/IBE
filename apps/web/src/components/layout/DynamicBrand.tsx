@@ -31,8 +31,8 @@ export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }
   const { data: config } = useHotelConfig(hotelId)
   const { data: property } = useProperty(hotelId)
 
-  const logoUrl = config?.logoUrl ?? fallbackLogoUrl
-  const displayName = config?.displayName ?? property?.name ?? fallbackDisplayName
+  const logoUrl = property?.logo || config?.logoUrl || fallbackLogoUrl
+  const displayName = property?.name || config?.displayName || fallbackDisplayName
   const href = hotelId ? `/?hotelId=${hotelId}` : '/'
 
   return (
