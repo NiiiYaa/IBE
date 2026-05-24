@@ -15,6 +15,7 @@ import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { useIncentive } from '@/hooks/use-incentive'
 import { useSourceOrg } from '@/hooks/use-source-org'
 import { useFlexibleDateSearch } from '@/hooks/use-flexible-date-search'
+import { useInterHotelSearch } from '@/hooks/use-interhotel-search'
 import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { RoomCard } from '@/components/search/RoomCard'
 import { RoomCardGrid } from '@/components/search/RoomCardGrid'
@@ -34,6 +35,7 @@ import { AmadeusWLButton } from '@/components/amadeus/AmadeusWLButton'
 import { apiClient } from '@/lib/api-client'
 import type { FlexibleDateResult } from '@/hooks/use-flexible-date-search'
 import type { SearchUrlParams } from '@/lib/search-params'
+import type { InterHotelPackageResponse, InterHotelSegment } from '@ibe/shared'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -91,6 +93,13 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
     return t('flexibleDaysAfter', { n: delta })
   }
   const flexResults = useFlexibleDateSearch(searchParams, flexConfig, primaryHasResultsForHook, getFlexLabel)
+  const { data: interHotelConfig } = useQuery({
+    queryKey: ['interhotel-config', propertyId],
+    queryFn: () => apiClient.getInterHotelConfig(propertyId!),
+    enabled: propertyId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  })
+  const interHotelResult = useInterHotelSearch(searchParams, interHotelConfig, primaryHasResultsForHook)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms
@@ -305,39 +314,17 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
       {data && allRooms.length === 0 && (() => {
         // only fan out in single-room mode — multi-room cart integration is out of scope
         if (!isMultiMode) {
+          const interHotelLoading = interHotelResult.isLoading
           const hasLoadingFlex = flexResults.some(r => r.isLoading)
-          const hasResolvedFlex = flexResults.some(r => !r.isLoading && r.data !== undefined)
+          const anyLoading = interHotelLoading || hasLoadingFlex
+          const hasInterHotel = interHotelResult.packages.length > 0
+          const resolvedFlexResults = flexResults.filter(r => !r.isLoading && r.data !== undefined)
+          const hasResolvedFlex = resolvedFlexResults.length > 0
 
-          if (hasResolvedFlex) {
-            // Case A: at least one flexible date window has availability
-            return (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-                  <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
-                  <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
-                </div>
-                {flexResults
-                  .filter(r => !r.isLoading)
-                  .map(r => (
-                    <FlexibleDateSection
-                      key={r.checkIn}
-                      result={r}
-                      searchParams={searchParams}
-                      hotelConfig={hotelConfig}
-                      roomDetailMap={roomDetailMap}
-                      locale={locale}
-                      dispCur={dispCur}
-                      convert={convert}
-                      isMultiMode={isMultiMode}
-                      t={t}
-                    />
-                  ))}
-              </div>
-            )
-          }
-
-          if (hasLoadingFlex) {
-            // Case B: flexible searches are still in progress
+          if (!anyLoading && !hasInterHotel && !hasResolvedFlex) {
+            // Case C: nothing found — show no-rooms message (falls through to end)
+          } else if (anyLoading && !hasInterHotel && !hasResolvedFlex) {
+            // Case B: still loading, nothing resolved yet — show loading indicator
             return (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
                 <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
@@ -351,10 +338,61 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
                 </p>
               </div>
             )
+          } else {
+            // Case A: has interhotel packages and/or flex results
+            return (
+              <div className="space-y-4">
+                {hasInterHotel && (
+                  <>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                      <p className="font-medium text-[var(--color-text)]">{t('interHotelUnavailable')}</p>
+                      <p className="mt-1 text-sm text-muted">{t('interHotelOffer')}</p>
+                    </div>
+                    {interHotelResult.packages.map((pkg, i) => (
+                      <InterHotelPackageSection
+                        key={pkg.segments[0]?.checkIn ?? i}
+                        pkg={pkg}
+                        searchParams={searchParams}
+                        hotelConfig={hotelConfig}
+                        roomDetailMap={roomDetailMap}
+                        locale={locale}
+                        dispCur={dispCur}
+                        convert={convert}
+                        t={t}
+                      />
+                    ))}
+                  </>
+                )}
+                {hasResolvedFlex && (
+                  <>
+                    {!hasInterHotel && (
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                        <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
+                        <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
+                      </div>
+                    )}
+                    {resolvedFlexResults.map(r => (
+                      <FlexibleDateSection
+                        key={r.checkIn}
+                        result={r}
+                        searchParams={searchParams}
+                        hotelConfig={hotelConfig}
+                        roomDetailMap={roomDetailMap}
+                        locale={locale}
+                        dispCur={dispCur}
+                        convert={convert}
+                        isMultiMode={isMultiMode}
+                        t={t}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
+            )
           }
         }
 
-        // Case C: all flexible searches resolved with zero rooms, feature disabled, or multi-room mode
+        // Case C: all searches resolved with zero rooms, features disabled, or multi-room mode
         return (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
             <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
@@ -542,6 +580,150 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         </div>
       )}
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// InterHotelPackageSection — renders one interhotel package accordion panel
+// ---------------------------------------------------------------------------
+
+interface InterHotelPackageSectionProps {
+  pkg: InterHotelPackageResponse
+  searchParams: NonNullable<ReturnType<typeof decodeSearchParams>>
+  hotelConfig: ReturnType<typeof useHotelConfig>['data']
+  roomDetailMap: Map<number, RoomDetail>
+  locale: string
+  dispCur: string
+  convert: (amount: number) => number
+  t: (key: string, vars?: Record<string, string | number>) => string
+}
+
+function InterHotelPackageSection({
+  pkg,
+  searchParams,
+  hotelConfig,
+  roomDetailMap,
+  locale,
+  dispCur,
+  convert,
+  t,
+}: InterHotelPackageSectionProps) {
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  const roomSearchLayout = hotelConfig?.roomSearchLayout ?? 'rows'
+
+  const transferLabel =
+    pkg.transferType === 'hotel'
+      ? t('interHotelTransferHotel')
+      : pkg.transferType === 'sponsored_self'
+        ? t('interHotelTransferSponsored', { amount: pkg.sponsoredAmount, currency: pkg.sponsoredCurrency })
+        : t('interHotelTransferSelf')
+
+  const hotelNames = pkg.segments.map(s => s.result.propertyName).join(' + ')
+
+  const lowestPrice = pkg.totalFromPrice !== Infinity && pkg.totalFromPrice > 0
+    ? pkg.totalFromPrice
+    : undefined
+
+  function handleSegmentRateSelect(seg: InterHotelSegment, room: RoomOption, rate: RateOption) {
+    const shiftedParams: SearchUrlParams = {
+      ...searchParams,
+      hotelId: seg.result.propertyId,
+      checkIn: seg.checkIn,
+      checkOut: seg.checkOut,
+    }
+    const qs = encodeSearchParams(shiftedParams)
+    qs.set('roomId', String(room.roomId))
+    qs.set('ratePlanId', String(rate.ratePlanId))
+    qs.set('price', String(rate.prices.sell.amount))
+    qs.set('priceCurrency', rate.prices.sell.currency)
+    router.push(`/booking?${qs.toString()}`)
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left hover:bg-[var(--color-surface-hover,var(--color-border))/10] transition-colors"
+      >
+        <div>
+          <span className="font-medium text-[var(--color-text)]">{hotelNames}</span>
+          <span className="ml-2 text-sm text-muted">{transferLabel}</span>
+          {lowestPrice !== undefined && (
+            <span className="ml-2 text-sm font-semibold text-primary">
+              · {t('interHotelFrom')} {formatCurrency(convert(lowestPrice), dispCur, locale)}
+            </span>
+          )}
+        </div>
+        <svg
+          className={`h-5 w-5 shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--color-border)] p-4 space-y-6">
+          {pkg.segments.map((seg, idx) => {
+            const segNights = nightsBetween(seg.checkIn, seg.checkOut)
+            const segRooms = seg.result.rooms
+            return (
+              <div key={seg.checkIn}>
+                <p className="text-sm font-semibold mb-1 text-[var(--color-text)]">
+                  {t('interHotelStaySegment', { n: idx + 1 })} — {seg.result.propertyName}
+                </p>
+                <p className="text-xs text-muted mb-3">
+                  {seg.checkIn} → {seg.checkOut}
+                </p>
+                {roomSearchLayout === 'cards' ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {segRooms.map(room => (
+                      <RoomCardGrid
+                        key={room.roomId}
+                        room={room}
+                        nights={segNights}
+                        locale={locale}
+                        roomDetail={roomDetailMap.get(room.roomId)}
+                        remarks={seg.result.remarks}
+                        defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+                        onRateSelect={(room, rate) => handleSegmentRateSelect(seg, room, rate)}
+                        displayCurrency={dispCur}
+                        convert={convert}
+                        {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+                          ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+                          : {})}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  segRooms.map(room => (
+                    <RoomCard
+                      key={room.roomId}
+                      room={room}
+                      nights={segNights}
+                      locale={locale}
+                      roomDetail={roomDetailMap.get(room.roomId)}
+                      remarks={seg.result.remarks}
+                      defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+                      onRateSelect={(room, rate) => handleSegmentRateSelect(seg, room, rate)}
+                      displayCurrency={dispCur}
+                      convert={convert}
+                      {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+                        ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+                        : {})}
+                    />
+                  ))
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

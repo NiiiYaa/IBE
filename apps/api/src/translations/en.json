@@ -114,7 +114,14 @@
     "flexibleDayAfter": "1 day after",
     "flexibleDaysAfter": "{n} days after",
     "flexibleFrom": "from",
-    "flexibleChecking": "Checking nearby dates…"
+    "flexibleChecking": "Checking nearby dates…",
+    "interHotelUnavailable": "Unfortunately, we do not have availability for your entire stay at our hotel for the selected dates.",
+    "interHotelOffer": "However, we can offer you an InterHotel Stay combining our hotel with nearby participating hotels:",
+    "interHotelStaySegment": "Hotel Stay {n}",
+    "interHotelTransferSelf": "Self Transfer",
+    "interHotelTransferHotel": "Free transfer arranged by the hotel",
+    "interHotelTransferSponsored": "Sponsored Self Transfer (up to {amount} {currency})",
+    "interHotelFrom": "Starting from"
   },
   "properties": {
     "bookNow": "Book now",
