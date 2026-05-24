@@ -232,8 +232,12 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   const headerItems = navItems.filter(n => n.section === 'header')
   const footerItems = navItems.filter(n => n.section === 'footer')
-  const displayName = config?.displayName || property?.name || null
-  const logoUrl = config?.logoUrl || property?.logo || null
+  const displayName = isChain
+    ? (config?.displayName || null)
+    : (config?.displayName || property?.name || null)
+  const logoUrl = isChain
+    ? (config?.logoUrl || null)
+    : (config?.logoUrl || property?.logo || null)
   const cssVars = config ? buildCssVars(config) : ''
   const fontUrl = config?.fontUrl ?? null
   // For locale/currency, use hotelConfig in chain mode — it already merges org defaults

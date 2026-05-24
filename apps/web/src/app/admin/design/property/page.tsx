@@ -373,24 +373,22 @@ function OverrideImageRow({ label, hint, fieldKey, placeholder, accept, maxDimen
             </div>
           )}
           <SourceBadge source={source} />
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+            Upload
+          </button>
+          <input ref={fileRef} type="file" accept={accept} className="sr-only"
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              onSet(fieldKey, await compressImage(file, maxDimension))
+              e.target.value = ''
+            }} />
           {isOverriding ? (
-            <>
-              <button type="button" onClick={() => fileRef.current?.click()}
-                className="shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
-                Upload
-              </button>
-              <input ref={fileRef} type="file" accept={accept} className="sr-only"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  onSet(fieldKey, await compressImage(file, maxDimension))
-                  e.target.value = ''
-                }} />
-              <button type="button" onClick={() => onReset(fieldKey)}
-                className="shrink-0 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
-                ↩ Reset
-              </button>
-            </>
+            <button type="button" onClick={() => onReset(fieldKey)}
+              className="shrink-0 text-xs text-[var(--color-text-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
+              ↩ Reset
+            </button>
           ) : (
             <button type="button" onClick={() => onSet(fieldKey, chainValue ?? '')}
               className="shrink-0 rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
