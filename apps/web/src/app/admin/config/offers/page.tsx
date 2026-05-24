@@ -1,8 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { OrgOffersSettings, UpdateOffersSettingsRequest, CancellationPolicyFilter, ChargePartyFilter, PaymentMethodFilter, OffersChannel } from '@ibe/shared'
+import type {
+  OrgOffersSettings,
+  UpdateOffersSettingsRequest,
+  CancellationPolicyFilter,
+  ChargePartyFilter,
+  PaymentMethodFilter,
+  OffersChannel,
+  SystemFlexibleDatesConfigResponse,
+  OrgFlexibleDatesConfigResponse,
+  PropertyFlexibleDatesConfigResponse,
+  FlexibleDatesEffective,
+} from '@ibe/shared'
 import { BoardType, BOARD_TYPE_LABELS } from '@ibe/shared'
 import { apiClient } from '@/lib/api-client'
 import { useAdminAuth } from '@/hooks/use-admin-auth'
@@ -65,12 +77,63 @@ function ChannelTabs({ value, onChange }: { value: OffersChannel; onChange: (c: 
   )
 }
 
+// ── Page-level tab types ──────────────────────────────────────────────────────
+
+type OffersTab = 'general' | 'flexible-dates' | 'inter-city' | 'multi-city'
+
+const OFFERS_TABS: { value: OffersTab; label: string }[] = [
+  { value: 'general', label: 'General' },
+  { value: 'flexible-dates', label: 'Flexible Dates' },
+  { value: 'inter-city', label: 'Inter-city' },
+  { value: 'multi-city', label: 'Multi-city' },
+]
+
+function OffersTabBar({ value, onChange }: { value: OffersTab; onChange: (t: OffersTab) => void }) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1 w-fit">
+      {OFFERS_TABS.map(tab => (
+        <button
+          key={tab.value}
+          type="button"
+          onClick={() => onChange(tab.value)}
+          className={[
+            'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+            value === tab.value
+              ? 'bg-[var(--color-primary)] text-white shadow-sm'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]',
+          ].join(' ')}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export default function OffersPage() {
   const { admin } = useAdminAuth()
   const { propertyId, orgId: contextOrgId } = useAdminProperty()
   const [channel, setChannel] = useState<OffersChannel>('b2c')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const rawTab = searchParams.get('tab')
+  const activeTab: OffersTab =
+    rawTab === 'flexible-dates' || rawTab === 'inter-city' || rawTab === 'multi-city'
+      ? rawTab
+      : 'general'
+
+  function setTab(tab: OffersTab) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'general') {
+      params.delete('tab')
+    } else {
+      params.set('tab', tab)
+    }
+    router.replace(`?${params.toString()}`)
+  }
 
   if (propertyId === undefined) return null
 
@@ -90,15 +153,34 @@ export default function OffersPage() {
                 : 'Property overrides. Leave blank to inherit from chain defaults.'}
           </p>
         </div>
-        <ChannelTabs value={channel} onChange={setChannel} />
+        {activeTab === 'general' && (
+          <ChannelTabs value={channel} onChange={setChannel} />
+        )}
       </div>
 
-      {isSystemLevel ? (
-        <SystemOffersEditor key={channel} channel={channel} />
-      ) : propertyId === null ? (
-        <GlobalOffersEditor key={channel} channel={channel} />
-      ) : (
-        <PropertyOffersEditor key={channel} propertyId={propertyId} channel={channel} />
+      <OffersTabBar value={activeTab} onChange={setTab} />
+
+      {activeTab === 'general' && (
+        isSystemLevel ? (
+          <SystemOffersEditor key={channel} channel={channel} />
+        ) : propertyId === null ? (
+          <GlobalOffersEditor key={channel} channel={channel} />
+        ) : (
+          <PropertyOffersEditor key={channel} propertyId={propertyId} channel={channel} />
+        )
+      )}
+
+      {activeTab === 'flexible-dates' && (
+        <FlexibleDatesTab
+          isSuper={isSuper}
+          isSystemLevel={isSystemLevel}
+          orgId={contextOrgId}
+          propertyId={propertyId}
+        />
+      )}
+
+      {(activeTab === 'inter-city' || activeTab === 'multi-city') && (
+        <ComingSoonCard tab={activeTab} />
       )}
     </div>
   )
@@ -553,6 +635,331 @@ function Spinner() {
   return (
     <div className="flex h-40 items-center justify-center text-sm text-[var(--color-text-muted)]">
       Loading…
+    </div>
+  )
+}
+
+// ── Coming Soon card ──────────────────────────────────────────────────────────
+
+function ComingSoonCard({ tab }: { tab: 'inter-city' | 'multi-city' }) {
+  const label = tab === 'inter-city' ? 'Inter-city' : 'Multi-city'
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
+      <p className="text-base font-semibold text-[var(--color-text)]">{label} — Coming soon</p>
+      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+        This feature is planned for a future release.
+      </p>
+    </div>
+  )
+}
+
+// ── Flexible Dates — shared toggle with nullable/inherited support ─────────────
+
+const fdInputCls =
+  'w-24 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]'
+
+function FdToggle({
+  label,
+  checked,
+  inherited,
+  onChange,
+  onReset,
+}: {
+  label: string
+  checked: boolean | null
+  inherited?: boolean
+  onChange: (v: boolean) => void
+  onReset?: () => void
+}) {
+  const effective = checked ?? inherited ?? false
+  const isInheriting = checked === null && inherited !== undefined
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {isInheriting && (
+          <span className="text-xs text-[var(--color-text-muted)]">(inherited)</span>
+        )}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={effective}
+          onClick={() => onChange(!effective)}
+          className={[
+            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+            effective ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]',
+            isInheriting ? 'opacity-60' : '',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+              effective ? 'translate-x-4' : 'translate-x-0',
+            ].join(' ')}
+          />
+        </button>
+        {onReset && checked !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FdNumberField({
+  label,
+  value,
+  inherited,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value: number | null
+  inherited?: number
+  onChange: (v: number | null) => void
+  onReset?: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
+      <div className="flex items-center gap-2">
+        {value === null && inherited !== undefined && (
+          <span className="text-xs text-[var(--color-text-muted)]">({inherited} inherited)</span>
+        )}
+        <input
+          type="number"
+          min={0}
+          max={3}
+          value={value ?? ''}
+          placeholder={inherited !== undefined ? String(inherited) : ''}
+          onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+          className={fdInputCls}
+        />
+        {onReset && value !== null && (
+          <button type="button" onClick={onReset} className="text-xs text-[var(--color-primary)] underline">
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Flexible Dates — System defaults section ──────────────────────────────────
+
+function SystemFlexibleDatesSection() {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['flexible-dates-system'],
+    queryFn: () => apiClient.getSystemFlexibleDatesConfig(),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<FlexibleDatesEffective>) => apiClient.updateSystemFlexibleDatesConfig(u),
+    onSuccess: updated => { qc.setQueryData(['flexible-dates-system'], updated) },
+  })
+
+  const [form, setForm] = useState<SystemFlexibleDatesConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = (k: keyof SystemFlexibleDatesConfigResponse) => (v: unknown) =>
+    setForm(f => f ? { ...f, [k]: v } : f)
+
+  return (
+    <div className="space-y-1">
+      <FdToggle
+        label="Enabled"
+        checked={form.enabled}
+        onChange={v => set('enabled')(v)}
+      />
+      <FdNumberField
+        label="Days before"
+        value={form.daysBefore}
+        onChange={v => set('daysBefore')(v ?? 0)}
+      />
+      <FdNumberField
+        label="Days after"
+        value={form.daysAfter}
+        onChange={v => set('daysAfter')(v ?? 0)}
+      />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── Flexible Dates — Chain override section ───────────────────────────────────
+
+function OrgFlexibleDatesSection({ orgId }: { orgId: number }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['flexible-dates-org', orgId],
+    queryFn: () => apiClient.getOrgFlexibleDatesConfig(orgId),
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<OrgFlexibleDatesConfigResponse>) => apiClient.updateOrgFlexibleDatesConfig(orgId, u),
+    onSuccess: updated => { qc.setQueryData(['flexible-dates-org', orgId], updated) },
+  })
+
+  const [form, setForm] = useState<OrgFlexibleDatesConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const eff = data.effective
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof OrgFlexibleDatesConfigResponse>(k: K) =>
+    (v: OrgFlexibleDatesConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  return (
+    <div className="space-y-1">
+      <FdToggle
+        label="Enabled"
+        checked={form.enabled}
+        inherited={eff.enabled}
+        onChange={v => set('enabled')(v)}
+        onReset={() => set('enabled')(null)}
+      />
+      <FdNumberField
+        label="Days before"
+        value={form.daysBefore}
+        inherited={eff.daysBefore}
+        onChange={v => set('daysBefore')(v)}
+        onReset={() => set('daysBefore')(null)}
+      />
+      <FdNumberField
+        label="Days after"
+        value={form.daysAfter}
+        inherited={eff.daysAfter}
+        onChange={v => set('daysAfter')(v)}
+        onReset={() => set('daysAfter')(null)}
+      />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── Flexible Dates — Property settings section ────────────────────────────────
+
+function PropertyFlexibleDatesSection({ propertyId }: { propertyId: number }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['flexible-dates-property', propertyId],
+    queryFn: () => apiClient.getPropertyFlexibleDatesConfig(propertyId),
+    enabled: propertyId > 0,
+  })
+  const saveMutation = useMutation({
+    mutationFn: (u: Partial<PropertyFlexibleDatesConfigResponse>) =>
+      apiClient.updatePropertyFlexibleDatesConfig(propertyId, u),
+    onSuccess: updated => { qc.setQueryData(['flexible-dates-property', propertyId], updated) },
+  })
+
+  const [form, setForm] = useState<PropertyFlexibleDatesConfigResponse | null>(null)
+  useEffect(() => { if (data) setForm(data) }, [data])
+
+  if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
+
+  const eff = data.effective
+  const dirty = JSON.stringify(form) !== JSON.stringify(data)
+  const set = <K extends keyof PropertyFlexibleDatesConfigResponse>(k: K) =>
+    (v: PropertyFlexibleDatesConfigResponse[K]) =>
+      setForm(f => f ? { ...f, [k]: v } : f)
+
+  return (
+    <div className="space-y-1">
+      <FdToggle
+        label="Enabled"
+        checked={form.enabled}
+        inherited={eff.enabled}
+        onChange={v => set('enabled')(v)}
+        onReset={() => set('enabled')(null)}
+      />
+      <FdNumberField
+        label="Days before"
+        value={form.daysBefore}
+        inherited={eff.daysBefore}
+        onChange={v => set('daysBefore')(v)}
+        onReset={() => set('daysBefore')(null)}
+      />
+      <FdNumberField
+        label="Days after"
+        value={form.daysAfter}
+        inherited={eff.daysAfter}
+        onChange={v => set('daysAfter')(v)}
+        onReset={() => set('daysAfter')(null)}
+      />
+      <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
+    </div>
+  )
+}
+
+// ── Flexible Dates — Tab container ────────────────────────────────────────────
+
+function FlexibleDatesTab({
+  isSuper,
+  isSystemLevel,
+  orgId,
+  propertyId,
+}: {
+  isSuper: boolean
+  isSystemLevel: boolean
+  orgId: number | null
+  propertyId: number | null
+}) {
+  // Super admin at system level: show all three sections
+  // Super admin at org level: show system + chain
+  // Super admin at property level: show all three
+  // Org admin: show chain section only
+  // Property admin: show hotel section only
+
+  const showSystem = isSuper
+  const showChain = isSuper || (!isSystemLevel && orgId !== null && propertyId === null)
+  const showProperty = propertyId !== null
+
+  // Resolve the orgId to use for chain section:
+  // At system level there's no org, so hide chain unless an org is selected
+  const chainOrgId = isSystemLevel ? null : orgId
+
+  return (
+    <div className="space-y-6">
+      {showSystem && (
+        <Section title="System Defaults" defaultOpen={isSystemLevel}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            System-wide defaults inherited by all chains.
+          </p>
+          <SystemFlexibleDatesSection />
+        </Section>
+      )}
+
+      {showChain && chainOrgId !== null && (
+        <Section title="Chain Override" defaultOpen={!isSystemLevel && propertyId === null}>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Chain overrides inherited by all properties in this chain. Leave null to inherit from system.
+          </p>
+          <OrgFlexibleDatesSection orgId={chainOrgId} />
+        </Section>
+      )}
+
+      {showProperty && propertyId !== null && (
+        <Section title="Hotel Settings" defaultOpen>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Property-specific overrides. Reset any field to inherit from chain defaults.
+          </p>
+          <PropertyFlexibleDatesSection propertyId={propertyId} />
+        </Section>
+      )}
+
+      {!showSystem && !showProperty && chainOrgId === null && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-12 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Select a chain or property to configure flexible dates.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
