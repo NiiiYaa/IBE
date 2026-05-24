@@ -394,6 +394,30 @@ export interface PropertyPricingConfigResponse {
   effective: SystemPricingConfigResponse
 }
 
+// ── Flexible Dates Config ─────────────────────────────────────────────────────
+
+export interface FlexibleDatesEffective {
+  enabled: boolean
+  daysBefore: number
+  daysAfter: number
+}
+
+export interface SystemFlexibleDatesConfigResponse extends FlexibleDatesEffective {}
+
+export interface OrgFlexibleDatesConfigResponse {
+  enabled: boolean | null
+  daysBefore: number | null
+  daysAfter: number | null
+  effective: FlexibleDatesEffective
+}
+
+export interface PropertyFlexibleDatesConfigResponse {
+  enabled: boolean | null
+  daysBefore: number | null
+  daysAfter: number | null
+  effective: FlexibleDatesEffective
+}
+
 export interface PricingCollectionProgress {
   windowsDone: number
   totalWindows: number
