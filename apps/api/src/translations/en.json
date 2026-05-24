@@ -121,7 +121,17 @@
     "interHotelTransferSelf": "Self Transfer",
     "interHotelTransferHotel": "Free transfer arranged by the hotel",
     "interHotelTransferSponsored": "Sponsored Self Transfer (up to {amount} {currency})",
-    "interHotelFrom": "Starting from"
+    "interHotelFrom": "Starting from",
+    "multiCityTrip": "Multi-city Trip",
+    "multiCityAddCity": "Add city",
+    "multiCityRemoveCity": "Remove",
+    "multiCityLeg": "City {n}",
+    "multiCitySummary": "Summary",
+    "multiCitySelectHotel": "Select hotel",
+    "multiCityBook": "Book this leg",
+    "multiCityEmpty": "Select your stays for each city, then review the summary here.",
+    "multiCitySelectCity": "Select city",
+    "multiCitySearchResults": "Available rooms"
   },
   "properties": {
     "bookNow": "Book now",

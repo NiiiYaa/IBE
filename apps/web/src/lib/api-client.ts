@@ -2511,6 +2511,26 @@ export const apiClient = {
   async refreshInterHotelNearby(orgId: number): Promise<{ count: number }> {
     return apiRequest(`/api/v1/admin/interhotel/refresh/org/${orgId}`, { method: 'POST', body: JSON.stringify({}) })
   },
+
+  async getOrgMultiCityEffective(orgId: number): Promise<import('@ibe/shared').MultiCityEffective> {
+    return apiRequest(`/api/v1/multi-city/config/org/${orgId}/effective`)
+  },
+
+  async getSystemMultiCityConfig(): Promise<import('@ibe/shared').SystemMultiCityConfigResponse> {
+    return apiRequest('/api/v1/admin/multi-city/config/system')
+  },
+
+  async updateSystemMultiCityConfig(data: Partial<import('@ibe/shared').SystemMultiCityConfigResponse>): Promise<import('@ibe/shared').SystemMultiCityConfigResponse> {
+    return apiRequest('/api/v1/admin/multi-city/config/system', { method: 'PUT', body: JSON.stringify(data) })
+  },
+
+  async getOrgMultiCityConfig(orgId: number): Promise<import('@ibe/shared').OrgMultiCityConfigResponse> {
+    return apiRequest(`/api/v1/admin/multi-city/config/org/${orgId}`)
+  },
+
+  async updateOrgMultiCityConfig(orgId: number, data: Partial<import('@ibe/shared').OrgMultiCityConfigResponse>): Promise<import('@ibe/shared').OrgMultiCityConfigResponse> {
+    return apiRequest(`/api/v1/admin/multi-city/config/org/${orgId}`, { method: 'PUT', body: JSON.stringify(data) })
+  },
 }
 
 export { ApiClientError }
