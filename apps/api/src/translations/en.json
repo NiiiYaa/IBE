@@ -106,7 +106,14 @@
     "pricesEstimate": "Prices shown in {currency} are estimates based on today's exchange rate. You will be charged in {chargeCurrency}.",
     "exploreActivities": "Explore Activities & Tours →",
     "nearestAirports": "Nearest airports",
-    "pricesIn": "* Indicative \"Starting From\" prices in {currency} — final charge based on search criteria, in hotel currency."
+    "pricesIn": "* Indicative \"Starting From\" prices in {currency} — final charge based on search criteria, in hotel currency.",
+    "flexibleUnavailable": "Unfortunately, we do not have availability for your selected dates.",
+    "flexibleNearby": "However, we do have availability for nearby dates:",
+    "flexibleDayBefore": "1 day before",
+    "flexibleDaysBefore": "{n} days before",
+    "flexibleDayAfter": "1 day after",
+    "flexibleDaysAfter": "{n} days after",
+    "flexibleFrom": "from"
   },
   "properties": {
     "bookNow": "Book now",

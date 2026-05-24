@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { decodeSearchParams, encodeSearchParams } from '@/lib/search-params'
 import { useSearch } from '@/hooks/use-search'
 import { useProperty } from '@/hooks/use-property'
@@ -13,6 +14,7 @@ import { useConvertCurrency } from '@/hooks/use-exchange-rates'
 import { useOffersConstraints } from '@/hooks/use-offers-constraints'
 import { useIncentive } from '@/hooks/use-incentive'
 import { useSourceOrg } from '@/hooks/use-source-org'
+import { useFlexibleDateSearch } from '@/hooks/use-flexible-date-search'
 import { IncentiveWidget } from '@/components/incentive/IncentiveWidget'
 import { RoomCard } from '@/components/search/RoomCard'
 import { RoomCardGrid } from '@/components/search/RoomCardGrid'
@@ -29,6 +31,9 @@ import { nightsBetween, formatCurrency } from '@ibe/shared'
 import { useSetAffiliateCookie } from '@/hooks/use-affiliate-cookie'
 import { NearestAirports } from '@/components/hotel/NearestAirports'
 import { AmadeusWLButton } from '@/components/amadeus/AmadeusWLButton'
+import { apiClient } from '@/lib/api-client'
+import type { FlexibleDateResult } from '@/hooks/use-flexible-date-search'
+import type { SearchUrlParams } from '@/lib/search-params'
 
 const SearchSidebar = dynamic(
   () => import('@/components/search/SearchSidebar').then(m => ({ default: m.SearchSidebar })),
@@ -66,6 +71,20 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
   const { bookingMode, maxRooms, multiRoomLimitBy } = useOffersConstraints(searchParams?.hotelId ?? null)
   const sourceOrg = useSourceOrg()
   const { data: incentive } = useIncentive(searchParams?.hotelId ?? null, locale, sourceOrg ?? undefined)
+  const propertyId = searchParams?.hotelId ?? undefined
+  const { data: flexConfig } = useQuery({
+    queryKey: ['flexible-dates-config', propertyId],
+    queryFn: () => apiClient.getFlexibleDatesConfig(propertyId!),
+    enabled: propertyId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  })
+  // primaryHasResults and flexResults are computed below after searchParams guard,
+  // but useFlexibleDateSearch must be called unconditionally here.
+  // We pass null for searchParams when it is null (hook handles null gracefully).
+  const primarySearchDone = !isLoading && !isError && data !== undefined
+  const primaryRoomCount = data?.results.flatMap(r => r.rooms).length ?? 0
+  const primaryHasResultsForHook = primarySearchDone && primaryRoomCount > 0
+  const flexResults = useFlexibleDateSearch(searchParams, flexConfig, primaryHasResultsForHook)
   const effectiveMaxRooms = bookingMode === 'multi' && multiRoomLimitBy === 'search' && searchParams !== null
     ? Math.min(searchParams.rooms.length, maxRooms)
     : maxRooms
@@ -277,12 +296,63 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         </div>
       )}
 
-      {data && allRooms.length === 0 && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
-          <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
-          <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
-        </div>
-      )}
+      {data && allRooms.length === 0 && (() => {
+        const hasLoadingFlex = flexResults.some(r => r.isLoading)
+        const hasResolvedFlex = flexResults.some(r => !r.isLoading && r.data !== undefined)
+
+        if (hasResolvedFlex) {
+          // Case A: at least one flexible date window has availability
+          return (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
+                <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
+              </div>
+              {flexResults
+                .filter(r => !r.isLoading)
+                .map(r => (
+                  <FlexibleDateSection
+                    key={r.label}
+                    result={r}
+                    searchParams={searchParams}
+                    hotelConfig={hotelConfig}
+                    roomDetailMap={roomDetailMap}
+                    locale={locale}
+                    dispCur={dispCur}
+                    convert={convert}
+                    isMultiMode={isMultiMode}
+                    t={t}
+                  />
+                ))}
+            </div>
+          )
+        }
+
+        if (hasLoadingFlex) {
+          // Case B: flexible searches are still in progress
+          return (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
+              <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
+              <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
+              <p className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Checking nearby dates…
+              </p>
+            </div>
+          )
+        }
+
+        // Case C: all flexible searches resolved with zero rooms, or feature disabled
+        return (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
+            <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
+            <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
+          </div>
+        )
+      })()}
 
       {roomSearchLayout === 'cards' ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -463,5 +533,136 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
         </div>
       )}
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FlexibleDateSection — renders one alternative-date accordion panel
+// ---------------------------------------------------------------------------
+
+interface FlexibleDateSectionProps {
+  result: FlexibleDateResult
+  searchParams: NonNullable<ReturnType<typeof decodeSearchParams>>
+  hotelConfig: ReturnType<typeof useHotelConfig>['data']
+  roomDetailMap: Map<number, RoomDetail>
+  locale: string
+  dispCur: string
+  convert: (amount: number) => number
+  isMultiMode: boolean
+  t: (key: string, vars?: Record<string, string | number>) => string
+}
+
+function FlexibleDateSection({
+  result,
+  searchParams,
+  hotelConfig,
+  roomDetailMap,
+  locale,
+  dispCur,
+  convert,
+  isMultiMode,
+  t,
+}: FlexibleDateSectionProps) {
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  const flexNights = nightsBetween(result.checkIn, result.checkOut)
+  const flexRooms = result.data?.results.flatMap(r => r.rooms) ?? []
+
+  const lowestPrice = flexRooms.length > 0
+    ? Math.min(...flexRooms.flatMap(r => r.rates.map(rate => convert(rate.prices.sell.amount))))
+    : undefined
+
+  const roomSearchLayout = hotelConfig?.roomSearchLayout ?? 'rows'
+
+  function handleFlexRateSelect(room: RoomOption, rate: RateOption) {
+    if (!result.data) return
+    // Build search params with shifted dates so booking page uses the correct window
+    const shiftedParams: SearchUrlParams = {
+      ...searchParams,
+      checkIn: result.checkIn,
+      checkOut: result.checkOut,
+    }
+    const qs = encodeSearchParams(shiftedParams)
+    qs.set('roomId', String(room.roomId))
+    qs.set('ratePlanId', String(rate.ratePlanId))
+    qs.set('searchId', result.data.searchId)
+    qs.set('price', String(rate.prices.sell.amount))
+    qs.set('priceCurrency', rate.prices.sell.currency)
+    router.push(`/booking?${qs.toString()}`)
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left hover:bg-[var(--color-surface-hover,var(--color-border))/10] transition-colors"
+      >
+        <div>
+          <span className="font-medium text-[var(--color-text)]">{result.label}</span>
+          <span className="ml-2 text-sm text-muted">
+            {result.checkIn} – {result.checkOut}
+          </span>
+          {lowestPrice !== undefined && (
+            <span className="ml-2 text-sm font-semibold text-primary">
+              · {t('flexibleFrom')} {formatCurrency(lowestPrice, dispCur, locale)}
+            </span>
+          )}
+        </div>
+        <svg
+          className={`h-5 w-5 shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && result.data && (
+        <div className="border-t border-[var(--color-border)] p-4 space-y-4">
+          {roomSearchLayout === 'cards' ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {flexRooms.map(room => (
+                <RoomCardGrid
+                  key={room.roomId}
+                  room={room}
+                  nights={flexNights}
+                  locale={locale}
+                  roomDetail={roomDetailMap.get(room.roomId)}
+                  remarks={result.data?.results.flatMap(r => r.remarks) ?? []}
+                  defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+                  onRateSelect={handleFlexRateSelect}
+                  displayCurrency={dispCur}
+                  convert={convert}
+                  {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+                    ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+                    : {})}
+                  {...(isMultiMode ? { selectLabel: t('addToBooking') } : {})}
+                />
+              ))}
+            </div>
+          ) : (
+            flexRooms.map(room => (
+              <RoomCard
+                key={room.roomId}
+                room={room}
+                nights={flexNights}
+                locale={locale}
+                roomDetail={roomDetailMap.get(room.roomId)}
+                remarks={result.data?.results.flatMap(r => r.remarks) ?? []}
+                defaultExpanded={hotelConfig?.roomRatesDefaultExpanded ?? false}
+                onRateSelect={handleFlexRateSelect}
+                displayCurrency={dispCur}
+                convert={convert}
+                {...(hotelConfig?.roomPrimaryImageIds?.[room.roomId] != null
+                  ? { primaryImageId: hotelConfig.roomPrimaryImageIds[room.roomId] }
+                  : {})}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
   )
 }
