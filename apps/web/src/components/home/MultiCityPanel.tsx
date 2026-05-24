@@ -18,7 +18,7 @@ import type { PropertyOption } from '@/components/search/SearchBar'
 type MultiCityLeg = {
   id: string
   city: string
-  propertyId: number | null
+  propertyIds: number[]
   checkIn: string
   checkOut: string
 }
@@ -28,7 +28,7 @@ function makeLeg(checkIn?: string): MultiCityLeg {
   return {
     id: Math.random().toString(36).slice(2, 9),
     city: '',
-    propertyId: null,
+    propertyIds: [],
     checkIn: ci,
     checkOut: addDays(ci, 3),
   }
@@ -80,6 +80,36 @@ function Segment({
 
 function Divider() {
   return <div className="my-3 w-px shrink-0 bg-[var(--color-border)]" />
+}
+
+// ── IndeterminateCheckbox — supports indeterminate state ──────────────────────
+
+function IndeterminateCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  indeterminate?: boolean
+  onChange: () => void
+  disabled?: boolean
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate ?? false
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      onClick={e => e.stopPropagation()}
+      className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+    />
+  )
 }
 
 // ── SharedBar — Guests + Nationality ─────────────────────────────────────────
@@ -135,10 +165,6 @@ function SharedBar({
 
   return (
     <div ref={containerRef} className="relative">
-      {/*
-        Mirror LegBar column structure so Nationality aligns with Check-out:
-        [Guests: flex=4.3] | [Nationality: flex=1.8] | [Nights spacer] | [Button spacer]
-      */}
       <div className="hidden sm:flex items-stretch overflow-hidden rounded-2xl bg-white shadow-2xl">
         <Segment
           label={t('guests')}
@@ -157,7 +183,7 @@ function SharedBar({
           panelId="shared-nationality"
           flex={1.8}
         />
-        {/* Invisible section — mirrors Nights + button column so Nationality aligns with Check-out */}
+        {/* Invisible spacer — mirrors Nights + button column so Nationality aligns with Check-out */}
         <div className="invisible flex items-stretch" aria-hidden>
           <Divider />
           <div className="flex shrink-0 flex-col items-center justify-center px-2 py-2">
@@ -194,14 +220,13 @@ function SharedBar({
   )
 }
 
-// ── LegBar — City + Check-in + Check-out + fixed-width Add/Remove ─────────────
+// ── LegBar ────────────────────────────────────────────────────────────────────
 
 interface LegBarProps {
   leg: MultiCityLeg
   properties: PropertyOption[]
   cities: string[]
-  /** Cities already picked in other legs — excluded from this leg's dropdown */
-  takenCities: string[]
+  takenPropertyIds: number[]
   canRemove: boolean
   canAdd: boolean
   onUpdate: (patch: Partial<Omit<MultiCityLeg, 'id'>>) => void
@@ -213,7 +238,7 @@ function LegBar({
   leg,
   properties,
   cities,
-  takenCities,
+  takenPropertyIds,
   canRemove,
   canAdd,
   onUpdate,
@@ -242,15 +267,52 @@ function LegBar({
     setPanel(prev => prev === 'calendar' && calField === field ? null : 'calendar')
   }
 
-  // Cities available for this leg = all cities minus those taken by other legs
-  const availableCities = cities.filter(c => !takenCities.includes(c))
+  // Cities that have at least one hotel not taken by another leg
+  const availableCities = cities.filter(city => {
+    const hotelsInCity = properties.filter(p => p.city === city)
+    return hotelsInCity.some(h => !takenPropertyIds.includes(h.id))
+  })
 
-  const selectedProperty = properties.find(p => p.id === leg.propertyId)
-  const cityDisplayValue = selectedProperty
-    ? properties.filter(p => p.city === leg.city).length > 1
-      ? `${leg.city} – ${selectedProperty.name}`
-      : leg.city
-    : leg.city || (t('multiCitySelectCity') ?? 'Select city')
+  // Build display value for the city segment
+  const hotelsInCurrentCity = leg.city ? properties.filter(p => p.city === leg.city) : []
+  let cityDisplayValue: string
+  if (leg.propertyIds.length === 0) {
+    cityDisplayValue = t('multiCitySelectCity') ?? 'Select city'
+  } else if (hotelsInCurrentCity.length === 1) {
+    cityDisplayValue = leg.city
+  } else if (leg.propertyIds.length === hotelsInCurrentCity.length) {
+    cityDisplayValue = `${leg.city} (${t('multiCityAll') ?? 'all'})`
+  } else if (leg.propertyIds.length === 1) {
+    const hotel = properties.find(p => p.id === leg.propertyIds[0])
+    cityDisplayValue = hotel ? `${leg.city} – ${hotel.name}` : leg.city
+  } else {
+    cityDisplayValue = `${leg.city} – ${leg.propertyIds.length} ${t('multiCityHotels') ?? 'hotels'}`
+  }
+
+  function toggleSingleHotel(city: string, propId: number) {
+    const isSelected = leg.propertyIds.includes(propId)
+    if (isSelected) {
+      const newIds = leg.propertyIds.filter(id => id !== propId)
+      onUpdate({ city: newIds.length > 0 ? city : '', propertyIds: newIds })
+    } else {
+      // Switching city: clear previous selection
+      if (leg.city && leg.city !== city) {
+        onUpdate({ city, propertyIds: [propId] })
+      } else {
+        onUpdate({ city, propertyIds: [...leg.propertyIds, propId] })
+      }
+    }
+  }
+
+  function toggleAllInCity(city: string, availableHotels: PropertyOption[]) {
+    const allSelected = availableHotels.every(h => leg.propertyIds.includes(h.id))
+    if (allSelected) {
+      onUpdate({ city: '', propertyIds: [] })
+    } else {
+      // Switching city: replace selection with all from new city
+      onUpdate({ city, propertyIds: availableHotels.map(h => h.id) })
+    }
+  }
 
   return (
     <div ref={containerRef} className="relative">
@@ -299,10 +361,6 @@ function LegBar({
           </span>
         </div>
 
-        {/*
-          Button column — ALWAYS rendered at the same width so segments above
-          don't shift. Buttons that aren't active are invisible (keep space).
-        */}
         <Divider />
         <div className="flex shrink-0 items-center gap-1.5 py-2 pl-1 pr-1.5">
           <button
@@ -328,8 +386,8 @@ function LegBar({
 
       {/* City dropdown */}
       {panel === 'city' && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
-          <div className="max-h-72 overflow-y-auto">
+        <div className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+          <div className="max-h-80 overflow-y-auto">
             {availableCities.length === 0 && (
               <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
                 {t('multiCityNoCities') ?? 'No more cities available'}
@@ -337,19 +395,30 @@ function LegBar({
             )}
             {availableCities.map(city => {
               const hotelsInCity = properties.filter(p => p.city === city)
+              const availableInCity = hotelsInCity.filter(h => !takenPropertyIds.includes(h.id))
+
               if (hotelsInCity.length === 1) {
                 const prop = hotelsInCity[0]!
+                const isTaken = takenPropertyIds.includes(prop.id)
+                const isSelected = leg.propertyIds.includes(prop.id)
                 return (
                   <button
                     key={city}
-                    onClick={() => { onUpdate({ city, propertyId: prop.id }); setPanel(null) }}
+                    disabled={isTaken}
+                    onClick={() => {
+                      toggleSingleHotel(city, prop.id)
+                      setPanel(null)
+                    }}
                     className={[
-                      'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
-                      leg.city === city ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                      'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors',
+                      isTaken
+                        ? 'cursor-not-allowed opacity-40'
+                        : 'hover:bg-[var(--color-primary-light)]',
+                      isSelected ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
                     ].join(' ')}
                   >
                     <span>{city}</span>
-                    {leg.city === city && (
+                    {isSelected && (
                       <svg className="h-4 w-4 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
@@ -357,32 +426,74 @@ function LegBar({
                   </button>
                 )
               }
+
+              // Multi-hotel city — tree with checkboxes
+              const selectedInCity = leg.city === city
+                ? availableInCity.filter(h => leg.propertyIds.includes(h.id))
+                : []
+              const allAvailableSelected = availableInCity.length > 0 && availableInCity.every(h => leg.propertyIds.includes(h.id))
+              const someSelected = selectedInCity.length > 0 && !allAvailableSelected
+
               return (
                 <div key={city}>
-                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                    {city}
+                  {/* City header row with checkbox */}
+                  <div
+                    className="flex cursor-pointer items-center gap-3 bg-gray-50 px-4 py-2.5 hover:bg-[var(--color-primary-light)] transition-colors"
+                    onClick={() => toggleAllInCity(city, availableInCity)}
+                  >
+                    <IndeterminateCheckbox
+                      checked={allAvailableSelected}
+                      indeterminate={someSelected}
+                      onChange={() => toggleAllInCity(city, availableInCity)}
+                    />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text)]">
+                      {city}
+                    </span>
                   </div>
-                  {hotelsInCity.map(prop => (
-                    <button
-                      key={prop.id}
-                      onClick={() => { onUpdate({ city, propertyId: prop.id }); setPanel(null) }}
-                      className={[
-                        'flex w-full items-center justify-between pl-7 pr-4 py-2.5 text-left text-sm transition-colors hover:bg-[var(--color-primary-light)]',
-                        prop.id === leg.propertyId ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
-                      ].join(' ')}
-                    >
-                      <span>{prop.name}</span>
-                      {prop.id === leg.propertyId && (
-                        <svg className="h-4 w-4 shrink-0 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
+                  {/* Individual hotel rows */}
+                  {hotelsInCity.map(prop => {
+                    const isTaken = takenPropertyIds.includes(prop.id)
+                    const isSelected = leg.propertyIds.includes(prop.id)
+                    return (
+                      <div
+                        key={prop.id}
+                        onClick={() => !isTaken && toggleSingleHotel(city, prop.id)}
+                        className={[
+                          'flex cursor-pointer items-center gap-3 py-2.5 pl-10 pr-4 transition-colors',
+                          isTaken
+                            ? 'cursor-not-allowed opacity-40'
+                            : 'hover:bg-[var(--color-primary-light)]',
+                        ].join(' ')}
+                      >
+                        <IndeterminateCheckbox
+                          checked={isSelected}
+                          onChange={() => !isTaken && toggleSingleHotel(city, prop.id)}
+                          disabled={isTaken}
+                        />
+                        <span className={[
+                          'text-sm',
+                          isSelected ? 'font-semibold text-[var(--color-primary)]' : 'text-[var(--color-text)]',
+                        ].join(' ')}>
+                          {prop.name}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
           </div>
+          {/* Close button for multi-hotel selections */}
+          {leg.propertyIds.length > 0 && (
+            <div className="border-t border-[var(--color-border)] px-4 py-2.5">
+              <button
+                onClick={() => setPanel(null)}
+                className="w-full rounded-lg bg-[var(--color-primary)] py-1.5 text-sm font-semibold text-white hover:opacity-90"
+              >
+                {t('multiCityDone') ?? 'Done'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -428,17 +539,20 @@ export function MultiCityPanel({
     new Set(properties.map(p => p.city).filter((c): c is string => Boolean(c)))
   )
 
+  function sortByCheckIn(arr: MultiCityLeg[]): MultiCityLeg[] {
+    return [...arr].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  }
+
   function addLeg(afterIdx: number) {
     if (legs.length >= maxLegs) return
     const prevLeg = legs[afterIdx]
-    // Require city to be selected before adding another leg
-    if (!prevLeg?.propertyId) return
+    if (!prevLeg?.propertyIds.length) return
     const newCheckIn = prevLeg.checkOut
     setLegs(prev => {
       const newLeg = makeLeg(newCheckIn)
       const next = [...prev]
       next.splice(afterIdx + 1, 0, newLeg)
-      return next
+      return sortByCheckIn(next)
     })
   }
 
@@ -447,46 +561,55 @@ export function MultiCityPanel({
   }
 
   function updateLeg(idx: number, patch: Partial<Omit<MultiCityLeg, 'id'>>) {
-    setLegs(prev => prev.map((leg, i) => i === idx ? { ...leg, ...patch } : leg))
+    setLegs(prev => {
+      const updated = prev.map((leg, i) => i === idx ? { ...leg, ...patch } : leg)
+      // Re-sort whenever dates change so bars always appear earliest→latest
+      if ('checkIn' in patch || 'checkOut' in patch) return sortByCheckIn(updated)
+      return updated
+    })
   }
 
-  const allLegsReady = legs.every(l => l.propertyId !== null && l.checkIn && l.checkOut)
+  const allLegsReady = legs.every(l => l.propertyIds.length > 0 && l.checkIn && l.checkOut)
   const totalAdults = rooms.reduce((s, r) => s + r.adults, 0)
 
-  // Summary stats — computed from configured legs (persists even when a new empty leg is added)
-  const readyLegs = legs.filter(l => l.propertyId !== null && l.checkIn && l.checkOut)
+  // Summary stats from configured legs
+  const readyLegs = legs.filter(l => l.propertyIds.length > 0 && l.checkIn && l.checkOut)
   const sortedReady = [...readyLegs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
   const minCheckIn = sortedReady[0]?.checkIn ?? null
   const maxCheckOut = sortedReady[sortedReady.length - 1]?.checkOut ?? null
   const totalNights = readyLegs.reduce((sum, l) => sum + nightsBetween(l.checkIn, l.checkOut), 0)
   const showSummary = readyLegs.length > 0 && minCheckIn && maxCheckOut
 
-  // Gap detection across ready legs
-  const sortedLegs = [...legs].sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  // Gap + overlap detection across sorted ready legs
   const gaps: { from: string; to: string }[] = []
-  for (let i = 0; i < sortedLegs.length - 1; i++) {
-    const cur = sortedLegs[i]
-    const next = sortedLegs[i + 1]
-    if (cur && next && cur.checkOut < next.checkIn) {
+  const overlaps: { cityA: string; cityB: string }[] = []
+  for (let i = 0; i < sortedReady.length - 1; i++) {
+    const cur = sortedReady[i]!
+    const next = sortedReady[i + 1]!
+    if (cur.checkOut < next.checkIn) {
       gaps.push({ from: cur.checkOut, to: next.checkIn })
+    } else if (cur.checkOut > next.checkIn) {
+      overlaps.push({ cityA: cur.city || `Stay ${i + 1}`, cityB: next.city || `Stay ${i + 2}` })
     }
   }
 
   function handleCheckAvailability() {
+    // Expand legs with multiple propertyIds into individual search legs
+    const expandedLegs = legs
+      .filter(l => l.propertyIds.length > 0 && l.checkIn && l.checkOut)
+      .flatMap(l => l.propertyIds.map(pid => ({
+        propertyId: pid,
+        checkIn: l.checkIn,
+        checkOut: l.checkOut,
+        city: l.city,
+      })))
+
     const qs = encodeMultiCityParams({
-      legs: legs
-        .filter(l => l.propertyId !== null && l.checkIn && l.checkOut)
-        .map(l => ({
-          propertyId: l.propertyId!,
-          checkIn: l.checkIn,
-          checkOut: l.checkOut,
-          city: l.city,
-        })),
+      legs: expandedLegs,
       adults: totalAdults,
       ...(nationality ? { nationality } : {}),
       ...(promoCode ? { promoCode } : {}),
     })
-    // Preserve tenant routing params (used in non-subdomain dev/staging mode)
     const chain = currentSearchParams.get('chain')
     const hotelId = currentSearchParams.get('hotelId')
     if (chain) qs.set('chain', chain)
@@ -506,27 +629,38 @@ export function MultiCityPanel({
         onNationalityChange={setNationality}
       />
 
-      {/* One bar per leg */}
+      {/* One bar per leg — always sorted by checkIn */}
       {legs.map((leg, idx) => {
-        const takenCities = legs
+        const takenPropertyIds = legs
           .filter((_, i) => i !== idx)
-          .map(l => l.city)
-          .filter(Boolean)
+          .flatMap(l => l.propertyIds)
         return (
           <LegBar
             key={leg.id}
             leg={leg}
             properties={properties}
             cities={cities}
-            takenCities={takenCities}
+            takenPropertyIds={takenPropertyIds}
             canRemove={legs.length > 1}
-            canAdd={idx === legs.length - 1 && legs.length < maxLegs && leg.propertyId !== null}
+            canAdd={idx === legs.length - 1 && legs.length < maxLegs && leg.propertyIds.length > 0}
             onUpdate={(patch) => updateLeg(idx, patch)}
             onAdd={() => addLeg(idx)}
             onRemove={() => removeLeg(idx)}
           />
         )
       })}
+
+      {/* Overlap warning */}
+      {allLegsReady && overlaps.length > 0 && (
+        <div className="hidden sm:flex flex-col gap-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span className="font-medium">{t('multiCityOverlapWarning') ?? 'Date overlap between stays:'}</span>
+          <ul className="list-disc pl-4">
+            {overlaps.map((o, i) => (
+              <li key={i}>{o.cityA} ↔ {o.cityB}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Gap warning */}
       {allLegsReady && gaps.length > 0 && (
