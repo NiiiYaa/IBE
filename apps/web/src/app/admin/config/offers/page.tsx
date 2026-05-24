@@ -1593,7 +1593,7 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
 
   if (!data || !form) return <div className="text-sm text-[var(--color-text-muted)]">Loading…</div>
 
-  const eff = form.effective
+  const eff = data.effective
   const dirty = JSON.stringify(form) !== JSON.stringify(data)
 
   return (
@@ -1607,17 +1607,13 @@ function OrgMultiCitySection({ orgId }: { orgId: number }) {
       />
       <IhNumberField
         label="Max city legs"
-        value={form.maxLegs ?? eff.maxLegs}
+        value={form.maxLegs}
+        inherited={eff.maxLegs}
         min={2}
         max={6}
         onChange={v => setForm(f => f ? { ...f, maxLegs: v } : f)}
+        onReset={() => setForm(f => f ? { ...f, maxLegs: null } : f)}
       />
-      {form.maxLegs !== null && (
-        <button type="button" onClick={() => setForm(f => f ? { ...f, maxLegs: null } : f)}
-          className="text-xs text-[var(--color-primary)] underline">
-          Reset to inherited ({eff.maxLegs})
-        </button>
-      )}
       <SaveBar isDirty={dirty} isSaving={saveMutation.isPending} onSave={() => saveMutation.mutate(form)} />
     </div>
   )
