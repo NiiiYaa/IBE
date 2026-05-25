@@ -11,7 +11,7 @@ import { PropertySelector } from './PropertySelector'
 import { apiClient } from '@/lib/api-client'
 
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
-type Section = { title: string; items: NavItem[]; href?: string; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
+type Section = { title: string; items: NavItem[]; href?: string; minRole?: 'admin' | 'super'; comingSoon?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean; external?: boolean }
 
 function isLocalHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' ||
@@ -136,6 +136,12 @@ const SECTIONS: Section[] = [
       { href: '/admin/clusters', label: 'Clusters', minRole: 'admin' },
       { href: '/admin/b2b', label: 'B2B Access', minRole: 'super' },
     ],
+  },
+  {
+    title: 'Help',
+    href: '/api/v1/admin/manual',
+    external: true,
+    items: [],
   },
 ]
 
@@ -431,7 +437,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* Main nav */}
         <nav className="flex flex-1 items-center gap-0.5 overflow-x-auto">
-          {visibleSections.map(({ title, href: sectionHref, items: rawItems, minRole, comingSoon }) => {
+          {visibleSections.map(({ title, href: sectionHref, items: rawItems, minRole, comingSoon, external }) => {
             const isActive = activeSection === title
             if (comingSoon) return (
               <span key={title} className="flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--color-text-muted)] opacity-50">
@@ -449,6 +455,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-background)] hover:text-[var(--color-text)]',
             ].join(' ')
+            if (external && firstHref) return (
+              <a key={title} href={firstHref} target="_blank" rel="noopener noreferrer" className={cls}>
+                {title}{minRole && <RoleBadge role={minRole} />}
+              </a>
+            )
             return firstHref ? (
               <Link key={title} href={firstHref} className={cls}>
                 {title}{minRole && <RoleBadge role={minRole} />}
