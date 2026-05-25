@@ -36,6 +36,29 @@ export type ManualGenerateEvent =
   | { type: 'error'; title: string; message: string }
   | { type: 'complete' }
 
+// ── Background job state ──────────────────────────────────────────────────────
+
+interface JobState {
+  running: boolean
+  events: ManualGenerateEvent[]
+}
+
+let _job: JobState = { running: false, events: [] }
+
+export function getJobState(): JobState {
+  return _job
+}
+
+export function startGenerationJob(): void {
+  if (_job.running) return
+  _job = { running: true, events: [] }
+  void generateManual((event) => {
+    _job.events.push(event)
+  }).finally(() => {
+    _job.running = false
+  })
+}
+
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 const REPO_ROOT = resolve(process.cwd(), '../..')

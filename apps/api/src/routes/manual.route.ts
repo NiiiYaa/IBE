@@ -4,7 +4,8 @@ import { resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { env } from '../config/env.js'
 import {
-  generateManual,
+  startGenerationJob,
+  getJobState,
   loadManualData,
   filterSectionsByRole,
   renderManualHtml,
@@ -40,10 +41,16 @@ export async function manualRoutes(fastify: FastifyInstance) {
     return reply.send({ ok: true })
   })
 
-  // ── New: AI generation (SSE) ────────────────────────────────────────────────
+  // ── New: AI generation (SSE, background job) ───────────────────────────────
+  // Generation runs detached from the HTTP connection so Render's request
+  // timeout cannot kill it. The SSE stream polls an in-memory job state every
+  // 300 ms. If the browser disconnects and reconnects, it replays all events
+  // from the start and catches up instantly.
 
   fastify.post('/admin/super/manual/generate', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+
+    startGenerationJob()
 
     reply.raw.setHeader('Content-Type', 'text/event-stream')
     reply.raw.setHeader('Cache-Control', 'no-cache')
@@ -51,20 +58,41 @@ export async function manualRoutes(fastify: FastifyInstance) {
     reply.raw.setHeader('X-Accel-Buffering', 'no')
     reply.raw.flushHeaders()
 
-    const keepalive = setInterval(() => {
-      try { reply.raw.write(': ping\n\n') } catch { /* connection closed */ }
-    }, 20_000)
+    await new Promise<void>((resolve) => {
+      let lastIndex = 0
 
-    try {
-      await generateManual((event) => {
-        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
+      const keepalive = setInterval(() => {
+        try { reply.raw.write(': ping\n\n') } catch { /* closed */ }
+      }, 20_000)
+
+      const poll = setInterval(() => {
+        const state = getJobState()
+        const newEvents = state.events.slice(lastIndex)
+        try {
+          for (const event of newEvents) {
+            reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
+          }
+          lastIndex += newEvents.length
+          if (!state.running && lastIndex >= state.events.length) {
+            clearInterval(poll)
+            clearInterval(keepalive)
+            reply.raw.end()
+            resolve()
+          }
+        } catch {
+          // client disconnected — generation continues in background
+          clearInterval(poll)
+          clearInterval(keepalive)
+          resolve()
+        }
+      }, 300)
+
+      request.raw.on('close', () => {
+        clearInterval(poll)
+        clearInterval(keepalive)
+        resolve()
       })
-    } catch (err) {
-      reply.raw.write(`data: ${JSON.stringify({ type: 'error', title: 'Fatal', message: err instanceof Error ? err.message : 'Generation failed' })}\n\n`)
-    } finally {
-      clearInterval(keepalive)
-      reply.raw.end()
-    }
+    })
   })
 
   // ── New: Serve manual HTML (role-filtered) ──────────────────────────────────
