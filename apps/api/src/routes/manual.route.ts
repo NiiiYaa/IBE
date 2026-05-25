@@ -89,7 +89,9 @@ export async function manualRoutes(fastify: FastifyInstance) {
     }
 
     const isFullManual = role === 'super' && audience !== 'hotel'
-    const title = isFullManual ? 'HG-IBE Admin Manual — Full' : 'HG-IBE Admin Manual'
+    const title = isFullManual
+      ? 'HyperGuest AI Concierge Booking Engine'
+      : 'HyperGuest AI Concierge Booking Engine — Hotel Edition'
     const html = renderManualHtml(sectionsToRender, title)
 
     void reply.header('Content-Type', 'text/html; charset=utf-8')

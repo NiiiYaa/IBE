@@ -441,6 +441,7 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
+<link rel="icon" type="image/png" href="/hg-favicon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a2e; background: #f8f9fb; }
@@ -452,8 +453,10 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
   .sidebar a { display: block; padding: 4px 8px; border-radius: 6px; font-size: 13px; color: #475569; text-decoration: none; transition: background .15s, color .15s; }
   .sidebar a:hover { background: #f1f5f9; color: #1e293b; }
   .content { flex: 1; padding: 48px 56px; max-width: 860px; }
-  .content h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #0f172a; }
-  .meta { font-size: 13px; color: #94a3b8; margin-bottom: 40px; }
+  .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+  .brand img { height: 40px; width: auto; }
+  .content h1 { font-size: 26px; font-weight: 700; color: #0f172a; }
+  .meta { font-size: 13px; color: #94a3b8; margin-top: 6px; margin-bottom: 40px; }
   .section { margin-bottom: 48px; padding-bottom: 48px; border-bottom: 1px solid #e2e8f0; }
   .section:last-child { border-bottom: none; }
   .section h2 { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
@@ -478,6 +481,9 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
     <ol>${tocItems}</ol>
   </nav>
   <main class="content">
+    <div class="brand">
+      <img src="/hyperguest-logo.png" alt="HyperGuest">
+    </div>
     <h1>${title}</h1>
     <p class="meta">Generated ${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
     ${bodyItems}
