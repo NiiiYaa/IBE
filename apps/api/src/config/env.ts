@@ -39,6 +39,8 @@ const EnvSchema = z.object({
 
   // Manual PDF path (defaults to apps/web/public/ in the monorepo)
   MANUAL_FILE_PATH: z.string().optional(),
+  // AI-generated manual JSON path (defaults to data/HG-IBE-Admin-Manual.json relative to API cwd)
+  MANUAL_JSON_PATH: z.string().optional(),
 
   // Stripe
   STRIPE_SECRET_KEY: z.string().optional(),
