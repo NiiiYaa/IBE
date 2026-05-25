@@ -369,7 +369,7 @@ function InlineMonthGrid({
 
             const dayData = dailyRates?.[date]
             const hasPrice = dayData && !isOverflow && !isPast && !isDisabled && dayData.price > 0
-            const isUnavailable = !!(dayData?.available === false && !isPast && !isOverflow)
+            const isUnavailable = !isOverflow && !isPast && !!dailyRates && (dayData === undefined || dayData.available === false)
             const dow = new Date(date + 'T00:00:00').getDay()
             const isWeekend = weekendHighlight && !isOverflow && (dow === 0 || dow === 6)
 

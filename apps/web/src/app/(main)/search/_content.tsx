@@ -312,87 +312,86 @@ export function SearchContent({ aiEnabled = false, searchAiLayoutDefault = false
       )}
 
       {data && allRooms.length === 0 && (() => {
-        // only fan out in single-room mode — multi-room cart integration is out of scope
-        if (!isMultiMode) {
-          const interHotelLoading = interHotelResult.isLoading
-          const hasLoadingFlex = flexResults.some(r => r.isLoading)
-          const anyLoading = interHotelLoading || hasLoadingFlex
-          const hasInterHotel = interHotelResult.packages.length > 0
-          const resolvedFlexResults = flexResults.filter(r => !r.isLoading && r.data !== undefined)
-          const hasResolvedFlex = resolvedFlexResults.length > 0
+        // InterHotel and flexible dates show regardless of booking mode — they suggest
+        // alternative hotels/dates and don't interact with the multi-room cart
+        const interHotelLoading = interHotelResult.isLoading
+        const hasLoadingFlex = flexResults.some(r => r.isLoading)
+        const anyLoading = interHotelLoading || hasLoadingFlex
+        const hasInterHotel = interHotelResult.packages.length > 0
+        const resolvedFlexResults = flexResults.filter(r => !r.isLoading && r.data !== undefined)
+        const hasResolvedFlex = resolvedFlexResults.length > 0
 
-          if (!anyLoading && !hasInterHotel && !hasResolvedFlex) {
-            // Case C: nothing found — show no-rooms message (falls through to end)
-          } else if (anyLoading && !hasInterHotel && !hasResolvedFlex) {
-            // Case B: still loading, nothing resolved yet — show loading indicator
-            return (
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
-                <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
-                <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
-                <p className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
-                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  {t('flexibleChecking')}
-                </p>
-              </div>
-            )
-          } else {
-            // Case A: has interhotel packages and/or flex results
-            return (
-              <div className="space-y-4">
-                {hasInterHotel && (
-                  <>
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-                      <p className="font-medium text-[var(--color-text)]">{t('interHotelUnavailable')}</p>
-                      <p className="mt-1 text-sm text-muted">{t('interHotelOffer')}</p>
-                    </div>
-                    {interHotelResult.packages.map((pkg, i) => (
-                      <InterHotelPackageSection
-                        key={pkg.segments[0]?.checkIn ?? i}
-                        pkg={pkg}
-                        searchParams={searchParams}
-                        hotelConfig={hotelConfig}
-                        roomDetailMap={roomDetailMap}
-                        locale={locale}
-                        dispCur={dispCur}
-                        convert={convert}
-                        t={t}
-                      />
-                    ))}
-                  </>
-                )}
-                {hasResolvedFlex && (
-                  <>
-                    {!hasInterHotel && (
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-                        <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
-                        <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
-                      </div>
-                    )}
-                    {resolvedFlexResults.map(r => (
-                      <FlexibleDateSection
-                        key={r.checkIn}
-                        result={r}
-                        searchParams={searchParams}
-                        hotelConfig={hotelConfig}
-                        roomDetailMap={roomDetailMap}
-                        locale={locale}
-                        dispCur={dispCur}
-                        convert={convert}
-                        isMultiMode={isMultiMode}
-                        t={t}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            )
-          }
+        if (anyLoading && !hasInterHotel && !hasResolvedFlex) {
+          // Case B: still loading, nothing resolved yet — show loading indicator
+          return (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
+              <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
+              <p className="mt-1 text-sm text-muted">{t('tryDifferentDates')}</p>
+              <p className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                {t('flexibleChecking')}
+              </p>
+            </div>
+          )
         }
 
-        // Case C: all searches resolved with zero rooms, features disabled, or multi-room mode
+        if (hasInterHotel || hasResolvedFlex) {
+          // Case A: has interhotel packages and/or flex results
+          return (
+            <div className="space-y-4">
+              {hasInterHotel && (
+                <>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                    <p className="font-medium text-[var(--color-text)]">{t('interHotelUnavailable')}</p>
+                    <p className="mt-1 text-sm text-muted">{t('interHotelOffer')}</p>
+                  </div>
+                  {interHotelResult.packages.map((pkg, i) => (
+                    <InterHotelPackageSection
+                      key={pkg.segments[0]?.checkIn ?? i}
+                      pkg={pkg}
+                      searchParams={searchParams}
+                      hotelConfig={hotelConfig}
+                      roomDetailMap={roomDetailMap}
+                      locale={locale}
+                      dispCur={dispCur}
+                      convert={convert}
+                      t={t}
+                    />
+                  ))}
+                </>
+              )}
+              {hasResolvedFlex && (
+                <>
+                  {!hasInterHotel && (
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+                      <p className="font-medium text-[var(--color-text)]">{t('flexibleUnavailable')}</p>
+                      <p className="mt-1 text-sm text-muted">{t('flexibleNearby')}</p>
+                    </div>
+                  )}
+                  {resolvedFlexResults.map(r => (
+                    <FlexibleDateSection
+                      key={r.checkIn}
+                      result={r}
+                      searchParams={searchParams}
+                      hotelConfig={hotelConfig}
+                      roomDetailMap={roomDetailMap}
+                      locale={locale}
+                      dispCur={dispCur}
+                      convert={convert}
+                      isMultiMode={isMultiMode}
+                      t={t}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          )
+        }
+
+        // Case C: all searches resolved with zero results
         return (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 text-center">
             <p className="font-medium text-[var(--color-text)]">{t('noRoomsAvailable')}</p>
