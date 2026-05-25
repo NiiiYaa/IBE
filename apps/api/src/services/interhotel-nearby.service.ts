@@ -23,21 +23,25 @@ async function backfillCoordinates(propertyIds: number[]): Promise<void> {
     },
     select: { propertyId: true },
   })
-  await Promise.allSettled(missing.map(async ({ propertyId }) => {
-    try {
-      const raw = await fetchPropertyStatic(propertyId)
-      const lat = raw.coordinates?.latitude ?? null
-      const lng = raw.coordinates?.longitude ?? null
-      if (lat == null || lng == null) return
-      await prisma.propertyDataProviderConfig.upsert({
-        where: { propertyId },
-        create: { propertyId, useOrg: true, lat, lng },
-        update: { lat, lng },
-      })
-    } catch {
-      // skip properties whose HG data can't be fetched
-    }
-  }))
+  // Batch HyperGuest API calls to avoid overwhelming the connection pool
+  const BACKFILL_BATCH = 10
+  for (let i = 0; i < missing.length; i += BACKFILL_BATCH) {
+    await Promise.allSettled(missing.slice(i, i + BACKFILL_BATCH).map(async ({ propertyId }) => {
+      try {
+        const raw = await fetchPropertyStatic(propertyId)
+        const lat = raw.coordinates?.latitude ?? null
+        const lng = raw.coordinates?.longitude ?? null
+        if (lat == null || lng == null) return
+        await prisma.propertyDataProviderConfig.upsert({
+          where: { propertyId },
+          create: { propertyId, useOrg: true, lat, lng },
+          update: { lat, lng },
+        })
+      } catch {
+        // skip properties whose HG data can't be fetched
+      }
+    }))
+  }
 }
 
 // Refresh: store ALL org property pairs (not radius-filtered); preserves manuallySelected overrides
@@ -63,37 +67,41 @@ export async function refreshNearbyHotels(orgId: number): Promise<{ count: numbe
 
   if (withCoords.length < 2) return { count: 0 }
 
-  let count = 0
-  const ops: Promise<unknown>[] = []
-
+  // Build all pairs (data only — no DB calls yet)
+  type Pair = { propertyId: number; nearbyPropertyId: number; distanceKm: number }
+  const pairs: Pair[] = []
   for (const a of withCoords) {
     for (const b of withCoords) {
       if (a.propertyId === b.propertyId) continue
-      const d = haversineKm(
-        a.propertyDataProviderConfig.lat,
-        a.propertyDataProviderConfig.lng,
-        b.propertyDataProviderConfig.lat,
-        b.propertyDataProviderConfig.lng,
-      )
-      ops.push(
-        prisma.nearbyHotel.upsert({
-          where: {
-            propertyId_nearbyPropertyId: {
-              propertyId: a.propertyId,
-              nearbyPropertyId: b.propertyId,
-            },
-          },
-          create: { propertyId: a.propertyId, nearbyPropertyId: b.propertyId, distanceKm: d },
-          update: { distanceKm: d },
-          // manuallySelected is NOT updated on refresh — preserves existing overrides
-        }),
-      )
-      count++
+      pairs.push({
+        propertyId: a.propertyId,
+        nearbyPropertyId: b.propertyId,
+        distanceKm: haversineKm(
+          a.propertyDataProviderConfig.lat,
+          a.propertyDataProviderConfig.lng,
+          b.propertyDataProviderConfig.lat,
+          b.propertyDataProviderConfig.lng,
+        ),
+      })
     }
   }
 
-  await Promise.all(ops)
-  return { count }
+  // Process in batches to avoid connection pool exhaustion on large chains
+  const UPSERT_BATCH = 50
+  for (let i = 0; i < pairs.length; i += UPSERT_BATCH) {
+    await Promise.all(
+      pairs.slice(i, i + UPSERT_BATCH).map(p =>
+        prisma.nearbyHotel.upsert({
+          where: { propertyId_nearbyPropertyId: { propertyId: p.propertyId, nearbyPropertyId: p.nearbyPropertyId } },
+          create: { propertyId: p.propertyId, nearbyPropertyId: p.nearbyPropertyId, distanceKm: p.distanceKm },
+          update: { distanceKm: p.distanceKm },
+          // manuallySelected is NOT updated on refresh — preserves existing overrides
+        })
+      )
+    )
+  }
+
+  return { count: pairs.length }
 }
 
 // Search-time: apply manual overrides + effective radius
