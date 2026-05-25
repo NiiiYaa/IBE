@@ -139,6 +139,11 @@ export async function manualRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/super/manual-ai-info', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const data = loadManualData()
-    return reply.send({ exists: !!data, generatedAt: data?.generatedAt ?? null, sectionCount: data?.sections.length ?? 0 })
+    return reply.send({
+      exists: !!data,
+      generatedAt: data?.generatedAt ?? null,
+      sectionCount: data?.sections.length ?? 0,
+      generating: getJobState().running,
+    })
   })
 }

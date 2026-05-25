@@ -37,6 +37,7 @@ export default function ManualPage() {
   const { data: aiInfo, isLoading: aiLoading } = useQuery({
     queryKey: ['manual-ai-info'],
     queryFn: () => apiClient.getManualAiInfo(),
+    refetchInterval: (query) => query.state.data?.generating ? 3000 : false,
   })
 
   async function handleUpload(e: React.FormEvent) {
@@ -106,9 +107,13 @@ export default function ManualPage() {
       reader.cancel().catch(() => {})
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        setGenerateError(err instanceof Error ? err.message : 'Generation failed')
-        // Refresh ai-info so the UI shows however many sections were saved before the drop
+        // Refresh to check if generation is still running in background
         await qc.invalidateQueries({ queryKey: ['manual-ai-info'] })
+        const info = qc.getQueryData<{ generating: boolean }>(['manual-ai-info'])
+        if (!info?.generating) {
+          setGenerateError(err instanceof Error ? err.message : 'Generation failed')
+        }
+        // If still generating, refetchInterval will keep polling — no error shown
       }
     } finally {
       setGenerating(false)
@@ -171,12 +176,18 @@ export default function ManualPage() {
           </ul>
         )}
 
-        {generateError && (
+        {aiInfo?.generating && !generating && (
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Generation running in background — {aiInfo.sectionCount} section{aiInfo.sectionCount !== 1 ? 's' : ''} saved so far…
+          </p>
+        )}
+
+        {generateError && !aiInfo?.generating && (
           <div className="space-y-1">
             <p className="text-sm text-[var(--color-error)]">{generateError}</p>
             {aiInfo?.exists && (
               <p className="text-xs text-[var(--color-text-muted)]">
-                {aiInfo.sectionCount} section{aiInfo.sectionCount !== 1 ? 's' : ''} saved before the connection dropped — you can view the partial manual or retry to complete it.
+                {aiInfo.sectionCount} section{aiInfo.sectionCount !== 1 ? 's' : ''} saved — you can view the partial manual or retry to complete it.
               </p>
             )}
           </div>

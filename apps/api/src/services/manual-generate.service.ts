@@ -383,13 +383,12 @@ Below are the relevant source files for this section. Extract the meaningful UI 
 ${filesContent}`
 
   const adapter = getProviderAdapter(config.provider)
-  const response = await adapter.call(
-    [{ role: 'user', content: userPrompt }],
-    [],
-    SYSTEM_PROMPT,
-    config.apiKey,
-    config.model,
-  )
+  const response = await Promise.race([
+    adapter.call([{ role: 'user', content: userPrompt }], [], SYSTEM_PROMPT, config.apiKey, config.model),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('AI call timed out after 40s')), 40_000)
+    ),
+  ])
 
   if (response.stopReason === 'error') {
     throw new Error(`AI provider error: ${response.error ?? 'Unknown error'}`)

@@ -824,7 +824,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/super/manual-info')
   },
 
-  getManualAiInfo(): Promise<{ exists: boolean; generatedAt: string | null; sectionCount: number }> {
+  getManualAiInfo(): Promise<{ exists: boolean; generatedAt: string | null; sectionCount: number; generating: boolean }> {
     return apiRequest('/api/v1/admin/super/manual-ai-info')
   },
 
