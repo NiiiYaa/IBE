@@ -399,6 +399,9 @@ export function filterSectionsByRole(
 
 const SYSTEM_PROMPT = `You are writing a user manual for HG-IBE, a hotel booking engine admin panel used by hotel and chain operators. Write clear, practical, step-by-step documentation. Use markdown with headers (##, ###), bullet points, and short paragraphs. No fluff, no repetition. Focus on what the user needs to do and why.`
 
+const CALL_TIMEOUT_MS = 90_000
+const MAX_ATTEMPTS = 3
+
 async function callAI(sectionTitle: string, audience: string, filesContent: string): Promise<string> {
   const config = await resolveAIConfig()
   if (!config) {
@@ -418,18 +421,38 @@ Below are the relevant source files for this section. Extract the meaningful UI 
 ${filesContent}`
 
   const adapter = getProviderAdapter(config.provider)
-  const response = await Promise.race([
-    adapter.call([{ role: 'user', content: userPrompt }], [], SYSTEM_PROMPT, config.apiKey, config.model),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('AI call timed out after 40s')), 40_000)
-    ),
-  ])
 
-  if (response.stopReason === 'error') {
-    throw new Error(`AI provider error: ${response.error ?? 'Unknown error'}`)
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let response
+    try {
+      response = await Promise.race([
+        adapter.call([{ role: 'user', content: userPrompt }], [], SYSTEM_PROMPT, config.apiKey, config.model),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`AI call timed out after ${CALL_TIMEOUT_MS / 1000}s`)), CALL_TIMEOUT_MS)
+        ),
+      ])
+    } catch (err) {
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, attempt * 8_000))
+        continue
+      }
+      throw err
+    }
+
+    if (response.stopReason === 'error') {
+      const msg = response.error ?? 'Unknown error'
+      if (attempt < MAX_ATTEMPTS && msg.includes('503')) {
+        logger.warn({ section: sectionTitle, attempt }, '[Manual] 503 from provider, retrying')
+        await new Promise(r => setTimeout(r, attempt * 8_000))
+        continue
+      }
+      throw new Error(`AI provider error: ${msg}`)
+    }
+
+    return response.text ?? ''
   }
 
-  return response.text ?? ''
+  throw new Error('AI call failed after all retries')
 }
 
 // ── Main generate function ────────────────────────────────────────────────────
@@ -557,7 +580,7 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
     <div class="toc-print">
       <h2>Table of Contents</h2>
       <ol>
-        ${sections.map((s, i) => `<li>${i + 1}. ${s.title}</li>`).join('\n        ')}
+        ${sections.map(s => `<li>${s.title}</li>`).join('\n        ')}
       </ol>
     </div>
     ${bodyItems}
