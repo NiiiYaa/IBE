@@ -107,6 +107,8 @@ export default function ManualPage() {
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setGenerateError(err instanceof Error ? err.message : 'Generation failed')
+        // Refresh ai-info so the UI shows however many sections were saved before the drop
+        await qc.invalidateQueries({ queryKey: ['manual-ai-info'] })
       }
     } finally {
       setGenerating(false)
@@ -170,7 +172,14 @@ export default function ManualPage() {
         )}
 
         {generateError && (
-          <p className="text-sm text-[var(--color-error)]">{generateError}</p>
+          <div className="space-y-1">
+            <p className="text-sm text-[var(--color-error)]">{generateError}</p>
+            {aiInfo?.exists && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {aiInfo.sectionCount} section{aiInfo.sectionCount !== 1 ? 's' : ''} saved before the connection dropped — you can view the partial manual or retry to complete it.
+              </p>
+            )}
+          </div>
         )}
 
         {/* Downloads — shown only after manual exists */}
