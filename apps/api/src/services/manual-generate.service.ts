@@ -392,6 +392,50 @@ export async function readSectionFiles(files: string[]): Promise<string> {
   return parts.join('')
 }
 
+const STOP_WORDS = new Set([
+  'the','a','an','is','how','do','what','where','can','i','to','in','on','at',
+  'for','of','and','or','it','this','that','are','be','been','was','were','will',
+  'would','could','should','my','me','we','us','you','they','he','she','which',
+  'with','from','by','about','does','did','has','have','had','not','no','if',
+  'so','set','up','get','use','using','make',
+])
+
+export function scoreAndSelectSections(question: string, sections: ManualSection[]): ManualSection[] {
+  const keywords = question
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+
+  if (keywords.length === 0) return sections.slice(0, 4)
+
+  const scored = sections.map(s => {
+    const titleTokens = s.title.toLowerCase().split(/[^a-z0-9]+/)
+    const bodyTokens = s.markdown.slice(0, 500).toLowerCase().split(/[^a-z0-9]+/)
+    let score = 0
+    for (const kw of keywords) {
+      if (titleTokens.some(w => w.includes(kw))) score += 3
+      if (bodyTokens.some(w => w.includes(kw))) score += 1
+    }
+    return { section: s, score }
+  })
+
+  const top = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(s => s.section)
+
+  if (top.length > 0) return top
+
+  // Fallback: sections whose title shares the most characters with the question
+  const qLower = question.toLowerCase()
+  return scored
+    .map(s => ({ ...s, overlap: [...s.section.title.toLowerCase()].filter(c => c !== ' ' && qLower.includes(c)).length }))
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, 4)
+    .map(s => s.section)
+}
+
 export function filterSectionsByRole(
   sections: ManualSection[],
   role: string,
