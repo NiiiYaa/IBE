@@ -51,6 +51,10 @@ export async function manualRoutes(fastify: FastifyInstance) {
     reply.raw.setHeader('X-Accel-Buffering', 'no')
     reply.raw.flushHeaders()
 
+    const keepalive = setInterval(() => {
+      try { reply.raw.write(': ping\n\n') } catch { /* connection closed */ }
+    }, 20_000)
+
     try {
       await generateManual((event) => {
         reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
@@ -58,6 +62,7 @@ export async function manualRoutes(fastify: FastifyInstance) {
     } catch (err) {
       reply.raw.write(`data: ${JSON.stringify({ type: 'error', title: 'Fatal', message: err instanceof Error ? err.message : 'Generation failed' })}\n\n`)
     } finally {
+      clearInterval(keepalive)
       reply.raw.end()
     }
   })

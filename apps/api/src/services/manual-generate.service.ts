@@ -379,10 +379,31 @@ ${filesContent}`
 
 export async function generateManual(emit: (event: ManualGenerateEvent) => void): Promise<void> {
   const generatedAt = new Date().toISOString()
+
+  // Resume from a recent partial run: reuse sections that succeeded within the last 4 hours
+  const existing = loadManualData()
+  const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000
+  const reusable = new Map<string, ManualSection>()
+  if (existing && new Date(existing.generatedAt).getTime() > fourHoursAgo) {
+    for (const s of existing.sections) {
+      if (!s.markdown.startsWith('*Generation failed for this section:')) {
+        reusable.set(s.id, s)
+      }
+    }
+  }
+
   const sections: ManualSection[] = []
 
   for (const def of MANUAL_SECTIONS) {
     emit({ type: 'section:start', title: def.title })
+
+    const cached = reusable.get(def.id)
+    if (cached) {
+      sections.push(cached)
+      emit({ type: 'section:done', title: def.title })
+      continue
+    }
+
     try {
       const filesContent = await readSectionFiles(def.files)
       const markdown = await callAI(def.title, def.audience, filesContent)
