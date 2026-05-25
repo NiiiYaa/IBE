@@ -506,7 +506,7 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void,
 
 // ── HTML rendering ────────────────────────────────────────────────────────────
 
-export function renderManualHtml(sections: ManualSection[], title: string): string {
+export function renderManualHtml(sections: ManualSection[], title: string, edition?: string): string {
   const tocItems = sections
     .map(s => `<li><a href="#${s.id}">${s.title}</a></li>`)
     .join('\n')
@@ -537,7 +537,8 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
   .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
   .brand img { height: 40px; width: auto; }
   .content h1 { font-size: 26px; font-weight: 700; color: #0f172a; }
-  .meta { font-size: 13px; color: #94a3b8; margin-top: 6px; margin-bottom: 40px; }
+  .edition { font-size: 16px; color: #475569; margin-top: 4px; margin-bottom: 4px; }
+  .meta { font-size: 13px; color: #94a3b8; margin-top: 4px; margin-bottom: 40px; }
   .section { margin-bottom: 48px; padding-bottom: 48px; border-bottom: 1px solid #e2e8f0; }
   .section:last-child { border-bottom: none; }
   .section h2 { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
@@ -576,7 +577,8 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
       <img src="/hyperguest-logo.png" alt="HyperGuest">
     </div>
     <h1>${title}</h1>
-    <p class="meta">Generated ${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
+    ${edition ? `<p class="edition">${edition}</p>` : ''}
+    <p class="meta">${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
     <div class="toc-print">
       <h2>Table of Contents</h2>
       <ol>

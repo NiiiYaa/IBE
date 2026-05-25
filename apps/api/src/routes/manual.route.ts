@@ -140,10 +140,9 @@ export async function manualRoutes(fastify: FastifyInstance) {
     }
 
     const isFullManual = role === 'super' && audience !== 'hotel'
-    const title = isFullManual
-      ? 'HyperGuest AI Concierge Booking Engine'
-      : 'HyperGuest AI Concierge Booking Engine — Hotel Edition'
-    const html = renderManualHtml(sectionsToRender, title)
+    const title = 'HyperGuest AI Concierge Booking Engine'
+    const edition = isFullManual ? undefined : 'Hotel Edition'
+    const html = renderManualHtml(sectionsToRender, title, edition)
 
     if (format === 'pdf') {
       const filename = audience === 'hotel'
