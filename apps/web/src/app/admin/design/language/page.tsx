@@ -194,8 +194,8 @@ function SystemLanguageEditor() {
               >
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
-                {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
-                {code !== 'en' && LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
+                {(code === 'en' || pct != null) && <span className="opacity-60"> · {code === 'en' ? 100 : pct}%</span>}
+                {LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
               </button>
             )
           })}
@@ -393,8 +393,8 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
               >
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
-                {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
-                {code !== 'en' && LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
+                {(code === 'en' || pct != null) && <span className="opacity-60"> · {code === 'en' ? 100 : pct}%</span>}
+                {LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
               </button>
             )
           })}
@@ -1131,9 +1131,10 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   const localeOptions = visiblePool.map(code => ({ value: code, label: `${localeFlag(code)}  ${localeEnglishName(code)}` }))
   const localeItems = visiblePool.map(code => {
     const pct = coverageMap[code]
-    const pctStr = code !== 'en' && pct != null ? ` · ${pct}%` : ''
-    const speakers = code !== 'en' && LOCALE_SPEAKERS[code] != null ? ` · ${formatSpeakers(LOCALE_SPEAKERS[code]!)}` : ''
-    return { code, label: `${localeFlag(code)} ${localeEnglishName(code)} · ${localeName(code)}${pctStr}${speakers}` }
+    const nativePart = code !== 'en' ? ` · ${localeName(code)}` : ''
+    const pctStr = code === 'en' ? ' · 100%' : pct != null ? ` · ${pct}%` : ''
+    const speakers = LOCALE_SPEAKERS[code] != null ? ` · ${formatSpeakers(LOCALE_SPEAKERS[code]!)}` : ''
+    return { code, label: `${localeFlag(code)} ${localeEnglishName(code)}${nativePart}${pctStr}${speakers}` }
   })
   const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
   const rawActiveLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
