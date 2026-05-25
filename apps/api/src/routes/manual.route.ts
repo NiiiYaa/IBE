@@ -9,6 +9,8 @@ import {
   loadManualData,
   filterSectionsByRole,
   renderManualHtml,
+  generateOneSection,
+  MANUAL_SECTIONS,
 } from '../services/manual-generate.service.js'
 
 const MANUAL_PATH = env.MANUAL_FILE_PATH
@@ -171,11 +173,32 @@ export async function manualRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/super/manual-ai-info', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
     const data = await loadManualData()
+    const sectionsMeta = MANUAL_SECTIONS.map(def => {
+      const stored = data?.sections.find(s => s.id === def.id)
+      return {
+        id: def.id,
+        title: def.title,
+        failed: stored ? stored.markdown.startsWith('*Generation failed') : null,
+        missing: !stored,
+        updatedAt: stored?.updatedAt ?? null,
+      }
+    })
     return reply.send({
       exists: !!data,
       generatedAt: data?.generatedAt ?? null,
       sectionCount: data?.sections.length ?? 0,
       generating: getJobState().running,
+      sections: sectionsMeta,
     })
+  })
+
+  // ── New: Regenerate single section ──────────────────────────────────────────
+
+  fastify.post('/admin/super/manual/generate-section', async (request, reply) => {
+    if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
+    const { sectionId } = request.body as { sectionId: string }
+    if (!sectionId) return reply.status(400).send({ error: 'sectionId required' })
+    const result = await generateOneSection(sectionId)
+    return reply.send(result)
   })
 }

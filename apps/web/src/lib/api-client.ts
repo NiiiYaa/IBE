@@ -824,8 +824,22 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/super/manual-info')
   },
 
-  getManualAiInfo(): Promise<{ exists: boolean; generatedAt: string | null; sectionCount: number; generating: boolean }> {
+  getManualAiInfo(): Promise<{
+    exists: boolean
+    generatedAt: string | null
+    sectionCount: number
+    generating: boolean
+    sections: { id: string; title: string; failed: boolean | null; missing: boolean; updatedAt: string | null }[]
+  }> {
     return apiRequest('/api/v1/admin/super/manual-ai-info')
+  },
+
+  generateManualSection(sectionId: string): Promise<{ markdown: string; error?: string }> {
+    return apiRequest('/api/v1/admin/super/manual/generate-section', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sectionId }),
+    })
   },
 
   uploadManual(file: File): Promise<{ ok: boolean }> {

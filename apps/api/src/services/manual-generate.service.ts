@@ -22,6 +22,7 @@ export interface ManualSection {
   title: string
   audience: ManualSectionAudience
   markdown: string
+  updatedAt?: string
 }
 
 export interface ManualData {
@@ -459,6 +460,42 @@ ${filesContent}`
   throw new Error('AI call failed after all retries')
 }
 
+// ── Single-section regeneration ───────────────────────────────────────────────
+
+export async function generateOneSection(sectionId: string): Promise<{ markdown: string; error?: string }> {
+  const def = MANUAL_SECTIONS.find(s => s.id === sectionId)
+  if (!def) throw new Error(`Unknown section: ${sectionId}`)
+
+  const now = new Date().toISOString()
+  let markdown: string
+  try {
+    const filesContent = await readSectionFiles(def.files)
+    markdown = await callAI(def.title, def.audience, filesContent)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    markdown = `*Generation failed for this section: ${message}*`
+    const existing = await loadManualData()
+    const sections: ManualSection[] = existing?.sections ?? []
+    const idx = sections.findIndex(s => s.id === sectionId)
+    const failed: ManualSection = { id: def.id, title: def.title, audience: def.audience, markdown, updatedAt: now }
+    if (idx === -1) sections.push(failed)
+    else sections[idx] = failed
+    await saveManualData({ generatedAt: existing?.generatedAt ?? now, sections })
+    return { markdown, error: message }
+  }
+
+  // Merge into stored data
+  const existing = await loadManualData()
+  const sections: ManualSection[] = existing?.sections ?? []
+  const idx = sections.findIndex(s => s.id === sectionId)
+  const updated: ManualSection = { id: def.id, title: def.title, audience: def.audience, markdown, updatedAt: now }
+  if (idx === -1) sections.push(updated)
+  else sections[idx] = updated
+  await saveManualData({ generatedAt: existing?.generatedAt ?? now, sections })
+
+  return { markdown }
+}
+
 // ── Main generate function ────────────────────────────────────────────────────
 
 export async function generateManual(emit: (event: ManualGenerateEvent) => void, force = false): Promise<void> {
@@ -492,7 +529,7 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void,
     try {
       const filesContent = await readSectionFiles(def.files)
       const markdown = await callAI(def.title, def.audience, filesContent)
-      sections.push({ id: def.id, title: def.title, audience: def.audience, markdown })
+      sections.push({ id: def.id, title: def.title, audience: def.audience, markdown, updatedAt: new Date().toISOString() })
       // Save after every section so partial work is preserved if the connection drops
       await saveManualData({ generatedAt, sections: [...sections] })
       emit({ type: 'section:done', title: def.title })
@@ -500,7 +537,7 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void,
       const message = err instanceof Error ? err.message : 'Unknown error'
       logger.error({ section: def.id, err }, '[Manual] Section generation failed')
       emit({ type: 'error', title: def.title, message })
-      sections.push({ id: def.id, title: def.title, audience: def.audience, markdown: `*Generation failed for this section: ${message}*` })
+      sections.push({ id: def.id, title: def.title, audience: def.audience, markdown: `*Generation failed for this section: ${message}*`, updatedAt: new Date().toISOString() })
       await saveManualData({ generatedAt, sections: [...sections] })
     }
   }
