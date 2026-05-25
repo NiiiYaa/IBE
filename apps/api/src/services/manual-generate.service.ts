@@ -463,6 +463,11 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
   .section li { margin-bottom: 4px; color: #334155; }
   .section strong { color: #0f172a; }
   .section code { font-family: monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .section table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 14px; }
+  .section thead tr { background: #f1f5f9; }
+  .section th { text-align: left; padding: 10px 14px; font-weight: 600; color: #1e293b; border: 1px solid #e2e8f0; }
+  .section td { padding: 10px 14px; border: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
+  .section tbody tr:nth-child(even) { background: #f8f9fb; }
   @media print { .sidebar { display: none; } .content { padding: 24px; } }
 </style>
 </head>
