@@ -8,7 +8,7 @@ vi.mock('./ai-config.service.js', () => ({
   decryptApiKey: vi.fn((k: string) => k),
 }))
 
-import { MANUAL_SECTIONS, readSectionFiles, filterSectionsByRole } from '../manual-generate.service.js'
+import { MANUAL_SECTIONS, readSectionFiles, filterSectionsByRole, extractUiContent } from '../manual-generate.service.js'
 
 describe('MANUAL_SECTIONS', () => {
   it('has no duplicate ids', () => {
@@ -50,5 +50,54 @@ describe('readSectionFiles', () => {
   it('returns empty string for non-existent file without throwing', async () => {
     const result = await readSectionFiles(['/nonexistent/file.tsx'])
     expect(result).toBe('')
+  })
+})
+
+describe('extractUiContent', () => {
+  it('strips imports and keeps return block for tsx files', () => {
+    const source = `
+'use client'
+import { useState } from 'react'
+import { apiClient } from '@/lib/api-client'
+
+export default function MyPage() {
+  const [x, setX] = useState(false)
+  async function save() { await apiClient.doSomething() }
+  return (
+    <div>
+      <label>My Field</label>
+      <p>Description text</p>
+    </div>
+  )
+}
+`.trim()
+
+    const result = extractUiContent(source, 'apps/web/src/app/admin/page.tsx')
+    expect(result).toContain('My Field')
+    expect(result).toContain('Description text')
+    expect(result).not.toContain("import { useState }")
+    expect(result).not.toContain("async function save")
+  })
+
+  it('extracts multiple return blocks from one file', () => {
+    const source = `
+import { x } from 'y'
+function A() {
+  return (<span>Label A</span>)
+}
+function B() {
+  return (<span>Label B</span>)
+}
+`.trim()
+
+    const result = extractUiContent(source, 'page.tsx')
+    expect(result).toContain('Label A')
+    expect(result).toContain('Label B')
+  })
+
+  it('returns truncated raw source for non-tsx files', () => {
+    const source = 'const x = 1\n'.repeat(400)
+    const result = extractUiContent(source, 'route.ts')
+    expect(result.length).toBeLessThanOrEqual(3100)
   })
 })

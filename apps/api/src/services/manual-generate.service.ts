@@ -253,18 +253,75 @@ export const MANUAL_SECTIONS: ManualSectionDef[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const MAX_FILE_CHARS = 6000
+const MAX_EXTRACTED_CHARS = 3000
+
+/**
+ * For TSX files: extract only `return (...)` blocks — the JSX that contains
+ * field labels, descriptions, toggle text, and section headers. Everything
+ * else (imports, types, hooks, state, API calls) is noise for documentation.
+ * For other files: return the raw source (truncated).
+ */
+export function extractUiContent(source: string, filePath: string): string {
+  if (!filePath.endsWith('.tsx')) {
+    return source.slice(0, MAX_EXTRACTED_CHARS)
+  }
+
+  const lines = source.split('\n')
+  const output: string[] = []
+  let inReturn = false
+  let depth = 0
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Skip directives and imports — pure noise
+    if (trimmed === "'use client'" || trimmed === '"use client"') continue
+    if (trimmed.startsWith('import ')) continue
+
+    if (!inReturn) {
+      // Detect start of a return block
+      if (/^\s*return\s*\(/.test(line)) {
+        inReturn = true
+        depth = 0
+      } else {
+        continue
+      }
+    }
+
+    output.push(line)
+
+    // Count parens to find where the return block closes.
+    // Skip chars inside string literals to avoid false counts.
+    let inStr: string | null = null
+    for (const ch of line) {
+      if (!inStr && (ch === '"' || ch === "'" || ch === '`')) { inStr = ch; continue }
+      if (inStr && ch === inStr) { inStr = null; continue }
+      if (!inStr) {
+        if (ch === '(') depth++
+        else if (ch === ')') {
+          depth--
+          if (depth <= 0) { inReturn = false; break }
+        }
+      }
+    }
+  }
+
+  const result = output.join('\n')
+  return result.length > MAX_EXTRACTED_CHARS
+    ? result.slice(0, MAX_EXTRACTED_CHARS) + '\n[... truncated]'
+    : result
+}
 
 export async function readSectionFiles(files: string[]): Promise<string> {
   const parts: string[] = []
   for (const relPath of files) {
     const absPath = resolve(REPO_ROOT, relPath)
     try {
-      const content = await readFile(absPath, 'utf-8')
-      const truncated = content.length > MAX_FILE_CHARS
-        ? content.slice(0, MAX_FILE_CHARS) + '\n[... truncated]'
-        : content
-      parts.push(`\n\n--- FILE: ${relPath} ---\n${truncated}`)
+      const raw = await readFile(absPath, 'utf-8')
+      const content = extractUiContent(raw, relPath)
+      if (content.trim()) {
+        parts.push(`\n\n--- FILE: ${relPath} ---\n${content}`)
+      }
     } catch {
       logger.warn({ relPath }, '[Manual] Source file not found, skipping')
     }
