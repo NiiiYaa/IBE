@@ -89,7 +89,20 @@ export async function searchInterHotel(
   )
 
   if (splitNights === null) {
-    return { packages: [] }
+    // Hotel A has zero availability — offer nearby hotels for the full stay instead
+    const packages: InterHotelPackageResponse[] = []
+    for (const hotelBId of nearbyIds) {
+      const segment = await confirmSegment(
+        hotelBId,
+        params.checkIn,
+        params.checkOut,
+        params.rooms,
+        params.nationality,
+        params.currency,
+      )
+      if (segment) packages.push(buildPackage([segment], config))
+    }
+    return { packages }
   }
 
   const splitDate = addDays(params.checkIn, splitNights)
