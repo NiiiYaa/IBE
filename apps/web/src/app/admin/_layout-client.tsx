@@ -497,13 +497,14 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
               <a
-                href="/HG-IBE-Admin-User-Manual.pdf"
-                download
-                title="Download user manual"
+                href="/api/v1/admin/manual"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Help & user manual"
                 className="rounded p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-background)] hover:text-[var(--color-text)]"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
               </a>
             </div>
