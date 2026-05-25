@@ -2531,6 +2531,10 @@ export const apiClient = {
     return apiRequest(`/api/v1/admin/interhotel/refresh/org/${orgId}`, { method: 'POST', body: JSON.stringify({}) })
   },
 
+  async refreshInterHotelNearbyProperty(propertyId: number): Promise<{ count: number }> {
+    return apiRequest(`/api/v1/admin/interhotel/refresh/property/${propertyId}`, { method: 'POST', body: JSON.stringify({}) })
+  },
+
   async getNearbyHotelsOrg(orgId: number): Promise<{ lastRefreshedAt: string | null; total: number }> {
     return apiRequest(`/api/v1/admin/interhotel/nearby/org/${orgId}`)
   },

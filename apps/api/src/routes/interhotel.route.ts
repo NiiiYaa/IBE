@@ -5,7 +5,7 @@ import {
   getPropertyInterHotelConfig, upsertPropertyInterHotelConfig,
   resolveEffectiveInterHotelConfig,
 } from '../services/interhotel-config.service.js'
-import { refreshNearbyHotels, getNearbyHotelsAdmin, getNearbyHotelsForPropertyAdmin, setNearbyHotelSelection } from '../services/interhotel-nearby.service.js'
+import { refreshNearbyHotels, refreshNearbyHotelsForProperty, getNearbyHotelsAdmin, getNearbyHotelsForPropertyAdmin, setNearbyHotelSelection } from '../services/interhotel-nearby.service.js'
 import { searchInterHotel } from '../services/interhotel-search.service.js'
 import type {
   InterHotelEffective,
@@ -101,6 +101,16 @@ export async function interHotelAdminRoutes(fastify: FastifyInstance) {
       const orgId = parseInt(request.params.orgId, 10)
       if (isNaN(orgId)) return reply.status(400).send({ error: 'Invalid orgId' })
       return refreshNearbyHotels(orgId)
+    },
+  )
+
+  // ── Refresh nearby hotels for a single property ───────────────────────────
+  fastify.post<{ Params: { propertyId: string } }>(
+    '/api/v1/admin/interhotel/refresh/property/:propertyId',
+    async (request, reply) => {
+      const propertyId = parseInt(request.params.propertyId, 10)
+      if (isNaN(propertyId)) return reply.status(400).send({ error: 'Invalid propertyId' })
+      return refreshNearbyHotelsForProperty(propertyId)
     },
   )
 

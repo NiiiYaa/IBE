@@ -1517,8 +1517,10 @@ function PropertyNearbyHotelsPanel({ propertyId }: { propertyId: number }) {
   const qc = useQueryClient()
   const [page, setPage] = useState(0)
   const [allRows, setAllRows] = useState<NearbyRow[]>([])
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshResult, setRefreshResult] = useState<string | null>(null)
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     queryKey: ['interhotel-nearby-property', propertyId, page],
     queryFn: () => apiClient.getNearbyHotelsProperty(propertyId, page * PAGE_SIZE, PAGE_SIZE),
     enabled: propertyId > 0,
@@ -1538,11 +1540,10 @@ function PropertyNearbyHotelsPanel({ propertyId }: { propertyId: number }) {
   }, [data, page])
 
   // Reset when propertyId changes
-  useEffect(() => { setPage(0); setAllRows([]) }, [propertyId])
+  useEffect(() => { setPage(0); setAllRows([]); setRefreshResult(null) }, [propertyId])
 
   async function handleToggle(nearbyId: number, selected: boolean | null) {
     await apiClient.setNearbyHotelSelection(propertyId, nearbyId, selected)
-    // Optimistically update local state
     setAllRows(prev => prev.map(r =>
       r.nearbyPropertyId === nearbyId
         ? { ...r, manuallySelected: selected }
@@ -1551,42 +1552,79 @@ function PropertyNearbyHotelsPanel({ propertyId }: { propertyId: number }) {
     qc.invalidateQueries({ queryKey: ['interhotel-nearby-property', propertyId] })
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshResult(null)
+    try {
+      const result = await apiClient.refreshInterHotelNearbyProperty(propertyId)
+      setRefreshResult(`${result.count} pairs updated`)
+      setPage(0)
+      setAllRows([])
+      void refetch()
+      qc.invalidateQueries({ queryKey: ['interhotel-nearby-property', propertyId] })
+      qc.invalidateQueries({ queryKey: ['interhotel-nearby-org'] })
+    } catch {
+      setRefreshResult('Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const total = data?.total ?? 0
   const hasMore = allRows.length < total
 
-  if (allRows.length === 0 && !isFetching) {
-    return (
-      <p className="pt-2 text-xs text-[var(--color-text-muted)]">
-        No nearby hotels found. Use Refresh Nearby Hotels at the chain level first.
-      </p>
-    )
-  }
-
   return (
     <div className="space-y-1.5 pt-2">
-      <p className="text-xs font-medium text-[var(--color-text-muted)]">
-        Nearby hotels {total > 0 ? `(${allRows.length} of ${total})` : ''}
-        <span className="ml-1 font-normal">· checked = shown to guests</span>
-      </p>
-      {allRows.map(row => (
-        <NearbyHotelSelectRow
-          key={row.nearbyPropertyId}
-          row={row}
-          propertyId={propertyId}
-          onToggle={handleToggle}
-        />
-      ))}
-      {isFetching && (
-        <p className="text-xs text-[var(--color-text-muted)]">Loading…</p>
-      )}
-      {hasMore && !isFetching && (
+      <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setPage(p => p + 1)}
-          className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface)] disabled:opacity-50"
         >
-          Load more ({total - allRows.length} remaining)
+          {refreshing ? 'Refreshing…' : 'Refresh Nearby Hotels'}
         </button>
+        {data?.lastRefreshedAt && (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Last refreshed: {new Date(data.lastRefreshedAt).toLocaleString()}
+          </span>
+        )}
+      </div>
+      {refreshResult && (
+        <p className="text-xs text-[var(--color-text-muted)]">{refreshResult}</p>
+      )}
+      {allRows.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-[var(--color-text-muted)]">
+            Nearby hotels {total > 0 ? `(${allRows.length} of ${total})` : ''}
+            <span className="ml-1 font-normal">· checked = shown to guests</span>
+          </p>
+          {allRows.map(row => (
+            <NearbyHotelSelectRow
+              key={row.nearbyPropertyId}
+              row={row}
+              propertyId={propertyId}
+              onToggle={handleToggle}
+            />
+          ))}
+          {isFetching && (
+            <p className="text-xs text-[var(--color-text-muted)]">Loading…</p>
+          )}
+          {hasMore && !isFetching && (
+            <button
+              type="button"
+              onClick={() => setPage(p => p + 1)}
+              className="w-full rounded-lg border border-[var(--color-border)] py-1.5 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors"
+            >
+              Load more ({total - allRows.length} remaining)
+            </button>
+          )}
+        </>
+      )}
+      {allRows.length === 0 && !isFetching && !refreshing && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          No nearby hotels found. Click Refresh to populate from the chain.
+        </p>
       )}
     </div>
   )

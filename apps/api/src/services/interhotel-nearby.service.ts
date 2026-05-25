@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client.js'
 import { resolveEffectiveInterHotelConfig } from './interhotel-config.service.js'
 import { fetchPropertyStatic } from '../adapters/hyperguest/static.js'
@@ -44,6 +45,26 @@ async function backfillCoordinates(propertyIds: number[]): Promise<void> {
   }
 }
 
+// Bulk upsert pairs via a single SQL statement per chunk — far faster than individual upserts
+// and avoids Render request timeouts on large chains. manuallySelected is intentionally excluded
+// from the UPDATE clause so existing overrides are preserved.
+async function bulkUpsertPairs(
+  pairs: Array<{ propertyId: number; nearbyPropertyId: number; distanceKm: number }>,
+): Promise<void> {
+  if (pairs.length === 0) return
+  // PostgreSQL limit is 65535 parameters; each row uses 3 → max ~21000 rows per statement
+  const CHUNK = 5000
+  for (let i = 0; i < pairs.length; i += CHUNK) {
+    const chunk = pairs.slice(i, i + CHUNK)
+    await prisma.$executeRaw`
+      INSERT INTO "NearbyHotel" ("propertyId", "nearbyPropertyId", "distanceKm", "updatedAt")
+      VALUES ${Prisma.join(chunk.map(p => Prisma.sql`(${p.propertyId}, ${p.nearbyPropertyId}, ${p.distanceKm}, NOW())`))}
+      ON CONFLICT ("propertyId", "nearbyPropertyId")
+      DO UPDATE SET "distanceKm" = EXCLUDED."distanceKm", "updatedAt" = NOW()
+    `
+  }
+}
+
 // Refresh: store ALL org property pairs (not radius-filtered); preserves manuallySelected overrides
 export async function refreshNearbyHotels(orgId: number): Promise<{ count: number }> {
   const properties = await prisma.property.findMany({
@@ -86,21 +107,50 @@ export async function refreshNearbyHotels(orgId: number): Promise<{ count: numbe
     }
   }
 
-  // Process in batches to avoid connection pool exhaustion on large chains
-  const UPSERT_BATCH = 50
-  for (let i = 0; i < pairs.length; i += UPSERT_BATCH) {
-    await Promise.all(
-      pairs.slice(i, i + UPSERT_BATCH).map(p =>
-        prisma.nearbyHotel.upsert({
-          where: { propertyId_nearbyPropertyId: { propertyId: p.propertyId, nearbyPropertyId: p.nearbyPropertyId } },
-          create: { propertyId: p.propertyId, nearbyPropertyId: p.nearbyPropertyId, distanceKm: p.distanceKm },
-          update: { distanceKm: p.distanceKm },
-          // manuallySelected is NOT updated on refresh — preserves existing overrides
-        })
-      )
+  await bulkUpsertPairs(pairs)
+  return { count: pairs.length }
+}
+
+// Refresh pairs involving a single property (as source and target) within its org
+export async function refreshNearbyHotelsForProperty(propertyId: number): Promise<{ count: number }> {
+  const prop = await prisma.property.findUnique({
+    where: { propertyId },
+    select: { organizationId: true },
+  })
+  if (!prop) return { count: 0 }
+
+  const orgProperties = await prisma.property.findMany({
+    where: { organizationId: prop.organizationId, status: 'active' },
+    select: { propertyId: true },
+  })
+
+  await backfillCoordinates(orgProperties.map(p => p.propertyId))
+
+  const withCoords = (await prisma.property.findMany({
+    where: { organizationId: prop.organizationId, status: 'active' },
+    select: { propertyId: true, propertyDataProviderConfig: { select: { lat: true, lng: true } } },
+  })).filter(
+    p => p.propertyDataProviderConfig?.lat != null && p.propertyDataProviderConfig?.lng != null,
+  ) as Array<{ propertyId: number; propertyDataProviderConfig: { lat: number; lng: number } }>
+
+  const target = withCoords.find(p => p.propertyId === propertyId)
+  if (!target || withCoords.length < 2) return { count: 0 }
+
+  type Pair = { propertyId: number; nearbyPropertyId: number; distanceKm: number }
+  const pairs: Pair[] = []
+  for (const other of withCoords) {
+    if (other.propertyId === propertyId) continue
+    const d = haversineKm(
+      target.propertyDataProviderConfig.lat,
+      target.propertyDataProviderConfig.lng,
+      other.propertyDataProviderConfig.lat,
+      other.propertyDataProviderConfig.lng,
     )
+    pairs.push({ propertyId, nearbyPropertyId: other.propertyId, distanceKm: d })
+    pairs.push({ propertyId: other.propertyId, nearbyPropertyId: propertyId, distanceKm: d })
   }
 
+  await bulkUpsertPairs(pairs)
   return { count: pairs.length }
 }
 
