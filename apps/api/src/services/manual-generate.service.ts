@@ -2,10 +2,10 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
 import { parse as parseMarkdown } from 'marked'
-import { prisma } from '../db/client.js'
-import { decryptApiKey } from './ai-config.service.js'
 import { logger } from '../utils/logger.js'
 import { env } from '../config/env.js'
+import { resolveAIConfig } from './ai-config.service.js'
+import { getProviderAdapter } from '../ai/adapters/index.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -284,14 +284,11 @@ export function filterSectionsByRole(
 
 const SYSTEM_PROMPT = `You are writing a user manual for HG-IBE, a hotel booking engine admin panel used by hotel and chain operators. Write clear, practical, step-by-step documentation. Use markdown with headers (##, ###), bullet points, and short paragraphs. No fluff, no repetition. Focus on what the user needs to do and why.`
 
-async function callClaude(sectionTitle: string, audience: string, filesContent: string): Promise<string> {
-  const systemRow = await prisma.systemAIConfig.findFirst()
-  if (!systemRow?.apiKey || !systemRow.enabled) {
+async function callAI(sectionTitle: string, audience: string, filesContent: string): Promise<string> {
+  const config = await resolveAIConfig()
+  if (!config) {
     throw new Error('No system AI config found. Configure AI in the admin panel first.')
   }
-
-  const apiKey = decryptApiKey(systemRow.apiKey)
-  const model = systemRow.model ?? 'claude-sonnet-4-6'
 
   const audienceDesc = audience === 'super'
     ? 'super administrators managing the platform'
@@ -305,29 +302,20 @@ Audience: ${audienceDesc}
 Below are the relevant source files for this section. Extract the meaningful UI elements (field labels, toggle descriptions, hints, section headers, available options) and write a clear manual section covering: what this section does, the key settings and what they control, and common tasks a user would perform here.
 ${filesContent}`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
-  })
+  const adapter = getProviderAdapter(config.provider)
+  const response = await adapter.call(
+    [{ role: 'user', content: userPrompt }],
+    [],
+    SYSTEM_PROMPT,
+    config.apiKey,
+    config.model,
+  )
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`)
+  if (response.stopReason === 'error') {
+    throw new Error(`AI provider error: ${response.error ?? 'Unknown error'}`)
   }
 
-  const data = await res.json() as { content: Array<{ type: string; text?: string }> }
-  const textBlock = data.content.find(b => b.type === 'text')
-  return textBlock?.text ?? ''
+  return response.text ?? ''
 }
 
 // ── Main generate function ────────────────────────────────────────────────────
@@ -339,7 +327,7 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void)
     emit({ type: 'section:start', title: def.title })
     try {
       const filesContent = await readSectionFiles(def.files)
-      const markdown = await callClaude(def.title, def.audience, filesContent)
+      const markdown = await callAI(def.title, def.audience, filesContent)
       sections.push({ id: def.id, title: def.title, audience: def.audience, markdown })
       emit({ type: 'section:done', title: def.title })
     } catch (err) {
