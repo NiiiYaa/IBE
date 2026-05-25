@@ -493,7 +493,17 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
   .section th { text-align: left; padding: 10px 14px; font-weight: 600; color: #1e293b; border: 1px solid #e2e8f0; }
   .section td { padding: 10px 14px; border: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
   .section tbody tr:nth-child(even) { background: #f8f9fb; }
-  @media print { .sidebar { display: none; } .layout { display: block; } .content { padding: 24px; max-width: 100%; } .section { page-break-inside: avoid; } }
+  .toc-print { display: none; }
+  @media print {
+    .sidebar { display: none; }
+    .layout { display: block; }
+    .content { padding: 24px; max-width: 100%; }
+    .section { page-break-inside: avoid; }
+    .toc-print { display: block; margin-bottom: 48px; page-break-after: always; }
+    .toc-print h2 { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+    .toc-print ol { list-style: decimal; padding-left: 24px; }
+    .toc-print li { margin-bottom: 6px; font-size: 14px; color: #334155; }
+  }
 </style>
 </head>
 <body>
@@ -508,6 +518,12 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
     </div>
     <h1>${title}</h1>
     <p class="meta">Generated ${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</p>
+    <div class="toc-print">
+      <h2>Table of Contents</h2>
+      <ol>
+        ${sections.map((s, i) => `<li>${i + 1}. ${s.title}</li>`).join('\n        ')}
+      </ol>
+    </div>
     ${bodyItems}
   </main>
 </div>
