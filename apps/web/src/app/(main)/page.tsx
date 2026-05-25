@@ -289,7 +289,7 @@ export default async function HomePage({
             name: detail?.name ?? `Property ${r.propertyId}`,
             starRating: detail?.starRating ?? 0,
             imageUrl,
-            city: hotelConfig?.tagline ? '' : (detail?.location.city ?? ''),
+            city: detail?.location.city ?? '',
             address: hotelConfig?.tagline ?? detail?.location.address ?? '',
             description: firstDesc?.text ?? '',
             facilities: detail?.facilities ?? [],

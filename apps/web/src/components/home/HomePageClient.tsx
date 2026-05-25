@@ -93,7 +93,6 @@ export function HomePageClient({
   const { data: multiCityConfig } = useMultiCityConfig(orgId)
   const multiCityEligible = !aiLayout
     && !!orgId
-    && searchBarProps.showCitySelector === true
     && multiCityConfig?.enabled === true
   const [multiCityMode, setMultiCityMode] = useState(false)
   const chainLabel = chainName

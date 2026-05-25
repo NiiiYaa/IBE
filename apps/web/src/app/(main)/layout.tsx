@@ -277,6 +277,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
         <Header
           logoUrl={logoUrl}
           displayName={displayName}
+          showNameOnHeader={config?.showNameOnHeader ?? true}
+          showLogoOnHeader={config?.showLogoOnHeader ?? true}
           navItems={headerItems}
           enabledLocales={enabledLocales}
           enabledCurrencies={localeConfig?.enabledCurrencies ?? []}

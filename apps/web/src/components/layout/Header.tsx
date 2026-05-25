@@ -11,6 +11,8 @@ export type HeaderMapData =
 interface HeaderProps {
   logoUrl?: string | null
   displayName?: string | null
+  showNameOnHeader?: boolean
+  showLogoOnHeader?: boolean
   propertyId?: number
   navItems?: NavItem[]
   enabledLocales?: string[]
@@ -25,6 +27,8 @@ interface HeaderProps {
 export function Header({
   logoUrl,
   displayName,
+  showNameOnHeader = true,
+  showLogoOnHeader = true,
   propertyId,
   navItems = [],
   enabledLocales = [],
@@ -39,11 +43,11 @@ export function Header({
     <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         <Suspense fallback={
-          <span className="text-lg font-semibold text-[var(--color-primary)]">
-            {displayName ?? 'Hotel Booking'}
-          </span>
+          showNameOnHeader
+            ? <span className="text-lg font-semibold text-[var(--color-primary)]">{displayName ?? 'Hotel Booking'}</span>
+            : null
         }>
-          <DynamicBrand fallbackLogoUrl={logoUrl} fallbackDisplayName={displayName} isB2BMode={isB2BMode} />
+          <DynamicBrand fallbackLogoUrl={logoUrl} fallbackDisplayName={displayName} isB2BMode={isB2BMode} showName={showNameOnHeader} showLogo={showLogoOnHeader} />
         </Suspense>
 
         <div className="flex items-center gap-4">

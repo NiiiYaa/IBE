@@ -372,6 +372,8 @@ model HotelConfig {
   searchResultsImageUrl           String?
   displayName                     String?
   showNameOnPage                  Boolean  @default(true)
+  showNameOnHeader                Boolean  @default(true)
+  showLogoOnHeader                Boolean  @default(true)
   showChainLabel                  Boolean?
   tagline                         String?
   tabTitle                        String?
@@ -526,6 +528,8 @@ model OrgDesignDefaults {
   faviconUrl        String?
   displayName       String?
   showNameOnPage    Boolean?
+  showNameOnHeader  Boolean?
+  showLogoOnHeader  Boolean?
   showChainLabel    Boolean?
   tagline           String?
   tabTitle          String?

@@ -699,8 +699,28 @@ function PropertyHomepageEditor({ propertyId }: { propertyId: number }) {
             draft={draft} orgDefaults={orgDefaults} onSet={setStr} onReset={reset} />
 
           <OverrideToggleRow
-            label="Show name on page"
+            label="Show name on center page"
             fieldKey="showNameOnPage"
+            systemDefault={true}
+            draft={draft}
+            orgDefaults={orgDefaults}
+            onSet={setB}
+            onReset={resetO}
+          />
+
+          <OverrideToggleRow
+            label="Show name on header"
+            fieldKey="showNameOnHeader"
+            systemDefault={true}
+            draft={draft}
+            orgDefaults={orgDefaults}
+            onSet={setB}
+            onReset={resetO}
+          />
+
+          <OverrideToggleRow
+            label="Show logo on header"
+            fieldKey="showLogoOnHeader"
             systemDefault={true}
             draft={draft}
             orgDefaults={orgDefaults}

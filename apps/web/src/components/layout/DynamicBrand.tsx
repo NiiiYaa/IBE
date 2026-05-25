@@ -11,6 +11,8 @@ interface DynamicBrandProps {
   fallbackLogoUrl?: string | null | undefined
   fallbackDisplayName?: string | null | undefined
   isB2BMode?: boolean | undefined
+  showName?: boolean
+  showLogo?: boolean
 }
 
 function B2BBrandSuffix() {
@@ -24,7 +26,7 @@ function B2BBrandSuffix() {
   )
 }
 
-export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }: DynamicBrandProps) {
+export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode, showName = true, showLogo = true }: DynamicBrandProps) {
   const searchParams = useSearchParams()
   const hotelId = searchParams.get('hotelId') ? Number(searchParams.get('hotelId')) : null
 
@@ -37,7 +39,7 @@ export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }
 
   return (
     <Link href={href} className="flex items-center gap-3">
-      {logoUrl && (
+      {showLogo && logoUrl && (
         <Image
           src={logoUrl}
           alt={displayName ?? 'Hotel'}
@@ -47,9 +49,11 @@ export function DynamicBrand({ fallbackLogoUrl, fallbackDisplayName, isB2BMode }
           unoptimized
         />
       )}
-      <span className="text-lg font-semibold text-[var(--color-primary)]">
-        {displayName ?? 'Hotel Booking'}
-      </span>
+      {showName && (
+        <span className="text-lg font-semibold text-[var(--color-primary)]">
+          {displayName ?? 'Hotel Booking'}
+        </span>
+      )}
       {isB2BMode && <B2BBrandSuffix />}
     </Link>
   )

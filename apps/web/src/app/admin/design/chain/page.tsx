@@ -343,10 +343,22 @@ export default function ChainPage() {
           <FormRow label="Display name" hint="Name shown in the hero heading on the chain page">
             <TextInput value={draft.displayName ?? ''} onChange={v => set('displayName', v || null)} placeholder="e.g. Grand Hotels Collection" />
           </FormRow>
-          <FormRow label="Show name on page">
+          <FormRow label="Show name on center page">
             <Toggle
               checked={draft.showNameOnPage ?? true}
               onChange={v => set('showNameOnPage', v)}
+            />
+          </FormRow>
+          <FormRow label="Show name on header">
+            <Toggle
+              checked={draft.showNameOnHeader ?? true}
+              onChange={v => set('showNameOnHeader', v)}
+            />
+          </FormRow>
+          <FormRow label="Show logo on header">
+            <Toggle
+              checked={draft.showLogoOnHeader ?? true}
+              onChange={v => set('showLogoOnHeader', v)}
             />
           </FormRow>
           <FormRow label="Show chain label on hotel pages" hint="Shows 'Part of The X Collection' on individual hotel pages. Hotels can override this setting.">
