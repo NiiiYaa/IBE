@@ -8,6 +8,7 @@ import { useQuery, useQueries } from '@tanstack/react-query'
 import { useAdminAuth } from '../../hooks/use-admin-auth'
 import { AdminPropertyProvider, useAdminProperty } from './property-context'
 import { PropertySelector } from './PropertySelector'
+import { AdminHelpChat } from './_components/AdminHelpChat'
 import { apiClient } from '@/lib/api-client'
 
 type NavItem = { href: string; label: string; minRole?: 'admin' | 'super'; propertyOnly?: boolean; multiPropertyOnly?: boolean; sellerOnly?: boolean; buyerAccessible?: boolean }
@@ -808,6 +809,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <AdminHelpChat />
     </div>
   )
 }
