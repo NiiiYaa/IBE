@@ -72,7 +72,8 @@ export async function manualRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/super/manual/generate', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
 
-    startGenerationJob()
+    const { force } = request.query as { force?: string }
+    startGenerationJob(force === 'true')
 
     reply.raw.setHeader('Content-Type', 'text/event-stream')
     reply.raw.setHeader('Cache-Control', 'no-cache')

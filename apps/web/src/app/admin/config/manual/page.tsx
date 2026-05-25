@@ -28,6 +28,7 @@ export default function ManualPage() {
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [sections, setSections] = useState<{ title: string; done: boolean; error?: string }[]>([])
+  const [forceRegenerate, setForceRegenerate] = useState(false)
 
   const { data: pdfInfo, isLoading: pdfLoading } = useQuery({
     queryKey: ['manual-info'],
@@ -66,7 +67,10 @@ export default function ManualPage() {
     abortRef.current = new AbortController()
 
     try {
-      const res = await fetch('/api/v1/admin/super/manual/generate', {
+      const url = forceRegenerate
+        ? '/api/v1/admin/super/manual/generate?force=true'
+        : '/api/v1/admin/super/manual/generate'
+      const res = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         signal: abortRef.current.signal,
@@ -149,13 +153,26 @@ export default function ManualPage() {
           )}
         </div>
 
-        <button
-          onClick={() => void handleGenerate()}
-          disabled={generating}
-          className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
-        >
-          {generating ? 'Generating…' : 'Generate with AI'}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => void handleGenerate()}
+            disabled={generating}
+            className="w-full rounded-md bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+          >
+            {generating ? 'Generating…' : 'Generate with AI'}
+          </button>
+          {!aiLoading && aiInfo?.exists && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={forceRegenerate}
+                onChange={e => setForceRegenerate(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-xs text-[var(--color-text-muted)]">Regenerate all sections from scratch</span>
+            </label>
+          )}
+        </div>
 
         {/* Progress */}
         {sections.length > 0 && (

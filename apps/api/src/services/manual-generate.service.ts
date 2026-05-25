@@ -49,12 +49,12 @@ export function getJobState(): JobState {
   return _job
 }
 
-export function startGenerationJob(): void {
+export function startGenerationJob(force = false): void {
   if (_job.running) return
   _job = { running: true, events: [] }
   void generateManual((event) => {
     _job.events.push(event)
-  }).finally(() => {
+  }, force).finally(() => {
     _job.running = false
   })
 }
@@ -133,6 +133,30 @@ export const MANUAL_SECTIONS: ManualSectionDef[] = [
     files: [
       'apps/web/src/app/admin/config/offers/page.tsx',
       'apps/web/src/app/admin/config/misc/pricing/page.tsx',
+    ],
+  },
+  {
+    id: 'config-flexible-dates',
+    title: 'Config: Flexible Dates',
+    audience: 'both',
+    files: [
+      'apps/web/src/app/admin/config/offers/page.tsx#function SystemFlexibleDatesSection',
+    ],
+  },
+  {
+    id: 'config-inter-hotel',
+    title: 'Config: InterHotel Stay',
+    audience: 'both',
+    files: [
+      'apps/web/src/app/admin/config/offers/page.tsx#function SystemInterHotelSection',
+    ],
+  },
+  {
+    id: 'config-multi-city',
+    title: 'Config: Multi-city',
+    audience: 'both',
+    files: [
+      'apps/web/src/app/admin/config/offers/page.tsx#function SystemMultiCitySection',
     ],
   },
   {
@@ -330,17 +354,28 @@ export function extractUiContent(source: string, filePath: string): string {
   }
 
   const result = output.join('\n')
-  return result.length > MAX_EXTRACTED_CHARS
-    ? result.slice(0, MAX_EXTRACTED_CHARS) + '\n[... truncated]'
-    : result
+  if (result.length <= MAX_EXTRACTED_CHARS) return result
+
+  // For large files sample beginning + end so tab-specific components
+  // at the bottom of the file are still captured alongside the general structure.
+  const half = Math.floor(MAX_EXTRACTED_CHARS / 2)
+  return result.slice(0, half) + '\n[...]\n' + result.slice(-half)
 }
 
 export async function readSectionFiles(files: string[]): Promise<string> {
   const parts: string[] = []
-  for (const relPath of files) {
+  for (const entry of files) {
+    // Support "path/to/file.tsx#startSearchText" to slice large files
+    const hashIdx = entry.indexOf('#')
+    const relPath = hashIdx === -1 ? entry : entry.slice(0, hashIdx)
+    const startAt = hashIdx === -1 ? null : entry.slice(hashIdx + 1)
     const absPath = resolve(REPO_ROOT, relPath)
     try {
-      const raw = await readFile(absPath, 'utf-8')
+      let raw = await readFile(absPath, 'utf-8')
+      if (startAt) {
+        const idx = raw.indexOf(startAt)
+        if (idx !== -1) raw = raw.slice(idx)
+      }
       const content = extractUiContent(raw, relPath)
       if (content.trim()) {
         parts.push(`\n\n--- FILE: ${relPath} ---\n${content}`)
@@ -399,14 +434,15 @@ ${filesContent}`
 
 // ── Main generate function ────────────────────────────────────────────────────
 
-export async function generateManual(emit: (event: ManualGenerateEvent) => void): Promise<void> {
+export async function generateManual(emit: (event: ManualGenerateEvent) => void, force = false): Promise<void> {
   const generatedAt = new Date().toISOString()
 
-  // Resume from a recent partial run: reuse sections that succeeded within the last 4 hours
+  // Resume from a recent partial run: reuse sections that succeeded within the last 4 hours.
+  // Skipped when force=true so the user can trigger a full regeneration at any time.
   const existing = loadManualData()
   const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000
   const reusable = new Map<string, ManualSection>()
-  if (existing && new Date(existing.generatedAt).getTime() > fourHoursAgo) {
+  if (!force && existing && new Date(existing.generatedAt).getTime() > fourHoursAgo) {
     for (const s of existing.sections) {
       if (!s.markdown.startsWith('*Generation failed for this section:')) {
         reusable.set(s.id, s)

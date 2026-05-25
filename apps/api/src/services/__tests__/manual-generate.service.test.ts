@@ -100,4 +100,17 @@ function B() {
     const result = extractUiContent(source, 'route.ts')
     expect(result.length).toBeLessThanOrEqual(3100)
   })
+
+  it('samples beginning and end for large tsx files', () => {
+    // Build a file with large return blocks so extracted JSX exceeds MAX
+    const makeComp = (label: string) =>
+      `function Comp${label}() {\n  return (\n    <div>\n      <label>Field ${label}</label>\n      <p>${'x'.repeat(60)} description ${label}</p>\n    </div>\n  )\n}\n`
+    const source = Array.from({ length: 60 }, (_, i) => makeComp(String(i))).join('\n')
+    const result = extractUiContent(source, 'big-page.tsx')
+    expect(result.length).toBeLessThanOrEqual(3100)
+    // Should contain content from the beginning AND the end
+    expect(result).toContain('Field 0')
+    expect(result).toContain('Field 59')
+    expect(result).toContain('[...]')
+  })
 })
