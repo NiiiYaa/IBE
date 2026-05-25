@@ -3,6 +3,8 @@ import { createWriteStream, statSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { env } from '../config/env.js'
+import { resolveAIConfig } from '../services/ai-config.service.js'
+import { getProviderAdapter } from '../ai/adapters/index.js'
 import {
   startGenerationJob,
   getJobState,
@@ -10,6 +12,7 @@ import {
   filterSectionsByRole,
   renderManualHtml,
   generateOneSection,
+  scoreAndSelectSections,
   MANUAL_SECTIONS,
 } from '../services/manual-generate.service.js'
 
@@ -200,5 +203,64 @@ export async function manualRoutes(fastify: FastifyInstance) {
     if (!sectionId) return reply.status(400).send({ error: 'sectionId required' })
     const result = await generateOneSection(sectionId)
     return reply.send(result)
+  })
+
+  // ── Chat: conversational help based on manual sections ──────────────────────────────────────────────
+
+  fastify.post('/admin/manual/chat', async (request, reply) => {
+    const { question } = request.body as { question?: string }
+    if (!question?.trim()) return reply.status(400).send({ error: 'question required' })
+
+    const data = await loadManualData()
+    if (!data) return reply.status(404).send({ error: 'Manual not generated yet' })
+
+    const config = await resolveAIConfig()
+    if (!config) return reply.status(503).send({ error: 'AI not configured' })
+
+    const selected = scoreAndSelectSections(question.trim(), data.sections)
+    const sectionsText = selected
+      .map(s => `## ${s.title}\n${s.markdown}`)
+      .join('\n\n---\n\n')
+
+    const systemPrompt = `You are a help assistant for the HG-IBE admin panel, a hotel booking engine used by hotel and chain administrators.
+Answer questions based only on the manual sections provided below.
+Be concise and practical. Use bullet points where helpful.
+If the answer is not covered in the provided sections, say so clearly.
+
+${sectionsText}`
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.setHeader('X-Accel-Buffering', 'no')
+    reply.raw.flushHeaders()
+
+    try {
+      const adapter = getProviderAdapter(config.provider)
+      const response = await Promise.race([
+        adapter.call(
+          [{ role: 'user', content: question.trim() }],
+          [],
+          systemPrompt,
+          config.apiKey,
+          config.model,
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI call timed out')), 90_000)
+        ),
+      ])
+
+      if (response.stopReason === 'error') {
+        reply.raw.write(`data: ${JSON.stringify({ error: response.error ?? 'AI error' })}\n\n`)
+      } else {
+        reply.raw.write(`data: ${JSON.stringify({ text: response.text ?? '' })}\n\n`)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      reply.raw.write(`data: ${JSON.stringify({ error: msg })}\n\n`)
+    }
+
+    reply.raw.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+    reply.raw.end()
   })
 }
