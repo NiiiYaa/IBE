@@ -7,6 +7,39 @@ import { TRANSLATION_NAMESPACES, FACILITY_NAMESPACES } from '@ibe/shared'
 
 // Namespaces shown in static coverage/editor — excludes facility lists (shown in Dynamic Strings)
 const STATIC_NAMESPACES = TRANSLATION_NAMESPACES.filter(ns => !(FACILITY_NAMESPACES as readonly string[]).includes(ns))
+
+// Repair common AI JSON output issues: invalid escapes, real newlines inside strings, trailing commas
+function repairJson(raw: string): string {
+  let out = ''
+  let inString = false
+  let i = 0
+  while (i < raw.length) {
+    const ch = raw[i]
+    if (inString) {
+      if (ch === '\\') {
+        const next = raw[i + 1]
+        // Keep valid JSON escape sequences; drop the backslash on invalid ones
+        if (next && '"\\/bfnrtu'.includes(next)) {
+          out += ch + next; i += 2
+        } else {
+          out += next ?? ''; i += 2
+        }
+      } else if (ch === '"') {
+        out += ch; inString = false; i++
+      } else if (ch === '\n' || ch === '\r') {
+        // Real newline inside a string — escape it
+        out += ch === '\n' ? '\\n' : '\\r'; i++
+      } else {
+        out += ch; i++
+      }
+    } else {
+      if (ch === '"') { inString = true; out += ch; i++ }
+      else { out += ch; i++ }
+    }
+  }
+  // Remove trailing commas before } or ]
+  return out.replace(/,(\s*[}\]])/g, '$1')
+}
 import { listIncentiveItems } from './incentive.service.js'
 
 const _require = createRequire(import.meta.url)
@@ -308,9 +341,7 @@ export async function autoTranslateMissing(
       if (jsonStart === -1 || jsonEnd === -1) throw new Error('AI returned no JSON')
 
       const raw = text.slice(jsonStart, jsonEnd + 1)
-      // AI sometimes produces invalid JSON escape sequences (e.g. \' or \h) — strip them
-      const sanitized = raw.replace(/\\([^"\\/bfnrtu])/g, (_, c: string) => c)
-      const parsed = JSON.parse(sanitized) as Record<string, string>
+      const parsed = JSON.parse(repairJson(raw)) as Record<string, string>
 
       for (const item of batch) {
         const fullKey = `${item.namespace}.${item.key}`
