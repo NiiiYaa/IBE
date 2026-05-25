@@ -195,19 +195,21 @@ export default function ManualPage() {
 
         {/* Downloads — shown only after manual exists */}
         {!aiLoading && aiInfo?.exists && (
-          <div className="flex gap-2 pt-1 border-t border-[var(--color-border)]">
-            <a
-              href="/api/v1/admin/manual?download=true"
-              className="flex-1 rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-center text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
-            >
-              Download: Full manual
-            </a>
-            <a
-              href="/api/v1/admin/manual?download=true&audience=hotel"
-              className="flex-1 rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-center text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
-            >
-              Download: Hotel version
-            </a>
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--color-border)]">
+            {[
+              { label: 'Full manual — HTML', href: '/api/v1/admin/manual?download=true' },
+              { label: 'Full manual — PDF', href: '/api/v1/admin/manual?format=pdf' },
+              { label: 'Hotel version — HTML', href: '/api/v1/admin/manual?download=true&audience=hotel' },
+              { label: 'Hotel version — PDF', href: '/api/v1/admin/manual?format=pdf&audience=hotel' },
+            ].map(({ label, href }) => (
+              <a
+                key={href}
+                href={href}
+                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-center text-[var(--color-text)] transition-colors hover:bg-[var(--color-background)]"
+              >
+                {label}
+              </a>
+            ))}
           </div>
         )}
       </section>

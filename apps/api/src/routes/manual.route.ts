@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { createWriteStream, statSync } from 'node:fs'
+import { createWriteStream, statSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { env } from '../config/env.js'
@@ -13,6 +13,28 @@ import {
 
 const MANUAL_PATH = env.MANUAL_FILE_PATH
   ?? resolve(process.cwd(), '../../apps/web/public/HG-IBE-Admin-User-Manual.pdf')
+
+// Pre-load logo as base64 so PDF generation works without network access
+const LOGO_DATA_URI = (() => {
+  try {
+    const data = readFileSync(resolve(process.cwd(), '../../apps/web/public/hyperguest-logo.png'))
+    return `data:image/png;base64,${data.toString('base64')}`
+  } catch { return '' }
+})()
+
+async function generatePdf(html: string): Promise<Buffer> {
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] })
+  try {
+    const page = await browser.newPage()
+    const pdfHtml = LOGO_DATA_URI ? html.replace('src="/hyperguest-logo.png"', `src="${LOGO_DATA_URI}"`) : html
+    await page.setContent(pdfHtml, { waitUntil: 'domcontentloaded' })
+    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } })
+    return Buffer.from(pdf)
+  } finally {
+    await browser.close()
+  }
+}
 
 export async function manualRoutes(fastify: FastifyInstance) {
   // ── Existing: PDF info + upload ─────────────────────────────────────────────
@@ -98,7 +120,7 @@ export async function manualRoutes(fastify: FastifyInstance) {
   // ── New: Serve manual HTML (role-filtered) ──────────────────────────────────
 
   fastify.get('/admin/manual', async (request, reply) => {
-    const { download, audience } = request.query as { download?: string; audience?: string }
+    const { download, audience, format } = request.query as { download?: string; audience?: string; format?: string }
 
     const data = loadManualData()
     if (!data) {
@@ -121,6 +143,16 @@ export async function manualRoutes(fastify: FastifyInstance) {
       ? 'HyperGuest AI Concierge Booking Engine'
       : 'HyperGuest AI Concierge Booking Engine — Hotel Edition'
     const html = renderManualHtml(sectionsToRender, title)
+
+    if (format === 'pdf') {
+      const filename = audience === 'hotel'
+        ? 'HG-IBE-Admin-Manual-Hotel.pdf'
+        : 'HG-IBE-Admin-Manual-Full.pdf'
+      const pdf = await generatePdf(html)
+      void reply.header('Content-Type', 'application/pdf')
+      void reply.header('Content-Disposition', `attachment; filename="${filename}"`)
+      return reply.send(pdf)
+    }
 
     void reply.header('Content-Type', 'text/html; charset=utf-8')
 

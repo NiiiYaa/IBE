@@ -493,7 +493,7 @@ export function renderManualHtml(sections: ManualSection[], title: string): stri
   .section th { text-align: left; padding: 10px 14px; font-weight: 600; color: #1e293b; border: 1px solid #e2e8f0; }
   .section td { padding: 10px 14px; border: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
   .section tbody tr:nth-child(even) { background: #f8f9fb; }
-  @media print { .sidebar { display: none; } .content { padding: 24px; } }
+  @media print { .sidebar { display: none; } .layout { display: block; } .content { padding: 24px; max-width: 100%; } .section { page-break-inside: avoid; } }
 </style>
 </head>
 <body>
