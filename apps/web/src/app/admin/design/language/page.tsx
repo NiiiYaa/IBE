@@ -30,6 +30,33 @@ const ALL_LOCALES = [
 
 type DynamicTranslationRow = { id: number; text: string; value: string | null }
 
+const LOCALE_SPEAKERS: Record<string, number> = {
+  en: 1493333333, zh: 1233333333, hi: 609333333, es: 559000000,
+  ar: 329666667, fr: 342000000, bn: 285666667, pt: 265333333,
+  ru: 254333333, ur: 237333333, id: 220000000, sw: 122333333,
+  de: 134333333, fa: 96666667, ja: 125333333, pa: 105333333,
+  mr: 99000000, te: 96000000, vi: 92333333, tr: 90333333,
+  ta: 87666667, ko: 82000000, ms: 46666667, it: 67333333,
+  gu: 62000000, th: 64333333, am: 58333333, yo: 45666667,
+  tl: 72333333, pl: 43666667, uz: 35000000, my: 39666667,
+  uk: 38666667, ml: 36666667, az: 28000000, lo: 13533333,
+  ne: 23666667, zu: 22666667, nl: 28333333, ro: 22833333,
+  km: 17333333, af: 14000000, si: 17000000, el: 14000000,
+  hu: 13000000, sv: 12066667, kk: 13000000, sr: 14000000,
+  cs: 11566667, ca: 7666667, bg: 8633333, he: 9000000,
+  sq: 6633333, hy: 6666667, da: 6000000, hr: 5833333,
+  mn: 5866667, fi: 5566667, nb: 5266667, sk: 5133333,
+  ka: 3900000, bs: 2833333, lt: 3000000, sl: 2500000,
+  gl: 2433333, mk: 2000000, ga: 1800000, lv: 1866667,
+  et: 1100000, eu: 833333, cy: 900000, mt: 516667, is: 359000,
+}
+
+function formatSpeakers(n: number): string {
+  if (n >= 1_000_000_000) return `${Math.floor(n / 100_000_000) / 10}B`
+  if (n >= 1_000_000) return `${Math.floor(n / 100_000) / 10}M`
+  return `${Math.floor(n / 100) / 10}K`
+}
+
 const NS_LABELS: Record<string, string> = {
   common: 'Common',
   search: 'Search',
@@ -168,6 +195,7 @@ function SystemLanguageEditor() {
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
                 {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
+                {code !== 'en' && LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
               </button>
             )
           })}
@@ -366,6 +394,7 @@ function OrgLanguageEditor({ isSuper, orgId }: { isSuper: boolean; orgId: number
                 {localeFlag(code)} {localeEnglishName(code)}
                 {code !== 'en' && <span className="opacity-60"> · {localeName(code)}</span>}
                 {code !== 'en' && pct != null && <span className="opacity-60"> · {pct}%</span>}
+                {code !== 'en' && LOCALE_SPEAKERS[code] != null && <span className="opacity-60"> · {formatSpeakers(LOCALE_SPEAKERS[code]!)}</span>}
               </button>
             )
           })}
@@ -1103,7 +1132,8 @@ function PropertyLanguageEditor({ propertyId }: { propertyId: number }) {
   const localeItems = visiblePool.map(code => {
     const pct = coverageMap[code]
     const pctStr = code !== 'en' && pct != null ? ` · ${pct}%` : ''
-    return { code, label: `${localeFlag(code)} ${localeEnglishName(code)} · ${localeName(code)}${pctStr}` }
+    const speakers = code !== 'en' && LOCALE_SPEAKERS[code] != null ? ` · ${formatSpeakers(LOCALE_SPEAKERS[code]!)}` : ''
+    return { code, label: `${localeFlag(code)} ${localeEnglishName(code)} · ${localeName(code)}${pctStr}${speakers}` }
   })
   const enabledLocalesOverride = draft.enabledLocales as string[] | null | undefined
   const rawActiveLocales = enabledLocalesOverride ?? (orgDefaults.enabledLocales ?? ['en'])
