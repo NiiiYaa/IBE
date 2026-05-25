@@ -123,7 +123,7 @@ export async function manualRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/manual', async (request, reply) => {
     const { download, audience, format } = request.query as { download?: string; audience?: string; format?: string }
 
-    const data = loadManualData()
+    const data = await loadManualData()
     if (!data) {
       void reply.header('Content-Type', 'text/html; charset=utf-8')
       return reply.send(`<!DOCTYPE html><html><body style="font-family:system-ui;padding:40px;color:#334155">
@@ -170,7 +170,7 @@ export async function manualRoutes(fastify: FastifyInstance) {
 
   fastify.get('/admin/super/manual-ai-info', async (request, reply) => {
     if (request.admin.role !== 'super') return reply.status(403).send({ error: 'Forbidden' })
-    const data = loadManualData()
+    const data = await loadManualData()
     return reply.send({
       exists: !!data,
       generatedAt: data?.generatedAt ?? null,

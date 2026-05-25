@@ -1,9 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { resolve, dirname } from 'node:path'
+import { resolve } from 'node:path'
 import { parse as parseMarkdown } from 'marked'
 import { logger } from '../utils/logger.js'
-import { env } from '../config/env.js'
+import { prisma } from '../db/client.js'
 import { resolveAIConfig } from './ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 
@@ -59,24 +58,29 @@ export function startGenerationJob(force = false): void {
   })
 }
 
-// ── Storage ───────────────────────────────────────────────────────────────────
+// ── Storage (DB-backed, survives deploys) ─────────────────────────────────────
 
 const REPO_ROOT = resolve(process.cwd(), '../..')
-const MANUAL_JSON_PATH = env.MANUAL_JSON_PATH
-  ?? resolve(process.cwd(), 'data/HG-IBE-Admin-Manual.json')
 
-export function loadManualData(): ManualData | null {
-  if (!existsSync(MANUAL_JSON_PATH)) return null
+export async function loadManualData(): Promise<ManualData | null> {
   try {
-    return JSON.parse(readFileSync(MANUAL_JSON_PATH, 'utf-8')) as ManualData
+    const row = await prisma.manualCache.findFirst()
+    if (!row) return null
+    return {
+      generatedAt: row.generatedAt.toISOString(),
+      sections: row.sectionsJson as unknown as ManualSection[],
+    }
   } catch {
     return null
   }
 }
 
-function saveManualData(data: ManualData): void {
-  mkdirSync(dirname(MANUAL_JSON_PATH), { recursive: true })
-  writeFileSync(MANUAL_JSON_PATH, JSON.stringify(data, null, 2), 'utf-8')
+async function saveManualData(data: ManualData): Promise<void> {
+  await prisma.manualCache.upsert({
+    where: { id: 1 },
+    create: { id: 1, generatedAt: new Date(data.generatedAt), sectionsJson: data.sections as object[] },
+    update: { generatedAt: new Date(data.generatedAt), sectionsJson: data.sections as object[] },
+  })
 }
 
 // ── Section Definitions ───────────────────────────────────────────────────────
@@ -462,7 +466,7 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void,
 
   // Resume from a recent partial run: reuse sections that succeeded within the last 4 hours.
   // Skipped when force=true so the user can trigger a full regeneration at any time.
-  const existing = loadManualData()
+  const existing = await loadManualData()
   const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000
   const reusable = new Map<string, ManualSection>()
   if (!force && existing && new Date(existing.generatedAt).getTime() > fourHoursAgo) {
@@ -490,14 +494,14 @@ export async function generateManual(emit: (event: ManualGenerateEvent) => void,
       const markdown = await callAI(def.title, def.audience, filesContent)
       sections.push({ id: def.id, title: def.title, audience: def.audience, markdown })
       // Save after every section so partial work is preserved if the connection drops
-      saveManualData({ generatedAt, sections: [...sections] })
+      await saveManualData({ generatedAt, sections: [...sections] })
       emit({ type: 'section:done', title: def.title })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       logger.error({ section: def.id, err }, '[Manual] Section generation failed')
       emit({ type: 'error', title: def.title, message })
       sections.push({ id: def.id, title: def.title, audience: def.audience, markdown: `*Generation failed for this section: ${message}*` })
-      saveManualData({ generatedAt, sections: [...sections] })
+      await saveManualData({ generatedAt, sections: [...sections] })
     }
   }
 

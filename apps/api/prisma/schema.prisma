@@ -2211,3 +2211,9 @@ model ClusterUser {
 
   @@unique([clusterId, adminUserId])
 }
+
+model ManualCache {
+  id           Int      @id @default(1)
+  generatedAt  DateTime
+  sectionsJson Json
+}
