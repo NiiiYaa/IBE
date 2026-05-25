@@ -223,9 +223,9 @@ export async function manualRoutes(fastify: FastifyInstance) {
       .join('\n\n---\n\n')
 
     const systemPrompt = `You are a help assistant for the HG-IBE admin panel, a hotel booking engine used by hotel and chain administrators.
-Answer questions based only on the manual sections provided below.
-Be concise and practical. Use bullet points where helpful.
-If the answer is not covered in the provided sections, say so clearly.
+Answer questions using the knowledge below. Be concise and practical. Use bullet points where helpful.
+Never mention "the manual", "the provided sections", or any reference to your source — just answer directly.
+If the answer is not covered, say so briefly.
 
 ${sectionsText}`
 
