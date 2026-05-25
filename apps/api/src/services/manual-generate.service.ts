@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { resolve, dirname } from 'node:path'
 import { parse as parseMarkdown } from 'marked'
 import { prisma } from '../db/client.js'
@@ -259,13 +260,13 @@ export async function readSectionFiles(files: string[]): Promise<string> {
   for (const relPath of files) {
     const absPath = resolve(REPO_ROOT, relPath)
     try {
-      const content = readFileSync(absPath, 'utf-8')
+      const content = await readFile(absPath, 'utf-8')
       const truncated = content.length > MAX_FILE_CHARS
         ? content.slice(0, MAX_FILE_CHARS) + '\n[... truncated]'
         : content
       parts.push(`\n\n--- FILE: ${relPath} ---\n${truncated}`)
     } catch {
-      // file missing or unreadable — skip silently
+      logger.warn({ relPath }, '[Manual] Source file not found, skipping')
     }
   }
   return parts.join('')
