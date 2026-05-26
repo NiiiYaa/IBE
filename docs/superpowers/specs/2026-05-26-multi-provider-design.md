@@ -116,9 +116,18 @@ Each adapter defines its own typed credentials shape + Zod validation schema. Th
 
 - New **Providers** section in org admin settings
 - One tab per supported provider (HyperGuest, Hubwayz, ...)
-- Each tab renders a **provider-specific form** with that provider's credential fields:
-  - HyperGuest: `bearerToken`, `searchDomain`, `bookingDomain`, `staticDomain`
+- Each tab is split into two sections:
+
+  **Search & Booking credentials** (provider-specific):
+  - HyperGuest: `bearerToken`, `searchDomain`, `bookingDomain`
   - Hubwayz: `account`, `agent`, `password`, `applicationKey`
+
+  **Static Data API** (provider-specific, used by the hotel matching pipeline):
+  - HyperGuest: `staticDomain` (already part of HG credentials)
+  - Hubwayz: static feed URL + any required auth (e.g. separate API key or SFTP credentials)
+  - Other providers: whatever endpoint/auth their static hotel list requires
+  - Test connection button — validates credentials and returns estimated hotel count
+
 - Additional settings on every provider tab:
   - **Search timeout** (seconds) — default 30, configurable
   - **Markup** — mode selector (none / % / fixed amount / higher of two / lower of two) + percent field + amount+currency field. Applied to all rates from this provider before display.
@@ -311,4 +320,3 @@ Mirrors the existing `getBuyerHGCredentials()` pattern in the codebase.
 
 - Room-level deduplication across providers: each provider's room list is shown independently within a hotel card. Board type codes are normalized to labels but room names are not matched.
 - Rate parity alerts between providers: deferred.
-- Hubwayz static data API (requires account manager setup): the matching pipeline's hotel list fetch is provider-specific and may use a separate static feed delivery mechanism.
