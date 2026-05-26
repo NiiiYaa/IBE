@@ -266,9 +266,49 @@ No channel-specific logic bleeds into the adapters or orchestrator. Adding a new
 
 ---
 
-## 8. What's Out of Scope
+## 8. B2B Buyer Credentials
+
+B2B buyers (e.g. travel agencies) log into the seller's IBE. Two scenarios are supported:
+
+**Scenario A — Buyer uses seller's credentials:** the buyer searches using the seller's provider account. Seller's markup applies. This is the default and requires no extra configuration.
+
+**Scenario B — Buyer has their own provider account:** a buyer org brings their own credentials for a provider (e.g. their own Hubwayz contract with negotiated rates). Their rates replace the seller's rates for that provider in that session.
+
+### Data model — `BuyerOrgProviderCredentials`
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | Int PK | |
+| `buyerOrgId` | Int FK | → Organization (the buyer) |
+| `sellerOrgId` | Int FK | → Organization (the seller, must have that provider active) |
+| `provider` | String | Provider slug |
+| `credentials` | String | Encrypted JSON, same shape as seller credentials |
+| `isActive` | Boolean | @default(true) |
+| `createdAt` | DateTime | |
+| `updatedAt` | DateTime | |
+
+`@@unique([buyerOrgId, sellerOrgId, provider])`
+
+### Credential resolution at search time
+
+```
+1. Is this a B2B session (buyerOrgId present)?
+   a. Does BuyerOrgProviderCredentials exist for (buyerOrgId, sellerOrgId, provider)?
+      → Yes: use buyer's credentials
+      → No: fall back to seller's OrgProviderCredentials
+2. B2C session: always use seller's OrgProviderCredentials
+```
+
+Mirrors the existing `getBuyerHGCredentials()` pattern in the codebase.
+
+**Markup:** the seller's markup always applies regardless of whose credentials are used. The seller controls pricing on their platform.
+
+**Admin UI:** buyer credentials are managed by the seller admin under a buyer org's settings page — same provider tabs, but scoped to the buyer relationship.
+
+---
+
+## 9. What's Out of Scope
 
 - Room-level deduplication across providers: each provider's room list is shown independently within a hotel card. Board type codes are normalized to labels but room names are not matched.
-- B2B / buyer-org credentials for non-HG providers: deferred.
 - Rate parity alerts between providers: deferred.
 - Hubwayz static data API (requires account manager setup): the matching pipeline's hotel list fetch is provider-specific and may use a separate static feed delivery mechanism.
