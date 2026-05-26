@@ -18,6 +18,42 @@ Add support for multiple hotel inventory providers (starting with Hubwayz) along
 - HG participates in multi-provider search too, alongside aggregators like Hubwayz.
 - HG inventory is "direct" (from hotels); other providers are aggregators. Both are shown; guest picks by rate.
 
+## Architecture — Separate Service, Same Monorepo
+
+The multi-provider system lives in `apps/marketplace-api/` — a new independent Fastify service within the existing monorepo, deployed as a separate Render service.
+
+**Why separate service:** long-term architectural independence. Business logic, data models, and provider integrations are fully owned by the marketplace service and can evolve independently of the main IBE.
+
+**Why same monorepo:** shared tooling, one CI pipeline, shared `packages/shared` types where needed.
+
+### Service boundaries
+
+```
+apps/api/          (existing IBE API — unchanged except 3 new internal routes)
+apps/marketplace-api/   (new — owns all multi-provider logic)
+apps/web/          (existing frontend — new pages/components call marketplace-api)
+```
+
+### API boundary
+
+The marketplace calls the main IBE for three things only:
+
+| Direction | Endpoint | Purpose |
+|---|---|---|
+| Marketplace → IBE | `POST /internal/bookings` | Create booking record in main IBE DB |
+| Marketplace → IBE | `GET /internal/orgs/:id` | Resolve org details + active providers |
+| Marketplace → IBE | `POST /internal/auth/verify` | Validate guest/admin JWT |
+
+### Database
+
+Shared Postgres instance, separate Prisma schema. Marketplace tables (MasterHotel, OrgProviderCredentials, etc.) co-exist with IBE tables. `Booking` model in the main IBE schema is extended with `provider` + `providerRef` (nullable, no migration risk). No cross-schema Prisma relations — the marketplace references `organizationId` by value only.
+
+### Changes to existing IBE
+
+1. `apps/api/` — add 3 internal routes (listed above). Nothing else changes.
+2. `apps/web/` — add new location-search page + marketplace API client. Existing pages untouched.
+3. `prisma/schema.prisma` — add `provider` + `providerRef` to `Booking` model.
+
 ---
 
 ## 1. Data Models
