@@ -23,20 +23,16 @@ export async function executeGetPropertyInfo(args: Record<string, unknown>): Pro
       ?? data.descriptions?.[0]?.description
       ?? null
 
-    const mapFacilities = (list: typeof data.facilities) =>
-      (list ?? []).map(f => ({
-        name: f.name,
-        category: f.category,
-        popular: f.popular === 1,
-      }))
+    // Only popular facilities to keep LLM context small
+    const popularFacilities = (data.facilities ?? [])
+      .filter(f => f.popular === 1)
+      .map(f => f.name)
 
-    const facilities = mapFacilities(data.facilities)
-
+    // Room types: name + short description only — no per-room facility lists
     const roomTypes = (data.rooms ?? []).map(r => ({
       roomId: r.id,
       name: r.name,
-      description: r.descriptions?.find(d => d.language === 'en')?.description?.slice(0, 200) ?? null,
-      facilities: mapFacilities(r.facilities),
+      description: r.descriptions?.find(d => d.language === 'en')?.description?.slice(0, 150) ?? null,
     }))
 
     return {
@@ -52,7 +48,7 @@ export async function executeGetPropertyInfo(args: Record<string, unknown>): Pro
         : null,
       rating: data.rating ?? null,
       description: description?.slice(0, 500) ?? null,
-      facilities,
+      popularFacilities,
       roomTypes,
     }
   } catch (err) {
