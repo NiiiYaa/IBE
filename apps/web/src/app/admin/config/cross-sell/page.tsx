@@ -241,7 +241,7 @@ function ProductRow({ product, orgId, onRefresh }: { product: CrossSellProduct; 
 
 export default function CrossSellConfigPage() {
   const { admin } = useAdminAuth()
-  const { orgId: contextOrgId } = useAdminProperty()
+  const { orgId: contextOrgId, propertyId: contextPropertyId } = useAdminProperty()
   const qc = useQueryClient()
   const isSuper = admin?.role === 'super'
   const orgId = isSuper ? (contextOrgId ?? undefined) : (admin?.organizationId ?? undefined)
@@ -257,6 +257,7 @@ export default function CrossSellConfigPage() {
     mutationFn: (update: Parameters<typeof apiClient.updateCrossSellConfig>[0]) =>
       apiClient.updateCrossSellConfig(update, orgId),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onError: () => {},
   })
 
   const createMut = useMutation({
@@ -264,7 +265,24 @@ export default function CrossSellConfigPage() {
     onSuccess: () => { setCreating(false); void qc.invalidateQueries({ queryKey }) },
   })
 
+  // Property-level override (shown when a specific property is selected)
+  const overrideQueryKey = ['cross-sell-property-override', contextPropertyId]
+  const { data: overrideData, isLoading: overrideLoading } = useQuery({
+    queryKey: overrideQueryKey,
+    queryFn: () => apiClient.getPropertyCrossSellOverride(contextPropertyId!),
+    enabled: contextPropertyId != null,
+  })
+
+  const saveOverrideMut = useMutation({
+    mutationFn: (d: { enabled: boolean | null }) =>
+      apiClient.updatePropertyCrossSellOverride(contextPropertyId!, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: overrideQueryKey }),
+    onError: () => {},
+  })
+
   const [creating, setCreating] = useState(false)
+
+  const overrideEnabled = overrideData?.enabled  // null = inherit, true/false = override
 
   return (
     <div className="space-y-6">
@@ -344,6 +362,61 @@ export default function CrossSellConfigPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Property-level override — visible when a specific hotel is selected */}
+      {contextPropertyId != null && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-text)]">Property Override</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              Override the chain-level cross-sell setting for this specific property.
+              When set to "Inherit", the property follows the chain setting above.
+            </p>
+          </div>
+          {overrideLoading && <p className="text-xs text-[var(--color-text-muted)]">Loading…</p>}
+          {!overrideLoading && (
+            <div className="flex flex-wrap items-center gap-2">
+              {(['inherit', 'enabled', 'disabled'] as const).map(opt => {
+                const isActive =
+                  opt === 'inherit' ? overrideEnabled == null
+                  : opt === 'enabled' ? overrideEnabled === true
+                  : overrideEnabled === false
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => saveOverrideMut.mutate({ enabled: opt === 'inherit' ? null : opt === 'enabled' })}
+                    disabled={saveOverrideMut.isPending}
+                    className={[
+                      'rounded-lg border px-4 py-1.5 text-xs font-medium capitalize transition-colors',
+                      isActive
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                        : 'border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
+                    ].join(' ')}
+                  >
+                    {opt}
+                  </button>
+                )
+              })}
+              {overrideEnabled === false && (
+                <span className="text-xs text-[var(--color-warning)] font-medium">
+                  ⚠ This property is overriding the chain setting to disabled
+                </span>
+              )}
+              {overrideEnabled === true && (
+                <span className="text-xs text-[var(--color-success)] font-medium">
+                  This property overrides the chain setting to enabled
+                </span>
+              )}
+              {overrideEnabled == null && (
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Inheriting from chain ({data?.enabled ? 'enabled' : 'disabled'})
+                </span>
+              )}
+            </div>
+          )}
+          {saveOverrideMut.isError && <p className="text-xs text-[var(--color-error)]">Save failed.</p>}
+        </div>
       )}
 
       {creating && (

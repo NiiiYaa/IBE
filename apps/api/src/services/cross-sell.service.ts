@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import { logger } from '../utils/logger.js'
 import type {
   CrossSellConfig,
   CrossSellConfigUpdate,
@@ -147,6 +148,10 @@ export async function getResolvedCrossSell(propertyId: number): Promise<{
   const enabled = propOverride?.enabled ?? chainCfg?.enabled ?? false
   const paymentMode = (propOverride?.paymentMode ?? chainCfg?.paymentMode ?? 'informational') as CrossSellPaymentMode
   const showExternalEvents = chainCfg?.showExternalEvents ?? false
+
+  if (!enabled) {
+    logger.debug({ propertyId, orgId, chainEnabled: chainCfg?.enabled ?? null, propOverrideEnabled: propOverride?.enabled ?? null }, '[CrossSell] resolved disabled')
+  }
 
   return { enabled, paymentMode, showExternalEvents, products: products.map(rowToProduct) }
 }
