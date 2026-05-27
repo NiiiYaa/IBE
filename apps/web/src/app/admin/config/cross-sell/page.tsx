@@ -345,7 +345,7 @@ export default function CrossSellConfigPage() {
           {/* External products */}
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-3">
             <div>
-              <p className="text-sm font-semibold text-[var(--color-text)]">External Products (Ticketmaster)</p>
+              <p className="text-sm font-semibold text-[var(--color-text)]">External Products</p>
               <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                 Events near the hotel from the Ticketmaster feed, shown as affiliate links.
                 Managed under <span className="font-medium text-[var(--color-text)]">Configuration → Events</span>.

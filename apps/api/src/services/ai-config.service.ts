@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypt
 import { prisma } from '../db/client.js'
 import { env } from '../config/env.js'
 import { logger } from '../utils/logger.js'
+import { fetchHotelList } from '../adapters/hyperguest/static.js'
 import type { AIProvider, AIConfigResponse, OrgAIConfigResponse, PropertyAIConfigResponse, AIConfigUpdate, OrgAIConfigUpdate, PropertyAIConfigUpdate } from '@ibe/shared'
 
 function getEncryptionKey(): Buffer {
@@ -296,6 +297,34 @@ export interface ChainContext {
   defaultCurrency?: string
   isChainMember: boolean
   isChainEngine: boolean  // true when browsing at org level (no single home property)
+  geoCoverage?: string    // e.g. "Indonesia (85 hotels: Bali, Jakarta); Singapore (12 hotels: Singapore)"
+}
+
+async function buildGeoCoverage(propertyIds: number[]): Promise<string | undefined> {
+  if (propertyIds.length <= 1) return undefined
+  try {
+    const allHgHotels = await fetchHotelList()
+    const idSet = new Set(propertyIds)
+    const orgHotels = allHgHotels.filter(h => idSet.has(h.hotel_id))
+    const countryMap = new Map<string, { count: number; cities: Set<string> }>()
+    for (const h of orgHotels) {
+      if (!h.country) continue
+      if (!countryMap.has(h.country)) countryMap.set(h.country, { count: 0, cities: new Set() })
+      const entry = countryMap.get(h.country)!
+      entry.count++
+      if (h.city) entry.cities.add(h.city)
+    }
+    if (!countryMap.size) return undefined
+    return Array.from(countryMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([country, { count, cities }]) => {
+        const cityList = Array.from(cities).sort().join(', ')
+        return `${country} (${count} hotel${count !== 1 ? 's' : ''}${cityList ? `: ${cityList}` : ''})`
+      })
+      .join('; ')
+  } catch {
+    return undefined
+  }
 }
 
 export async function resolveChainContext(propertyId?: number, orgId?: number): Promise<ChainContext> {
@@ -313,10 +342,12 @@ export async function resolveChainContext(propertyId?: number, orgId?: number): 
       ])
       const propertyIds = props.map(p => p.propertyId)
       const isChainMember = propertyIds.length > 1
+      const geoCoverage = isChainMember ? await buildGeoCoverage(propertyIds) : undefined
       return {
         homePropertyId: propertyId,
         ...(isChainMember && org?.name ? { chainName: org.name } : {}),
         ...(hotelConfig?.defaultCurrency ? { defaultCurrency: hotelConfig.defaultCurrency } : {}),
+        ...(geoCoverage ? { geoCoverage } : {}),
         propertyIds,
         isChainMember,
         isChainEngine: false,
@@ -333,9 +364,11 @@ export async function resolveChainContext(propertyId?: number, orgId?: number): 
       prisma.orgDesignDefaults.findUnique({ where: { organizationId: orgId }, select: { defaultCurrency: true } }),
     ])
     const propertyIds = props.map(p => p.propertyId)
+    const geoCoverage = await buildGeoCoverage(propertyIds)
     return {
       ...(org?.name ? { chainName: org.name } : {}),
       ...(orgDesign?.defaultCurrency ? { defaultCurrency: orgDesign.defaultCurrency } : {}),
+      ...(geoCoverage ? { geoCoverage } : {}),
       propertyIds,
       isChainMember: propertyIds.length > 1,
       isChainEngine: true,

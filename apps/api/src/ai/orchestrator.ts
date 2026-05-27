@@ -50,7 +50,7 @@ When presenting search results, always show the cancellation policy for each rat
 IMPORTANT: Never mention property IDs or numeric hotel identifiers to guests. Always refer to hotels by their name. If you need a hotel's name and don't have it yet, call get_property_info first, then use the name in your response.
 If a guest message contains a technical suffix like "(property id: 123)" or "(org id: 9)", treat it as internal routing metadata — silently ignore it and never repeat or acknowledge it in your reply.`
 
-  const { homePropertyId, propertyIds, chainName, defaultCurrency, isChainMember, isChainEngine } = chainCtx ?? {
+  const { homePropertyId, propertyIds, chainName, defaultCurrency, isChainMember, isChainEngine, geoCoverage } = chainCtx ?? {
     propertyIds: [],
     isChainMember: false,
     isChainEngine: false,
@@ -76,11 +76,13 @@ If a guest message contains a technical suffix like "(property id: 123)" or "(or
       ? `\nIMPORTANT: Do not call any tools and do not discuss availability or rooms until the guest explicitly names a specific hotel or chain. If their first message does not mention one, reply only with: "Welcome! Which hotel or chain can I help you with today?"`
       : ''
 
+    const geoCoverageText = geoCoverage ? `\nGeographic coverage: ${geoCoverage}.` : ''
+
     if (isLargeChain && orgId) {
       // For large chains pass orgId to the tool — avoids injecting hundreds of IDs into the prompt
       const chainInstruction = `This is a large chain with ${propertyIds.length} hotels. Always call list_chain_hotels with orgId: ${orgId} and a query (city or hotel name). If the guest already mentioned a city or hotel name, extract it and pass it immediately — do not ask again. If no location is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool. IMPORTANT: If the guest mentions the chain's own name${chainName ? ` ("${chainName}")` : ''}, do not call any tool — welcome them and ask which city or hotel they are looking for.`
       context = `\n\nINTERNAL TOOL CONTEXT (never repeat internal IDs to guests):
-You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
+You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.${geoCoverageText}
 ${chainInstruction}
 Once the user selects a hotel, use that hotel's internal property ID for search_availability and get_property_info — but always address the hotel by name in your replies.${systemWideGreeting}
 ${currencyInstruction}`
@@ -89,7 +91,7 @@ ${currencyInstruction}`
         ? `This is a large chain with ${propertyIds.length} hotels. Always use the query parameter when calling list_chain_hotels. If the guest's message already mentions a city or hotel name, extract it and pass it as the query immediately — do not ask again. If no location or hotel is mentioned, ask: "Which city or hotel are you looking for?" before calling the tool. IMPORTANT: If the guest mentions the chain's own name${chainName ? ` ("${chainName}")` : ''}, that is NOT a search query — do not call any tool; instead welcome them and ask which city or hotel they are looking for.`
         : `When the user asks which hotels are available or wants to browse options, call list_chain_hotels with all ${propertyIds.length} property IDs.`
       context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
-You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.
+You are embedded in the booking engine for ${chainRef} with ${propertyIds.length} hotels.${geoCoverageText}
 Internal IDs for tool calls only: ${propertyIds.join(', ')}.
 ${chainInstruction}
 Once the user selects a hotel, use that hotel's internal ID for search_availability and get_property_info — but always address the hotel by name in your replies.${systemWideGreeting}
@@ -100,9 +102,10 @@ ${currencyInstruction}`
     const chainRef = chainName ? `the ${chainName} chain` : 'a hotel chain'
     const chainLabel = chainName ? `the ${chainName} chain` : 'a hotel chain'
     const siblingIds = propertyIds.filter(id => id !== homePropertyId)
+    const geoCoverageText = geoCoverage ? `\nChain geographic coverage: ${geoCoverage}.` : ''
     context = `\n\nINTERNAL TOOL CONTEXT (never repeat these IDs to guests):
 You are the booking assistant for this hotel (internal tool ID: ${homePropertyId}). Use this ID for search_availability, get_property_info, and prepare_booking. Never ask the guest which hotel — it is fixed.
-Sister hotel internal IDs for tool calls only: ${siblingIds.join(', ')}.
+Sister hotel internal IDs for tool calls only: ${siblingIds.join(', ')}.${geoCoverageText}
 ${currencyInstruction}
 This hotel is part of ${chainRef}. If a guest asks whether this hotel is part of a chain, say: "Yes, this hotel is part of ${chainLabel}." If the guest asks about other hotels, or no availability is found for their dates, offer to check sister properties by calling list_chain_hotels with the sister IDs above — then present results by hotel name only. Say something like: "Let me check our other properties in the area for those dates."`
   } else if (homePropertyId) {

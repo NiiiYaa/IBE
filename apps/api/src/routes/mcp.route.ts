@@ -665,8 +665,8 @@ async function resolveDefaultProperty(scope: Awaited<ReturnType<typeof validateA
   if (!scope) return null
   if (scope.kind === 'property') return scope.propertyId
   const first = await prisma.property.findFirst({
-    where: { organizationId: scope.orgId, status: 'active' },
-    orderBy: { propertyId: 'asc' },
+    where: { organizationId: scope.orgId, status: { not: 'inactive' } },
+    orderBy: [{ isDefault: 'desc' }, { propertyId: 'asc' }],
     select: { propertyId: true },
   })
   return first?.propertyId ?? null
@@ -693,9 +693,9 @@ async function handleToolCall(
 
   if (toolName === 'list_properties') {
     const baseWhere = orgId
-      ? { organizationId: orgId, status: 'active' }
+      ? { organizationId: orgId, status: { not: 'inactive' } }
       : defaultPropertyId
-      ? { propertyId: defaultPropertyId, status: 'active' }
+      ? { propertyId: defaultPropertyId, status: { not: 'inactive' } }
       : null
     if (!baseWhere) return mcpError('No property context available')
 
@@ -791,12 +791,13 @@ async function handleToolCall(
       }
     })
     const paginationNote = offset + list.length < effectiveTotal
-      ? `Showing ${offset + 1}–${offset + list.length} of ${effectiveTotal}. Use offset to get more.`
+      ? `Showing ${offset + 1}–${offset + list.length} of ${effectiveTotal} hotels. Use offset to get more.`
       : undefined
     const largeChainNote = isLargeChain && !query
       ? `This chain has ${totalUnfiltered} hotels in total. Use the query parameter to filter by city or hotel name for more targeted results.`
       : undefined
-    const note = paginationNote ?? largeChainNote
+    const notes = [paginationNote, largeChainNote].filter(Boolean)
+    const note = notes.length ? notes.join(' ') : undefined
     const structuredContent = { properties: list, returned: list.length, total: effectiveTotal, ...(note ? { note } : {}) }
     return {
       content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
@@ -1042,20 +1043,63 @@ async function dispatchJsonRpc(
 
   if (body.method === 'initialize') {
     let serverName = 'IBE MCP Server'
+    let instructions: string | undefined
+
     if (orgId) {
-      const [org, count] = await Promise.all([
+      const [org, allProps, allHgHotels] = await Promise.all([
         prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
-        prisma.property.count({ where: { organizationId: orgId, status: 'active' } }),
+        prisma.property.findMany({
+          where: { organizationId: orgId, status: { not: 'inactive' } },
+          select: { propertyId: true },
+        }),
+        fetchHotelList().catch(() => [] as Awaited<ReturnType<typeof fetchHotelList>>),
       ])
       if (org) {
-        serverName = count > 1
-          ? `${org.name} (${count} hotels — use list_properties to browse; supports query/limit/offset)`
+        const total = allProps.length
+        serverName = total > 1
+          ? `${org.name} (${total} hotels — use list_properties to browse; supports query/limit/offset)`
           : org.name
+
+        if (total > 0) {
+          const orgIds = new Set(allProps.map(p => p.propertyId))
+          const orgHotels = allHgHotels.filter(h => orgIds.has(h.hotel_id))
+
+          const countryMap = new Map<string, { count: number; cities: Set<string> }>()
+          for (const h of orgHotels) {
+            if (!h.country) continue
+            if (!countryMap.has(h.country)) countryMap.set(h.country, { count: 0, cities: new Set() })
+            const entry = countryMap.get(h.country)!
+            entry.count++
+            if (h.city) entry.cities.add(h.city)
+          }
+
+          const coverageLines = Array.from(countryMap.entries())
+            .sort((a, b) => b[1].count - a[1].count)
+            .map(([country, { count, cities }]) => {
+              const cityList = Array.from(cities).sort().join(', ')
+              return `${country} (${count} hotel${count !== 1 ? 's' : ''}${cityList ? `: ${cityList}` : ''})`
+            })
+
+          instructions = [
+            `You are a hotel booking assistant for ${org.name}.`,
+            '',
+            `Chain overview: ${total} hotel${total !== 1 ? 's' : ''} across ${countryMap.size} countr${countryMap.size !== 1 ? 'ies' : 'y'}.`,
+            ...(coverageLines.length ? [`Geographic coverage: ${coverageLines.join('; ')}.`] : []),
+            '',
+            'Use list_properties to discover hotels (supports query/city filter and pagination). Use search_availability to check rooms and rates.',
+          ].join('\n')
+        }
       }
     }
+
     return {
       jsonrpc: '2.0',
-      result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {}, resources: {} }, serverInfo: { name: serverName, version: '1.0.0' } },
+      result: {
+        protocolVersion: PROTOCOL_VERSION,
+        capabilities: { tools: {}, resources: {} },
+        serverInfo: { name: serverName, version: '1.0.0' },
+        ...(instructions ? { instructions } : {}),
+      },
       id: body.id ?? null,
     }
   }
