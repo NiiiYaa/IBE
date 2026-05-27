@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import { logger } from '../utils/logger.js'
 import type { IncentiveSlotName } from '@ibe/shared'
 
 const PACKAGE_INCLUDE = {
@@ -384,6 +385,10 @@ export async function resolveIncentiveSlotsForProperty(propertyId: number, local
   const property = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
   let orgId = property?.organizationId ?? null
 
+  if (!property) {
+    logger.warn({ propertyId }, '[Incentive] property not found in DB — chain slots unavailable')
+  }
+
   if (sourceOrgId !== undefined) {
     // Only use source org if it is actually associated with this property
     const assoc = await prisma.propertyOrganization.findUnique({
@@ -398,6 +403,10 @@ export async function resolveIncentiveSlotsForProperty(propertyId: number, local
     resolveSlot('room_results', orgId, propertyId),
     getItemTranslations(locale),
   ])
+
+  if (!roomBanner?.pkg) {
+    logger.info({ propertyId, orgId, roomBannerFrom: roomBanner?.from ?? null, roomBannerPkg: roomBanner?.packageId ?? null }, '[Incentive] room_banner resolved to null')
+  }
 
   function toDisplay(r: Awaited<ReturnType<typeof resolveSlot>>) {
     if (!r?.pkg) return null
