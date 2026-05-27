@@ -381,7 +381,7 @@ async function getItemTranslations(locale: string): Promise<Map<string, string>>
 
 export async function resolveIncentiveSlotsForProperty(propertyId: number, locale = 'en', sourceOrgId?: number) {
   // Need the property's orgId for chain inheritance
-  const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { organizationId: true } })
+  const property = await prisma.property.findUnique({ where: { propertyId }, select: { organizationId: true } })
   let orgId = property?.organizationId ?? null
 
   if (sourceOrgId !== undefined) {
