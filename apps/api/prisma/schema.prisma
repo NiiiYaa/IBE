@@ -2217,3 +2217,66 @@ model ManualCache {
   generatedAt  DateTime
   sectionsJson Json
 }
+
+// ── Self-Onboarding ──────────────────────────────────────────────────────────
+
+model OnboardingInvitation {
+  id                  Int                @id @default(autoincrement())
+  token               String             @unique @default(cuid())
+  organizationId      Int?               // null for self-registration (assigned on approval)
+  source              String             @default("staff_invite") // staff_invite | self_registration | zoho
+  zohoRecordId        String?            // Phase 2: Zoho deal/ticket ID that spawned this
+  pmsId               Int?               // set by staff upfront (staff flow) or by hotel selection (self-reg)
+  pmsName             String?            // human-readable name of the selected ARI source, e.g. "Mews"
+  unknownPmsName      String?            // hotel typed a CM name not in registry → triggers pending_ari_source
+  hotelName           String?
+  city                String?
+  country             String?
+  ibeUrl              String?            // selected IBE URL (staff sets this upfront; self-reg sets it during wizard)
+  ibePattern          String?            // detected IBE pattern name from registry; null if unrecognized
+  contactEmail        String?
+  // Pre-harvest fields (staff_invite / zoho flow only)
+  harvestStatus       String             @default("pending") // pending | harvesting | complete | failed
+  harvestedData       Json?              // HarvestedHotelData — populated before invitation is sent (staff/CRM flow)
+  failureReason       String?            // error message if harvestStatus=failed
+  harvestNotifiedAt   DateTime?          // when HG staff were notified of harvest failure
+  expiresAt           DateTime
+  usedAt              DateTime?
+  revokedAt           DateTime?
+  createdAt           DateTime           @default(now())
+  createdByAdminId    Int?               // null for self-registration and zoho
+  session             OnboardingSession?
+}
+
+model OnboardingSession {
+  id                 Int                  @id @default(autoincrement())
+  invitationId       Int                  @unique
+  invitation         OnboardingInvitation @relation(fields: [invitationId], references: [id])
+  status             String               @default("in_progress")
+  // status values:
+  //   in_progress        — hotel is actively moving through the wizard
+  //   pending_ibe_review — IBE URL not recognised; HG staff must add IBE pattern before hotel can continue
+  //   pending_ari_source — CM/PMS not in registry; hotel typed the name; HG staff must add VendorFlow before hotel can continue
+  //   pending_review     — wizard complete; awaiting HG staff approval to go live
+  //   approved           — HG staff approved; hotel is live
+  //   abandoned          — session expired or hotel gave up
+  currentStep        Int                  @default(0)
+  stepsJson          Json                 @default("[]")
+  harvestedData      Json?                // scraped from IBE: hotel info, rooms, rate plan types, taxes & fees
+  enrichedData       Json?                // user-confirmed/edited version of harvestedData + credentials
+  hgPropertyCode     String?
+  approvedAt         DateTime?
+  approvedByAdminId  Int?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  helpRequests       OnboardingHelpRequest[]
+}
+
+model OnboardingHelpRequest {
+  id        Int               @id @default(autoincrement())
+  sessionId Int
+  session   OnboardingSession @relation(fields: [sessionId], references: [id])
+  message   String
+  status    String            @default("open") // open | resolved
+  createdAt DateTime          @default(now())
+}
