@@ -117,9 +117,43 @@ async function extractDirectBookRates(page: Page, orgId: number | null): Promise
   return extractRatesWithAI(page, orgId)
 }
 
+async function extractSimpleBookingRates(page: Page, orgId: number | null): Promise<RoomRate[]> {
+  // SimpleBooking.it is a React SPA — try embedded __NEXT_DATA__ or window state first.
+  const scriptData = await page.evaluate((): unknown => {
+    const el = document.getElementById('__NEXT_DATA__')
+    if (el?.textContent) {
+      try { return JSON.parse(el.textContent) } catch {}
+    }
+    return null
+  })
+
+  if (scriptData) {
+    const rooms = tryParseRooms(scriptData)
+    const rates: RoomRate[] = []
+    for (const room of rooms) {
+      for (const rate of room.rates) {
+        const board = normaliseBoard(rate.boardLabel)
+        if (!board) continue
+        rates.push({
+          roomName: room.name,
+          board,
+          cancellation: rate.isNonRefundable ? 'NR' : 'Flexi',
+          pricePerNight: rate.pricePerNight ?? 0,
+          total: rate.total ?? rate.pricePerNight ?? 0,
+          currency: rate.currency ?? 'EUR',
+        })
+      }
+    }
+    if (rates.length > 0) return rates
+  }
+
+  return extractRatesWithAI(page, orgId)
+}
+
 const IBE_EXTRACTORS: Record<string, RateExtractor> = {
   'sentec': extractSentecRates,
   'direct-book.com': extractDirectBookRates,
+  'simplebooking.it': extractSimpleBookingRates,
 }
 
 // If a competitor URL has no template vars, try to expand it using the known IBE registry
