@@ -7,7 +7,10 @@ import { detectKnownIBE } from '@ibe/shared';
 const OTA_BLOCKLIST = [
   'booking.com', 'expedia.com', 'hotels.com', 'tripadvisor.com', 'agoda.com',
   'airbnb.com', 'kayak.com', 'trivago.com', 'orbitz.com', 'priceline.com',
-  'hotelscombined.com', 'google.com',
+  'hotelscombined.com', 'google.com', 'hotel-ds.com', 'hotel.de',
+  'lastminute.com', 'momondo.com', 'skyscanner.com', 'hotelbeds.com',
+  'hrs.com', 'hotel-bb.com', 'hotelworld.com', 'hostelworld.com',
+  'travelocity.com', 'getaroom.com', 'hotelebarcelona.net',
 ];
 
 export const SCREENSHOTS_DIR = path.join(process.cwd(), 'uploads', 'screenshots');
@@ -17,6 +20,17 @@ export interface HotelCandidate {
   title: string;
   detected: boolean;
   screenshotUrl: string | null;
+}
+
+function decodeDdgUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('duckduckgo.com')) {
+      const uddg = u.searchParams.get('uddg');
+      if (uddg) return uddg;
+    }
+    return url;
+  } catch { return url; }
 }
 
 function isOta(url: string): boolean {
@@ -87,7 +101,8 @@ export async function searchHotels(hotelName: string, city: string, country: str
     return [];
   }
 
-  const candidates = rawResults.filter(r => r.url && !isOta(r.url)).slice(0, 5);
+  const decoded = rawResults.map(r => ({ ...r, url: decodeDdgUrl(r.url) }));
+  const candidates = decoded.filter(r => r.url && !isOta(r.url)).slice(0, 5);
 
   return Promise.all(candidates.map(async (c) => {
     const detection = detectKnownIBE(c.url);
