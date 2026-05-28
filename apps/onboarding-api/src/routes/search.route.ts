@@ -32,7 +32,7 @@ export async function searchRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { hotelName, city, country } = request.body;
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required');
-      const candidates = await searchHotels(hotelName.trim(), city.trim(), country ?? '');
+      const candidates = await searchHotels(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
       return reply.send({ candidates });
     }
   );
