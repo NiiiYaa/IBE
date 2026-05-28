@@ -85,10 +85,10 @@ export default function HotelOnboardingPage() {
         ...(searchForm.country ? { country: searchForm.country } : {}),
       });
       setCandidates(result.candidates);
-      // Fetch screenshots progressively in the background
+      // Fetch screenshots progressively via main API (avoids CORS issues with onboarding-api)
       result.candidates.forEach((c, i) => {
         if (c.screenshotUrl) return; // already has one (Brave path)
-        fetch(`${ONBOARDING_API_URL}/screenshot`, {
+        fetch('/api/v1/admin/hotel-onboarding/screenshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: c.url }),

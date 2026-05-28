@@ -105,6 +105,26 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return reply.send({ ariStats, ibeStats, ibeSampleUrls })
   })
 
+  app.post<{ Body: { url: string } }>('/admin/hotel-onboarding/screenshot', async (request, reply) => {
+    const me = request.admin
+    if (!me.organizationId && me.role !== 'super') return reply.badRequest('No organization context')
+    const { url } = request.body
+    if (!url?.trim()) return reply.badRequest('url required')
+    const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+    try {
+      const res = await fetch(`${internalUrl}/screenshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+        signal: AbortSignal.timeout(20000),
+      })
+      if (!res.ok) return reply.send({ screenshotUrl: null })
+      return reply.send(await res.json())
+    } catch {
+      return reply.send({ screenshotUrl: null })
+    }
+  })
+
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
     '/admin/hotel-onboarding/search',
     async (request, reply) => {
