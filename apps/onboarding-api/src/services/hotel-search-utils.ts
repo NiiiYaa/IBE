@@ -17,7 +17,12 @@ export const OTA_BLOCKLIST = [
   'cntraveler.com', 'travelandleisure.com', 'afar.com', 'cntraveller.com',
   'theguardian.com', 'timeout.com', 'timeout.co.uk',
   'telegraph.co.uk', 'independent.co.uk', 'nytimes.com', 'forbes.com',
-  'businesstraveller.com', 'sleepingaroundtheworld.com',
+  'businesstraveller.com', 'travelweekly.com', 'travelweekly.co.uk',
+  'travelmole.com', 'ttgmedia.com', 'phocuswire.com', 'skift.com',
+  // City/destination tourism guides
+  'visitlondon.com', 'visitengland.com', 'visitscotland.com', 'visitwales.com',
+  'visitspain.es', 'spain.info', 'italia.it', 'france.fr', 'germany.travel',
+  'discovergreece.com', 'visitdubai.com', 'tourismthailand.org',
   'yelp.com', 'zoominfo.com', 'yellowpages.com', 'foursquare.com',
   'trustpilot.com', 'glassdoor.com', 'linkedin.com', 'facebook.com',
   'instagram.com', 'twitter.com', 'x.com',
