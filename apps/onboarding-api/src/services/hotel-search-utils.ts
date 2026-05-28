@@ -1,29 +1,40 @@
+// Exact-match OTA domains — blocked regardless of hotel name
 export const OTA_BLOCKLIST = [
+  // Booking Holdings
+  'booking.com', 'agoda.com', 'priceline.com', 'kayak.com', 'rentalcars.com', 'opentable.com',
+  // Expedia Group
+  'expedia.com', 'hotels.com', 'travelocity.com', 'orbitz.com', 'cheaptickets.com',
+  'hotwire.com', 'wotif.com', 'trivago.com', 'ebookers.com',
+  // Trip.com Group
+  'trip.com', 'ctrip.com', 'skyscanner.com', 'skyscanner.net',
+  // Metasearch & aggregators
+  'tripadvisor.com', 'tripadvisor.co.uk', 'hotelscombined.com', 'wego.com',
+  'momondo.com', 'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
   // Major OTAs
-  'booking.com', 'expedia.com', 'hotels.com', 'tripadvisor.com', 'agoda.com',
-  'airbnb.com', 'kayak.com', 'trivago.com', 'orbitz.com', 'priceline.com',
-  'hotelscombined.com', 'travelocity.com', 'getaroom.com', 'wotif.com',
-  // Search engines & aggregators
-  'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
-  // Travel agencies & resellers
-  'lastminute.com', 'momondo.com', 'skyscanner.com', 'hrs.com',
-  'onthebeach.co.uk', 'laterooms.com', 'edreams.com', 'destinia.com',
-  'rumbo.com', 'logitravel.com', 'atrápalo.com', 'liligo.com',
-  // Hotel directories & portals
-  'hotel-ds.com', 'hotel.de', 'hotelebarcelona.net', 'barcelonahotel.org',
-  'hotel-bb.com', 'hotelworld.com', 'hostelworld.com', 'hotel-info.com',
-  'venere.com', 'hotelbeds.com', 'hrs.de', 'hotel.com',
-  'hoteldirect.co.uk', 'hoteldirect.com', 'bedandbreakfast.com', 'bedandbreakfast.eu', 'bnb.com',
-  'barcelonahotels.com', 'barcelonahotels.es', 'mybarcelona.cat', 'mybarcelona.com', 'spain-holiday.com',
-  'hotelbcn-barcelona.com', 'hotels-in-catalonia.com', 'hotelsbarcelonaes.com',
-  'guestreservations.com', 'reservations.com',
-  'wheeltheworld.com', 'barcelonayellow.com',
+  'lastminute.com', 'edreams.com', 'opodo.com', 'hrs.com', 'hrs.de',
+  'despegar.com', 'makemytrip.com', 'goibibo.com', 'rakuten.com',
+  'laterooms.com', 'getaroom.com', 'traveloka.com', 'airbnb.com',
+  'vrbo.com', 'hometogo.com', 'destinia.com', 'logitravel.com',
+  // Generic directory / mirror sites
+  'hotelmix.com', 'hotelmix.co.uk', 'booked.net', 'reservations.com',
+  'hotelscombined.com', 'hotelhunter.com', 'zenhotels.com', 'cozycozy.com',
+  'lodging-world.com', 'hotel-dir.com', 'venere.com', 'hostelworld.com',
+  'hotelworld.com', 'bedandbreakfast.com', 'bedandbreakfast.eu',
+  'guestreservations.com', 'hotel.com', 'hotel.de',
+]
+
+// Keyword patterns — block any domain containing these substrings
+// Exception: IBE providers (synxis, travelclick, simplebooking, etc.) are detected separately
+// and must NOT appear here — they receive high scores via detectKnownIBE()
+const OTA_KEYWORD_PATTERNS = [
+  'hotelmix', 'booked.net', 'zenhotels', 'cozycozy', 'hotelhunter',
+  'hotelscombined', 'reservations.com', 'hotel-dir', 'lodging-world',
 ]
 
 export const DIRECTORY_PATTERNS = [
-  'hotel-ds.com', 'barcelonahotel.org', 'hotelebarcelona.net', 'hotel-bb.com',
-  'hotel.de', 'hotelworld.com', 'hostelworld.com', 'hotel-info.com', 'venere.com',
-  'destinia.com', 'rumbo.com', 'logitravel.com',
+  'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'lodging-world',
+  'hotel-dir', 'guestreservations', 'venere.com', 'hostelworld.com',
+  'hotelworld.com', 'hotel-info',
 ]
 
 export interface HotelCandidate {
@@ -37,7 +48,9 @@ export interface HotelCandidate {
 export function isOta(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase()
-    return OTA_BLOCKLIST.some(ota => hostname === ota || hostname.endsWith('.' + ota))
+    if (OTA_BLOCKLIST.some(ota => hostname === ota || hostname.endsWith('.' + ota))) return true
+    if (OTA_KEYWORD_PATTERNS.some(kw => hostname.includes(kw))) return true
+    return false
   } catch { return false }
 }
 
