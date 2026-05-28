@@ -9,6 +9,7 @@ import { CredentialsStep } from '@/components/steps/CredentialsStep';
 import { DataReviewStep } from '@/components/steps/DataReviewStep';
 import { UserActionStep } from '@/components/steps/UserActionStep';
 import { CmSettingsStep } from '@/components/steps/CmSettingsStep';
+import { CandidateSearchStep } from '@/components/steps/CandidateSearchStep';
 
 export default function WizardPage() {
   const router = useRouter();
@@ -71,6 +72,14 @@ export default function WizardPage() {
         return <UserActionStep step={currentStepDef} />;
       case 'cm_settings':
         return <CmSettingsStep step={currentStepDef} state={state} onComplete={loadState} />;
+      case 'candidate_search':
+        return <CandidateSearchStep
+          step={currentStepDef}
+          hotelName={String(state.enrichedData?.['hotelName'] ?? '')}
+          city={String(state.enrichedData?.['city'] ?? '')}
+          country={String(state.enrichedData?.['countryCode'] ?? '')}
+          onComplete={loadState}
+        />;
       default:
         return <p>Unknown step type: {currentStepDef.kind}</p>;
     }

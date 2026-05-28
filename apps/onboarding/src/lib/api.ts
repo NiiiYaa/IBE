@@ -26,6 +26,10 @@ export const api = {
   extendHarvestUrl: () => `${BASE}/wizard/extend-harvest`,
   submitCmSettings: (cmSettings: CmSettingsPayload) =>
     request<{ ok: boolean }>('POST', '/wizard/submit-cm-settings', { cmSettings }),
+  hotelSearch: (data: { hotelName: string; city: string; country: string }) =>
+    request<{ candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }> }>('POST', '/hotel-search', data),
+  selectUrl: (url: string) =>
+    request<{ ok: boolean }>('POST', '/select-url', { url }),
 };
 
 export interface RatePlanRow {
