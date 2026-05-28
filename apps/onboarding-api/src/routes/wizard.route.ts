@@ -152,6 +152,49 @@ export async function wizardRoutes(app: FastifyInstance) {
     }
   );
 
+  app.post<{ Body: { cmSettings: {
+    currency: string;
+    pricingModel: 'per_room' | 'per_occupancy' | 'per_person';
+    ratePlans: Array<{
+      boardCode: string; boardCodeRawName: string; isRefundable: boolean;
+      pmsRateplanCode: string; priceType: 'gross' | 'net';
+      commissionPercent: number; charge: 'agent' | 'customer';
+      cancellationPolicy: unknown | null;
+    }>;
+    taxRelations: Record<string, string>;
+  } } }>(
+    '/wizard/submit-cm-settings',
+    async (request, reply) => {
+      const sessionId = getSessionIdFromCookie(request);
+      if (!sessionId) return reply.unauthorized('No session');
+      const session = await getSession(sessionId);
+      if (!session) return reply.notFound();
+      const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+      if (!flow) return reply.badRequest('Unknown vendor');
+
+      const { cmSettings } = request.body;
+      if (!cmSettings.currency?.trim()) return reply.badRequest('currency required');
+      if (cmSettings.ratePlans.length === 0) return reply.badRequest('at least one rate plan required');
+
+      const needsCodes = !flow.ratePlanCodesProvidedByStaff && !flow.useDefaultCodes;
+      if (needsCodes) {
+        const missing = cmSettings.ratePlans.find(rp => !rp.pmsRateplanCode?.trim());
+        if (missing) return reply.badRequest(`CM code required for rate plan: ${missing.boardCodeRawName}`);
+      }
+
+      const existing = (session.enrichedData as Record<string, unknown>) ?? {};
+      await prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: { enrichedData: { ...existing, cmSettings } as any },
+      });
+      await advanceStep(sessionId, session.currentStep, {
+        stepId: flow.steps[session.currentStep]?.id ?? '',
+        success: true,
+      });
+      return reply.send({ ok: true });
+    }
+  );
+
   app.get('/wizard/execute', async (request, reply) => {
     const sessionId = getSessionIdFromCookie(request);
     if (!sessionId) {
