@@ -104,6 +104,139 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
       }
       sseEvent(reply, { type: 'complete', stepId: step.id });
 
+    } else if (step.id === 'create_rooms') {
+      const harvestedData = (session.harvestedData as Record<string, unknown>) ?? {};
+      const rooms = (harvestedData['rooms'] as Array<{ name: string; bedConfiguration?: string | null }>) ?? [];
+      const roomCodes = ((session.enrichedData as Record<string, unknown>)?.['roomCodes'] as Record<string, string>) ?? {};
+      const propertyCode = session.hgPropertyCode;
+      if (!propertyCode) throw new Error('No property code — create_hg_property must run first');
+
+      for (const room of rooms) {
+        const code = roomCodes[room.name];
+        if (!code) throw new Error(`No CM code for room: ${room.name}`);
+        sseEvent(reply, { type: 'progress', message: `Creating room: ${room.name}` });
+        try {
+          await hgBoClient.createRoom(propertyCode, { type: room.name, name: room.name, code });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('409') && !msg.includes('already')) throw err;
+        }
+      }
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true });
+      sseEvent(reply, { type: 'complete', stepId: step.id });
+
+    } else if (step.id === 'create_rateplans') {
+      const propertyCode = session.hgPropertyCode;
+      if (!propertyCode) throw new Error('No property code');
+      const cmSettings = ((session.enrichedData as Record<string, unknown>)?.['cmSettings'] as {
+        ratePlans: Array<{ pmsRateplanCode: string; boardCode: string; priceType: 'gross' | 'net' }>;
+      }) ?? { ratePlans: [] };
+      const roomCodes = ((session.enrichedData as Record<string, unknown>)?.['roomCodes'] as Record<string, string>) ?? {};
+      const allRoomCodes = Object.values(roomCodes);
+
+      for (const rp of cmSettings.ratePlans) {
+        const code = flow.ratePlanCodeTransform
+          ? flow.ratePlanCodeTransform(rp.pmsRateplanCode, rp.boardCode)
+          : rp.pmsRateplanCode;
+        if (!code) continue;
+        sseEvent(reply, { type: 'progress', message: `Creating rate plan: ${code}` });
+        try {
+          await hgBoClient.createRatePlan(propertyCode, {
+            name: code,
+            pmsRateplanCode: code,
+            priceType: rp.priceType,
+            boardCode: rp.boardCode as 'RO' | 'BB' | 'HB' | 'FB' | 'AI',
+          });
+          if (allRoomCodes.length > 0) {
+            await hgBoClient.linkRoomsToRatePlan(propertyCode, code, allRoomCodes);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('409') && !msg.includes('already')) throw err;
+        }
+      }
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true });
+      sseEvent(reply, { type: 'complete', stepId: step.id });
+
+    } else if (step.id === 'create_policies') {
+      const propertyCode = session.hgPropertyCode;
+      if (!propertyCode) throw new Error('No property code');
+      const cmSettings = ((session.enrichedData as Record<string, unknown>)?.['cmSettings'] as {
+        ratePlans: Array<{ pmsRateplanCode: string; cancellationPolicy: unknown | null }>;
+      }) ?? { ratePlans: [] };
+
+      // Deduplicate policies by JSON fingerprint
+      const policyMap = new Map<string, { payload: Record<string, unknown>; ratePlanCodes: string[] }>();
+      for (const rp of cmSettings.ratePlans) {
+        if (!rp.cancellationPolicy) continue;
+        const key = JSON.stringify(rp.cancellationPolicy);
+        if (!policyMap.has(key)) {
+          policyMap.set(key, { payload: rp.cancellationPolicy as Record<string, unknown>, ratePlanCodes: [] });
+        }
+        policyMap.get(key)!.ratePlanCodes.push(rp.pmsRateplanCode);
+      }
+
+      for (const [, { payload, ratePlanCodes }] of policyMap) {
+        sseEvent(reply, { type: 'progress', message: 'Creating cancellation policy...' });
+        let policyCode: string;
+        try {
+          const result = await hgBoClient.createPolicy(propertyCode, payload);
+          policyCode = result.policyCode;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('409') && !msg.includes('already')) throw err;
+          continue;
+        }
+        for (const rpCode of ratePlanCodes) {
+          await hgBoClient.linkPolicyToRatePlan(propertyCode, rpCode, policyCode).catch(() => {});
+        }
+      }
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true });
+      sseEvent(reply, { type: 'complete', stepId: step.id });
+
+    } else if (step.id === 'create_taxes') {
+      const propertyCode = session.hgPropertyCode;
+      if (!propertyCode) throw new Error('No property code');
+      const harvestedData = (session.harvestedData as Record<string, unknown>) ?? {};
+      const taxes = (harvestedData['taxesAndFees'] as Array<{ name: string; amount: string | null }>) ?? [];
+      const enriched = session.enrichedData as Record<string, unknown>;
+      const taxRelations = (enriched?.['cmSettings'] as { taxRelations: Record<string, string> } | undefined)?.taxRelations ?? {};
+      const cmSettings = (enriched?.['cmSettings'] as { ratePlans: Array<{ pmsRateplanCode: string }> } | undefined) ?? { ratePlans: [] };
+
+      for (const tax of taxes) {
+        sseEvent(reply, { type: 'progress', message: `Creating tax: ${tax.name}` });
+        const relation = (taxRelations[tax.name] ?? 'add') as 'included' | 'add' | 'display' | 'optional' | 'ignore';
+        try {
+          await hgBoClient.createTaxFee(propertyCode, {
+            title: tax.name,
+            chargeType: 'percent',
+            chargeValue: parseFloat(tax.amount?.replace(/[^0-9.]/g, '') ?? '0') || 0,
+            category: 'tax',
+            scope: 'per_room',
+            frequency: 'per_night',
+            defaultRatePlanRelation: relation,
+          });
+          for (const rp of cmSettings.ratePlans) {
+            await hgBoClient.setRatePlanTaxes(propertyCode, rp.pmsRateplanCode, { [tax.name]: relation }).catch(() => {});
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('409') && !msg.includes('already')) throw err;
+        }
+      }
+
+      // regionAware: flag for admin queue after all taxes are created
+      if (flow.regionAware) {
+        const existing = (session.enrichedData as Record<string, unknown>) ?? {};
+        await prisma.onboardingSession.update({
+          where: { id: sessionId },
+          data: { enrichedData: { ...existing, adminActions: ['verify_siteminder_region'] } as any },
+        });
+      }
+
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true });
+      sseEvent(reply, { type: 'complete', stepId: step.id });
+
     } else {
       sseEvent(reply, { type: 'error', message: `Step ${step.id} is not an automated step` });
     }
