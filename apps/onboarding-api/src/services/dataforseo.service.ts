@@ -66,13 +66,21 @@ export async function searchHotelsDataForSEO(
     const items = task.result?.[0]?.items ?? []
     const organic = items.filter(i => i.type === 'organic' && i.url)
 
+    // Resolve redirects in parallel — catches parked domains that redirect to GoDaddy/Sedo
+    const resolved = await Promise.all(
+      organic.map(async item => {
+        const url = item.url!
+        if (isOta(url)) return null
+        const finalUrl = await resolveRedirect(url)
+        if (finalUrl !== url && isOta(finalUrl)) return null
+        return item
+      })
+    )
+
     const candidates: HotelCandidate[] = []
-    for (const item of organic) {
+    for (const item of resolved) {
+      if (!item) continue
       const url = item.url!
-      if (isOta(url)) continue
-      // Follow redirects — parked domains (e.g. expired hotel domains) redirect to GoDaddy/Sedo
-      const finalUrl = await resolveRedirect(url)
-      if (finalUrl !== url && isOta(finalUrl)) continue
       const detection = detectKnownIBE(url)
       const detected = detection !== null
       const score = scoreCandidate(url, item.title ?? '', hotelName, detected)
