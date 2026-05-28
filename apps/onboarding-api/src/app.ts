@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
 import { env } from './env.js';
 import { sessionRoutes } from './routes/session.route.js';
+import { wizardRoutes } from './routes/wizard.route.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -21,6 +22,7 @@ export async function buildApp() {
 
   app.get('/health', async () => ({ ok: true }));
   await app.register(sessionRoutes);
+  await app.register(wizardRoutes);
 
   return app;
 }
