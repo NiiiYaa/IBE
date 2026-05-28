@@ -1,4 +1,4 @@
-import { detectKnownIBE } from '@ibe/shared';
+import { detectKnownIBE, normaliseBoard } from '@ibe/shared';
 import { withStealthPage } from '../playwright-browser.service.js';
 import { lookupTaxes } from '../tax-lookup.service.js';
 import { parseCancellationPolicy } from './cancellation-policy-parser.js';
@@ -22,22 +22,6 @@ const SELECTORS = {
   amenityItem: '[data-testid*="amenity"], [class*="Amenity"], [class*="amenity"] li',
 };
 
-const BOARD_NORM: Record<string, DiscoveredRatePlanType['boardCode']> = {
-  'room only': 'RO', 'no meals': 'RO', 'accommodation only': 'RO', 'bed only': 'RO', 'room': 'RO',
-  'bed & breakfast': 'BB', 'bed and breakfast': 'BB', 'b&b': 'BB', 'breakfast included': 'BB',
-  'breakfast': 'BB', 'with breakfast': 'BB',
-  'half board': 'HB', 'half-board': 'HB', 'demi-pension': 'HB',
-  'full board': 'FB', 'full-board': 'FB', 'all meals': 'FB',
-  'all inclusive': 'AI', 'all-inclusive': 'AI',
-};
-
-function normaliseBoard(label: string): DiscoveredRatePlanType['boardCode'] | null {
-  const key = label.toLowerCase().trim();
-  for (const [pattern, code] of Object.entries(BOARD_NORM)) {
-    if (key.includes(pattern)) return code;
-  }
-  return null;
-}
 
 // Occupancy patterns: [adults, children, childAge]
 const OCCUPANCY_PATTERNS: [number, number, number][] = [

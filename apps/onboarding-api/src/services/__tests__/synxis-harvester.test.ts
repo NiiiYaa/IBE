@@ -6,14 +6,18 @@ vi.mock('../playwright-browser.service.js', () => ({
 vi.mock('../tax-lookup.service.js', () => ({
   lookupTaxes: vi.fn().mockReturnValue([{ name: 'VAT', amount: '9%', notes: null, source: 'lookup' }]),
 }));
-vi.mock('@ibe/shared', () => ({
-  detectKnownIBE: vi.fn().mockReturnValue({
-    name: 'Sabre SynXis',
-    externalHotelId: 'HOTEL1',
-    searchTemplate: 'https://be.synxis.com/?adult={adults}&arrive={checkIn}&chain=ABC&child=0&depart={checkOut}&hotel=HOTEL1&level=hotel&locale=en-US',
-    bookingTemplate: 'https://be.synxis.com/?adult={adults}&arrive={checkIn}&chain=ABC',
-  }),
-}));
+vi.mock('@ibe/shared', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    detectKnownIBE: vi.fn().mockReturnValue({
+      name: 'Sabre SynXis',
+      externalHotelId: 'HOTEL1',
+      searchTemplate: 'https://be.synxis.com/?adult={adults}&arrive={checkIn}&chain=ABC&child=0&depart={checkOut}&hotel=HOTEL1&level=hotel&locale=en-US',
+      bookingTemplate: 'https://be.synxis.com/?adult={adults}&arrive={checkIn}&chain=ABC',
+    }),
+  };
+});
 
 import { withStealthPage } from '../playwright-browser.service.js';
 import { SynXisHarvester } from '../harvesters/synxis-harvester.js';
