@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import path from 'path';
 import fs from 'fs';
-import { searchHotelsPrimary, SCREENSHOTS_DIR, cleanExpiredScreenshots } from '../services/hotel-search.service.js';
+import { searchHotelsPrimary, searchHotelsBrave, SCREENSHOTS_DIR, cleanExpiredScreenshots } from '../services/hotel-search.service.js';
 import { resolveIbeUrl } from '../services/ibe-resolver.service.js';
 import { prisma } from '../db/client.js';
 import { getSession, advanceStep } from '../services/session.service.js';
@@ -33,6 +33,17 @@ export async function searchRoutes(app: FastifyInstance) {
       const { hotelName, city, country } = request.body;
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required');
       const candidates = await searchHotelsPrimary(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
+      return reply.send({ candidates });
+    }
+  );
+
+  // POST /hotel-search/brave — Brave Playwright search (last resort, slow ~40s)
+  app.post<{ Body: { hotelName: string; city: string; country: string } }>(
+    '/hotel-search/brave',
+    async (request, reply) => {
+      const { hotelName, city, country } = request.body;
+      if (!hotelName?.trim()) return reply.badRequest('hotelName is required');
+      const candidates = await searchHotelsBrave(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
       return reply.send({ candidates });
     }
   );
