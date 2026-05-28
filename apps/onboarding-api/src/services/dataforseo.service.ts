@@ -20,6 +20,20 @@ interface DataForSEOResponse {
   }>
 }
 
+async function resolveRedirect(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    })
+    return res.url || url
+  } catch {
+    return url
+  }
+}
+
 export async function searchHotelsDataForSEO(
   hotelName: string,
   city: string,
@@ -56,6 +70,9 @@ export async function searchHotelsDataForSEO(
     for (const item of organic) {
       const url = item.url!
       if (isOta(url)) continue
+      // Follow redirects — parked domains (e.g. expired hotel domains) redirect to GoDaddy/Sedo
+      const finalUrl = await resolveRedirect(url)
+      if (finalUrl !== url && isOta(finalUrl)) continue
       const detection = detectKnownIBE(url)
       const detected = detection !== null
       const score = scoreCandidate(url, item.title ?? '', hotelName, detected)
