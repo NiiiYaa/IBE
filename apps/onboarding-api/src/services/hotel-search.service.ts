@@ -11,6 +11,9 @@ const OTA_BLOCKLIST = [
   'lastminute.com', 'momondo.com', 'skyscanner.com', 'hotelbeds.com',
   'hrs.com', 'hotel-bb.com', 'hotelworld.com', 'hostelworld.com',
   'travelocity.com', 'getaroom.com', 'hotelebarcelona.net',
+  'barcelonahotel.org', 'onthebeach.co.uk', 'laterooms.com',
+  'hotel-info.com', 'venere.com', 'hotel.com', 'destinia.com',
+  'edreams.com', 'rumbo.com', 'logitravel.com', 'atrápalo.com',
 ];
 
 export const SCREENSHOTS_DIR = path.join(process.cwd(), 'uploads', 'screenshots');
@@ -20,6 +23,7 @@ export interface HotelCandidate {
   title: string;
   detected: boolean;
   screenshotUrl: string | null;
+  score: number; // 0-100 confidence this is the hotel's own website/IBE
 }
 
 function decodeDdgUrl(url: string): string {
@@ -31,6 +35,29 @@ function decodeDdgUrl(url: string): string {
     }
     return url;
   } catch { return url; }
+}
+
+function scoreCandidate(url: string, title: string, hotelName: string, detected: boolean): number {
+  if (detected) return 92;
+  try {
+    const u = new URL(url);
+    const domain = u.hostname.toLowerCase().replace(/^www\./, '');
+    const pathLower = u.pathname.toLowerCase();
+    const words = hotelName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    let score = 20;
+    // Words from hotel name in domain
+    const matchCount = words.filter(w => domain.includes(w)).length;
+    if (matchCount >= 2) score += 40;
+    else if (matchCount === 1) score += 25;
+    // Words in title
+    const titleMatchCount = words.filter(w => title.toLowerCase().includes(w)).length;
+    if (titleMatchCount >= 2) score += 10;
+    // Booking-related path → direct booking engine
+    if (/book|reserv|book-now|direct/i.test(pathLower)) score += 10;
+    // Looks like a hotel chain or brand site (short domain)
+    if (domain.split('.').length === 2) score += 5;
+    return Math.min(score, 89); // cap below IBE-detected
+  } catch { return 20; }
 }
 
 function isOta(url: string): boolean {
@@ -102,11 +129,19 @@ export async function searchHotels(hotelName: string, city: string, country: str
   }
 
   const decoded = rawResults.map(r => ({ ...r, url: decodeDdgUrl(r.url) }));
-  const candidates = decoded.filter(r => r.url && !isOta(r.url)).slice(0, 5);
+  const candidates = decoded.filter(r => r.url && !isOta(r.url)).slice(0, 8);
 
-  return Promise.all(candidates.map(async (c) => {
+  const scored = await Promise.all(candidates.map(async (c) => {
     const detection = detectKnownIBE(c.url);
+    const detected = detection !== null;
+    const score = scoreCandidate(c.url, c.title, hotelName, detected);
     const screenshotUrl = await takeScreenshot(c.url);
-    return { url: c.url, title: c.title, detected: detection !== null, screenshotUrl };
+    return { url: c.url, title: c.title, detected, screenshotUrl, score };
   }));
+
+  // Sort: detected IBEs first, then by score descending
+  return scored.sort((a, b) => {
+    if (a.detected !== b.detected) return a.detected ? -1 : 1;
+    return b.score - a.score;
+  }).slice(0, 6);
 }

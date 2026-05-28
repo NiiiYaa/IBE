@@ -40,6 +40,7 @@ interface SearchCandidate {
   title: string;
   detected: boolean;
   screenshotUrl: string | null;
+  score: number;
 }
 
 export default function HotelOnboardingPage() {
@@ -216,9 +217,16 @@ export default function HotelOnboardingPage() {
                           <div style={{ padding: '0.6rem' }}>
                             <p style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
                             <p style={{ fontSize: '0.7rem', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.3rem' }}>{c.url}</p>
-                            {c.detected && (
-                              <span style={{ background: '#d1fae5', color: '#065f46', fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px' }}>IBE detected</span>
-                            )}
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {c.detected && (
+                                <span style={{ background: '#d1fae5', color: '#065f46', fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px' }}>IBE detected</span>
+                              )}
+                              <span style={{
+                                background: c.score >= 70 ? '#dbeafe' : c.score >= 40 ? '#fef9c3' : '#f3f4f6',
+                                color: c.score >= 70 ? '#1d4ed8' : c.score >= 40 ? '#92400e' : '#6b7280',
+                                fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px',
+                              }}>{c.score}% match</span>
+                            </div>
                           </div>
                         </div>
                       ))}

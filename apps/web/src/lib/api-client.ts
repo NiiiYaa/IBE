@@ -2589,7 +2589,7 @@ export const apiClient = {
   },
 
   async searchOnboardingHotel(body: { hotelName: string; city: string; country?: string }): Promise<{
-    candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }>
+    candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }>
   }> {
     return apiRequest('/api/v1/admin/hotel-onboarding/search', { method: 'POST', body: JSON.stringify(body) })
   },
