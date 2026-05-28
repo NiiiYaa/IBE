@@ -171,27 +171,39 @@ export async function searchHotels(hotelName: string, city: string, country: str
     results.push({ url: chainUrl, title: `${hotelName} — Official Website`, detected: detection !== null, screenshotUrl, score: Math.max(score, 65) });
   }
 
-  // Step 2: DuckDuckGo with OTA exclusions baked into query
+  // Step 2: Brave Search (JS-rendered, better quality than DuckDuckGo HTML)
   const otaExcludes = '-booking.com -tripadvisor -expedia -agoda -hotels.com -kayak';
-  const q = encodeURIComponent(`"${hotelName}" ${city} official website book direct ${otaExcludes}`);
-  const ddgUrl = `https://html.duckduckgo.com/html/?q=${q}`;
+  const q = encodeURIComponent(`"${hotelName}" ${city} official website ${otaExcludes}`);
+  const braveUrl = `https://search.brave.com/search?q=${q}&source=web`;
 
   let rawResults: Array<{ url: string; title: string }> = [];
   try {
-    rawResults = await withStealthPage(ddgUrl, async (page) => {
+    rawResults = await withStealthPage(braveUrl, async (page) => {
+      try { await page.waitForSelector('a[href^="http"]', { timeout: 8000 }); } catch {}
       await page.waitForTimeout(2000);
       return page.evaluate((): Array<{ url: string; title: string }> => {
-        return Array.from(document.querySelectorAll('.result__a')).slice(0, 10).map(a => ({
-          url: (a as HTMLAnchorElement).href,
-          title: (a as HTMLAnchorElement).textContent?.trim() ?? '',
-        }));
+        const seenDomains = new Set<string>();
+        const links: Array<{ url: string; title: string }> = [];
+        for (const a of Array.from(document.querySelectorAll('a[href^="http"]'))) {
+          const el = a as HTMLAnchorElement;
+          try {
+            const u = new URL(el.href);
+            if (u.hostname.includes('brave.com')) continue;
+            if (seenDomains.has(u.hostname)) continue;
+            seenDomains.add(u.hostname);
+            links.push({ url: el.href, title: el.textContent?.trim() ?? '' });
+            if (links.length >= 12) break;
+          } catch {}
+        }
+        return links;
       });
-    }, { navigationTimeout: 20000 });
+    }, { navigationTimeout: 20000, idleTimeout: 10000 });
   } catch {
-    return [];
+    return results;
   }
 
-  const decoded = rawResults.map(r => ({ ...r, url: decodeDdgUrl(r.url) }));
+  // Brave returns real URLs already — no DDG redirect decoding needed
+  const decoded = rawResults;
   // Deduplicate against chain result
   const seen = new Set(results.map(r => r.url));
   const candidates = decoded
