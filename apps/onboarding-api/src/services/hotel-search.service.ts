@@ -178,6 +178,22 @@ export async function searchHotels(hotelName: string, city: string, country: str
       return page.evaluate((): Array<{ url: string; title: string }> => {
         const seenDomains = new Set<string>();
         const links: Array<{ url: string; title: string }> = [];
+
+        // Extract URLs from Brave's AI-generated answer snippet (high confidence)
+        const bodyText = document.body.innerText;
+        const urlsInText = bodyText.match(/https?:\/\/[^\s"'<>()]+/g) ?? [];
+        for (const url of urlsInText) {
+          try {
+            const clean = url.replace(/[.,)]+$/, '');
+            const u = new URL(clean);
+            if (u.hostname.includes('brave.com')) continue;
+            if (seenDomains.has(u.hostname)) continue;
+            seenDomains.add(u.hostname);
+            links.push({ url: clean, title: `Brave answer: ${clean}` });
+          } catch {}
+        }
+
+        // Then collect link elements (search results)
         for (const a of Array.from(document.querySelectorAll('a[href^="http"]'))) {
           const el = a as HTMLAnchorElement;
           try {
@@ -186,7 +202,7 @@ export async function searchHotels(hotelName: string, city: string, country: str
             if (seenDomains.has(u.hostname)) continue;
             seenDomains.add(u.hostname);
             links.push({ url: el.href, title: el.textContent?.trim() ?? '' });
-            if (links.length >= 12) break;
+            if (links.length >= 14) break;
           } catch {}
         }
         return links;
