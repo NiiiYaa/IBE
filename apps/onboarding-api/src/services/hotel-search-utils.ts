@@ -21,6 +21,10 @@ export const OTA_BLOCKLIST = [
   'lodging-world.com', 'hotel-dir.com', 'venere.com', 'hostelworld.com',
   'hotelworld.com', 'bedandbreakfast.com', 'bedandbreakfast.eu',
   'guestreservations.com', 'hotel.com', 'hotel.de',
+  // Domain parking & for-sale pages
+  'godaddy.com', 'sedo.com', 'dan.com', 'afternic.com',
+  'parkingcrew.com', 'bodis.com', 'hugedomains.com', 'undeveloped.com',
+  'squadhelp.com', 'brandbucket.com',
 ]
 
 // Keyword patterns — block any domain containing these substrings (use sparingly — substring match)
@@ -28,6 +32,7 @@ export const OTA_BLOCKLIST = [
 // and must NOT appear here — they receive high scores via detectKnownIBE()
 const OTA_KEYWORD_PATTERNS = [
   'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'hotel-dir', 'lodging-world',
+  'forsale.', 'for-sale.',
 ]
 
 export const DIRECTORY_PATTERNS = [
