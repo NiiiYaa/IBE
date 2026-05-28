@@ -173,8 +173,9 @@ export async function searchHotels(hotelName: string, city: string, country: str
   let rawResults: Array<{ url: string; title: string }> = [];
   try {
     rawResults = await withStealthPage(braveUrl, async (page) => {
-      try { await page.waitForSelector('a[href^="http"]', { timeout: 8000 }); } catch {}
-      await page.waitForTimeout(2000);
+      // Brave is a JS SPA — wait longer for results to render
+      try { await page.waitForSelector('a[href^="http"]', { timeout: 12000 }); } catch {}
+      await page.waitForTimeout(4000);
       return page.evaluate((): Array<{ url: string; title: string }> => {
         const seenDomains = new Set<string>();
         const links: Array<{ url: string; title: string }> = [];
@@ -207,7 +208,7 @@ export async function searchHotels(hotelName: string, city: string, country: str
         }
         return links;
       });
-    }, { navigationTimeout: 20000, idleTimeout: 10000 });
+    }, { navigationTimeout: 25000, idleTimeout: 20000 });
   } catch {
     return [];
   }
