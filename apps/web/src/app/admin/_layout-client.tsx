@@ -140,9 +140,9 @@ const SECTIONS: Section[] = [
   },
   {
     title: 'Onboarding',
-    minRole: 'super',
+    minRole: 'admin',
     items: [
-      { href: '/admin/hotel-onboarding', label: 'Hotel Onboarding', minRole: 'super' },
+      { href: '/admin/hotel-onboarding', label: 'Hotel Onboarding', minRole: 'admin' },
     ],
   },
   {
@@ -153,9 +153,12 @@ const SECTIONS: Section[] = [
   },
 ]
 
-const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, observer: 0, user: 0, affiliate: -1 }
+const ROLE_LEVEL: Record<string, number> = { super: 2, admin: 1, ob_agent: 1, observer: 0, user: 0, affiliate: -1 }
 
 function filterSections(sections: Section[], role: string, isBuyerOrg: boolean): Section[] {
+  if (role === 'ob_agent') {
+    return sections.filter(s => s.title === 'Onboarding').map(s => ({ ...s }))
+  }
   const level = ROLE_LEVEL[role] ?? 0
   return sections
     .filter(s => !s.sellerOnly || !isBuyerOrg)
@@ -170,17 +173,19 @@ function filterSections(sections: Section[], role: string, isBuyerOrg: boolean):
     .filter(s => s.comingSoon || s.href || s.items.length > 0)
 }
 
-function RoleBadge({ role }: { role: 'admin' | 'super' }) {
+function RoleBadge({ role }: { role: 'admin' | 'super' | 'ob_agent' }) {
   return (
     <span
       className={[
         'ml-1.5 inline-block rounded px-1 py-px text-[9px] font-bold uppercase leading-none tracking-wide',
         role === 'super'
           ? 'bg-purple-100 text-purple-700'
+          : role === 'ob_agent'
+          ? 'bg-indigo-100 text-indigo-700'
           : 'bg-blue-100 text-blue-600',
       ].join(' ')}
     >
-      {role === 'super' ? 'Super' : 'Admin'}
+      {role === 'super' ? 'Super' : role === 'ob_agent' ? 'OB Agent' : 'Admin'}
     </span>
   )
 }
@@ -342,10 +347,16 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, role, isAuthPage, router])
 
   useEffect(() => {
-    if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super' && orgData.orgType !== 'buyer') {
+    if (isAuthenticated && !isAuthPage && !isOnboarding && orgData && !orgData.hyperGuestOrgId && role !== 'super' && role !== 'ob_agent' && orgData.orgType !== 'buyer') {
       router.replace('/admin/onboarding')
     }
   }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])
+
+  useEffect(() => {
+    if (isAuthenticated && role === 'ob_agent' && !isAuthPage && pathname !== '/admin/hotel-onboarding') {
+      router.replace('/admin/hotel-onboarding')
+    }
+  }, [isAuthenticated, role, isAuthPage, pathname, router])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -486,7 +497,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             <div className="hidden min-w-0 text-right sm:block">
               <div className="flex items-center justify-end gap-1">
                 <p className="max-w-[120px] truncate text-xs font-medium text-[var(--color-text)]">{admin.name}</p>
-                {(admin.role === 'super' || admin.role === 'admin') && <RoleBadge role={admin.role as 'super' | 'admin'} />}
+                {(admin.role === 'super' || admin.role === 'admin' || admin.role === 'ob_agent') && <RoleBadge role={admin.role as 'super' | 'admin' | 'ob_agent'} />}
               </div>
               <p className="max-w-[160px] truncate text-xs text-[var(--color-text-muted)]">
                 {admin.role === 'super' && !admin.organizationId
