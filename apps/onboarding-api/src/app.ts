@@ -5,7 +5,11 @@ import sensible from '@fastify/sensible';
 import { env } from './env.js';
 
 export async function buildApp() {
-  const app = Fastify({ logger: { level: 'info' } });
+  const app = Fastify({
+    logger: env.NODE_ENV === 'development'
+      ? { level: 'debug', transport: { target: 'pino-pretty' } }
+      : { level: 'warn' },
+  })
 
   await app.register(cors, {
     origin: env.ONBOARDING_APP_URL,
