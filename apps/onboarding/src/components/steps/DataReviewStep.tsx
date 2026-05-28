@@ -22,6 +22,7 @@ const EDITABLE_FIELDS = [
 export function DataReviewStep({ step, state, onComplete }: Props) {
   const enriched = state.enrichedData ?? {};
   const isBlank = state.dataFlow === 'blank';
+  const needsRoomCodes = isBlank && !state.useDefaultCodes;
   const rooms = state.harvestedRooms ?? [];
 
   const [fields, setFields] = useState<Record<string, string>>(
@@ -41,7 +42,7 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
     if (!fields['hotelName']?.trim()) { setError('Hotel name is required'); return; }
     if (!fields['city']?.trim()) { setError('City is required'); return; }
     if (!fields['countryCode']?.trim() || fields['countryCode'].length !== 2) { setError('Country code must be 2 letters'); return; }
-    if (isBlank) {
+    if (needsRoomCodes) {
       for (const room of rooms) {
         if (!roomCodes[room.name]?.trim()) { setError(`Enter CM code for room: ${room.name}`); return; }
       }
@@ -49,7 +50,7 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
     setError(null);
     setLoading(true);
     try {
-      await api.confirmReview({ ...enriched, ...fields, ...(isBlank ? { roomCodes } : {}) });
+      await api.confirmReview({ ...enriched, ...fields, ...(needsRoomCodes ? { roomCodes } : {}) });
       onComplete();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -94,13 +95,13 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
           </div>
         ))}
 
-        {isBlank && rooms.length > 0 && (
+        {needsRoomCodes && rooms.length > 0 && (
           <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem' }}>
-            <p style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.9rem' }}>Room type codes (must match your SiteMinder codes exactly)</p>
+            <p style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.9rem' }}>Room type codes (must match your channel manager codes exactly)</p>
             {rooms.map(room => (
               <div key={room.name} style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
                 <span style={{ flex: 1, fontSize: '0.9rem' }}>{room.name}</span>
-                <input type="text" placeholder="SM room code" value={roomCodes[room.name] ?? ''}
+                <input type="text" placeholder="CM room code" value={roomCodes[room.name] ?? ''}
                   onChange={e => setRoomCodes(p => ({ ...p, [room.name]: e.target.value }))}
                   style={{ width: '160px', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px' }} />
               </div>

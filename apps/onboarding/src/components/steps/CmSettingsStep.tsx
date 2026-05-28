@@ -18,6 +18,7 @@ const TAX_RELATIONS = ['included', 'add', 'display', 'optional', 'ignore'] as co
 export function CmSettingsStep({ step, state, onComplete }: Props) {
   const ratePlanTypes = state.harvestedRatePlanTypes ?? [];
   const taxes = state.harvestedTaxes ?? [];
+  const useDefaultCodes = state.useDefaultCodes;
 
   function buildInitialRows(): RatePlanRow[] {
     const rows: RatePlanRow[] = [];
@@ -137,7 +138,7 @@ export function CmSettingsStep({ step, state, onComplete }: Props) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['Board', 'R/NR', 'CM Code', 'Price type', 'Commission', 'Charge'].map(h => (
+                  {(['Board', 'R/NR', ...(useDefaultCodes ? [] : ['CM Code']), 'Price type', 'Commission', 'Charge'] as string[]).map(h => (
                     <th key={h} style={{ padding: '0.5rem 0.6rem', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -155,11 +156,13 @@ export function CmSettingsStep({ step, state, onComplete }: Props) {
                         {row.isRefundable ? 'R' : 'NR'}
                       </span>
                     </td>
-                    <td style={{ padding: '0.4rem 0.6rem' }}>
-                      <input type="text" placeholder="e.g. FLEX-BB" value={row.pmsRateplanCode}
-                        onChange={e => updateRow(idx, { pmsRateplanCode: e.target.value })}
-                        style={{ ...inputStyle, width: '120px' }} />
-                    </td>
+                    {!useDefaultCodes && (
+                      <td style={{ padding: '0.4rem 0.6rem' }}>
+                        <input type="text" placeholder="e.g. FLEX-BB" value={row.pmsRateplanCode}
+                          onChange={e => updateRow(idx, { pmsRateplanCode: e.target.value })}
+                          style={{ ...inputStyle, width: '120px' }} />
+                      </td>
+                    )}
                     <td style={{ padding: '0.4rem 0.6rem' }}>
                       <select value={row.priceType} onChange={e => updateRow(idx, { priceType: e.target.value as 'gross' | 'net' })} style={inputStyle}>
                         <option value="gross">gross</option>
