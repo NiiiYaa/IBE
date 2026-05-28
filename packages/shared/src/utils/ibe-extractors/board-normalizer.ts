@@ -1,7 +1,7 @@
 const BOARD_MAP: Record<string, 'RO' | 'BB' | 'HB' | 'FB' | 'AI'> = {
-  'room only': 'RO', 'no meals': 'RO', 'accommodation only': 'RO', 'bed only': 'RO', 'room': 'RO',
+  'room only': 'RO', 'no meals': 'RO', 'accommodation only': 'RO', 'bed only': 'RO',
   'bed & breakfast': 'BB', 'bed and breakfast': 'BB', 'b&b': 'BB', 'breakfast included': 'BB',
-  'breakfast': 'BB', 'with breakfast': 'BB',
+  'with breakfast': 'BB',
   'half board': 'HB', 'half-board': 'HB', 'demi-pension': 'HB',
   'full board': 'FB', 'full-board': 'FB', 'all meals': 'FB',
   'all inclusive': 'AI', 'all-inclusive': 'AI',

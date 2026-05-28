@@ -26,6 +26,18 @@ describe('normaliseBoard', () => {
     expect(normaliseBoard('spa package')).toBeNull()
     expect(normaliseBoard('')).toBeNull()
   })
+
+  it('does not greedily match "room" in compound labels', () => {
+    expect(normaliseBoard('deluxe room with half board')).toBe('HB')
+  })
+
+  it('does not match bare "no breakfast" as BB', () => {
+    expect(normaliseBoard('no breakfast')).toBeNull()
+  })
+
+  it('still matches "breakfast included"', () => {
+    expect(normaliseBoard('breakfast included')).toBe('BB')
+  })
 })
 
 describe('tryParsePropertyInfo', () => {

@@ -59,7 +59,7 @@ export function tryParsePropertyInfo(payload: unknown): ParsedPropertyInfo | nul
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
   const p = payload as Record<string, unknown>
   const name = coerceStr(p['name'] ?? p['propertyName'] ?? p['hotelName'] ?? p['title'])
-  if (name && (p['address'] || p['description'] || p['amenities'] || p['city'] || p['country'] || p['stars'] || p['starRating'])) {
+  if (name && (p['address'] || p['description'] || p['amenities'] || p['city'] || p['country'] || p['stars'] || p['starRating'] || p['images'] || p['photos'] || p['gallery'])) {
     return {
       name,
       starRating: coerceNum(p['stars'] ?? p['starRating'] ?? p['rating'] ?? p['category']),
@@ -96,7 +96,7 @@ function parseRateItem(item: unknown): ParsedRate | null {
     r['isNonRefundable'] === true ||
     r['refundable'] === false ||
     /non.?refund/i.test(cancelText) ||
-    /non.?refund/i.test(coerceStr(r['name'] ?? '') ?? '')
+    /non.?refund/i.test(coerceStr(r['name']) ?? '')
   return {
     boardLabel,
     cancelText,
@@ -141,7 +141,7 @@ export function tryParseRooms(payload: unknown): ParsedRoom[] {
   }
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
     const p = payload as Record<string, unknown>
-    for (const key of ['rooms', 'roomTypes', 'accommodations', 'units', 'results', 'data', 'items', 'products']) {
+    for (const key of ['rooms', 'roomTypes', 'accommodations', 'units', 'results', 'items', 'products']) {
       const v = p[key]
       if (Array.isArray(v) && v.length > 0) {
         const result = tryParseRooms(v)
