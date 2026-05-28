@@ -7,13 +7,9 @@ import { detectKnownIBE } from '@ibe/shared';
 const OTA_BLOCKLIST = [
   'booking.com', 'expedia.com', 'hotels.com', 'tripadvisor.com', 'agoda.com',
   'airbnb.com', 'kayak.com', 'trivago.com', 'orbitz.com', 'priceline.com',
-  'hotelscombined.com', 'google.com', 'hotel-ds.com', 'hotel.de',
-  'lastminute.com', 'momondo.com', 'skyscanner.com', 'hotelbeds.com',
-  'hrs.com', 'hotel-bb.com', 'hotelworld.com', 'hostelworld.com',
-  'travelocity.com', 'getaroom.com', 'hotelebarcelona.net',
-  'barcelonahotel.org', 'onthebeach.co.uk', 'laterooms.com',
-  'hotel-info.com', 'venere.com', 'hotel.com', 'destinia.com',
-  'edreams.com', 'rumbo.com', 'logitravel.com', 'atrápalo.com',
+  'hotelscombined.com', 'google.com', 'lastminute.com', 'momondo.com',
+  'skyscanner.com', 'hrs.com', 'travelocity.com', 'getaroom.com',
+  'onthebeach.co.uk', 'laterooms.com', 'edreams.com',
 ];
 
 export const SCREENSHOTS_DIR = path.join(process.cwd(), 'uploads', 'screenshots');
