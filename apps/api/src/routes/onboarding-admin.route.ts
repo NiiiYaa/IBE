@@ -117,7 +117,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         const res = await fetch(`${internalUrl}/hotel-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hotelName: hotelName.trim(), city: city.trim(), country: country ?? '' }),
+          body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
         })
         if (!res.ok) return reply.status(502).send({ error: 'Search service unavailable' })
         const data = await res.json() as {
@@ -133,7 +133,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
           try {
             const adapter = getProviderAdapter(aiConfig.provider)
             const aiRes = await adapter.call(
-              [{ role: 'user', content: `What is the official hotel website or direct booking URL for "${hotelName.trim()}" in ${city.trim()}${country ? ', ' + country : ''}? Reply with ONLY the URL, no explanation.` }],
+              [{ role: 'user', content: `What is the official hotel website or direct booking URL for "${hotelName.trim()}"${city?.trim() ? ` in ${city.trim()}` : ''}${country?.trim() ? `, ${country.trim()}` : ''}? Reply with ONLY the URL, no explanation.` }],
               [],
               'You are a hotel industry expert. Reply with only a URL.',
               aiConfig.apiKey,
