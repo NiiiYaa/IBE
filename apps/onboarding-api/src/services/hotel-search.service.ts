@@ -23,6 +23,41 @@ const OTA_BLOCKLIST = [
   'barcelonahotels.', 'mybarcelona.', 'spain-holiday.com',
 ];
 
+// Known hotel chain registry — matched against hotel name (case-insensitive)
+const CHAIN_REGISTRY: Array<{ keywords: string[]; domain: string }> = [
+  { keywords: ['h10'], domain: 'h10hotels.com' },
+  { keywords: ['nh hotel', 'nh-hotel', ' nh '], domain: 'nh-hotels.com' },
+  { keywords: ['marriott', 'westin', 'sheraton', 'autograph', 'renaissance', 'le méridien', 'w hotel', 'st. regis'], domain: 'marriott.com' },
+  { keywords: ['hilton', 'doubletree', 'hampton inn', 'curio', 'waldorf'], domain: 'hilton.com' },
+  { keywords: ['hyatt', 'park hyatt', 'grand hyatt', 'andaz', 'alila'], domain: 'hyatt.com' },
+  { keywords: ['accor', 'ibis', 'sofitel', 'novotel', 'mercure', 'pullman', 'mgallery'], domain: 'accor.com' },
+  { keywords: ['melia', 'sol melia', 'me by melia', 'paradisus', 'innside'], domain: 'melia.com' },
+  { keywords: ['barcelo', 'barceló'], domain: 'barcelo.com' },
+  { keywords: ['riu'], domain: 'riu.com' },
+  { keywords: ['pestana'], domain: 'pestana.com' },
+  { keywords: ['wyndham', 'ramada', 'days inn', 'super 8', 'la quinta'], domain: 'wyndhamhotels.com' },
+  { keywords: ['ihg', 'intercontinental', 'holiday inn', 'crowne plaza', 'kimpton', 'indigo'], domain: 'ihg.com' },
+  { keywords: ['best western'], domain: 'bestwestern.com' },
+  { keywords: ['radisson', 'park inn'], domain: 'radissonhotels.com' },
+  { keywords: ['mgm', 'bellagio', 'aria', 'vdara', 'venetian', 'palazzo'], domain: 'mgmresorts.com' },
+  { keywords: ['four seasons'], domain: 'fourseasons.com' },
+  { keywords: ['ritz-carlton', 'ritz carlton'], domain: 'ritzcarlton.com' },
+  { keywords: ['kempinski'], domain: 'kempinski.com' },
+  { keywords: ['fairmont'], domain: 'fairmont.com' },
+  { keywords: ['mandarin oriental'], domain: 'mandarinoriental.com' },
+  { keywords: ['loews'], domain: 'loewshotels.com' },
+];
+
+function detectChain(hotelName: string): string | null {
+  const lower = hotelName.toLowerCase();
+  for (const chain of CHAIN_REGISTRY) {
+    if (chain.keywords.some(k => lower.includes(k))) {
+      return `https://www.${chain.domain}`;
+    }
+  }
+  return null;
+}
+
 export const SCREENSHOTS_DIR = path.join(process.cwd(), 'uploads', 'screenshots');
 
 export interface HotelCandidate {
@@ -125,10 +160,21 @@ export async function cleanExpiredScreenshots(): Promise<void> {
 }
 
 export async function searchHotels(hotelName: string, city: string, country: string): Promise<HotelCandidate[]> {
-  // Two searches: one for direct booking engine, one for official website
-  const q1 = encodeURIComponent(`"${hotelName}" book direct official website`);
-  const q2 = encodeURIComponent(`"${hotelName}" ${city} booking engine`);
-  const ddgUrl = `https://html.duckduckgo.com/html/?q=${q1}`;
+  const results: HotelCandidate[] = [];
+
+  // Step 1: Chain registry — instant result for known chains
+  const chainUrl = detectChain(hotelName);
+  if (chainUrl) {
+    const detection = detectKnownIBE(chainUrl);
+    const score = scoreCandidate(chainUrl, hotelName, hotelName, detection !== null);
+    const screenshotUrl = await takeScreenshot(chainUrl);
+    results.push({ url: chainUrl, title: `${hotelName} — Official Website`, detected: detection !== null, screenshotUrl, score: Math.max(score, 65) });
+  }
+
+  // Step 2: DuckDuckGo with OTA exclusions baked into query
+  const otaExcludes = '-booking.com -tripadvisor -expedia -agoda -hotels.com -kayak';
+  const q = encodeURIComponent(`"${hotelName}" ${city} official website book direct ${otaExcludes}`);
+  const ddgUrl = `https://html.duckduckgo.com/html/?q=${q}`;
 
   let rawResults: Array<{ url: string; title: string }> = [];
   try {
@@ -146,7 +192,11 @@ export async function searchHotels(hotelName: string, city: string, country: str
   }
 
   const decoded = rawResults.map(r => ({ ...r, url: decodeDdgUrl(r.url) }));
-  const candidates = decoded.filter(r => r.url && !isOta(r.url)).slice(0, 8);
+  // Deduplicate against chain result
+  const seen = new Set(results.map(r => r.url));
+  const candidates = decoded
+    .filter(r => r.url && !isOta(r.url) && !seen.has(r.url))
+    .slice(0, 8);
 
   const scored = await Promise.all(candidates.map(async (c) => {
     const detection = detectKnownIBE(c.url);
@@ -156,9 +206,11 @@ export async function searchHotels(hotelName: string, city: string, country: str
     return { url: c.url, title: c.title, detected, screenshotUrl, score };
   }));
 
-  // Sort: detected IBEs first, then by score descending
-  return scored.sort((a, b) => {
+  // Merge chain result (first) + DuckDuckGo results, sort by score
+  const all = [...results, ...scored].sort((a, b) => {
     if (a.detected !== b.detected) return a.detected ? -1 : 1;
     return b.score - a.score;
-  }).slice(0, 6);
+  });
+
+  return all.slice(0, 6);
 }
