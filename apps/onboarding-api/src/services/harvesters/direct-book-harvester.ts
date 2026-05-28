@@ -148,11 +148,10 @@ export class DirectBookHarvester implements IbeHarvester {
         onProgress(`Searching ${adults}A${children > 0 ? `+${children}C` : ''} (${offsetDays}d out)...`)
         const searchUrl = buildSearchUrl(template, hotelId, adults, children, checkIn, checkOut)
         const parsed = await this.scrapeSearch(searchUrl)
-        let foundNew = false
+        const gotResults = parsed.length > 0
 
         for (const room of parsed) {
           if (!roomsMap.has(room.name)) {
-            foundNew = true
             roomsMap.set(room.name, {
               name: room.name,
               description: room.description,
@@ -195,7 +194,7 @@ export class DirectBookHarvester implements IbeHarvester {
           }
         }
 
-        if (!foundNew) consecutiveEmpty++
+        if (!gotResults) consecutiveEmpty++
         else consecutiveEmpty = 0
         // Breaks inner (occupancy) loop only — outer date-window loop continues.
         // Consistent with SynXisHarvester: per-window early-stop avoids missing

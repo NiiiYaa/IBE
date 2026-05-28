@@ -26,13 +26,26 @@ const CTX = { checkIn: '2026-06-15', checkOut: '2026-06-16' }
 function makeMockPage(opts: {
   jsonResponses?: Array<{ url: string; json: unknown }>
   domRooms?: unknown[]
+  domHotelInfo?: Record<string, unknown>
 }) {
   const responseListeners: Array<(res: unknown) => void> = []
+  // fetchHotelInfo calls waitForSelector then evaluate; scrapeSearch never calls waitForSelector.
+  // Track whether the *pending* evaluate is for hotel info (set by waitForSelector, consumed by evaluate).
+  let pendingHotelInfoEval = false
+  const defaultHotelInfo = opts.domHotelInfo ?? {
+    name: 'DOM Hotel', starRating: null, address: null, city: 'DOM City',
+    country: 'DOM Country', phone: null, email: null,
+    website: 'https://www.direct-book.com/properties/test-hotel',
+    description: 'DOM description', images: [], amenities: [], policies: [],
+  }
   return {
     on: (event: string, fn: (res: unknown) => void) => {
       if (event === 'response') responseListeners.push(fn)
     },
-    waitForSelector: vi.fn().mockResolvedValue(null),
+    waitForSelector: vi.fn().mockImplementation(async () => {
+      pendingHotelInfoEval = true
+      return null
+    }),
     waitForTimeout: vi.fn().mockImplementation(async () => {
       for (const resp of opts.jsonResponses ?? []) {
         const mockRes = {
@@ -43,7 +56,15 @@ function makeMockPage(opts: {
         for (const fn of responseListeners) await fn(mockRes)
       }
     }),
-    evaluate: vi.fn().mockResolvedValue(opts.domRooms ?? []),
+    evaluate: vi.fn().mockImplementation(() => {
+      // Consume the flag: if waitForSelector was called since last evaluate, this is hotel-info DOM fallback.
+      // Otherwise it's a scrapeSearch DOM fallback (returns ParsedRoom[]).
+      if (pendingHotelInfoEval) {
+        pendingHotelInfoEval = false
+        return Promise.resolve(defaultHotelInfo)
+      }
+      return Promise.resolve(opts.domRooms ?? [])
+    }),
     $: vi.fn().mockResolvedValue(null),
   }
 }
@@ -151,6 +172,8 @@ describe('DirectBookHarvester.harvest', () => {
     )
 
     expect(page.evaluate).toHaveBeenCalled()
+    expect(result.name).toBe('DOM Hotel')
+    expect(result.city).toBe('DOM City')
     expect(Array.isArray(result.rooms)).toBe(true)
   })
 })
