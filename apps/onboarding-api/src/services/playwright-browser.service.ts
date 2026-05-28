@@ -13,6 +13,7 @@ const BROWSER_ARGS = [
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 const STEALTH_SCRIPT = `
+
   Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
   Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
@@ -22,6 +23,12 @@ const STEALTH_SCRIPT = `
   window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
 `;
 
+/**
+ * Launches a stealth Chromium browser, navigates to `url`, waits for network
+ * idle, then calls `fn(page)`. Always closes the browser when done.
+ *
+ * Throws if navigation or `fn` throws — callers decide their own error handling.
+ */
 export async function withStealthPage<T>(
   url: string,
   fn: (page: Page) => Promise<T>,
@@ -44,7 +51,9 @@ export async function withStealthPage<T>(
     await context.addInitScript(STEALTH_SCRIPT);
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: options?.navigationTimeout ?? 30000 });
-    await page.waitForLoadState('networkidle', { timeout: options?.idleTimeout ?? 15000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: options?.idleTimeout ?? 15000 }).catch(() => {
+      // networkidle can timeout on pages with constant polling — that's ok
+    });
     return await fn(page);
   } finally {
     await browser.close();
