@@ -11,11 +11,11 @@ vi.mock('../dataforseo.service.js', () => ({
 }));
 
 import { withStealthPage } from '../playwright-browser.service.js';
-import { searchHotels } from '../hotel-search.service.js';
+import { searchHotelsBrave } from '../hotel-search.service.js';
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-describe('searchHotels', () => {
+describe('searchHotelsBrave', () => {
   it('returns candidates filtered of known OTAs', async () => {
     vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
       const mockPage = {
@@ -33,7 +33,7 @@ describe('searchHotels', () => {
       return fn(mockPage as any);
     });
 
-    const result = await searchHotels('Grand Hotel', 'Paris', 'France');
+    const result = await searchHotelsBrave('Grand Hotel', 'Paris', 'France');
     const urls = result.map(c => c.url);
     expect(urls).not.toContain('https://www.booking.com/hotel/grand');
     expect(urls.some(u => u.includes('grandhotel'))).toBe(true);
@@ -50,7 +50,7 @@ describe('searchHotels', () => {
       };
       return fn(mockPage as any);
     });
-    const result = await searchHotels('Nonexistent Hotel', 'Nowhere', 'XX');
+    const result = await searchHotelsBrave('Nonexistent Hotel', 'Nowhere', 'XX');
     expect(result).toEqual([]);
   });
 });

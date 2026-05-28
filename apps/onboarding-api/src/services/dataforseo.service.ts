@@ -62,7 +62,13 @@ export async function searchHotelsDataForSEO(
       candidates.push({ url, title: item.title ?? url, detected, screenshotUrl: null, score })
     }
 
-    return candidates.filter(c => c.score >= 20).slice(0, 6)
+    return candidates
+      .filter(c => c.score >= 20)
+      .sort((a, b) => {
+        if (a.detected !== b.detected) return a.detected ? -1 : 1
+        return b.score - a.score
+      })
+      .slice(0, 6)
   } catch {
     return []
   }

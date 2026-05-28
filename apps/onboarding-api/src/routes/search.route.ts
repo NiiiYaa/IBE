@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import path from 'path';
 import fs from 'fs';
-import { searchHotels, SCREENSHOTS_DIR, cleanExpiredScreenshots } from '../services/hotel-search.service.js';
+import { searchHotelsPrimary, SCREENSHOTS_DIR, cleanExpiredScreenshots } from '../services/hotel-search.service.js';
 import { resolveIbeUrl } from '../services/ibe-resolver.service.js';
 import { prisma } from '../db/client.js';
 import { getSession, advanceStep } from '../services/session.service.js';
@@ -32,7 +32,7 @@ export async function searchRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { hotelName, city, country } = request.body;
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required');
-      const candidates = await searchHotels(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
+      const candidates = await searchHotelsPrimary(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
       return reply.send({ candidates });
     }
   );

@@ -13,10 +13,10 @@ export const OTA_BLOCKLIST = [
   'hotel-ds.com', 'hotel.de', 'hotelebarcelona.net', 'barcelonahotel.org',
   'hotel-bb.com', 'hotelworld.com', 'hostelworld.com', 'hotel-info.com',
   'venere.com', 'hotelbeds.com', 'hrs.de', 'hotel.com',
-  'hoteldirect.co.uk', 'hoteldirect.com', 'bedandbreakfast', 'bnb.com',
-  'barcelonahotels.', 'mybarcelona.', 'spain-holiday.com',
+  'hoteldirect.co.uk', 'hoteldirect.com', 'bedandbreakfast.com', 'bedandbreakfast.eu', 'bnb.com',
+  'barcelonahotels.com', 'barcelonahotels.es', 'mybarcelona.cat', 'mybarcelona.com', 'spain-holiday.com',
   'hotelbcn-barcelona.com', 'hotels-in-catalonia.com', 'hotelsbarcelonaes.com',
-  'guestreservations.com', 'reservations.com', 'hotelbeds.com',
+  'guestreservations.com', 'reservations.com',
   'wheeltheworld.com', 'barcelonayellow.com',
 ]
 

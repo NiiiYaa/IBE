@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { withStealthPage } from './playwright-browser.service.js';
 import { detectKnownIBE } from '@ibe/shared';
 import { searchHotelsDataForSEO as _dfsSearch } from './dataforseo.service.js';
-import { OTA_BLOCKLIST, DIRECTORY_PATTERNS, HotelCandidate, isOta, scoreCandidate } from './hotel-search-utils.js';
+import { HotelCandidate, isOta, scoreCandidate } from './hotel-search-utils.js';
 
 export { isOta, scoreCandidate, type HotelCandidate };
 
@@ -183,10 +183,7 @@ export async function searchHotelsBrave(hotelName: string, city: string, country
     .slice(0, 6);
 }
 
-// Keep searchHotels as an alias for backward compatibility
-export const searchHotels = searchHotelsBrave;
-
-export async function searchHotelsDataForSEO(
+export async function searchHotelsPrimary(
   hotelName: string,
   city: string,
   country: string,
