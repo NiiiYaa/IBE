@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
 import { env } from './env.js';
+import { sessionRoutes } from './routes/session.route.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -19,6 +20,7 @@ export async function buildApp() {
   await app.register(sensible);
 
   app.get('/health', async () => ({ ok: true }));
+  await app.register(sessionRoutes);
 
   return app;
 }
