@@ -13,7 +13,7 @@ Add two sub-menu pages under the Onboarding nav section: ARI Sources and IBEs. B
   title: 'Onboarding',
   minRole: 'admin',
   items: [
-    { href: '/admin/hotel-onboarding', label: 'Hotel Onboarding', minRole: 'admin' },
+    { href: '/admin/hotel-onboarding', label: 'Invitations', minRole: 'admin' },
     { href: '/admin/hotel-onboarding/ari-sources', label: 'ARI Sources', minRole: 'admin' },
     { href: '/admin/hotel-onboarding/ibes', label: 'IBEs', minRole: 'admin' },
   ],
@@ -130,6 +130,12 @@ getOnboardingStats(): Promise<{
 **Invitations / Approved:** from `ibeStats[ibePattern].total` / `ibeStats[ibePattern].approved`.
 
 **Filter:** text input filters by name.
+
+## Rename: "Hotel Onboarding" → "Invitations"
+
+- Nav label in `_layout-client.tsx`: `label: 'Invitations'`
+- Page `<h1>` in `hotel-onboarding/page.tsx`: change `Hotel Onboarding` heading to `Invitations`
+- Page `<p>` subtitle: change to `Generate invitation links and monitor self-onboarding sessions.` (keep as is)
 
 ## Files
 
