@@ -26,6 +26,14 @@ export async function searchRoutes(app: FastifyInstance) {
     return reply.type('image/png').send(stream);
   });
 
+  // POST /screenshot — take a screenshot of a single URL (called by frontend progressively)
+  app.post<{ Body: { url: string } }>('/screenshot', async (request, reply) => {
+    const { url } = request.body;
+    if (!url?.trim()) return reply.badRequest('url required');
+    const screenshotUrl = await takeScreenshot(url.trim());
+    return reply.send({ screenshotUrl });
+  });
+
   // POST /hotel-search — DataForSEO SERP primary search (~2s)
   app.post<{ Body: { hotelName: string; city: string; country: string } }>(
     '/hotel-search',

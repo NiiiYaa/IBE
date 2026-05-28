@@ -49,6 +49,7 @@ export default function HotelOnboardingPage() {
 
   const [searchForm, setSearchForm] = useState({ hotelName: '', city: '', country: '' });
   const [searching, setSearching] = useState(false);
+  const [searchElapsed, setSearchElapsed] = useState(0);
   const [candidates, setCandidates] = useState<SearchCandidate[] | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
@@ -73,8 +74,10 @@ export default function HotelOnboardingPage() {
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setSearching(true);
+    setSearchElapsed(0);
     setSearchError(null);
     setCandidates(null);
+    const timer = setInterval(() => setSearchElapsed(s => s + 1), 1000);
     try {
       const result = await apiClient.searchOnboardingHotel({
         hotelName: searchForm.hotelName,
@@ -82,9 +85,28 @@ export default function HotelOnboardingPage() {
         ...(searchForm.country ? { country: searchForm.country } : {}),
       });
       setCandidates(result.candidates);
+      // Fetch screenshots progressively in the background
+      result.candidates.forEach((c, i) => {
+        if (c.screenshotUrl) return; // already has one (Brave path)
+        fetch(`${ONBOARDING_API_URL}/screenshot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: c.url }),
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then((data: { screenshotUrl: string | null } | null) => {
+            if (!data?.screenshotUrl) return;
+            setCandidates(prev => prev
+              ? prev.map((p, j) => j === i ? { ...p, screenshotUrl: data.screenshotUrl } : p)
+              : prev
+            );
+          })
+          .catch(() => {});
+      });
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : 'Search failed');
     } finally {
+      clearInterval(timer);
       setSearching(false);
     }
   }
@@ -186,10 +208,15 @@ export default function HotelOnboardingPage() {
               </div>
               <button type="submit" disabled={searching || !searchForm.hotelName.trim()}
                 style={{ padding: '0.6rem 1.2rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', opacity: (searching || !searchForm.hotelName.trim()) ? 0.7 : 1 }}>
-                {searching ? 'Searching…' : 'Search'}
+                {searching ? `Searching… ${searchElapsed}s` : 'Search'}
               </button>
             </form>
 
+            {searching && (
+              <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                Be patient — search can take up to 20 seconds (AI lookup + screenshot).
+              </p>
+            )}
             {searchError && <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.875rem' }}>{searchError}</p>}
 
             {candidates !== null && (
@@ -202,7 +229,7 @@ export default function HotelOnboardingPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
                       {candidates.map((c, i) => (
                         <div key={i} onClick={() => selectCandidate(c)}
-                          style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', background: '#fff' }}
+                          style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', background: '#fff', position: 'relative' }}
                           onMouseEnter={e => (e.currentTarget.style.borderColor = '#2563eb')}
                           onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}>
                           {c.screenshotUrl ? (
@@ -211,9 +238,15 @@ export default function HotelOnboardingPage() {
                               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                           ) : (
                             <div style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>No preview</span>
+                              <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Loading preview…</span>
                             </div>
                           )}
+                          <a href={c.url} target="_blank" rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            title="Open in new tab"
+                            style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(255,255,255,0.9)', border: '1px solid #d1d5db', borderRadius: '4px', padding: '2px 5px', fontSize: '0.7rem', color: '#374151', textDecoration: 'none', lineHeight: 1 }}>
+                            ↗
+                          </a>
                           <div style={{ padding: '0.6rem' }}>
                             <p style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
                             <p style={{ fontSize: '0.7rem', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.3rem' }}>{c.url}</p>
