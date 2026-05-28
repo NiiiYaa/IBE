@@ -107,9 +107,23 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
     } else if (step.id === 'create_rooms') {
       const harvestedData = (session.harvestedData as Record<string, unknown>) ?? {};
       const rooms = (harvestedData['rooms'] as Array<{ name: string; bedConfiguration?: string | null }>) ?? [];
-      const roomCodes = ((session.enrichedData as Record<string, unknown>)?.['roomCodes'] as Record<string, string>) ?? {};
       const propertyCode = session.hgPropertyCode;
       if (!propertyCode) throw new Error('No property code — create_hg_property must run first');
+
+      let roomCodes: Record<string, string>;
+      if (flow.useDefaultCodes) {
+        // Generate ROOM-01, ROOM-02, … and persist for downstream steps (create_rateplans, create_taxes)
+        roomCodes = Object.fromEntries(
+          rooms.map((r, i) => [r.name, `ROOM-${String(i + 1).padStart(2, '0')}`])
+        );
+        const existing = (session.enrichedData as Record<string, unknown>) ?? {};
+        await prisma.onboardingSession.update({
+          where: { id: sessionId },
+          data: { enrichedData: { ...existing, roomCodes } as any },
+        });
+      } else {
+        roomCodes = ((session.enrichedData as Record<string, unknown>)?.['roomCodes'] as Record<string, string>) ?? {};
+      }
 
       for (const room of rooms) {
         const code = roomCodes[room.name];
@@ -128,13 +142,28 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
     } else if (step.id === 'create_rateplans') {
       const propertyCode = session.hgPropertyCode;
       if (!propertyCode) throw new Error('No property code');
-      const cmSettings = ((session.enrichedData as Record<string, unknown>)?.['cmSettings'] as {
-        ratePlans: Array<{ pmsRateplanCode: string; boardCode: string; priceType: 'gross' | 'net' }>;
+      const enriched = (session.enrichedData as Record<string, unknown>) ?? {};
+      const cmSettings = (enriched['cmSettings'] as {
+        ratePlans: Array<{ pmsRateplanCode: string; boardCode: string; priceType: 'gross' | 'net'; isRefundable: boolean }>;
       }) ?? { ratePlans: [] };
-      const roomCodes = ((session.enrichedData as Record<string, unknown>)?.['roomCodes'] as Record<string, string>) ?? {};
+      const roomCodes = (enriched['roomCodes'] as Record<string, string>) ?? {};
       const allRoomCodes = Object.values(roomCodes);
 
-      for (const rp of cmSettings.ratePlans) {
+      let ratePlans = cmSettings.ratePlans;
+      if (flow.useDefaultCodes) {
+        // Generate FLEX-{BOARD} for refundable, NRF-{BOARD} for non-refundable
+        // Persist updated codes so create_policies + create_taxes use the correct pmsRateplanCode
+        ratePlans = ratePlans.map(rp => ({
+          ...rp,
+          pmsRateplanCode: rp.isRefundable ? `FLEX-${rp.boardCode}` : `NRF-${rp.boardCode}`,
+        }));
+        await prisma.onboardingSession.update({
+          where: { id: sessionId },
+          data: { enrichedData: { ...enriched, cmSettings: { ...cmSettings, ratePlans } } as any },
+        });
+      }
+
+      for (const rp of ratePlans) {
         const code = flow.ratePlanCodeTransform
           ? flow.ratePlanCodeTransform(rp.pmsRateplanCode, rp.boardCode)
           : rp.pmsRateplanCode;
