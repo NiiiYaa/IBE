@@ -53,7 +53,7 @@ export async function searchHotelsDataForSEO(
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([{ keyword, language_code: 'en', depth: 10 }]),
+      body: JSON.stringify([{ keyword, location_code: 2840, language_code: 'en', depth: 10 }]),
       signal: AbortSignal.timeout(15000),
     })
 
@@ -87,8 +87,17 @@ export async function searchHotelsDataForSEO(
       candidates.push({ url, title: item.title ?? url, detected, screenshotUrl: null, score })
     }
 
-    return candidates
-      .filter(c => c.score >= 20)
+    // Deduplicate by base domain — keep highest-scoring result per domain
+    const byDomain = new Map<string, HotelCandidate>()
+    for (const c of candidates.filter(c => c.score >= 30)) {
+      try {
+        const domain = new URL(c.url).hostname.replace(/^www\./, '')
+        const existing = byDomain.get(domain)
+        if (!existing || c.score > existing.score) byDomain.set(domain, c)
+      } catch { byDomain.set(c.url, c) }
+    }
+
+    return Array.from(byDomain.values())
       .sort((a, b) => {
         if (a.detected !== b.detected) return a.detected ? -1 : 1
         return b.score - a.score

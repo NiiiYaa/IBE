@@ -7,9 +7,19 @@ export const OTA_BLOCKLIST = [
   'hotwire.com', 'wotif.com', 'trivago.com', 'ebookers.com',
   // Trip.com Group
   'trip.com', 'ctrip.com', 'skyscanner.com', 'skyscanner.net',
-  // Metasearch & aggregators
-  'tripadvisor.com', 'tripadvisor.co.uk', 'hotelscombined.com', 'wego.com',
-  'momondo.com', 'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
+  // Metasearch & aggregators (tripadvisor.* handled via keyword pattern below)
+  'hotelscombined.com', 'wego.com', 'momondo.com',
+  'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
+  // Review, directory & job sites
+  'yelp.com', 'zoominfo.com', 'yellowpages.com', 'foursquare.com',
+  'trustpilot.com', 'glassdoor.com', 'linkedin.com', 'facebook.com',
+  'instagram.com', 'twitter.com', 'x.com',
+  'indeed.com', 'caterer.com', 'totaljobs.com', 'reed.co.uk',
+  // E-commerce (should never rank for hotels)
+  'ebay.com', 'ebay.co.uk', 'amazon.com', 'amazon.co.uk',
+  // Company registries & gov directories
+  'companies-house.gov.uk', 'find-and-update.company-information.service.gov.uk',
+  'companieshouse.gov.uk', 'opencorporates.com', 'dnb.com',
   // Major OTAs
   'lastminute.com', 'edreams.com', 'opodo.com', 'hrs.com', 'hrs.de',
   'despegar.com', 'makemytrip.com', 'goibibo.com', 'rakuten.com',
@@ -33,6 +43,8 @@ export const OTA_BLOCKLIST = [
 const OTA_KEYWORD_PATTERNS = [
   'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'hotel-dir', 'lodging-world',
   'forsale.', 'for-sale.',
+  'tripadvisor.',   // catches tripadvisor.com/.ca/.fr etc.
+  'google.co.',     // catches google.co.uk, google.co.jp etc.
 ]
 
 export const DIRECTORY_PATTERNS = [
