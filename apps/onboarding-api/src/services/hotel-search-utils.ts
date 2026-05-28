@@ -57,6 +57,11 @@ const OTA_KEYWORD_PATTERNS = [
   'forsale.', 'for-sale.',
   'tripadvisor.',   // catches tripadvisor.com/.ca/.fr etc.
   'google.co.',     // catches google.co.uk, google.co.jp etc.
+  // DMO / tourism authority patterns (thousands of orgs worldwide)
+  'tourism',        // paristourism.com, maltourism.com, tourismthailand.org, etc.
+  'touristboard', 'tourismboard', 'touristoffice', 'touristbureau', 'visitorsbureau',
+  'visitorsguide', 'travelguide', 'destinationguide',
+  'convention-bureau', 'conventionbureau',
 ]
 
 export const DIRECTORY_PATTERNS = [
