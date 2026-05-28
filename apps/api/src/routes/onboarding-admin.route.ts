@@ -8,6 +8,7 @@ import {
   triggerBackgroundHarvest,
 } from '../services/onboarding-invitation.service.js'
 import { getVendorFlow } from '@ibe/onboarding-flows'
+import { detectKnownIBE } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 
 const createInvitationSchema = z.object({
@@ -75,6 +76,25 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         if (!ibeSampleUrls[inv.ibePattern] && inv.ibeUrl) {
           ibeSampleUrls[inv.ibePattern] = inv.ibeUrl
         }
+      }
+    }
+
+    // Fallback: populate missing sample URLs from ExternalIBEConfig
+    const extConfigs = await prisma.externalIBEConfig.findMany({
+      where: { searchTemplate: { not: null }, externalHotelId: { not: null } },
+      select: { searchTemplate: true, externalHotelId: true },
+    })
+    for (const cfg of extConfigs) {
+      if (!cfg.searchTemplate || !cfg.externalHotelId) continue
+      const sampleUrl = cfg.searchTemplate
+        .replace('{externalHotelId}', cfg.externalHotelId)
+        .replace('{checkIn}', '2026-06-01').replace('{checkOut}', '2026-06-02')
+        .replace('{guests}', 'A%2CA').replace('{adults}', '2')
+        .replace('{currency}', 'EUR').replace('{checkInMDY}', '06/01/2026')
+        .replace('{checkOutMDY}', '06/02/2026').replace('{nights}', '1')
+      const detected = detectKnownIBE(sampleUrl)
+      if (detected?.name && !ibeSampleUrls[detected.name]) {
+        ibeSampleUrls[detected.name] = sampleUrl
       }
     }
 
