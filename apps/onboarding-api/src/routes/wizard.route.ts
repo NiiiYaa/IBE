@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getSession, advanceStep, saveCredentials } from '../services/session.service.js';
 import { executeAutomatedStep } from '../services/step-executor.service.js';
 import { getVendorFlow } from '@ibe/onboarding-flows';
+import { prisma } from '../db/client.js';
 
 function getSessionIdFromCookie(request: FastifyRequest): number | null {
   const raw = (request.cookies as Record<string, string | undefined>)['onb_session'];
@@ -83,6 +84,71 @@ export async function wizardRoutes(app: FastifyInstance) {
       });
 
       return { ok: true };
+    }
+  );
+
+  app.get('/wizard/extend-harvest', async (request, reply) => {
+    const sessionId = getSessionIdFromCookie(request);
+    if (!sessionId) return reply.unauthorized('No session');
+    const session = await getSession(sessionId);
+    if (!session) return reply.notFound();
+    if (!session.invitation.ibeUrl) return reply.badRequest('No IBE URL');
+
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Connection', 'keep-alive');
+
+    const sseEvent = (data: Record<string, unknown>) =>
+      reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+
+    try {
+      sseEvent({ type: 'progress', message: 'Running extended search (90 days, 3 nights, up to 5 adults)...' });
+      const existing = (session.harvestedData as Record<string, unknown>) ?? {};
+      const { harvestFromUrl } = await import('../services/ibe-harvester.service.js');
+      const newData = await harvestFromUrl(
+        session.invitation.ibeUrl,
+        (msg: string) => sseEvent({ type: 'progress', message: msg }),
+      );
+      // Merge rooms: deduplicate by name
+      const existingRooms = (existing['rooms'] as Array<{ name: string }>) ?? [];
+      const newRooms = newData.rooms.filter(r => !existingRooms.some((e: { name: string }) => e.name === r.name));
+      const merged = { ...existing, ...newData, rooms: [...existingRooms, ...newRooms] };
+      await prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: { harvestedData: merged as any },
+      });
+      sseEvent({ type: 'complete', newRoomCount: newRooms.length });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Extended harvest failed';
+      reply.raw.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
+    }
+    reply.raw.end();
+  });
+
+  app.post<{ Body: { name: string; maxAdults: number; maxOccupancy: number; bedConfiguration: string } }>(
+    '/wizard/add-room-manually',
+    async (request, reply) => {
+      const sessionId = getSessionIdFromCookie(request);
+      if (!sessionId) return reply.unauthorized('No session');
+      const session = await getSession(sessionId);
+      if (!session) return reply.notFound();
+
+      const { name, maxAdults, maxOccupancy, bedConfiguration } = request.body;
+      if (!name?.trim()) return reply.badRequest('name required');
+
+      const existing = (session.harvestedData as Record<string, unknown>) ?? {};
+      const rooms = ((existing['rooms'] as unknown[]) ?? []) as Array<Record<string, unknown>>;
+      const newRoom = {
+        name: name.trim(), description: '', images: [],
+        bedConfiguration: bedConfiguration ?? null,
+        amenities: [], supportedOccupancies: [{ adults: maxAdults, children: 0 }],
+        maxAdults, maxOccupancy,
+      };
+      await prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: { harvestedData: { ...existing, rooms: [...rooms, newRoom] } as any },
+      });
+      return reply.send({ ok: true });
     }
   );
 

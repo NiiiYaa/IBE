@@ -21,7 +21,30 @@ export const api = {
     request<{ ok: boolean }>('POST', '/wizard/submit-credentials', { credentials }),
   confirmReview: (enrichedData: Record<string, unknown>) =>
     request<{ ok: boolean }>('POST', '/wizard/confirm-review', { enrichedData }),
+  addRoomManually: (data: { name: string; maxAdults: number; maxOccupancy: number; bedConfiguration: string }) =>
+    request<{ ok: boolean }>('POST', '/wizard/add-room-manually', data),
+  extendHarvestUrl: () => `${BASE}/wizard/extend-harvest`,
+  submitCmSettings: (cmSettings: CmSettingsPayload) =>
+    request<{ ok: boolean }>('POST', '/wizard/submit-cm-settings', { cmSettings }),
 };
+
+export interface RatePlanRow {
+  boardCode: 'RO' | 'BB' | 'HB' | 'FB' | 'AI';
+  boardCodeRawName: string;
+  isRefundable: boolean;
+  pmsRateplanCode: string;
+  priceType: 'gross' | 'net';
+  commissionPercent: number;
+  charge: 'agent' | 'customer';
+  cancellationPolicy: unknown | null;
+}
+
+export interface CmSettingsPayload {
+  currency: string;
+  pricingModel: 'per_room' | 'per_occupancy' | 'per_person';
+  ratePlans: RatePlanRow[];
+  taxRelations: Record<string, string>;
+}
 
 export interface WizardState {
   sessionId: number;

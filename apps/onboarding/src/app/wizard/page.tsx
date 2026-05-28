@@ -65,7 +65,7 @@ export default function WizardPage() {
       case 'credentials':
         return <CredentialsStep step={currentStepDef} pmsId={state.pmsId ?? 0} onComplete={loadState} />;
       case 'data_review':
-        return <DataReviewStep step={currentStepDef} enrichedData={state.enrichedData ?? {}} onComplete={loadState} />;
+        return <DataReviewStep step={currentStepDef} state={state} onComplete={loadState} />;
       case 'user_action':
         return <UserActionStep step={currentStepDef} />;
       default:
