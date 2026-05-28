@@ -139,6 +139,13 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: 'Onboarding',
+    minRole: 'super',
+    items: [
+      { href: '/admin/hotel-onboarding', label: 'Hotel Onboarding', minRole: 'super' },
+    ],
+  },
+  {
     title: 'Help',
     href: '/api/v1/admin/manual',
     external: true,

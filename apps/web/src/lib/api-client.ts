@@ -2570,6 +2570,39 @@ export const apiClient = {
   async updateOrgMultiCityConfig(orgId: number, data: Partial<import('@ibe/shared').OrgMultiCityConfigResponse>): Promise<import('@ibe/shared').OrgMultiCityConfigResponse> {
     return apiRequest(`/api/v1/admin/multi-city/config/org/${orgId}`, { method: 'PUT', body: JSON.stringify(data) })
   },
+
+  // ── Self-Onboarding ──────────────────────────────────────────────────────
+  async listOnboardingInvitations(): Promise<OnboardingInvitation[]> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/invitations')
+  },
+
+  async createOnboardingInvitation(data: { pmsId: number; hotelName?: string; contactEmail?: string; websiteUrl?: string }): Promise<OnboardingInvitation> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/invitations', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  async revokeOnboardingInvitation(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}`, { method: 'DELETE' })
+  },
+
+  async approveOnboardingSession(sessionId: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/sessions/${sessionId}/approve`, { method: 'PUT' })
+  },
+}
+
+export interface OnboardingInvitation {
+  id: number
+  token: string
+  pmsId: number | null
+  pmsName: string | null
+  hotelName: string | null
+  contactEmail: string | null
+  ibeUrl: string | null
+  harvestStatus: string
+  expiresAt: string
+  usedAt: string | null
+  revokedAt: string | null
+  source: string
+  session: { id: number; status: string; currentStep: number } | null
 }
 
 export { ApiClientError }
