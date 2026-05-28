@@ -142,7 +142,9 @@ const SECTIONS: Section[] = [
     title: 'Onboarding',
     minRole: 'admin',
     items: [
-      { href: '/admin/hotel-onboarding', label: 'Hotel Onboarding', minRole: 'admin' },
+      { href: '/admin/hotel-onboarding', label: 'Invitations', minRole: 'admin' },
+      { href: '/admin/hotel-onboarding/ari-sources', label: 'ARI Sources', minRole: 'admin' },
+      { href: '/admin/hotel-onboarding/ibes', label: 'IBEs', minRole: 'admin' },
     ],
   },
   {
@@ -353,7 +355,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])
 
   useEffect(() => {
-    if (isAuthenticated && role === 'ob_agent' && !isAuthPage && pathname !== '/admin/hotel-onboarding' && pathname !== '/admin/force-change-password' && pathname !== '/admin/profile') {
+    if (isAuthenticated && role === 'ob_agent' && !isAuthPage && !pathname.startsWith('/admin/hotel-onboarding') && pathname !== '/admin/force-change-password' && pathname !== '/admin/profile') {
       router.replace('/admin/hotel-onboarding')
     }
   }, [isAuthenticated, role, isAuthPage, pathname, router])

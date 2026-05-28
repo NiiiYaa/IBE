@@ -152,7 +152,7 @@ export default function HotelOnboardingPage() {
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem' }}>
-      <h1 style={{ marginBottom: '0.25rem' }}>Hotel Onboarding</h1>
+      <h1 style={{ marginBottom: '0.25rem' }}>Invitations</h1>
       <p style={{ color: '#666', marginBottom: '2rem' }}>Generate invitation links and monitor self-onboarding sessions.</p>
 
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.5rem', marginBottom: '2rem' }}>
