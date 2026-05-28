@@ -60,21 +60,24 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
 
   function handleExtendHarvest() {
     setExtendStatus('running');
-    const BASE = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
-    const es = new EventSource(`${BASE}/wizard/extend-harvest`, { withCredentials: true });
+    const es = new EventSource(api.extendHarvestUrl(), { withCredentials: true });
     es.onmessage = (e) => {
       const evt = JSON.parse(e.data as string);
       if (evt.type === 'complete') { setExtendStatus('done'); es.close(); onComplete(); }
-      if (evt.type === 'error') { setExtendStatus('idle'); es.close(); }
+      if (evt.type === 'error') { setExtendStatus('idle'); setError(`Extended search failed: ${evt.message ?? 'unknown error'}`); es.close(); }
     };
-    es.onerror = () => { setExtendStatus('idle'); es.close(); };
+    es.onerror = () => { setExtendStatus('idle'); setError('Extended search connection failed'); es.close(); };
   }
 
-  async function handleAddRoom(e: React.FormEvent) {
-    e.preventDefault();
-    await api.addRoomManually(newRoom);
-    setShowAddRoom(false);
-    onComplete();
+  async function handleAddRoom() {
+    if (!newRoom.name.trim()) return;
+    try {
+      await api.addRoomManually(newRoom);
+      setShowAddRoom(false);
+      onComplete();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to add room');
+    }
   }
 
   return (
@@ -124,7 +127,7 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
         </div>
 
         {showAddRoom && (
-          <form onSubmit={handleAddRoom} style={{ background: '#f3f4f6', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ background: '#f3f4f6', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <p style={{ fontWeight: 600, margin: 0 }}>Add a room we didn&apos;t find</p>
             <input type="text" placeholder="Room name" required value={newRoom.name}
               onChange={e => setNewRoom(p => ({ ...p, name: e.target.value }))}
@@ -140,8 +143,8 @@ export function DataReviewStep({ step, state, onComplete }: Props) {
                 onChange={e => setNewRoom(p => ({ ...p, bedConfiguration: e.target.value }))}
                 style={{ flex: 2, padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '6px' }} />
             </div>
-            <button type="submit" style={{ padding: '0.6rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Add Room</button>
-          </form>
+            <button type="button" onClick={(e) => { e.preventDefault(); handleAddRoom(); }} style={{ padding: '0.6rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Add Room</button>
+          </div>
         )}
 
         {error && <p style={{ color: '#dc2626' }}>{error}</p>}
