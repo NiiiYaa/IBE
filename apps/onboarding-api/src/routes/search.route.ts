@@ -26,7 +26,7 @@ export async function searchRoutes(app: FastifyInstance) {
     return reply.type('image/png').send(stream);
   });
 
-  // POST /hotel-search — DuckDuckGo search + screenshots (~10-15s)
+  // POST /hotel-search — DataForSEO SERP primary search (~2s)
   app.post<{ Body: { hotelName: string; city: string; country: string } }>(
     '/hotel-search',
     async (request, reply) => {

@@ -39,7 +39,7 @@ export async function searchHotelsDataForSEO(
         'Authorization': `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([{ keyword, location_code: 2840, language_code: 'en', depth: 10 }]),
+      body: JSON.stringify([{ keyword, language_code: 'en', depth: 10 }]),
       signal: AbortSignal.timeout(15000),
     })
 

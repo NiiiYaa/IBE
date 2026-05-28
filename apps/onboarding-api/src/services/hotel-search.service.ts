@@ -198,8 +198,8 @@ export async function searchHotelsPrimary(
       catch { return false }
     })
     if (!chainFound) {
-      const screenshotUrl = await takeScreenshot(chainDomain)
-      results.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, screenshotUrl, score: 65 })
+      // No screenshot in the fast DataForSEO path — screenshotUrl stays null to avoid Playwright latency
+      results.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, screenshotUrl: null, score: 65 })
     }
   }
 

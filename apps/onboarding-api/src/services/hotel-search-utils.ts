@@ -16,19 +16,18 @@ export const OTA_BLOCKLIST = [
   'laterooms.com', 'getaroom.com', 'traveloka.com', 'airbnb.com',
   'vrbo.com', 'hometogo.com', 'destinia.com', 'logitravel.com',
   // Generic directory / mirror sites
-  'hotelmix.com', 'hotelmix.co.uk', 'booked.net', 'reservations.com',
+  'hotelmix.com', 'hotelmix.co.uk', 'booked.net', 'booked.com', 'reservations.com',
   'hotelscombined.com', 'hotelhunter.com', 'zenhotels.com', 'cozycozy.com',
   'lodging-world.com', 'hotel-dir.com', 'venere.com', 'hostelworld.com',
   'hotelworld.com', 'bedandbreakfast.com', 'bedandbreakfast.eu',
   'guestreservations.com', 'hotel.com', 'hotel.de',
 ]
 
-// Keyword patterns — block any domain containing these substrings
+// Keyword patterns — block any domain containing these substrings (use sparingly — substring match)
 // Exception: IBE providers (synxis, travelclick, simplebooking, etc.) are detected separately
 // and must NOT appear here — they receive high scores via detectKnownIBE()
 const OTA_KEYWORD_PATTERNS = [
-  'hotelmix', 'booked.net', 'zenhotels', 'cozycozy', 'hotelhunter',
-  'hotelscombined', 'reservations.com', 'hotel-dir', 'lodging-world',
+  'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'hotel-dir', 'lodging-world',
 ]
 
 export const DIRECTORY_PATTERNS = [
