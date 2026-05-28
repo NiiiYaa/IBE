@@ -233,7 +233,7 @@ export default function HotelOnboardingPage() {
                           onMouseEnter={e => (e.currentTarget.style.borderColor = '#2563eb')}
                           onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}>
                           {c.screenshotUrl ? (
-                            <img src={`${ONBOARDING_API_URL}${c.screenshotUrl}`} alt={c.title}
+                            <img src={c.screenshotUrl.startsWith('/api/') ? c.screenshotUrl : `${ONBOARDING_API_URL}${c.screenshotUrl}`} alt={c.title}
                               style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block' }}
                               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                           ) : (

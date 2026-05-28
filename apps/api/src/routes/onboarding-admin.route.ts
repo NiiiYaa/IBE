@@ -119,9 +119,29 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         signal: AbortSignal.timeout(20000),
       })
       if (!res.ok) return reply.send({ screenshotUrl: null })
-      return reply.send(await res.json())
+      const data = await res.json() as { screenshotUrl: string | null }
+      // Rewrite path to go through main API so browser doesn't need direct access to onboarding-api
+      const screenshotUrl = data.screenshotUrl
+        ? `/api/v1/admin/hotel-onboarding/screenshots/${data.screenshotUrl.split('/').pop()}`
+        : null
+      return reply.send({ screenshotUrl })
     } catch {
       return reply.send({ screenshotUrl: null })
+    }
+  })
+
+  app.get<{ Params: { file: string } }>('/admin/hotel-onboarding/screenshots/:file', async (request, reply) => {
+    const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+    const { file } = request.params
+    try {
+      const res = await fetch(`${internalUrl}/screenshots/${encodeURIComponent(file)}`, {
+        signal: AbortSignal.timeout(10000),
+      })
+      if (!res.ok) return reply.status(404).send()
+      const buffer = await res.arrayBuffer()
+      return reply.type('image/png').send(Buffer.from(buffer))
+    } catch {
+      return reply.status(404).send()
     }
   })
 
