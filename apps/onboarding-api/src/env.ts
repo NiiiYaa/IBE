@@ -10,6 +10,8 @@ const envSchema = z.object({
   INTERNAL_API_SECRET: z.string().min(16),
   IBE_API_CALLBACK_URL: z.string().url().default('http://localhost:3000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  DATAFORSEO_LOGIN: z.string().optional(),
+  DATAFORSEO_PASSWORD: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
