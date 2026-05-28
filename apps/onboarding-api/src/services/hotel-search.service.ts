@@ -19,6 +19,8 @@ const OTA_BLOCKLIST = [
   'hotel-ds.com', 'hotel.de', 'hotelebarcelona.net', 'barcelonahotel.org',
   'hotel-bb.com', 'hotelworld.com', 'hostelworld.com', 'hotel-info.com',
   'venere.com', 'hotelbeds.com', 'hrs.de', 'hotel.com',
+  'hoteldirect.co.uk', 'hoteldirect.com', 'bedandbreakfast', 'bnb.com',
+  'barcelonahotels.', 'mybarcelona.', 'spain-holiday.com',
 ];
 
 export const SCREENSHOTS_DIR = path.join(process.cwd(), 'uploads', 'screenshots');
