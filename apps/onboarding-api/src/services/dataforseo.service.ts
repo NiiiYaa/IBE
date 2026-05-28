@@ -77,10 +77,17 @@ export async function searchHotelsDataForSEO(
       })
     )
 
+    const SPAM_TITLE_PATTERNS = [
+      'unofficial', 'not official', 'third party', 'third-party',
+      'independent booking', 'hotel information and', 'price comparison',
+    ]
+
     const candidates: HotelCandidate[] = []
     for (const item of resolved) {
       if (!item) continue
       const url = item.url!
+      const titleLower = (item.title ?? '').toLowerCase()
+      if (SPAM_TITLE_PATTERNS.some(p => titleLower.includes(p))) continue
       const detection = detectKnownIBE(url)
       const detected = detection !== null
       const score = scoreCandidate(url, item.title ?? '', hotelName, detected)
