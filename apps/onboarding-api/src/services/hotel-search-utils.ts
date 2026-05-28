@@ -20,7 +20,7 @@ export const OTA_BLOCKLIST = [
   'hotelscombined.com', 'hotelhunter.com', 'zenhotels.com', 'cozycozy.com',
   'lodging-world.com', 'hotel-dir.com', 'venere.com', 'hostelworld.com',
   'hotelworld.com', 'bedandbreakfast.com', 'bedandbreakfast.eu',
-  'guestreservations.com', 'hotel.com', 'hotel.de',
+  'guestreservations.com', 'online-reservations.com', 'hotel.com', 'hotel.de',
   // Domain parking & for-sale pages
   'godaddy.com', 'sedo.com', 'dan.com', 'afternic.com',
   'parkingcrew.com', 'bodis.com', 'hugedomains.com', 'undeveloped.com',
