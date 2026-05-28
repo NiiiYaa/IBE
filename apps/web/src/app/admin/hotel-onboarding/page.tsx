@@ -171,21 +171,21 @@ export default function HotelOnboardingPage() {
                   style={{ ...inputStyle, width: '100%' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>City *</label>
-                <input type="text" required value={searchForm.city}
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>City <span style={{ fontWeight: 400, color: '#6b7280' }}>(optional – recommended)</span></label>
+                <input type="text" value={searchForm.city}
                   onChange={e => setSearchForm(p => ({ ...p, city: e.target.value }))}
                   placeholder="e.g. Rome"
                   style={{ ...inputStyle, width: '100%' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>Country</label>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>Country <span style={{ fontWeight: 400, color: '#6b7280' }}>(optional – recommended)</span></label>
                 <input type="text" value={searchForm.country}
                   onChange={e => setSearchForm(p => ({ ...p, country: e.target.value }))}
                   placeholder="e.g. Italy"
                   style={{ ...inputStyle, width: '100%' }} />
               </div>
-              <button type="submit" disabled={searching || !searchForm.hotelName.trim() || !searchForm.city.trim()}
-                style={{ padding: '0.6rem 1.2rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', opacity: (searching || !searchForm.hotelName.trim() || !searchForm.city.trim()) ? 0.7 : 1 }}>
+              <button type="submit" disabled={searching || !searchForm.hotelName.trim()}
+                style={{ padding: '0.6rem 1.2rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', opacity: (searching || !searchForm.hotelName.trim()) ? 0.7 : 1 }}>
                 {searching ? 'Searching…' : 'Search'}
               </button>
             </form>

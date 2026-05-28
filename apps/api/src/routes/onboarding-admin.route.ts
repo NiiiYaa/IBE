@@ -111,7 +111,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       const me = request.admin
       if (!me.organizationId) return reply.badRequest('No organization context')
       const { hotelName, city, country } = request.body
-      if (!hotelName?.trim() || !city?.trim()) return reply.badRequest('hotelName and city required')
+      if (!hotelName?.trim()) return reply.badRequest('hotelName is required')
       const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
       try {
         const res = await fetch(`${internalUrl}/hotel-search`, {

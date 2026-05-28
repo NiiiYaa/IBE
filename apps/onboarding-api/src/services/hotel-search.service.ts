@@ -167,7 +167,8 @@ export async function searchHotels(hotelName: string, city: string, country: str
 
   // Step 2: Brave Search (JS-rendered, better quality than DuckDuckGo HTML)
   const otaExcludes = '-booking.com -tripadvisor -expedia -agoda -hotels.com -kayak';
-  const q = encodeURIComponent(`"${hotelName}" ${city} official website ${otaExcludes}`);
+  const location = [city, country].filter(Boolean).join(' ');
+  const q = encodeURIComponent(`"${hotelName}"${location ? ' ' + location : ''} official website ${otaExcludes}`);
   const braveUrl = `https://search.brave.com/search?q=${q}&source=web`;
 
   let rawResults: Array<{ url: string; title: string }> = [];
