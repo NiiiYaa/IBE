@@ -20,12 +20,13 @@ const createInvitationSchema = z.object({
 export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.post('/admin/hotel-onboarding/invitations', async (request, reply) => {
     const me = request.admin
+    if (!me.organizationId) return reply.badRequest('No organization context')
     const body = createInvitationSchema.parse(request.body)
     const flow = getVendorFlow(body.pmsId)
     if (!flow) return reply.badRequest(`Unknown pmsId: ${body.pmsId}`)
 
     const inv = await createInvitation({
-      organizationId: me.organizationId ?? 0,
+      organizationId: me.organizationId,
       pmsId: body.pmsId,
       pmsName: flow.pmsName,
       ...(body.hotelName !== undefined && { hotelName: body.hotelName }),
@@ -36,25 +37,39 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return reply.code(201).send(inv)
   })
 
-  app.get('/admin/hotel-onboarding/invitations', async (request) => {
+  app.get('/admin/hotel-onboarding/invitations', async (request, reply) => {
     const me = request.admin
-    return listInvitations(me.organizationId ?? 0)
+    if (!me.organizationId) return reply.badRequest('No organization context')
+    return listInvitations(me.organizationId)
   })
 
-  app.get('/admin/hotel-onboarding/invitations/needs-attention', async () => {
+  app.get('/admin/hotel-onboarding/invitations/needs-attention', async (request, reply) => {
+    const me = request.admin
+    if (me.role !== 'super') return reply.forbidden('Super admin required')
     return listNeedsAttention()
   })
 
   app.delete('/admin/hotel-onboarding/invitations/:id', async (request, reply) => {
+    const me = request.admin
     const { id } = request.params as { id: string }
-    await revokeInvitation(parseInt(id, 10))
+    const invitationId = parseInt(id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
+    await revokeInvitation(invitationId)
     return reply.code(204).send()
   })
 
   app.post('/admin/hotel-onboarding/invitations/:id/retry-harvest', async (request, reply) => {
+    const me = request.admin
     const invitationId = parseInt((request.params as { id: string }).id, 10)
     const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
     if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
     if (!invitation.ibeUrl) return reply.badRequest('No IBE URL on invitation')
     await triggerBackgroundHarvest(invitationId, invitation.ibeUrl)
     return { ok: true }
@@ -63,8 +78,14 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.put('/admin/hotel-onboarding/sessions/:id/approve', async (request, reply) => {
     const me = request.admin
     const sessionId = parseInt((request.params as { id: string }).id, 10)
-    const session = await prisma.onboardingSession.findUnique({ where: { id: sessionId } })
+    const session = await prisma.onboardingSession.findUnique({
+      where: { id: sessionId },
+      include: { invitation: { select: { organizationId: true } } },
+    })
     if (!session) return reply.notFound('Session not found')
+    if (me.role !== 'super' && session.invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
     if (session.status !== 'pending_review') return reply.badRequest('Session is not pending review')
     await prisma.onboardingSession.update({
       where: { id: sessionId },

@@ -1,5 +1,9 @@
 import { sendEmail } from './email.service.js'
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 interface InvitationRecord {
   id: number
   contactEmail?: string | null
@@ -30,7 +34,7 @@ export async function notifyHarvestFailure(invitationId: number, reason: string)
   const html = `
     <h2>IBE Harvest Failed</h2>
     <p>Invitation ID: ${invitationId}</p>
-    <p>Reason: ${reason}</p>
+    <p>Reason: ${escapeHtml(reason)}</p>
     <p>Please review in the admin panel: Admin → Hotel Onboarding → Needs Attention</p>
   `
   await sendEmail(0, {
