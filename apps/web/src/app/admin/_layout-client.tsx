@@ -353,7 +353,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, isAuthPage, isOnboarding, orgData, role, router])
 
   useEffect(() => {
-    if (isAuthenticated && role === 'ob_agent' && !isAuthPage && pathname !== '/admin/hotel-onboarding') {
+    if (isAuthenticated && role === 'ob_agent' && !isAuthPage && pathname !== '/admin/hotel-onboarding' && pathname !== '/admin/force-change-password' && pathname !== '/admin/profile') {
       router.replace('/admin/hotel-onboarding')
     }
   }, [isAuthenticated, role, isAuthPage, pathname, router])
