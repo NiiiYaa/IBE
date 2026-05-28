@@ -41,6 +41,8 @@ function makeResponseCollector(payloads: unknown[]) {
       res.url().includes('direct-book.com') &&
       (res.headers()['content-type'] ?? '').includes('json')
     ) {
+      // Fire-and-forget: payloads are read after waitForTimeout/waitForSelector,
+      // by which point networkidle has settled and all .json() promises resolved.
       res.json().then((data) => payloads.push(data)).catch(() => {})
     }
   }
@@ -195,6 +197,9 @@ export class DirectBookHarvester implements IbeHarvester {
 
         if (!foundNew) consecutiveEmpty++
         else consecutiveEmpty = 0
+        // Breaks inner (occupancy) loop only — outer date-window loop continues.
+        // Consistent with SynXisHarvester: per-window early-stop avoids missing
+        // rooms that are only available at the 30-day window.
         if (consecutiveEmpty >= 3) break
       }
     }
