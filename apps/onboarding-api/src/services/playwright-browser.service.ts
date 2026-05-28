@@ -32,7 +32,7 @@ const STEALTH_SCRIPT = `
 export async function withStealthPage<T>(
   url: string,
   fn: (page: Page) => Promise<T>,
-  options?: { navigationTimeout?: number; idleTimeout?: number },
+  options?: { navigationTimeout?: number; idleTimeout?: number; beforeNavigate?: (page: Page) => void },
 ): Promise<T> {
   const browser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
   try {
@@ -50,6 +50,7 @@ export async function withStealthPage<T>(
     });
     await context.addInitScript(STEALTH_SCRIPT);
     const page = await context.newPage();
+    options?.beforeNavigate?.(page);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: options?.navigationTimeout ?? 30000 });
     await page.waitForLoadState('networkidle', { timeout: options?.idleTimeout ?? 15000 }).catch(() => {
       // networkidle can timeout on pages with constant polling — that's ok
