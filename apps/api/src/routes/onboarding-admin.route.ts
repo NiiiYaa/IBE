@@ -139,6 +139,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         if (aiConfig && aiConfig.provider !== 'fake') {
           try {
             const adapter = getProviderAdapter(aiConfig.provider)
+            let aiTimeoutId: ReturnType<typeof setTimeout>
             const aiRes = await Promise.race([
               adapter.call(
                 [{ role: 'user', content: `What is the official website homepage URL for the hotel or brand that operates "${hotelName.trim()}"${city?.trim() ? ` in ${city.trim()}` : ''}${country?.trim() ? `, ${country.trim()}` : ''}? Reply with ONLY the root homepage URL (e.g. https://www.example.com), no specific page paths, no explanation.` }],
@@ -147,8 +148,8 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
                 aiConfig.apiKey,
                 aiConfig.model,
               ),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 15000)),
-            ])
+              new Promise<never>((_, reject) => { aiTimeoutId = setTimeout(() => reject(new Error('AI timeout')), 15000) }),
+            ]).finally(() => clearTimeout(aiTimeoutId))
             const urlMatch = aiRes.text?.match(/https?:\/\/[^\s"'<>]+/)
             if (urlMatch) {
               const aiUrl = urlMatch[0].replace(/[.,)]+$/, '')
