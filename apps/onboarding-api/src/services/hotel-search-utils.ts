@@ -10,8 +10,14 @@ export const OTA_BLOCKLIST = [
   // Metasearch & aggregators (tripadvisor.* handled via keyword pattern below)
   'hotelscombined.com', 'wego.com', 'momondo.com',
   'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
-  // Review, directory & job sites
+  // Encyclopedias & reference
   'wikipedia.org', 'wikidata.org',
+  // Travel blogs & publications
+  'lonelyplanet.com', 'roughguides.com', 'fodors.com', 'frommers.com',
+  'cntraveler.com', 'travelandleisure.com', 'afar.com', 'cntraveller.com',
+  'theguardian.com', 'timeout.com', 'timeout.co.uk',
+  'telegraph.co.uk', 'independent.co.uk', 'nytimes.com', 'forbes.com',
+  'businesstraveller.com', 'sleepingaroundtheworld.com',
   'yelp.com', 'zoominfo.com', 'yellowpages.com', 'foursquare.com',
   'trustpilot.com', 'glassdoor.com', 'linkedin.com', 'facebook.com',
   'instagram.com', 'twitter.com', 'x.com',
