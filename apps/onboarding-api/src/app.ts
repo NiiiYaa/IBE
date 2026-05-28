@@ -6,6 +6,7 @@ import { env } from './env.js';
 import { sessionRoutes } from './routes/session.route.js';
 import { wizardRoutes } from './routes/wizard.route.js';
 import { internalRoutes } from './routes/internal.route.js';
+import { searchRoutes } from './routes/search.route.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -25,6 +26,7 @@ export async function buildApp() {
   await app.register(sessionRoutes);
   await app.register(wizardRoutes);
   await app.register(internalRoutes);
+  await app.register(searchRoutes);
 
   return app;
 }
