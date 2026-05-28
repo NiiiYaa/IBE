@@ -55,6 +55,7 @@ export interface WizardState {
   pmsId: number | null;
   pmsName: string | null;
   dataFlow: 'hg_pulls' | 'blank' | 'reverse_pull' | null;
+  useDefaultCodes: boolean;
   currentStep: number;
   totalSteps: number;
   steps: Array<{ id: string; kind: string; title: string; description: string; status: string }>;

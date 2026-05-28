@@ -27,6 +27,7 @@ export async function wizardRoutes(app: FastifyInstance) {
       pmsId: session.invitation.pmsId,
       pmsName: session.invitation.pmsName,
       dataFlow: flow?.dataFlow ?? null,
+      useDefaultCodes: flow?.useDefaultCodes ?? false,
       currentStep: session.currentStep,
       totalSteps: flow?.steps.length ?? 0,
       steps: session.stepsJson,
