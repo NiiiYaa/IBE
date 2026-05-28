@@ -173,7 +173,8 @@ export async function searchHotels(hotelName: string, city: string, country: str
 
   let rawResults: Array<{ url: string; title: string }> = [];
   try {
-    rawResults = await withStealthPage(braveUrl, async (page) => {
+    // 40-second hard timeout — browser can hang indefinitely on rate-limited IPs
+    const searchPromise = withStealthPage(braveUrl, async (page) => {
       // Brave is a JS SPA — wait longer for results to render
       try { await page.waitForSelector('a[href^="http"]', { timeout: 12000 }); } catch {}
       await page.waitForTimeout(4000);
@@ -210,6 +211,8 @@ export async function searchHotels(hotelName: string, city: string, country: str
         return links;
       });
     }, { navigationTimeout: 25000, idleTimeout: 20000 });
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('search timeout')), 40000));
+    rawResults = await Promise.race([searchPromise, timeout]);
   } catch {
     return [];
   }

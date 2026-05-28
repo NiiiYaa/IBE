@@ -108,17 +108,26 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
     '/admin/hotel-onboarding/search',
     async (request, reply) => {
+      try {
       const me = request.admin
       if (!me.organizationId) return reply.badRequest('No organization context')
       const { hotelName, city, country } = request.body
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required')
       const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
       try {
-        const res = await fetch(`${internalUrl}/hotel-search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
-        })
+        const controller = new AbortController()
+        const searchTimeout = setTimeout(() => controller.abort(), 45000)
+        let res: Response
+        try {
+          res = await fetch(`${internalUrl}/hotel-search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
+            signal: controller.signal,
+          })
+        } finally {
+          clearTimeout(searchTimeout)
+        }
         if (!res.ok) return reply.status(502).send({ error: 'Search service unavailable' })
         const data = await res.json() as {
           candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }>
@@ -155,8 +164,13 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         }
 
         return reply.send(data)
-      } catch {
+      } catch (innerErr) {
         return reply.status(502).send({ error: 'Search service unavailable' })
+      }
+      } catch (outerErr: unknown) {
+        const msg = outerErr instanceof Error ? outerErr.message : String(outerErr)
+        request.log.error({ err: outerErr }, '[Search] outer error: ' + msg)
+        return reply.status(500).send({ error: msg })
       }
     }
   )
