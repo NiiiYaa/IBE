@@ -74,6 +74,7 @@ import { flexibleDatesPublicRoutes, flexibleDatesAdminRoutes } from './routes/fl
 import { interHotelPublicRoutes, interHotelAdminRoutes } from './routes/interhotel.route.js'
 import { multiCityPublicRoutes, multiCityAdminRoutes } from './routes/multicity.route.js'
 import { onboardingAdminRoutes } from './routes/onboarding-admin.route.js'
+import { onboardingInternalRoutes } from './routes/onboarding-internal.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -164,6 +165,10 @@ export async function buildApp() {
   // ── Health check ───────────────────────────────────────────────────────────
 
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
+
+  // ── Internal server-to-server routes ──────────────────────────────────────
+
+  await app.register(onboardingInternalRoutes)
 
   // ── Public routes ──────────────────────────────────────────────────────────
 
