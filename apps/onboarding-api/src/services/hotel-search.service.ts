@@ -21,6 +21,9 @@ const OTA_BLOCKLIST = [
   'venere.com', 'hotelbeds.com', 'hrs.de', 'hotel.com',
   'hoteldirect.co.uk', 'hoteldirect.com', 'bedandbreakfast', 'bnb.com',
   'barcelonahotels.', 'mybarcelona.', 'spain-holiday.com',
+  'hotelbcn-barcelona.com', 'hotels-in-catalonia.com', 'hotelsbarcelonaes.com',
+  'guestreservations.com', 'reservations.com', 'hotelbeds.com',
+  'wheeltheworld.com', 'barcelonayellow.com',
 ];
 
 // Known hotel chain registry — matched against hotel name (case-insensitive)
@@ -160,16 +163,7 @@ export async function cleanExpiredScreenshots(): Promise<void> {
 }
 
 export async function searchHotels(hotelName: string, city: string, country: string): Promise<HotelCandidate[]> {
-  const results: HotelCandidate[] = [];
-
-  // Step 1: Chain registry — instant result for known chains
-  const chainUrl = detectChain(hotelName);
-  if (chainUrl) {
-    const detection = detectKnownIBE(chainUrl);
-    const score = scoreCandidate(chainUrl, hotelName, hotelName, detection !== null);
-    const screenshotUrl = await takeScreenshot(chainUrl);
-    results.push({ url: chainUrl, title: `${hotelName} — Official Website`, detected: detection !== null, screenshotUrl, score: Math.max(score, 65) });
-  }
+  const chainDomain = detectChain(hotelName); // e.g. "https://www.h10hotels.com"
 
   // Step 2: Brave Search (JS-rendered, better quality than DuckDuckGo HTML)
   const otaExcludes = '-booking.com -tripadvisor -expedia -agoda -hotels.com -kayak';
@@ -202,13 +196,8 @@ export async function searchHotels(hotelName: string, city: string, country: str
     return results;
   }
 
-  // Brave returns real URLs already — no DDG redirect decoding needed
-  const decoded = rawResults;
-  // Deduplicate against chain result
-  const seen = new Set(results.map(r => r.url));
-  const candidates = decoded
-    .filter(r => r.url && !isOta(r.url) && !seen.has(r.url))
-    .slice(0, 8);
+  // Brave returns real URLs — score, filter, screenshot
+  const candidates = rawResults.filter(r => r.url && !isOta(r.url)).slice(0, 8);
 
   const scored = await Promise.all(candidates.map(async (c) => {
     const detection = detectKnownIBE(c.url);
@@ -218,11 +207,21 @@ export async function searchHotels(hotelName: string, city: string, country: str
     return { url: c.url, title: c.title, detected, screenshotUrl, score };
   }));
 
-  // Merge chain result (first) + DuckDuckGo results, sort by score
-  const all = [...results, ...scored].sort((a, b) => {
-    if (a.detected !== b.detected) return a.detected ? -1 : 1;
-    return b.score - a.score;
-  });
+  // Chain registry fallback — add only if no result from the chain domain was found
+  if (chainDomain) {
+    const chainHostname = new URL(chainDomain).hostname;
+    const chainFound = scored.some(c => { try { return new URL(c.url).hostname.includes(chainHostname.replace('www.', '')); } catch { return false; } });
+    if (!chainFound) {
+      const screenshotUrl = await takeScreenshot(chainDomain);
+      scored.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, screenshotUrl, score: 65 });
+    }
+  }
 
-  return all.slice(0, 6);
+  return scored
+    .filter(c => c.score >= 20)
+    .sort((a, b) => {
+      if (a.detected !== b.detected) return a.detected ? -1 : 1;
+      return b.score - a.score;
+    })
+    .slice(0, 6);
 }
