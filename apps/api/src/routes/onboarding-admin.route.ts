@@ -43,6 +43,39 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return listInvitations(me.organizationId)
   })
 
+  app.get('/admin/hotel-onboarding/stats', async (request, reply) => {
+    const me = request.admin
+    if (!me.organizationId && me.role !== 'super') return reply.badRequest('No organization context')
+    const orgFilter = me.role === 'super' ? {} : { organizationId: me.organizationId }
+
+    const invitations = await prisma.onboardingInvitation.findMany({
+      where: orgFilter,
+      select: {
+        pmsId: true,
+        ibePattern: true,
+        session: { select: { status: true } },
+      },
+    })
+
+    const ariStats: Record<number, { total: number; approved: number }> = {}
+    const ibeStats: Record<string, { total: number; approved: number }> = {}
+
+    for (const inv of invitations) {
+      if (inv.pmsId !== null) {
+        if (!ariStats[inv.pmsId]) ariStats[inv.pmsId] = { total: 0, approved: 0 }
+        ariStats[inv.pmsId]!.total++
+        if (inv.session?.status === 'approved') ariStats[inv.pmsId]!.approved++
+      }
+      if (inv.ibePattern) {
+        if (!ibeStats[inv.ibePattern]) ibeStats[inv.ibePattern] = { total: 0, approved: 0 }
+        ibeStats[inv.ibePattern]!.total++
+        if (inv.session?.status === 'approved') ibeStats[inv.ibePattern]!.approved++
+      }
+    }
+
+    return reply.send({ ariStats, ibeStats })
+  })
+
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
     '/admin/hotel-onboarding/search',
     async (request, reply) => {

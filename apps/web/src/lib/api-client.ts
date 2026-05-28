@@ -2576,6 +2576,13 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/invitations')
   },
 
+  async getOnboardingStats(): Promise<{
+    ariStats: Record<number, { total: number; approved: number }>
+    ibeStats: Record<string, { total: number; approved: number }>
+  }> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/stats')
+  },
+
   async createOnboardingInvitation(data: { pmsId: number; hotelName?: string; contactEmail?: string; ibeUrl?: string }): Promise<OnboardingInvitation> {
     return apiRequest('/api/v1/admin/hotel-onboarding/invitations', { method: 'POST', body: JSON.stringify(data) })
   },
