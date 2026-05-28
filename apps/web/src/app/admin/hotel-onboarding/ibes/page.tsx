@@ -4,29 +4,30 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { apiClient } from '@/lib/api-client';
 
 const IBES = [
-  { name: 'Sentec',            detection: 'Domain',        scraping: 'Full',        harvester: true,  sampleUrl: null as string | null },
-  { name: 'SimpleBooking.it',  detection: 'Domain',        scraping: 'Full',        harvester: true,  sampleUrl: null },
-  { name: 'direct-book.com',   detection: 'Domain',        scraping: 'Full',        harvester: true,  sampleUrl: null },
-  { name: 'BookingExpert',     detection: 'Domain+Params', scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Falkensteiner',     detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'BookSecure',        detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Sabre SynXis',      detection: 'Params',        scraping: 'Search only', harvester: true,  sampleUrl: null },
-  { name: 'WebHotelier',       detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Hotels of Mykonos', detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Zenith Hotels (MY)',detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Lighthouse',        detection: 'Domain',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'TravelClick',       detection: 'Params',        scraping: 'Search only', harvester: false, sampleUrl: null },
-  { name: 'Hotetec',           detection: 'Params',        scraping: 'Search only', harvester: false, sampleUrl: null },
+  { name: 'Sentec',            detection: 'Domain',        scraping: 'Full',        harvester: true  },
+  { name: 'SimpleBooking.it',  detection: 'Domain',        scraping: 'Full',        harvester: true  },
+  { name: 'direct-book.com',   detection: 'Domain',        scraping: 'Full',        harvester: true  },
+  { name: 'BookingExpert',     detection: 'Domain+Params', scraping: 'Search only', harvester: false },
+  { name: 'Falkensteiner',     detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'BookSecure',        detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'Sabre SynXis',      detection: 'Params',        scraping: 'Search only', harvester: true  },
+  { name: 'WebHotelier',       detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'Hotels of Mykonos', detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'Zenith Hotels (MY)',detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'Lighthouse',        detection: 'Domain',        scraping: 'Search only', harvester: false },
+  { name: 'TravelClick',       detection: 'Params',        scraping: 'Search only', harvester: false },
+  { name: 'Hotetec',           detection: 'Params',        scraping: 'Search only', harvester: false },
 ];
 
 export default function IbesPage() {
   const [filter, setFilter] = useState('');
   const [stats, setStats] = useState<Record<string, { total: number; approved: number }>>({});
+  const [sampleUrls, setSampleUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     apiClient.getOnboardingStats()
-      .then(s => setStats(s.ibeStats))
+      .then(s => { setStats(s.ibeStats); setSampleUrls(s.ibeSampleUrls); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -80,8 +81,8 @@ export default function IbesPage() {
                 <td style={cell}>{loading ? '—' : (stats[ibe.name]?.total ?? 0)}</td>
                 <td style={cell}>{loading ? '—' : (stats[ibe.name]?.approved ?? 0)}</td>
                 <td style={cell}>
-                  {ibe.sampleUrl ? (
-                    <a href={ibe.sampleUrl} target="_blank" rel="noopener noreferrer"
+                  {sampleUrls[ibe.name] ? (
+                    <a href={sampleUrls[ibe.name]} target="_blank" rel="noopener noreferrer"
                       style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.8rem' }}>
                       View →
                     </a>

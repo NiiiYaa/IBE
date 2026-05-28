@@ -53,12 +53,14 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       select: {
         pmsId: true,
         ibePattern: true,
+        ibeUrl: true,
         session: { select: { status: true } },
       },
     })
 
     const ariStats: Record<number, { total: number; approved: number }> = {}
     const ibeStats: Record<string, { total: number; approved: number }> = {}
+    const ibeSampleUrls: Record<string, string> = {}
 
     for (const inv of invitations) {
       if (inv.pmsId !== null) {
@@ -70,10 +72,13 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         if (!ibeStats[inv.ibePattern]) ibeStats[inv.ibePattern] = { total: 0, approved: 0 }
         ibeStats[inv.ibePattern]!.total++
         if (inv.session?.status === 'approved') ibeStats[inv.ibePattern]!.approved++
+        if (!ibeSampleUrls[inv.ibePattern] && inv.ibeUrl) {
+          ibeSampleUrls[inv.ibePattern] = inv.ibeUrl
+        }
       }
     }
 
-    return reply.send({ ariStats, ibeStats })
+    return reply.send({ ariStats, ibeStats, ibeSampleUrls })
   })
 
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(

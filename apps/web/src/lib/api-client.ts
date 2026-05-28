@@ -2579,6 +2579,7 @@ export const apiClient = {
   async getOnboardingStats(): Promise<{
     ariStats: Record<number, { total: number; approved: number }>
     ibeStats: Record<string, { total: number; approved: number }>
+    ibeSampleUrls: Record<string, string>
   }> {
     return apiRequest('/api/v1/admin/hotel-onboarding/stats')
   },
