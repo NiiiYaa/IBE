@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import path from 'path';
 import fs from 'fs';
-import { searchHotelsPrimary, searchHotelsBrave, SCREENSHOTS_DIR, cleanExpiredScreenshots } from '../services/hotel-search.service.js';
+import { searchHotelsPrimary, searchHotelsBrave, SCREENSHOTS_DIR, cleanExpiredScreenshots, takeScreenshot } from '../services/hotel-search.service.js';
 import { resolveIbeUrl } from '../services/ibe-resolver.service.js';
 import { prisma } from '../db/client.js';
 import { getSession, advanceStep } from '../services/session.service.js';
