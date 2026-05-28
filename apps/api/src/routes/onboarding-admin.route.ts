@@ -9,6 +9,8 @@ import {
 } from '../services/onboarding-invitation.service.js'
 import { getVendorFlow } from '@ibe/onboarding-flows'
 import { detectKnownIBE, listKnownIBEPatterns } from '@ibe/shared'
+import { resolveAIConfig } from '../services/ai-config.service.js'
+import { getProviderAdapter } from '../ai/adapters/index.js'
 import { prisma } from '../db/client.js'
 
 const createInvitationSchema = z.object({
@@ -119,8 +121,39 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         })
         if (!res.ok) return reply.status(502).send({ error: 'Search service unavailable' })
         const data = await res.json() as {
-          candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }>
+          candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }>
         }
+
+        // If no reasonable results (score >= 30), try AI fallback
+        const good = data.candidates.filter(c => c.score >= 30)
+        if (good.length > 0) return reply.send(data)
+
+        const aiConfig = await resolveAIConfig()
+        if (aiConfig && aiConfig.provider !== 'fake') {
+          try {
+            const adapter = getProviderAdapter(aiConfig.provider)
+            const aiRes = await adapter.call(
+              [{ role: 'user', content: `What is the official hotel website or direct booking URL for "${hotelName.trim()}" in ${city.trim()}${country ? ', ' + country : ''}? Reply with ONLY the URL, no explanation.` }],
+              [],
+              'You are a hotel industry expert. Reply with only a URL.',
+              aiConfig.apiKey,
+              aiConfig.model,
+            )
+            const urlMatch = aiRes.text?.match(/https?:\/\/[^\s"'<>]+/)
+            if (urlMatch) {
+              const aiUrl = urlMatch[0].replace(/[.,)]+$/, '')
+              const detection = detectKnownIBE(aiUrl)
+              data.candidates.push({
+                url: aiUrl,
+                title: `${hotelName.trim()} (AI suggestion)`,
+                detected: detection !== null,
+                screenshotUrl: null,
+                score: detection ? 90 : 60,
+              })
+            }
+          } catch { /* AI fallback failed — return empty */ }
+        }
+
         return reply.send(data)
       } catch {
         return reply.status(502).send({ error: 'Search service unavailable' })
