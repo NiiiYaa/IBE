@@ -10,7 +10,7 @@ import { getEffectiveSearchParams, listCompetitors } from './compset.service.js'
 import { getRunStatus, setRunStatus, getCompetitorRunStatus, setCompetitorRunStatus } from './compset-run-status.js'
 import { refreshPropertyEvents } from './event-calendar-fetch.service.js'
 import { getSystemEventCalendarConfig } from './event-calendar.service.js'
-import { detectKnownIBE } from '@ibe/shared'
+import { detectKnownIBE, tryParseRooms, normaliseBoard } from '@ibe/shared'
 import type { CompSetSearchParam } from '@ibe/shared'
 
 export interface RoomRate {
@@ -83,8 +83,43 @@ async function extractSentecRates(page: Page, orgId: number | null): Promise<Roo
   return extractRatesWithAI(page, orgId)
 }
 
+async function extractDirectBookRates(page: Page, orgId: number | null): Promise<RoomRate[]> {
+  // direct-book.com is a Next.js SPA — attempt to read embedded __NEXT_DATA__ state
+  // which may contain availability data already fetched server-side.
+  const scriptData = await page.evaluate((): unknown => {
+    const el = document.getElementById('__NEXT_DATA__')
+    if (el?.textContent) {
+      try { return JSON.parse(el.textContent) } catch {}
+    }
+    return null
+  })
+
+  if (scriptData) {
+    const rooms = tryParseRooms(scriptData)
+    const rates: RoomRate[] = []
+    for (const room of rooms) {
+      for (const rate of room.rates) {
+        const board = normaliseBoard(rate.boardLabel)
+        if (!board) continue
+        rates.push({
+          roomName: room.name,
+          board,
+          cancellation: rate.isNonRefundable ? 'NR' : 'Flexi',
+          pricePerNight: rate.pricePerNight ?? 0,
+          total: rate.total ?? rate.pricePerNight ?? 0,
+          currency: rate.currency ?? 'USD',
+        })
+      }
+    }
+    if (rates.length > 0) return rates
+  }
+
+  return extractRatesWithAI(page, orgId)
+}
+
 const IBE_EXTRACTORS: Record<string, RateExtractor> = {
   'sentec': extractSentecRates,
+  'direct-book.com': extractDirectBookRates,
 }
 
 // If a competitor URL has no template vars, try to expand it using the known IBE registry
