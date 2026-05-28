@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
+import { harvestFromUrl } from '../services/ibe-harvester.service.js';
 
 export async function internalRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request, reply) => {
@@ -24,10 +25,9 @@ export async function internalRoutes(app: FastifyInstance) {
       // Run harvest asynchronously — respond immediately so apps/api is not blocked
       setImmediate(async () => {
         try {
-          // TODO: replace stub with actual ibe-harvester.service.ts call
-          // const harvestedData = await ibeHarvesterService.harvest(ibeUrl);
-          const harvestedData = null; // placeholder until harvester is built
-
+          const harvestedData = await harvestFromUrl(ibeUrl, (msg) => {
+            console.log(`[harvest:${invitationId}] ${msg}`);
+          });
           await fetch(`${callbackBase}/internal/onboarding/harvest-complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-internal-secret': secret },

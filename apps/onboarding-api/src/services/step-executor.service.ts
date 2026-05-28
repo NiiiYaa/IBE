@@ -3,6 +3,7 @@ import { getVendorFlow, type OnboardingContext } from '@ibe/onboarding-flows';
 import { getHGBoClient } from './hg-bo.client.js';
 import { advanceStep, getSession, completeSession } from './session.service.js';
 import { buildEnrichedData } from './enrichment.service.js';
+import { harvestFromUrl } from './ibe-harvester.service.js';
 import { prisma } from '../db/client.js';
 
 function sseEvent(reply: FastifyReply, data: Record<string, unknown>) {
@@ -63,6 +64,21 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
       });
       await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true, data: enriched as unknown as Record<string, unknown> });
       sseEvent(reply, { type: 'complete', stepId: step.id, data: enriched as unknown as Record<string, unknown> });
+
+    } else if (step.id === 'harvest_data') {
+      if (!invitation.ibeUrl) throw new Error('No IBE URL on invitation — cannot harvest');
+
+      const harvestedData = await harvestFromUrl(
+        invitation.ibeUrl,
+        (msg: string) => sseEvent(reply, { type: 'progress', message: msg }),
+      );
+
+      await prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: { harvestedData: harvestedData as any },
+      });
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true });
+      sseEvent(reply, { type: 'complete', stepId: step.id });
 
     } else if (step.id === 'create_hg_property') {
       sseEvent(reply, { type: 'progress', message: 'Creating property in HyperGuest...' });
