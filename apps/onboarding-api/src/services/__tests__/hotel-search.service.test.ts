@@ -6,6 +6,9 @@ vi.mock('../playwright-browser.service.js', () => ({
 vi.mock('../ibe-resolver.service.js', () => ({
   resolveIbeUrl: vi.fn().mockResolvedValue(null),
 }));
+vi.mock('../dataforseo.service.js', () => ({
+  searchHotelsDataForSEO: vi.fn().mockResolvedValue([]),
+}));
 
 import { withStealthPage } from '../playwright-browser.service.js';
 import { searchHotels } from '../hotel-search.service.js';

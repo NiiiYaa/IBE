@@ -73,4 +73,21 @@ describe('searchHotelsDataForSEO', () => {
     expect(body[0].keyword).toContain('-site:booking.com')
     expect(body[0].depth).toBe(10)
   })
+
+  it('returns [] when credentials are missing', async () => {
+    // Temporarily remove credentials
+    const envModule = await import('../../env.js')
+    const originalLogin = (envModule.env as any).DATAFORSEO_LOGIN
+    const originalPassword = (envModule.env as any).DATAFORSEO_PASSWORD
+    ;(envModule.env as any).DATAFORSEO_LOGIN = undefined
+    ;(envModule.env as any).DATAFORSEO_PASSWORD = undefined
+
+    const results = await searchHotelsDataForSEO('Test Hotel', 'Paris', 'France')
+    expect(results).toEqual([])
+    expect(mockFetch).not.toHaveBeenCalled()
+
+    // Restore
+    ;(envModule.env as any).DATAFORSEO_LOGIN = originalLogin
+    ;(envModule.env as any).DATAFORSEO_PASSWORD = originalPassword
+  })
 })
