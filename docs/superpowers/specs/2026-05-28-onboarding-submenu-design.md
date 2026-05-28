@@ -2,13 +2,11 @@
 
 ## Summary
 
-Add two sub-menu pages under the Onboarding nav section: ARI Sources (lists registered VendorFlows) and IBEs (lists known IBE patterns from the registry). Both are static, frontend-only pages with a search filter at the top. No new API endpoints needed.
+Add two sub-menu pages under the Onboarding nav section: ARI Sources and IBEs. Both show static config data enriched with live DB statistics (invitation counts per ARI source / IBE pattern). A new stats API endpoint provides the counts. IBE rows include a hardcoded sample URL (the specific hotel IBE that was used for investigation).
 
 ## Navigation Changes (`_layout-client.tsx`)
 
 ### Sub-menu items
-
-Add two items to the Onboarding section (currently only has Hotel Onboarding):
 
 ```typescript
 {
@@ -24,56 +22,114 @@ Add two items to the Onboarding section (currently only has Hotel Onboarding):
 
 ### ob_agent redirect fix
 
-The current ob_agent redirect checks `pathname !== '/admin/hotel-onboarding'` — this would redirect OB agents away from the new sub-pages. Change to `!pathname.startsWith('/admin/hotel-onboarding')`.
+Change `pathname !== '/admin/hotel-onboarding'` to `!pathname.startsWith('/admin/hotel-onboarding')` so OB agents can navigate to the sub-pages.
+
+## Stats API Endpoint
+
+Add `GET /api/v1/admin/hotel-onboarding/stats` to `apps/api/src/routes/onboarding-admin.route.ts`.
+
+- Auth: requires `organizationId` (same guard as other onboarding routes — `super` sees all orgs, `ob_agent` sees own org)
+- Response:
+
+```typescript
+{
+  ariStats: Record<number, { total: number; approved: number }>  // keyed by pmsId
+  ibeStats: Record<string, { total: number; approved: number }>  // keyed by ibePattern
+}
+```
+
+- `total` = count of all invitations for that pmsId/ibePattern
+- `approved` = count of sessions with `status = 'approved'` for that pmsId/ibePattern
+- `super` admins see global counts (across all orgs); `ob_agent` sees only their org
+
+Implementation uses two Prisma `groupBy` queries on `OnboardingInvitation`:
+```typescript
+// ariStats: group by pmsId
+const ariGroups = await prisma.onboardingInvitation.groupBy({
+  by: ['pmsId'],
+  _count: { id: true },
+  where: orgFilter,  // { organizationId: me.organizationId } for non-super, undefined for super
+})
+// ibeStats: group by ibePattern
+const ibeGroups = await prisma.onboardingInvitation.groupBy({
+  by: ['ibePattern'],
+  _count: { id: true },
+  where: { ...orgFilter, ibePattern: { not: null } },
+})
+// approved counts: join session status
+const approvedAri = await prisma.onboardingSession.groupBy({
+  by: ['invitationId'],  // need pmsId via join
+  ...
+})
+```
+
+Note: because `approved` requires a join to `OnboardingSession`, use two separate queries: one for total invitation counts (groupBy pmsId/ibePattern) and one for approved session counts (findMany with include).
+
+Simpler approach (avoids complex joins): 
+
+```typescript
+// Total invitations per pmsId
+const allInvitations = await prisma.onboardingInvitation.findMany({
+  where: orgFilter,
+  select: { pmsId: true, ibePattern: true, session: { select: { status: true } } },
+})
+// Then aggregate in JS
+```
+
+Use the `findMany` + JS aggregation approach for simplicity.
 
 ## ARI Sources Page (`/admin/hotel-onboarding/ari-sources/page.tsx`)
 
-Static data hardcoded in the component — the VendorFlow registry is code, not DB rows.
+**Columns:** Name, pmsId, Data Flow, Default Codes, Region Aware, Steps, Invitations, Approved
 
-**Data (2 rows, expandable as new CMs are registered):**
+**Static data:**
 
-| Field | SiteMinder | TravelClick |
-|-------|-----------|-------------|
-| pmsId | 12 | 25 |
-| dataFlow | blank | blank |
-| useDefaultCodes | No | Yes |
-| regionAware | Yes | Yes |
-| requiresStaffChannelSetup | No | No |
-| steps | 13 | 13 |
+| Name | pmsId | dataFlow | useDefaultCodes | regionAware | steps |
+|------|-------|----------|-----------------|-------------|-------|
+| SiteMinder | 12 | blank | No | Yes | 13 |
+| TravelClick | 25 | blank | Yes | Yes | 13 |
 
-**Columns displayed:** Name, pmsId, Data Flow (badge: amber=blank, green=hg_pulls), Default Codes (Yes/No), Region Aware (Yes/No), Steps count.
+**Invitations / Approved:** fetched from the stats endpoint (`ariStats[pmsId].total` / `ariStats[pmsId].approved`). Show `—` while loading, `0` if not in stats.
 
-**Filter:** single text input at top, filters by name (case-insensitive).
+**Filter:** text input filters by name.
+
+**apiClient method to add:**
+```typescript
+getOnboardingStats(): Promise<{
+  ariStats: Record<number, { total: number; approved: number }>
+  ibeStats: Record<string, { total: number; approved: number }>
+}>
+```
 
 ## IBEs Page (`/admin/hotel-onboarding/ibes/page.tsx`)
 
-Static data — 13 entries from `known-ibe-registry.ts`. Data hardcoded in the component.
+**Columns:** Name, Detection, Scraping, Harvester, Invitations, Approved, View
 
-**Columns:** Name, Detection (Domain / Params / Domain+Params), Scraping (✓ Full / ⚠ Search only), Harvester (✅ / ❌), View (external link or "—").
+**Static data (13 rows):**
 
-**Scraping badge:** "✓ Full" when `noScraping` is absent/false; "⚠ Search only" when `noScraping: true`.
+| Name | Detection | Scraping | Harvester | sampleUrl |
+|------|-----------|----------|-----------|-----------|
+| Sentec | Domain | Full | ✅ | null (fill in) |
+| SimpleBooking.it | Domain | Full | ✅ | null (fill in) |
+| direct-book.com | Domain | Full | ✅ | null (fill in) |
+| BookingExpert | Domain+Params | Search only | ❌ | null |
+| Falkensteiner | Domain | Search only | ❌ | null |
+| BookSecure | Domain | Search only | ❌ | null |
+| Sabre SynXis | Params | Search only | ✅ | null (fill in) |
+| WebHotelier | Domain | Search only | ❌ | null |
+| Hotels of Mykonos | Domain | Search only | ❌ | null |
+| Zenith Hotels (MY) | Domain | Search only | ❌ | null |
+| Lighthouse | Domain | Search only | ❌ | null |
+| TravelClick | Params | Search only | ❌ | null |
+| Hotetec | Params | Search only | ❌ | null |
 
-**Harvester:** ✅ when entry is in `ibeHarvesterMap` (currently: Sabre SynXis, direct-book.com, SimpleBooking.it); ❌ otherwise.
+**sampleUrl:** hardcoded per IBE (null = no View link shown). These are the specific hotel IBE URLs used during investigation. The user fills these in at the time of implementation or later.
 
-**View link:** canonical domain URL for domain-based IBEs; "—" for white-labeled/param-based IBEs.
+**View column:** renders an external link (opens in new tab) when `sampleUrl` is set; "—" otherwise.
 
-| Name | Detection | noScraping | Harvester | View |
-|------|-----------|-----------|-----------|------|
-| Sentec | Domain | No | ✅ | https://booking.sentec.io |
-| SimpleBooking.it | Domain | No | ✅ | https://www.simplebooking.it |
-| direct-book.com | Domain | No | ✅ | https://direct-book.com |
-| BookingExpert | Domain+Params | Yes | ❌ | https://be.bookingexpert.it |
-| Falkensteiner | Domain | Yes | ❌ | https://www.falkensteiner.com |
-| BookSecure | Domain | Yes | ❌ | https://www.book-secure.com |
-| Sabre SynXis | Params | Yes | ✅ | — |
-| WebHotelier | Domain | Yes | ❌ | https://reserve-online.net |
-| Hotels of Mykonos | Domain | Yes | ❌ | https://hotelsofmykonos.com |
-| Zenith Hotels (MY) | Domain | Yes | ❌ | https://www.thezenithhotel.com |
-| Lighthouse | Domain | Yes | ❌ | https://bookingengine.mylighthouse.com |
-| TravelClick | Params | Yes | ❌ | — |
-| Hotetec | Params | Yes | ❌ | — |
+**Invitations / Approved:** from `ibeStats[ibePattern].total` / `ibeStats[ibePattern].approved`.
 
-**Filter:** single text input at top, filters by name (case-insensitive).
+**Filter:** text input filters by name.
 
 ## Files
 
@@ -81,4 +137,6 @@ Static data — 13 entries from `known-ibe-registry.ts`. Data hardcoded in the c
 |--------|------|
 | Create | `apps/web/src/app/admin/hotel-onboarding/ari-sources/page.tsx` |
 | Create | `apps/web/src/app/admin/hotel-onboarding/ibes/page.tsx` |
+| Modify | `apps/api/src/routes/onboarding-admin.route.ts` |
+| Modify | `apps/web/src/lib/api-client.ts` |
 | Modify | `apps/web/src/app/admin/_layout-client.tsx` |
