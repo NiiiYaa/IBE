@@ -110,49 +110,50 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     async (request, reply) => {
       try {
       const me = request.admin
-      if (!me.organizationId) return reply.badRequest('No organization context')
+      if (!me.organizationId && me.role !== 'super') return reply.badRequest('No organization context')
       const { hotelName, city, country } = request.body
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required')
       const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
       try {
-        const controller = new AbortController()
-        const searchTimeout = setTimeout(() => controller.abort(), 45000)
-        let res: Response
+        type Candidate = { url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }
+        const allCandidates: Candidate[] = []
+
+        // Step 1: DataForSEO SERP (fast ~2s)
         try {
-          res = await fetch(`${internalUrl}/hotel-search`, {
+          const dfsRes = await fetch(`${internalUrl}/hotel-search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
-            signal: controller.signal,
+            signal: AbortSignal.timeout(20000),
           })
-        } finally {
-          clearTimeout(searchTimeout)
-        }
-        if (!res.ok) return reply.status(502).send({ error: 'Search service unavailable' })
-        const data = await res.json() as {
-          candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }>
-        }
+          if (dfsRes.ok) {
+            const dfsData = await dfsRes.json() as { candidates: Candidate[] }
+            allCandidates.push(...dfsData.candidates)
+          }
+        } catch { /* DataForSEO failed — continue */ }
 
-        // If no reasonable results (score >= 30), try AI fallback
-        const good = data.candidates.filter(c => c.score >= 30)
-        if (good.length > 0) return reply.send(data)
+        if (allCandidates.some(c => c.score >= 30)) return reply.send({ candidates: allCandidates })
 
+        // Step 2: AI fallback
         const aiConfig = await resolveAIConfig()
         if (aiConfig && aiConfig.provider !== 'fake') {
           try {
             const adapter = getProviderAdapter(aiConfig.provider)
-            const aiRes = await adapter.call(
-              [{ role: 'user', content: `What is the official hotel website or direct booking URL for "${hotelName.trim()}"${city?.trim() ? ` in ${city.trim()}` : ''}${country?.trim() ? `, ${country.trim()}` : ''}? Reply with ONLY the URL, no explanation.` }],
-              [],
-              'You are a hotel industry expert. Reply with only a URL.',
-              aiConfig.apiKey,
-              aiConfig.model,
-            )
+            const aiRes = await Promise.race([
+              adapter.call(
+                [{ role: 'user', content: `What is the official website homepage URL for the hotel or brand that operates "${hotelName.trim()}"${city?.trim() ? ` in ${city.trim()}` : ''}${country?.trim() ? `, ${country.trim()}` : ''}? Reply with ONLY the root homepage URL (e.g. https://www.example.com), no specific page paths, no explanation.` }],
+                [],
+                'You are a hotel industry expert. Reply with only a URL.',
+                aiConfig.apiKey,
+                aiConfig.model,
+              ),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 15000)),
+            ])
             const urlMatch = aiRes.text?.match(/https?:\/\/[^\s"'<>]+/)
             if (urlMatch) {
               const aiUrl = urlMatch[0].replace(/[.,)]+$/, '')
               const detection = detectKnownIBE(aiUrl)
-              data.candidates.push({
+              allCandidates.push({
                 url: aiUrl,
                 title: `${hotelName.trim()} (AI suggestion)`,
                 detected: detection !== null,
@@ -160,10 +161,37 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
                 score: detection ? 90 : 60,
               })
             }
-          } catch { /* AI fallback failed — return empty */ }
+          } catch { /* AI failed — continue to Brave */ }
         }
 
-        return reply.send(data)
+        if (allCandidates.some(c => c.score >= 30)) return reply.send({ candidates: allCandidates })
+
+        // Step 3: Brave (last resort, slow ~40s)
+        const braveController = new AbortController()
+        const braveTimeout = setTimeout(() => braveController.abort(), 45000)
+        try {
+          const braveRes = await fetch(`${internalUrl}/hotel-search/brave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
+            signal: braveController.signal,
+          })
+          if (braveRes.ok) {
+            const braveData = await braveRes.json() as { candidates: Candidate[] }
+            // Merge, deduplicating by hostname
+            const seen = new Set(allCandidates.map(c => { try { return new URL(c.url).hostname } catch { return c.url } }))
+            for (const c of braveData.candidates) {
+              try {
+                const h = new URL(c.url).hostname
+                if (!seen.has(h)) { seen.add(h); allCandidates.push(c) }
+              } catch { allCandidates.push(c) }
+            }
+          }
+        } finally {
+          clearTimeout(braveTimeout)
+        }
+
+        return reply.send({ candidates: allCandidates })
       } catch (innerErr) {
         return reply.status(502).send({ error: 'Search service unavailable' })
       }
