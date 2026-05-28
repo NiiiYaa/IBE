@@ -2246,12 +2246,16 @@ model OnboardingInvitation {
   createdAt           DateTime           @default(now())
   createdByAdminId    Int?               // null for self-registration and zoho
   session             OnboardingSession?
+
+  @@index([organizationId])
+  @@index([harvestStatus])
+  @@index([expiresAt])
 }
 
 model OnboardingSession {
   id                 Int                  @id @default(autoincrement())
   invitationId       Int                  @unique
-  invitation         OnboardingInvitation @relation(fields: [invitationId], references: [id])
+  invitation         OnboardingInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
   status             String               @default("in_progress")
   // status values:
   //   in_progress        — hotel is actively moving through the wizard
@@ -2270,13 +2274,16 @@ model OnboardingSession {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   helpRequests       OnboardingHelpRequest[]
+
+  @@index([status])
 }
 
 model OnboardingHelpRequest {
   id        Int               @id @default(autoincrement())
   sessionId Int
-  session   OnboardingSession @relation(fields: [sessionId], references: [id])
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   message   String
   status    String            @default("open") // open | resolved
   createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 }
