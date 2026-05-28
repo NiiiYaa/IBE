@@ -9,7 +9,7 @@ import { CredentialsModal, type CredentialsInfo } from '../_components/Credentia
 
 
 const ROLES = ['admin', 'observer', 'user'] as const
-const SUPER_ROLES = ['admin', 'observer', 'user', 'affiliate'] as const
+const SUPER_ROLES = ['admin', 'observer', 'user', 'affiliate', 'ob_agent'] as const
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
   user: 'User',
   super: 'Super',
   affiliate: 'Affiliate',
+  ob_agent: 'OB Agent',
 }
 
 const ROLE_HINT: Record<string, string> = {
@@ -24,6 +25,7 @@ const ROLE_HINT: Record<string, string> = {
   observer: 'Read-only, no sensitive settings',
   user: 'Limited to assigned properties',
   affiliate: 'Affiliate portal access only',
+  ob_agent: 'Hotel onboarding access only',
 }
 
 // ── Searchable org dropdown ───────────────────────────────────────────────────
@@ -483,7 +485,7 @@ export default function UsersPage() {
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-text)] focus:border-[var(--color-primary)] focus:outline-none"
         >
           <option value="">All roles</option>
-          {(isSuper ? ['super', 'admin', 'observer', 'user', 'affiliate'] : ['admin', 'observer', 'user']).map(r => (
+          {(isSuper ? ['super', 'admin', 'observer', 'user', 'affiliate', 'ob_agent'] : ['admin', 'observer', 'user']).map(r => (
             <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
           ))}
         </select>
