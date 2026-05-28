@@ -2576,8 +2576,14 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/invitations')
   },
 
-  async createOnboardingInvitation(data: { pmsId: number; hotelName?: string; contactEmail?: string; websiteUrl?: string }): Promise<OnboardingInvitation> {
+  async createOnboardingInvitation(data: { pmsId: number; hotelName?: string; contactEmail?: string; ibeUrl?: string }): Promise<OnboardingInvitation> {
     return apiRequest('/api/v1/admin/hotel-onboarding/invitations', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  async searchOnboardingHotel(body: { hotelName: string; city: string; country?: string }): Promise<{
+    candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }>
+  }> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/search', { method: 'POST', body: JSON.stringify(body) })
   },
 
   async revokeOnboardingInvitation(id: number): Promise<void> {
