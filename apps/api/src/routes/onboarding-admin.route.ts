@@ -43,6 +43,31 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return listInvitations(me.organizationId)
   })
 
+  app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
+    '/admin/hotel-onboarding/search',
+    async (request, reply) => {
+      const me = request.admin
+      if (!me.organizationId) return reply.badRequest('No organization context')
+      const { hotelName, city, country } = request.body
+      if (!hotelName?.trim() || !city?.trim()) return reply.badRequest('hotelName and city required')
+      const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+      try {
+        const res = await fetch(`${internalUrl}/hotel-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hotelName: hotelName.trim(), city: city.trim(), country: country ?? '' }),
+        })
+        if (!res.ok) return reply.status(502).send({ error: 'Search service unavailable' })
+        const data = await res.json() as {
+          candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }>
+        }
+        return reply.send(data)
+      } catch {
+        return reply.status(502).send({ error: 'Search service unavailable' })
+      }
+    }
+  )
+
   app.get('/admin/hotel-onboarding/invitations/needs-attention', async (request, reply) => {
     const me = request.admin
     if (me.role !== 'super') return reply.forbidden('Super admin required')
