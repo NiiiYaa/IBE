@@ -73,6 +73,7 @@ import { pricingPublicRoutes, pricingAdminRoutes } from './routes/pricing.route.
 import { flexibleDatesPublicRoutes, flexibleDatesAdminRoutes } from './routes/flexible-dates.route.js'
 import { interHotelPublicRoutes, interHotelAdminRoutes } from './routes/interhotel.route.js'
 import { multiCityPublicRoutes, multiCityAdminRoutes } from './routes/multicity.route.js'
+import { onboardingAdminRoutes } from './routes/onboarding-admin.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
 declare module 'fastify' {
@@ -269,6 +270,7 @@ export async function buildApp() {
     await adminApp.register(flexibleDatesAdminRoutes)
     await adminApp.register(interHotelAdminRoutes)
     await adminApp.register(multiCityAdminRoutes)
+    await adminApp.register(onboardingAdminRoutes, { prefix: '/api/v1' })
   })
 
   // ── Error handler ──────────────────────────────────────────────────────────

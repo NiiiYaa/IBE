@@ -1,0 +1,97 @@
+import { prisma } from '../db/client.js'
+import { sendInvitationEmail, notifyHarvestFailure } from './onboarding-email.service.js'
+
+interface CreateInvitationInput {
+  organizationId: number
+  pmsId: number
+  pmsName: string
+  hotelName?: string
+  ibeUrl?: string
+  contactEmail?: string
+  createdByAdminId?: number
+}
+
+export async function createInvitation(input: CreateInvitationInput) {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const invitation = await prisma.onboardingInvitation.create({
+    data: { ...input, expiresAt },
+  })
+
+  if (invitation.ibeUrl && invitation.source !== 'self_registration') {
+    triggerBackgroundHarvest(invitation.id, invitation.ibeUrl).catch((err: unknown) => {
+      console.error(`Background harvest trigger failed for invitation ${invitation.id}:`, err)
+    })
+  }
+
+  return invitation
+}
+
+export async function triggerBackgroundHarvest(invitationId: number, ibeUrl: string) {
+  await prisma.onboardingInvitation.update({
+    where: { id: invitationId },
+    data: { harvestStatus: 'harvesting' },
+  })
+  const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+  const res = await fetch(`${internalUrl}/internal/harvest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invitationId, ibeUrl }),
+  })
+  if (!res.ok) throw new Error(`Internal harvest request failed: ${res.status}`)
+}
+
+export async function markHarvestComplete(invitationId: number, harvestedData: unknown) {
+  await prisma.onboardingInvitation.update({
+    where: { id: invitationId },
+    data: { harvestStatus: 'complete', harvestedData: harvestedData as any },
+  })
+  const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+  if (invitation?.contactEmail) {
+    await sendInvitationEmail(invitation)
+  }
+}
+
+export async function markHarvestFailed(invitationId: number, reason: string) {
+  await prisma.onboardingInvitation.update({
+    where: { id: invitationId },
+    data: { harvestStatus: 'failed', failureReason: reason },
+  })
+  await notifyHarvestFailure(invitationId, reason)
+}
+
+export async function listNeedsAttention() {
+  return prisma.onboardingInvitation.findMany({
+    where: { harvestStatus: 'failed' },
+    orderBy: { createdAt: 'desc' },
+  })
+}
+
+export async function listInvitations(organizationId: number) {
+  return prisma.onboardingInvitation.findMany({
+    where: { organizationId },
+    orderBy: { createdAt: 'desc' },
+    include: { session: { select: { status: true, currentStep: true } } },
+  })
+}
+
+export async function revokeInvitation(id: number) {
+  return prisma.onboardingInvitation.update({
+    where: { id },
+    data: { revokedAt: new Date() },
+  })
+}
+
+export async function getInvitationByToken(token: string) {
+  return prisma.onboardingInvitation.findUnique({ where: { token } })
+}
+
+export function isInvitationValid(inv: {
+  revokedAt: Date | null
+  usedAt: Date | null
+  expiresAt: Date
+}): { valid: boolean; reason?: string } {
+  if (inv.revokedAt) return { valid: false, reason: 'revoked' }
+  if (inv.usedAt) return { valid: false, reason: 'already_used' }
+  if (inv.expiresAt < new Date()) return { valid: false, reason: 'expired' }
+  return { valid: true }
+}
