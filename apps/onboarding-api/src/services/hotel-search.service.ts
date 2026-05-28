@@ -193,7 +193,7 @@ export async function searchHotels(hotelName: string, city: string, country: str
       });
     }, { navigationTimeout: 20000, idleTimeout: 10000 });
   } catch {
-    return results;
+    return [];
   }
 
   // Brave returns real URLs — score, filter, screenshot
