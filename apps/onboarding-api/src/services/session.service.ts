@@ -33,7 +33,12 @@ export async function initSession(token: string) {
   const initialSteps = flow.steps.map((s) => {
     const isHarvestStep = s.kind === 'automated' && s.id === 'harvest_data';
     const isSearchStep = s.id === 'candidate_search';
+    const isAriSelection = s.id === 'ari_source_selection';
+    const pmsAlreadyKnown = invitation.pmsId != null;
     if (hasPreHarvestedData && (isHarvestStep || isSearchStep)) {
+      return { ...s, status: 'completed' };
+    }
+    if (pmsAlreadyKnown && isAriSelection) {
       return { ...s, status: 'completed' };
     }
     return { ...s, status: 'pending' };

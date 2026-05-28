@@ -57,6 +57,25 @@ describe('initSession', () => {
     });
     expect(result.id).toBe(42);
   });
+
+  it('auto-completes ari_source_selection when pmsId is already set', async () => {
+    vi.mocked(prisma.onboardingInvitation.findUnique).mockResolvedValue({
+      id: 1, revokedAt: null, usedAt: null,
+      expiresAt: futureDate,
+      pmsId: 3, pmsName: 'SiteMinder', organizationId: 5,
+      harvestStatus: 'pending', harvestedData: null,
+      session: null,
+    } as any);
+    vi.mocked(prisma.onboardingInvitation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.onboardingSession.create).mockResolvedValue({ id: 42 } as any);
+
+    await initSession('valid-token');
+
+    const createCall = vi.mocked(prisma.onboardingSession.create).mock.calls[0]![0];
+    const steps = createCall.data.stepsJson as Array<{ id: string; status: string }>;
+    const ariStep = steps.find(s => s.id === 'ari_source_selection');
+    expect(ariStep?.status).toBe('completed');
+  });
 });
 
 describe('advanceStep', () => {
