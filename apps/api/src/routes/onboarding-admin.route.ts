@@ -8,7 +8,7 @@ import {
   triggerBackgroundHarvest,
 } from '../services/onboarding-invitation.service.js'
 import { getVendorFlow } from '@ibe/onboarding-flows'
-import { detectKnownIBE } from '@ibe/shared'
+import { detectKnownIBE, listKnownIBEPatterns } from '@ibe/shared'
 import { prisma } from '../db/client.js'
 
 const createInvitationSchema = z.object({
@@ -90,6 +90,13 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         if (detected?.name && !ibeSampleUrls[detected.name]) {
           ibeSampleUrls[detected.name] = url
         }
+      }
+    }
+
+    // Final fallback: registry-level sampleUrl per pattern
+    for (const pattern of listKnownIBEPatterns()) {
+      if (pattern.sampleUrl && !ibeSampleUrls[pattern.name]) {
+        ibeSampleUrls[pattern.name] = pattern.sampleUrl
       }
     }
 

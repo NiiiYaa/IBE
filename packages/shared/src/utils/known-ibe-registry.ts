@@ -5,6 +5,8 @@ export interface KnownIBEDetection {
   bookingTemplate: string
   /** true when bot protection blocks automated scraping; booking template = search template */
   noScraping?: boolean
+  /** Original hotel IBE URL used when this pattern was first investigated */
+  sampleUrl?: string
 }
 
 type TemplateFactory = string | ((url: string) => string)
@@ -19,6 +21,8 @@ interface KnownIBEEntry {
   searchTemplate: TemplateFactory
   bookingTemplate: TemplateFactory
   noScraping?: boolean
+  /** Original hotel IBE URL used when this pattern was first investigated */
+  sampleUrl?: string
 }
 
 function resolve(factory: TemplateFactory, url: string): string {
@@ -33,6 +37,7 @@ function safeParams(url: string): URLSearchParams | null {
 const registry: KnownIBEEntry[] = [
   {
     name: 'Sentec',
+    sampleUrl: 'https://booking.sentec.io/hotel/CERUGZNM22C3CH/rooms?lang=en-US&cur=IDR&in=2026-11-17&out=2026-11-20&guests=A,A',
     domainPattern: /^https?:\/\/booking\.sentec\.io\/hotel\/([^/?#]+)/,
     extractHotelId(url) {
       return this.domainPattern!.exec(url)?.[1] ?? null
@@ -295,7 +300,17 @@ export function detectKnownIBE(url: string): KnownIBEDetection | null {
       searchTemplate: resolve(entry.searchTemplate, trimmed),
       bookingTemplate: resolve(entry.bookingTemplate, trimmed),
       ...(entry.noScraping ? { noScraping: true as const } : {}),
+      ...(entry.sampleUrl ? { sampleUrl: entry.sampleUrl } : {}),
     }
   }
   return null
+}
+
+export interface KnownIBEPattern {
+  name: string
+  sampleUrl: string | null
+}
+
+export function listKnownIBEPatterns(): KnownIBEPattern[] {
+  return registry.map(e => ({ name: e.name, sampleUrl: e.sampleUrl ?? null }))
 }
