@@ -8,6 +8,7 @@ import { AutomatedStep } from '@/components/steps/AutomatedStep';
 import { CredentialsStep } from '@/components/steps/CredentialsStep';
 import { DataReviewStep } from '@/components/steps/DataReviewStep';
 import { UserActionStep } from '@/components/steps/UserActionStep';
+import { CmSettingsStep } from '@/components/steps/CmSettingsStep';
 
 export default function WizardPage() {
   const router = useRouter();
@@ -68,6 +69,8 @@ export default function WizardPage() {
         return <DataReviewStep step={currentStepDef} state={state} onComplete={loadState} />;
       case 'user_action':
         return <UserActionStep step={currentStepDef} />;
+      case 'cm_settings':
+        return <CmSettingsStep step={currentStepDef} state={state} onComplete={loadState} />;
       default:
         return <p>Unknown step type: {currentStepDef.kind}</p>;
     }
