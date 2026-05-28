@@ -11,6 +11,7 @@ export const OTA_BLOCKLIST = [
   'hotelscombined.com', 'wego.com', 'momondo.com',
   'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
   // Review, directory & job sites
+  'wikipedia.org', 'wikidata.org',
   'yelp.com', 'zoominfo.com', 'yellowpages.com', 'foursquare.com',
   'trustpilot.com', 'glassdoor.com', 'linkedin.com', 'facebook.com',
   'instagram.com', 'twitter.com', 'x.com',
