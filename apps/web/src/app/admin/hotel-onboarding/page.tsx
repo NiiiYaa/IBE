@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import { apiClient, type OnboardingInvitation } from '@/lib/api-client';
 
-const PMS_OPTIONS = [{ id: 3, name: 'SiteMinder' }];
+const PMS_OPTIONS = [
+  { id: 12, name: 'SiteMinder' },
+  { id: 25, name: 'TravelClick' },
+];
 
 const SESSION_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   in_progress: { bg: '#dbeafe', color: '#1e40af' },
@@ -34,7 +37,7 @@ export default function HotelOnboardingPage() {
   const [invitations, setInvitations] = useState<OnboardingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ pmsId: 3, hotelName: '', contactEmail: '', websiteUrl: '' });
+  const [form, setForm] = useState({ pmsId: 12, hotelName: '', contactEmail: '', websiteUrl: '' });
   const [newLink, setNewLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createVendorFlow, defaultStepsFor } from '../factory.js';
 
 // TODO: verify SiteMinder pmsId via HG BO API /api/v1/integration/pms
-const SITEMINDER_PMS_ID = 3;
+const SITEMINDER_PMS_ID = 12;
 
 // Build the steps: take blank flow defaults, then insert user_action between create_taxes and trigger_ari_sync
 function buildSiteMinderSteps() {
