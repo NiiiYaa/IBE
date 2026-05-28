@@ -3,7 +3,7 @@ import { listUsers, listAllUsers, createUser, updateUser, deleteUser, reviveUser
 import { listProperties } from '../services/property-registry.service.js'
 import { updateOrgSettings } from '../services/org.service.js'
 
-const ALLOWED_ROLES = ['admin', 'observer', 'user', 'affiliate']
+const ALLOWED_ROLES = ['admin', 'observer', 'user', 'affiliate', 'ob_agent']
 
 export async function userRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/users', async (request, reply) => {
@@ -102,6 +102,8 @@ export async function userRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` })
 
     const isSuper = request.admin.role === 'super'
+    if (body.role === 'ob_agent' && !isSuper)
+      return reply.status(403).send({ error: 'Only super admins can assign the OB Agent role' })
     const isAffiliate = body.role === 'affiliate'
     const orgId = isSuper ? (isAffiliate ? null : body.orgId) : request.admin.organizationId
     if (!orgId && !isAffiliate) return reply.status(400).send({ error: 'orgId is required' })
@@ -136,6 +138,8 @@ export async function userRoutes(fastify: FastifyInstance) {
     const body = request.body as { name?: string; role?: string; isActive?: boolean; phone?: string | null }
     if (body.role !== undefined && !ALLOWED_ROLES.includes(body.role))
       return reply.status(400).send({ error: `role must be one of: ${ALLOWED_ROLES.join(', ')}` })
+    if (body.role === 'ob_agent' && request.admin.role !== 'super')
+      return reply.status(403).send({ error: 'Only super admins can assign the OB Agent role' })
     // Prevent self-demotion or self-deactivation
     if (isSelf && (body.role !== undefined || body.isActive === false))
       return reply.status(400).send({ error: 'You cannot change your own role or deactivate your own account' })
