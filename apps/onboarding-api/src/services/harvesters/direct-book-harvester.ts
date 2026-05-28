@@ -100,7 +100,7 @@ export class DirectBookHarvester implements IbeHarvester {
             address: info.address,
             city: info.city,
             country: info.country,
-            description: info.description,
+            description: info.description ?? '',
             images: info.images,
             amenities: info.amenities,
             phone: null,
@@ -111,7 +111,7 @@ export class DirectBookHarvester implements IbeHarvester {
         }
       }
 
-      return page.evaluate((sel: typeof DOM, hId: string): HotelInfoResult => {
+      return page.evaluate(({ sel, hId }: { sel: typeof DOM; hId: string }): HotelInfoResult => {
         const name = document.querySelector(sel.hotelName)?.textContent?.trim() ?? ''
         const imgs = Array.from(document.querySelectorAll('img') as NodeListOf<HTMLImageElement>)
           .map(i => i.src)
@@ -126,7 +126,7 @@ export class DirectBookHarvester implements IbeHarvester {
           description: document.querySelector('[class*="description"]')?.textContent?.trim()?.slice(0, 500) ?? '',
           images: imgs, amenities, policies: [],
         }
-      }, DOM, hotelId)
+      }, { sel: DOM, hId: hotelId })
     }, {
       idleTimeout: 12000,
       beforeNavigate: (page) => { page.on('response', makeResponseCollector(payloads)) },

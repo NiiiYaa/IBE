@@ -7,7 +7,7 @@ vi.mock('../tax-lookup.service.js', () => ({
   lookupTaxes: vi.fn().mockReturnValue([{ name: 'VAT', amount: '9%', notes: null, source: 'lookup' }]),
 }));
 vi.mock('@ibe/shared', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('@ibe/shared')>();
   return {
     ...actual,
     detectKnownIBE: vi.fn().mockReturnValue({
