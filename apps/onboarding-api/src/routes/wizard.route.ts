@@ -19,14 +19,20 @@ export async function wizardRoutes(app: FastifyInstance) {
     if (!session) return reply.notFound('Session not found');
 
     const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+    const harvestedData = session.harvestedData as Record<string, unknown> | null;
+
     return {
       sessionId: session.id,
       pmsId: session.invitation.pmsId,
       pmsName: session.invitation.pmsName,
+      dataFlow: flow?.dataFlow ?? null,
       currentStep: session.currentStep,
       totalSteps: flow?.steps.length ?? 0,
       steps: session.stepsJson,
       enrichedData: session.enrichedData,
+      harvestedRooms: (harvestedData?.['rooms'] as Array<{ name: string; description: string }> | null) ?? null,
+      harvestedRatePlanTypes: (harvestedData?.['discoveredRatePlanTypes'] as unknown[] | null) ?? null,
+      harvestedTaxes: (harvestedData?.['taxesAndFees'] as unknown[] | null) ?? null,
       hgPropertyCode: session.hgPropertyCode,
       status: session.status,
     };

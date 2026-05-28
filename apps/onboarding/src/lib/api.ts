@@ -25,12 +25,21 @@ export const api = {
 
 export interface WizardState {
   sessionId: number;
-  pmsId: number;
-  pmsName: string;
+  pmsId: number | null;
+  pmsName: string | null;
+  dataFlow: 'hg_pulls' | 'blank' | 'reverse_pull' | null;
   currentStep: number;
   totalSteps: number;
   steps: Array<{ id: string; kind: string; title: string; description: string; status: string }>;
   enrichedData: Record<string, unknown> | null;
+  harvestedRooms: Array<{ name: string; description: string }> | null;
+  harvestedRatePlanTypes: Array<{
+    boardCode: string; boardCodeRawName: string;
+    hasRefundable: boolean; hasNonRefundable: boolean;
+    refundableExampleName: string | null;
+    refundableCancellationPolicy: unknown | null;
+  }> | null;
+  harvestedTaxes: Array<{ name: string; amount: string | null; notes: string | null; source: string }> | null;
   hgPropertyCode: string | null;
   status: string;
 }
