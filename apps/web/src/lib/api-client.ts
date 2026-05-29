@@ -2628,6 +2628,17 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/ari-sources/list')
   },
 
+  async listAriWhiteLabels(): Promise<Record<number, number>> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/ari-sources/white-labels')
+  },
+
+  async setAriWhiteLabel(pmsId: number, masterPmsId: number | null): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/ari-sources/white-labels/${pmsId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ whiteLabelOfPmsId: masterPmsId }),
+    })
+  },
+
   async listBlockedDomains(): Promise<BlockedDomain[]> {
     return apiRequest('/api/v1/admin/hotel-onboarding/blocked')
   },
