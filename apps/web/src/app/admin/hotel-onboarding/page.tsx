@@ -599,7 +599,7 @@ export default function HotelOnboardingPage() {
     lines.push('4. Add to PMS_OPTIONS in `apps/web/src/app/admin/hotel-onboarding/page.tsx`');
     lines.push('5. `pnpm --filter @ibe/onboarding-flows build`');
     lines.push('6. `pnpm --filter onboarding-api test -- --run` (update session.service.test.ts pmsId if needed)');
-    lines.push('7. Add test booking combos in Admin → Config → Test Bookings for this pmsId');
+    lines.push('7. NOTE: Once ARI is live in HG, the hotel must complete a test booking to verify the end-to-end connection. This verification step is not yet part of the wizard — it is currently done manually outside the onboarding flow.');
     lines.push('\n## Repo');
     lines.push('Working dir: `/home/nir/ibe`');
     return lines.join('\n');
