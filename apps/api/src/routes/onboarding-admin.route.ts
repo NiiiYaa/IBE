@@ -26,6 +26,10 @@ const createInvitationSchema = z.object({
   hgStatus:        z.enum(['needs_setup', 'needs_research']).nullable().optional(),
 })
 
+const setWhiteLabelSchema = z.object({
+  whiteLabelOfPmsId: z.number().int().positive().nullable(),
+})
+
 export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.post('/admin/hotel-onboarding/invitations', async (request, reply) => {
     const me = request.admin
@@ -79,6 +83,33 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       steps: f.steps.map(s => ({ id: s.id, kind: s.kind, title: s.title, description: s.description })),
     }))
     return reply.send(flows)
+  })
+
+  // GET /admin/hotel-onboarding/ari-sources/white-labels — all WL mappings
+  app.get('/admin/hotel-onboarding/ari-sources/white-labels', async (_request, reply) => {
+    const mappings = await prisma.ariSourceWhiteLabel.findMany()
+    const result: Record<string, number> = {}
+    for (const m of mappings) result[String(m.pmsId)] = m.whiteLabelOfPmsId
+    return reply.send(result)
+  })
+
+  // PUT /admin/hotel-onboarding/ari-sources/white-labels/:pmsId — set or clear WL
+  app.put('/admin/hotel-onboarding/ari-sources/white-labels/:pmsId', async (request, reply) => {
+    const me = request.admin
+    if (me.role !== 'super') return reply.forbidden('Super admin required')
+    const pmsId = parseInt((request.params as { pmsId: string }).pmsId)
+    if (isNaN(pmsId)) return reply.badRequest('Invalid pmsId')
+    const body = setWhiteLabelSchema.parse(request.body)
+    if (body.whiteLabelOfPmsId === null) {
+      await prisma.ariSourceWhiteLabel.deleteMany({ where: { pmsId } })
+    } else {
+      await prisma.ariSourceWhiteLabel.upsert({
+        where:  { pmsId },
+        update: { whiteLabelOfPmsId: body.whiteLabelOfPmsId },
+        create: { pmsId, whiteLabelOfPmsId: body.whiteLabelOfPmsId },
+      })
+    }
+    return reply.code(204).send()
   })
 
   app.get('/admin/hotel-onboarding/invitations', async (request, reply) => {
