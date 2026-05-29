@@ -540,7 +540,7 @@ export default function HotelOnboardingPage() {
       if (inv.websiteUrl) lines.push(`\nStart at: ${inv.websiteUrl}`);
       lines.push('\nOnce found:');
       lines.push('1. Check if the domain is in `packages/shared/src/utils/known-ibe-registry.ts`');
-      lines.push('2. If not, add it (name, domainPattern, extractHotelId, searchTemplate, bookingTemplate)');
+      lines.push('2. If not, add it (name, domainPattern, extractHotelId, searchTemplate, bookingTemplate, sampleUrl)');
       lines.push('3. Build a harvester in `apps/onboarding-api/src/services/harvesters/`');
       lines.push('4. Register it in `apps/onboarding-api/src/services/ibe-harvester-map.ts`');
     } else if (!knownPattern) {
@@ -550,7 +550,7 @@ export default function HotelOnboardingPage() {
       lines.push('\nSteps:');
       lines.push('1. Visit the URL — inspect JS files, API calls, URL structure to identify the system');
       lines.push('2. Add to `packages/shared/src/utils/known-ibe-registry.ts`:');
-      lines.push('   { name, domainPattern, extractHotelId, searchTemplate, bookingTemplate }');
+      lines.push('   { name, domainPattern, extractHotelId, searchTemplate, bookingTemplate, sampleUrl: \'<original investigation URL>\' }');
       lines.push('3. Create `apps/onboarding-api/src/services/harvesters/{name}-harvester.ts`');
       lines.push('   (use simplebooking-harvester.ts as reference)');
       lines.push('4. Register in `ibe-harvester-map.ts`');
