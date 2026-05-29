@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { searchHotelsPrimary, searchHotelsBrave, SCREENSHOTS_DIR, cleanExpiredScreenshots, takeScreenshot } from '../services/hotel-search.service.js';
 import { resolveIbeUrl } from '../services/ibe-resolver.service.js';
+import { ibeHarvesterMap } from '../services/ibe-harvester-map.js';
 import { prisma } from '../db/client.js';
 import { getSession, advanceStep } from '../services/session.service.js';
 
@@ -55,6 +56,39 @@ export async function searchRoutes(app: FastifyInstance) {
       return reply.send({ candidates });
     }
   );
+
+  // POST /resolve-ibe — admin tool: follow booking links on a hotel website and identify the IBE
+  // Synchronous (admin waits); 35s timeout covers browser navigation.
+  app.post<{ Body: { url: string } }>('/resolve-ibe', async (request, reply) => {
+    const { url } = request.body;
+    if (!url?.trim()) return reply.badRequest('url required');
+
+    type ResolveResult = {
+      found: boolean;
+      ibeName: string | null;
+      ibeUrl: string | null;
+      fullySupported: boolean;
+      needsHgReview: boolean;
+    };
+
+    const timeout = new Promise<ResolveResult>((resolve) =>
+      setTimeout(() => resolve({ found: false, ibeName: null, ibeUrl: null, fullySupported: false, needsHgReview: false }), 35000)
+    );
+
+    const resolution = resolveIbeUrl(url.trim()).then((resolved): ResolveResult => {
+      if (!resolved) return { found: false, ibeName: null, ibeUrl: null, fullySupported: false, needsHgReview: false };
+      const fullySupported = ibeHarvesterMap.has(resolved.ibeName);
+      return {
+        found: true,
+        ibeName: resolved.ibeName,
+        ibeUrl: resolved.ibeUrl,
+        fullySupported,
+        needsHgReview: !fullySupported,
+      };
+    }).catch((): ResolveResult => ({ found: false, ibeName: null, ibeUrl: null, fullySupported: false, needsHgReview: false }));
+
+    return reply.send(await Promise.race([resolution, timeout]));
+  });
 
   // POST /select-url — resolve IBE from URL async; client polls GET /wizard/state
   app.post<{ Body: { url: string } }>(

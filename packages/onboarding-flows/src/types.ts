@@ -153,9 +153,22 @@ export interface OnboardingContext {
   dataFlowOverride?: DataFlow;
 }
 
+export interface PreAction {
+  title: string;       // Short title shown as a heading
+  instruction: string; // Full instructions for the hotel
+  contactEmail?: string; // Support address to contact, if applicable
+}
+
 export interface VendorFlow {
   pmsId: number;
   pmsName: string;
+  // Steps the HOTEL must complete before or during the wizard that require
+  // action on the CM's side (e.g. contacting support, requesting activation).
+  // Used in the invitation email and wizard pre-flight screen.
+  preActions?: PreAction[];
+  // Whether this flow was verified against the HyperGuest KB (Zoho Desk integration articles).
+  // false = built generically — credential format and exact steps may need verification.
+  kbVerified?: boolean;
   dataFlow: DataFlow;
   canOverrideDataFlow?: boolean;
   requiresStaffChannelSetup: boolean;

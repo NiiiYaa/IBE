@@ -2584,23 +2584,97 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/stats')
   },
 
-  async createOnboardingInvitation(data: { pmsId: number; hotelName?: string; contactEmail?: string; ibeUrl?: string }): Promise<OnboardingInvitation> {
+  async createOnboardingInvitation(data: { pmsId?: number; unknownPmsName?: string; hotelName?: string; city?: string; country?: string; contactEmail: string; websiteUrl?: string; ibeUrl?: string; ibePattern?: string; hgStatus?: 'needs_setup' | 'needs_research' | null }): Promise<OnboardingInvitation> {
     return apiRequest('/api/v1/admin/hotel-onboarding/invitations', { method: 'POST', body: JSON.stringify(data) })
   },
 
   async searchOnboardingHotel(body: { hotelName: string; city: string; country?: string }): Promise<{
-    candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }>
+    candidates: Array<{ url: string; title: string; detected: boolean; ibeName: string | null; screenshotUrl: string | null; score: number }>
   }> {
     return apiRequest('/api/v1/admin/hotel-onboarding/search', { method: 'POST', body: JSON.stringify(body) })
+  },
+
+  async geocodeHotel(name: string, city?: string, country?: string): Promise<{
+    result: { address: string; latitude: number; longitude: number; street: string | null; postalCode: string | null } | null
+  }> {
+    const params = new URLSearchParams({ name })
+    if (city) params.set('city', city)
+    if (country) params.set('country', country)
+    return apiRequest(`/api/v1/admin/hotel-onboarding/geocode?${params}`)
+  },
+
+  async resolveOnboardingIbe(url: string): Promise<{
+    found: boolean;
+    ibeName: string | null;
+    ibeUrl: string | null;
+    fullySupported: boolean;
+    needsHgReview: boolean;
+  }> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/resolve-ibe', { method: 'POST', body: JSON.stringify({ url }) })
   },
 
   async revokeOnboardingInvitation(id: number): Promise<void> {
     return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}`, { method: 'DELETE' })
   },
 
+  async listAriSources(): Promise<Array<{
+    pmsId: number; pmsName: string; dataFlow: string;
+    useDefaultCodes: boolean; regionAware: boolean;
+    requiresStaffChannelSetup: boolean; stepCount: number;
+    kbVerified: boolean;
+    preActions: Array<{ title: string; instruction: string; contactEmail?: string }>;
+    steps: Array<{ id: string; kind: string; title: string; description: string }>;
+  }>> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/ari-sources/list')
+  },
+
+  async listBlockedDomains(): Promise<BlockedDomain[]> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/blocked')
+  },
+
+  async addBlockedDomain(data: { url: string; label?: string; matchType?: string; country?: string }): Promise<BlockedDomain> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/blocked', { method: 'POST', body: JSON.stringify(data) })
+  },
+
+  async updateBlockedDomain(id: number, data: { label?: string; matchType?: string; country?: string | null }): Promise<BlockedDomain> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/blocked/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  },
+
+  async removeBlockedDomain(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/blocked/${id}`, { method: 'DELETE' })
+  },
+
+  async saveOnboardingNotes(id: number, notes: string): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/notes`, {
+      method: 'PATCH', body: JSON.stringify({ notes }),
+    })
+  },
+
+  async saveOnboardingAriNotes(id: number, notes: string): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/ari-notes`, {
+      method: 'PATCH', body: JSON.stringify({ notes }),
+    })
+  },
+
+  async notifyDevTeam(id: number, notes: string, ibePrompt?: string, ariPrompt?: string): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/notify-dev`, {
+      method: 'POST', body: JSON.stringify({ notes, ibePrompt, ariPrompt }),
+    })
+  },
+
   async approveOnboardingSession(sessionId: number): Promise<void> {
     return apiRequest(`/api/v1/admin/hotel-onboarding/sessions/${sessionId}/approve`, { method: 'PUT' })
   },
+}
+
+export interface BlockedDomain {
+  id: number
+  domain: string
+  label: string | null
+  matchType: string  // subdomain | exact | brand | keyword
+  country: string | null  // ISO-2 country code; null = Global
+  addedById: number | null
+  createdAt: string
 }
 
 export interface OnboardingInvitation {
@@ -2609,9 +2683,18 @@ export interface OnboardingInvitation {
   pmsId: number | null
   pmsName: string | null
   hotelName: string | null
+  city: string | null
+  country: string | null
   contactEmail: string | null
+  websiteUrl: string | null
   ibeUrl: string | null
+  ibePattern: string | null
   harvestStatus: string
+  hgStatus: 'needs_setup' | 'needs_research' | null
+  unknownPmsName: string | null
+  hgNotes: string | null
+  hgAriNotes: string | null
+  createdAt: string
   expiresAt: string
   usedAt: string | null
   revokedAt: string | null

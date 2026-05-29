@@ -10,6 +10,13 @@ vi.mock('../../env.js', () => ({
   },
 }))
 
+vi.mock('../blocked-domains.service.js', () => ({
+  getBlockedDomains: vi.fn().mockResolvedValue([]),
+  getCachedBlockedDomains: vi.fn().mockReturnValue([]),
+  isBlockedByList: vi.fn().mockReturnValue(false),
+  invalidateBlockedDomainsCache: vi.fn(),
+}))
+
 const { searchHotelsDataForSEO } = await import('../dataforseo.service.js')
 
 describe('searchHotelsDataForSEO', () => {
@@ -36,9 +43,9 @@ describe('searchHotelsDataForSEO', () => {
 
     // Only organic items, OTAs filtered out
     expect(results.length).toBe(1)
-    expect(results[0].url).toBe('https://www.h10hotels.com')
-    expect(results[0].title).toBe('H10 Hotels')
-    expect(results[0].score).toBeGreaterThan(0)
+    expect(results[0]?.url).toBe('https://www.h10hotels.com')
+    expect(results[0]?.title).toBe('H10 Hotels')
+    expect(results[0]?.score).toBeGreaterThan(0)
   })
 
   it('returns [] on non-20000 task status', async () => {

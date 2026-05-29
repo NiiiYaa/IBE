@@ -18,7 +18,7 @@ interface Candidate {
   screenshotUrl: string | null;
 }
 
-type Phase = 'form' | 'searching' | 'results' | 'resolving';
+type Phase = 'form' | 'searching' | 'results' | 'resolving' | 'requesting_help';
 
 const inputStyle = {
   width: '100%', padding: '0.7rem', border: '1px solid #d1d5db',
@@ -120,6 +120,15 @@ export function CandidateSearchStep({ step, hotelName: initialName = '', city: i
     );
   }
 
+  if (phase === 'requesting_help') {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem' }}>
+        <p style={{ color: '#2563eb', fontSize: '1.1rem' }}>Request sent!</p>
+        <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.5rem' }}>Our team will be in touch to help you connect your booking system.</p>
+      </div>
+    );
+  }
+
   // results phase
   return (
     <div>
@@ -191,12 +200,35 @@ export function CandidateSearchStep({ step, hotelName: initialName = '', city: i
         </div>
       </div>
 
-      <button
-        onClick={() => { setPhase('form'); setError(null); }}
-        style={{ marginTop: '0.75rem', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
-      >
-        None of these look right? Search again
-      </button>
+      <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'flex-start' }}>
+        <button
+          onClick={() => { setPhase('form'); setError(null); }}
+          style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: 0 }}
+        >
+          None of these look right? Search again
+        </button>
+        <button
+          onClick={async () => {
+            setPhase('requesting_help');
+            try {
+              await api.requestHelp();
+              onComplete();
+            } catch {
+              setPhase('results');
+              setError('Failed to send request. Please try again.');
+            }
+          }}
+          style={{
+            padding: '0.65rem 1.25rem', background: 'transparent', border: '1px solid #d1d5db',
+            borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', color: '#374151', fontWeight: 500,
+          }}
+        >
+          I can&apos;t find my booking engine — request help
+        </button>
+        <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af' }}>
+          Our team will contact you to identify and connect your booking system.
+        </p>
+      </div>
       {error && <p style={{ color: '#dc2626', marginTop: '0.5rem' }}>{error}</p>}
     </div>
   );

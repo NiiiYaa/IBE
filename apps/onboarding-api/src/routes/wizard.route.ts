@@ -196,6 +196,19 @@ export async function wizardRoutes(app: FastifyInstance) {
     }
   );
 
+  // POST /wizard/request-help — hotel cannot find their booking engine; puts session in pending_ibe_review
+  app.post('/wizard/request-help', async (request, reply) => {
+    const sessionId = getSessionIdFromCookie(request);
+    if (!sessionId) return reply.unauthorized('No session');
+    const session = await getSession(sessionId);
+    if (!session) return reply.notFound();
+    await prisma.onboardingSession.update({
+      where: { id: sessionId },
+      data: { status: 'pending_ibe_review' },
+    });
+    return reply.send({ ok: true });
+  });
+
   app.get('/wizard/execute', async (request, reply) => {
     const sessionId = getSessionIdFromCookie(request);
     if (!sessionId) {

@@ -21,6 +21,7 @@ export const travelClickFlow = createVendorFlow({
   dataFlow: 'blank',
   useDefaultCodes: true,
   requiresStaffChannelSetup: false,
+  kbVerified: true,
   regionAware: true,
   credentialsSchema: z.object({
     propertyId: z.string().min(1, 'TravelClick Property ID is required'),

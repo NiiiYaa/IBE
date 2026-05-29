@@ -7,37 +7,78 @@ import {
   revokeInvitation,
   triggerBackgroundHarvest,
 } from '../services/onboarding-invitation.service.js'
-import { getVendorFlow } from '@ibe/onboarding-flows'
+import { getVendorFlow, listVendorFlows } from '@ibe/onboarding-flows'
 import { detectKnownIBE, listKnownIBEPatterns } from '@ibe/shared'
 import { resolveAIConfig } from '../services/ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { prisma } from '../db/client.js'
 
 const createInvitationSchema = z.object({
-  pmsId: z.number().int().positive(),
-  hotelName: z.string().optional(),
-  ibeUrl: z.string().url().optional(),
-  contactEmail: z.string().email().optional(),
+  pmsId:           z.number().int().positive().optional(),
+  unknownPmsName:  z.string().optional(),
+  hotelName:       z.string().optional(),
+  city:            z.string().optional(),
+  country:         z.string().optional(),
+  websiteUrl:      z.string().url().optional(),
+  ibeUrl:          z.string().url().optional(),
+  ibePattern:      z.string().optional(),
+  contactEmail:    z.string().email(),
+  hgStatus:        z.enum(['needs_setup', 'needs_research']).nullable().optional(),
 })
 
 export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.post('/admin/hotel-onboarding/invitations', async (request, reply) => {
     const me = request.admin
     if (!me.organizationId) return reply.badRequest('No organization context')
-    const body = createInvitationSchema.parse(request.body)
-    const flow = getVendorFlow(body.pmsId)
-    if (!flow) return reply.badRequest(`Unknown pmsId: ${body.pmsId}`)
+
+    const parsed = createInvitationSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send(parsed.error.issues)
+    }
+    const body = parsed.data
+
+    let pmsId: number | undefined
+    let pmsName: string | undefined
+    if (body.pmsId) {
+      const flow = getVendorFlow(body.pmsId)
+      if (!flow) return reply.badRequest(`Unknown pmsId: ${body.pmsId}`)
+      pmsId = body.pmsId
+      pmsName = flow.pmsName
+    }
 
     const inv = await createInvitation({
       organizationId: me.organizationId,
-      pmsId: body.pmsId,
-      pmsName: flow.pmsName,
+      ...(pmsId !== undefined && { pmsId }),
+      ...(pmsName !== undefined && { pmsName }),
+      ...(body.unknownPmsName !== undefined && { unknownPmsName: body.unknownPmsName }),
       ...(body.hotelName !== undefined && { hotelName: body.hotelName }),
+      ...(body.city !== undefined && { city: body.city }),
+      ...(body.country !== undefined && { country: body.country }),
+      ...(body.websiteUrl !== undefined && { websiteUrl: body.websiteUrl }),
       ...(body.ibeUrl !== undefined && { ibeUrl: body.ibeUrl }),
-      ...(body.contactEmail !== undefined && { contactEmail: body.contactEmail }),
+      ...(body.ibePattern !== undefined && { ibePattern: body.ibePattern }),
+      contactEmail: body.contactEmail,
+      hgStatus: body.hgStatus ?? (body.unknownPmsName ? 'needs_setup' : null),
       createdByAdminId: me.adminId,
     })
     return reply.code(201).send(inv)
+  })
+
+  // GET /admin/hotel-onboarding/ari-sources/list — all registered vendor flows
+  app.get('/admin/hotel-onboarding/ari-sources/list', async (_request, reply) => {
+    const flows = listVendorFlows().map(f => ({
+      pmsId: f.pmsId,
+      pmsName: f.pmsName,
+      dataFlow: f.dataFlow,
+      useDefaultCodes: f.useDefaultCodes ?? false,
+      regionAware: f.regionAware ?? false,
+      requiresStaffChannelSetup: f.requiresStaffChannelSetup,
+      stepCount: f.steps.length,
+      kbVerified: f.kbVerified ?? false,
+      preActions: f.preActions ?? [],
+      steps: f.steps.map(s => ({ id: s.id, kind: s.kind, title: s.title, description: s.description })),
+    }))
+    return reply.send(flows)
   })
 
   app.get('/admin/hotel-onboarding/invitations', async (request, reply) => {
@@ -145,6 +186,68 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     }
   })
 
+  // GET /admin/hotel-onboarding/geocode — proxy to Nominatim (adds required User-Agent)
+  app.get<{ Querystring: { name: string; city?: string; country?: string } }>(
+    '/admin/hotel-onboarding/geocode',
+    async (request, reply) => {
+      const me = request.admin
+      if (!me.organizationId && me.role !== 'super') return reply.forbidden()
+      const { name, city, country } = request.query
+      if (!name?.trim()) return reply.badRequest('name required')
+      const q = encodeURIComponent([name, city, country].filter(Boolean).join(' '))
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${q}&format=jsonv2&limit=1&addressdetails=1`,
+          {
+            headers: { 'User-Agent': 'HyperGuestIBE/1.0 (nir@hyperguest.com)' },
+            signal: AbortSignal.timeout(8000),
+          }
+        )
+        if (!res.ok) return reply.send({ result: null })
+        const data = await res.json() as Array<{
+          display_name: string; lat: string; lon: string;
+          address?: Record<string, string>
+        }>
+        if (!data.length) return reply.send({ result: null })
+        const hit = data[0]!
+        return reply.send({
+          result: {
+            address: hit.display_name,
+            latitude: parseFloat(hit.lat),
+            longitude: parseFloat(hit.lon),
+            street: hit.address?.['road'] ?? hit.address?.['pedestrian'] ?? null,
+            postalCode: hit.address?.['postcode'] ?? null,
+          },
+        })
+      } catch {
+        return reply.send({ result: null })
+      }
+    }
+  )
+
+  app.post<{ Body: { url: string } }>(
+    '/admin/hotel-onboarding/resolve-ibe',
+    async (request, reply) => {
+      const me = request.admin
+      if (!me.organizationId && me.role !== 'super') return reply.badRequest('No organization context')
+      const { url } = request.body
+      if (!url?.trim()) return reply.badRequest('url required')
+      const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+      try {
+        const res = await fetch(`${internalUrl}/resolve-ibe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim() }),
+          signal: AbortSignal.timeout(38000),
+        })
+        if (!res.ok) return reply.send({ found: false, ibeName: null, ibeUrl: null, fullySupported: false, needsHgReview: false })
+        return reply.send(await res.json())
+      } catch {
+        return reply.send({ found: false, ibeName: null, ibeUrl: null, fullySupported: false, needsHgReview: false })
+      }
+    }
+  )
+
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
     '/admin/hotel-onboarding/search',
     async (request, reply) => {
@@ -155,7 +258,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required')
       const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
       try {
-        type Candidate = { url: string; title: string; detected: boolean; screenshotUrl: string | null; score: number }
+        type Candidate = { url: string; title: string; detected: boolean; ibeName: string | null; screenshotUrl: string | null; score: number }
         const allCandidates: Candidate[] = []
 
         // Step 1: DataForSEO SERP (fast ~2s)
@@ -193,14 +296,25 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
             const urlMatch = aiRes.text?.match(/https?:\/\/[^\s"'<>]+/)
             if (urlMatch) {
               const aiUrl = urlMatch[0].replace(/[.,)]+$/, '')
-              const detection = detectKnownIBE(aiUrl)
-              allCandidates.push({
-                url: aiUrl,
-                title: `${hotelName.trim()} (AI suggestion)`,
-                detected: detection !== null,
-                screenshotUrl: null,
-                score: detection ? 90 : 60,
-              })
+              const aiHostname = (() => { try { return new URL(aiUrl).hostname.toLowerCase() } catch { return '' } })()
+              const OTA_DOMAINS = [
+                'booking.com', 'agoda.com', 'expedia.com', 'hotels.com', 'hotel.com',
+                'tripadvisor.com', 'kayak.com', 'priceline.com', 'travelocity.com',
+                'orbitz.com', 'hotwire.com', 'airbnb.com', 'vrbo.com', 'trip.com',
+                'ctrip.com', 'skyscanner.com', 'skyscanner.net', 'lastminute.com',
+              ]
+              const aiIsOta = OTA_DOMAINS.some(ota => aiHostname === ota || aiHostname.endsWith('.' + ota))
+              if (!aiIsOta && aiHostname) {
+                const detection = detectKnownIBE(aiUrl)
+                allCandidates.push({
+                  url: aiUrl,
+                  title: `${hotelName.trim()} (AI suggestion)`,
+                  detected: detection !== null,
+                  ibeName: detection?.name ?? null,
+                  screenshotUrl: null,
+                  score: detection ? 90 : 60,
+                })
+              }
             }
           } catch { /* AI failed — continue to Brave */ }
         }
@@ -263,6 +377,106 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return reply.code(204).send()
   })
 
+  // PATCH /admin/hotel-onboarding/invitations/:id/ari-notes — save HG agent ARI investigation notes
+  app.patch<{ Params: { id: string }; Body: { notes: string } }>(
+    '/admin/hotel-onboarding/invitations/:id/ari-notes',
+    async (request, reply) => {
+      const me = request.admin
+      const invitationId = parseInt(request.params.id, 10)
+      const inv = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+      if (!inv) return reply.notFound()
+      if (me.role !== 'super' && inv.organizationId !== me.organizationId) return reply.forbidden()
+      await prisma.onboardingInvitation.update({
+        where: { id: invitationId },
+        data: { hgAriNotes: request.body.notes ?? '' },
+      })
+      return reply.code(204).send()
+    }
+  )
+
+  // PATCH /admin/hotel-onboarding/invitations/:id/notes — save HG agent IBE investigation notes
+  app.patch<{ Params: { id: string }; Body: { notes: string } }>(
+    '/admin/hotel-onboarding/invitations/:id/notes',
+    async (request, reply) => {
+      const me = request.admin
+      const invitationId = parseInt(request.params.id, 10)
+      const inv = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+      if (!inv) return reply.notFound()
+      if (me.role !== 'super' && inv.organizationId !== me.organizationId) return reply.forbidden()
+      await prisma.onboardingInvitation.update({
+        where: { id: invitationId },
+        data: { hgNotes: request.body.notes ?? '' },
+      })
+      return reply.code(204).send()
+    }
+  )
+
+  // POST /admin/hotel-onboarding/invitations/:id/notify-dev — send Slack alert to dev team
+  app.post<{ Params: { id: string }; Body: { notes?: string; ibePrompt?: string; ariPrompt?: string } }>(
+    '/admin/hotel-onboarding/invitations/:id/notify-dev',
+    async (request, reply) => {
+      const me = request.admin
+      const invitationId = parseInt(request.params.id, 10)
+      const inv = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+      if (!inv) return reply.notFound()
+      if (me.role !== 'super' && inv.organizationId !== me.organizationId) return reply.forbidden()
+
+      const notes = request.body.notes?.trim() ?? inv.hgNotes ?? ''
+      const ibePrompt = request.body.ibePrompt?.trim()
+      const ariPrompt = request.body.ariPrompt?.trim()
+
+      // Persist notes if provided
+      if (notes) {
+        await prisma.onboardingInvitation.update({
+          where: { id: invitationId },
+          data: { hgNotes: notes },
+        })
+      }
+
+      const webhookUrl = process.env['SLACK_DEV_WEBHOOK_URL']
+      if (!webhookUrl) return reply.status(503).send({ error: 'SLACK_DEV_WEBHOOK_URL not configured' })
+
+      const statusLabel = inv.hgStatus === 'needs_setup' ? '⚠️ IBE found — no harvester yet' : '🔍 No IBE found — needs investigation'
+      const adminUrl = process.env['ADMIN_BASE_URL'] ?? 'http://localhost:3000'
+      const ariLabel = inv.pmsName ?? inv.unknownPmsName ?? null
+
+      const blocks = [
+        { type: 'header', text: { type: 'plain_text', text: '🛠 New IBE/ARI to add to code' } },
+        { type: 'section', fields: [
+          { type: 'mrkdwn', text: `*Hotel*\n${inv.hotelName ?? '—'}` },
+          { type: 'mrkdwn', text: `*Status*\n${statusLabel}` },
+          { type: 'mrkdwn', text: `*Website*\n${inv.websiteUrl ? `${inv.websiteUrl}\n_(marketing site — booking engine is typically behind a "Book" or "Check Availability" button)_` : '—'}` },
+          { type: 'mrkdwn', text: `*IBE URL*\n${inv.ibeUrl ?? '—'}` },
+          { type: 'mrkdwn', text: `*IBE Pattern*\n${inv.ibePattern ?? 'Unknown'}` },
+          { type: 'mrkdwn', text: `*ARI Source*\n${ariLabel ? `${ariLabel} _(no wizard flow yet)_` : '— (unknown)'}` },
+        ]},
+        ...(notes ? [{ type: 'section', text: { type: 'mrkdwn', text: `*IBE Notes*\n${notes}` } }] : []),
+        ...(inv.hgAriNotes ? [{ type: 'section', text: { type: 'mrkdwn', text: `*ARI Notes*\n${inv.hgAriNotes}` } }] : []),
+        ...(ibePrompt ? [{ type: 'section', text: { type: 'mrkdwn', text: `*⚡ IBE Prompt*\n\`\`\`${ibePrompt.slice(0, 2900)}\`\`\`` } }] : []),
+        ...(ariPrompt ? [{ type: 'section', text: { type: 'mrkdwn', text: `*⚡ ARI Prompt*\n\`\`\`${ariPrompt.slice(0, 2900)}\`\`\`` } }] : []),
+        { type: 'actions', elements: [
+          { type: 'button', text: { type: 'plain_text', text: 'View in Admin ↗' },
+            url: `${adminUrl}/admin/hotel-onboarding`, style: 'primary' },
+        ]},
+      ]
+
+      try {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blocks }),
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!res.ok) throw new Error(`Slack returned ${res.status}`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        return reply.status(502).send({ error: `Slack notification failed: ${msg}` })
+      }
+
+      return reply.send({ ok: true })
+    }
+  )
+
   app.post('/admin/hotel-onboarding/invitations/:id/retry-harvest', async (request, reply) => {
     const me = request.admin
     const invitationId = parseInt((request.params as { id: string }).id, 10)
@@ -275,6 +489,73 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     await triggerBackgroundHarvest(invitationId, invitation.ibeUrl)
     return { ok: true }
   })
+
+  // ── Blocked domains ──────────────────────────────────────────────────────
+  app.get('/admin/hotel-onboarding/blocked', async (request, reply) => {
+    const me = request.admin
+    if (me.role !== 'super' && !me.organizationId) return reply.forbidden()
+    return prisma.onboardingBlockedDomain.findMany({ orderBy: { createdAt: 'desc' } })
+  })
+
+  app.post<{ Body: { url: string; label?: string; matchType?: string; country?: string } }>(
+    '/admin/hotel-onboarding/blocked',
+    async (request, reply) => {
+      const me = request.admin
+      if (me.role !== 'super' && !me.organizationId) return reply.forbidden()
+      const raw = request.body.url?.trim()
+      if (!raw) return reply.badRequest('url required')
+      let domain = raw
+      try {
+        const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`)
+        domain = u.hostname.toLowerCase().replace(/^www\./, '')
+      } catch { domain = raw.toLowerCase().replace(/^www\./, '') }
+      const existing = await prisma.onboardingBlockedDomain.findUnique({ where: { domain } })
+      if (existing) return reply.conflict('Domain already blocked')
+      const created = await prisma.onboardingBlockedDomain.create({
+        data: {
+          domain,
+          label: request.body.label?.trim() || null,
+          matchType: request.body.matchType ?? 'subdomain',
+          country: request.body.country?.trim() || null,
+          addedById: me.adminId,
+        },
+      })
+      const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+      fetch(`${internalUrl}/internal/invalidate-blocked-cache`, { method: 'POST' }).catch(() => {})
+      return reply.code(201).send(created)
+    }
+  )
+
+  app.patch<{ Params: { id: string }; Body: { label?: string; matchType?: string; country?: string | null } }>(
+    '/admin/hotel-onboarding/blocked/:id',
+    async (request, reply) => {
+      const me = request.admin
+      if (me.role !== 'super' && !me.organizationId) return reply.forbidden()
+      const id = parseInt(request.params.id, 10)
+      const updated = await prisma.onboardingBlockedDomain.update({
+        where: { id },
+        data: {
+          ...(request.body.label !== undefined && { label: request.body.label || null }),
+          ...(request.body.matchType !== undefined && { matchType: request.body.matchType }),
+          ...(request.body.country !== undefined && { country: request.body.country || null }),
+        },
+      })
+      return reply.send(updated)
+    }
+  )
+
+  app.delete<{ Params: { id: string } }>(
+    '/admin/hotel-onboarding/blocked/:id',
+    async (request, reply) => {
+      const me = request.admin
+      if (me.role !== 'super' && !me.organizationId) return reply.forbidden()
+      const id = parseInt(request.params.id, 10)
+      await prisma.onboardingBlockedDomain.delete({ where: { id } }).catch(() => {})
+      const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+      fetch(`${internalUrl}/internal/invalidate-blocked-cache`, { method: 'POST' }).catch(() => {})
+      return reply.code(204).send()
+    }
+  )
 
   app.put('/admin/hotel-onboarding/sessions/:id/approve', async (request, reply) => {
     const me = request.admin

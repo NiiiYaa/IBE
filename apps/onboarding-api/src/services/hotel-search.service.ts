@@ -5,6 +5,7 @@ import { withStealthPage } from './playwright-browser.service.js';
 import { detectKnownIBE } from '@ibe/shared';
 import { searchHotelsDataForSEO as _dfsSearch } from './dataforseo.service.js';
 import { HotelCandidate, isOta, scoreCandidate } from './hotel-search-utils.js';
+import { getBlockedDomains } from './blocked-domains.service.js';
 
 export { isOta, scoreCandidate, type HotelCandidate };
 
@@ -99,6 +100,7 @@ export async function cleanExpiredScreenshots(): Promise<void> {
 }
 
 export async function searchHotelsBrave(hotelName: string, city: string, country: string): Promise<HotelCandidate[]> {
+  await getBlockedDomains(); // warm cache so isOta() is DB-backed
   const chainDomain = detectChain(hotelName); // e.g. "https://www.h10hotels.com"
 
   // Step 2: Brave Search (JS-rendered, better quality than DuckDuckGo HTML)
@@ -161,7 +163,7 @@ export async function searchHotelsBrave(hotelName: string, city: string, country
     const detected = detection !== null;
     const score = scoreCandidate(c.url, c.title, hotelName, detected);
     const screenshotUrl = await takeScreenshot(c.url);
-    return { url: c.url, title: c.title, detected, screenshotUrl, score };
+    return { url: c.url, title: c.title, detected, ibeName: detection?.name ?? null, screenshotUrl, score };
   }));
 
   // Chain registry fallback — add only if no result from the chain domain was found
@@ -170,7 +172,7 @@ export async function searchHotelsBrave(hotelName: string, city: string, country
     const chainFound = scored.some(c => { try { return new URL(c.url).hostname.includes(chainHostname.replace('www.', '')); } catch { return false; } });
     if (!chainFound) {
       const screenshotUrl = await takeScreenshot(chainDomain);
-      scored.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, screenshotUrl, score: 65 });
+      scored.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, ibeName: null, screenshotUrl, score: 65 });
     }
   }
 
@@ -199,7 +201,7 @@ export async function searchHotelsPrimary(
     })
     if (!chainFound) {
       // No screenshot in the fast DataForSEO path — screenshotUrl stays null to avoid Playwright latency
-      results.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, screenshotUrl: null, score: 65 })
+      results.push({ url: chainDomain, title: `${hotelName} — Official Website`, detected: false, ibeName: null, screenshotUrl: null, score: 65 })
     }
   }
 

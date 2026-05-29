@@ -30,6 +30,8 @@ export const api = {
     request<{ candidates: Array<{ url: string; title: string; detected: boolean; screenshotUrl: string | null }> }>('POST', '/hotel-search', data),
   selectUrl: (url: string) =>
     request<{ ok: boolean }>('POST', '/select-url', { url }),
+  requestHelp: () =>
+    request<{ ok: boolean }>('POST', '/wizard/request-help'),
 };
 
 export interface RatePlanRow {

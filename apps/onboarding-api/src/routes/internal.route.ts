@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
 import { harvestFromUrl } from '../services/ibe-harvester.service.js';
+import { invalidateBlockedDomainsCache } from '../services/blocked-domains.service.js';
 
 export async function internalRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request, reply) => {
@@ -46,4 +47,10 @@ export async function internalRoutes(app: FastifyInstance) {
       return reply.code(202).send({ ok: true });
     }
   );
+
+  app.post('/internal/invalidate-blocked-cache', async (_request, reply) => {
+    invalidateBlockedDomainsCache();
+    return reply.send({ ok: true });
+  });
+
 }

@@ -3,12 +3,15 @@ import { sendInvitationEmail, notifyHarvestFailure } from './onboarding-email.se
 
 interface CreateInvitationInput {
   organizationId: number
-  pmsId: number
-  pmsName: string
+  pmsId?: number
+  pmsName?: string
   hotelName?: string
+  websiteUrl?: string
   ibeUrl?: string
-  contactEmail?: string
+  ibePattern?: string
+  contactEmail: string
   createdByAdminId?: number
+  hgStatus?: string | null // null=ready | 'needs_setup' | 'needs_research'
 }
 
 export async function createInvitation(input: CreateInvitationInput) {
@@ -17,7 +20,8 @@ export async function createInvitation(input: CreateInvitationInput) {
     data: { ...input, expiresAt },
   })
 
-  if (invitation.ibeUrl && invitation.source !== 'self_registration') {
+  // Skip harvest for HG queue items — they're not ready for the hotel wizard yet
+  if (invitation.ibeUrl && !invitation.hgStatus && invitation.source !== 'self_registration') {
     triggerBackgroundHarvest(invitation.id, invitation.ibeUrl).catch((err: unknown) => {
       console.error(`Background harvest trigger failed for invitation ${invitation.id}:`, err)
     })

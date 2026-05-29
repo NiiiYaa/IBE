@@ -1,69 +1,6 @@
-// Exact-match OTA domains — blocked regardless of hotel name
-export const OTA_BLOCKLIST = [
-  // Booking Holdings
-  'booking.com', 'agoda.com', 'priceline.com', 'kayak.com', 'rentalcars.com', 'opentable.com',
-  // Expedia Group
-  'expedia.com', 'hotels.com', 'travelocity.com', 'orbitz.com', 'cheaptickets.com',
-  'hotwire.com', 'wotif.com', 'trivago.com', 'ebookers.com',
-  // Trip.com Group
-  'trip.com', 'ctrip.com', 'skyscanner.com', 'skyscanner.net',
-  // Metasearch & aggregators (tripadvisor.* handled via keyword pattern below)
-  'hotelscombined.com', 'wego.com', 'momondo.com',
-  'google.com', 'bing.com', 'yahoo.com', 'duckduckgo.com',
-  // Encyclopedias & reference
-  'wikipedia.org', 'wikidata.org',
-  // Travel blogs & publications
-  'lonelyplanet.com', 'roughguides.com', 'fodors.com', 'frommers.com',
-  'cntraveler.com', 'travelandleisure.com', 'afar.com', 'cntraveller.com',
-  'theguardian.com', 'timeout.com', 'timeout.co.uk',
-  'telegraph.co.uk', 'independent.co.uk', 'nytimes.com', 'forbes.com',
-  'businesstraveller.com', 'travelweekly.com', 'travelweekly.co.uk',
-  'travelmole.com', 'ttgmedia.com', 'phocuswire.com', 'skift.com',
-  // City/destination tourism guides
-  'visitlondon.com', 'visitengland.com', 'visitscotland.com', 'visitwales.com',
-  'visitspain.es', 'spain.info', 'italia.it', 'france.fr', 'germany.travel',
-  'discovergreece.com', 'visitdubai.com', 'tourismthailand.org',
-  'yelp.com', 'zoominfo.com', 'yellowpages.com', 'foursquare.com',
-  'trustpilot.com', 'glassdoor.com', 'linkedin.com', 'facebook.com',
-  'instagram.com', 'twitter.com', 'x.com',
-  'indeed.com', 'caterer.com', 'totaljobs.com', 'reed.co.uk',
-  // E-commerce (should never rank for hotels)
-  'ebay.com', 'ebay.co.uk', 'amazon.com', 'amazon.co.uk',
-  // Company registries & gov directories
-  'companies-house.gov.uk', 'find-and-update.company-information.service.gov.uk',
-  'companieshouse.gov.uk', 'opencorporates.com', 'dnb.com',
-  // Major OTAs
-  'lastminute.com', 'edreams.com', 'opodo.com', 'hrs.com', 'hrs.de',
-  'despegar.com', 'makemytrip.com', 'goibibo.com', 'rakuten.com',
-  'laterooms.com', 'getaroom.com', 'traveloka.com', 'airbnb.com',
-  'vrbo.com', 'hometogo.com', 'destinia.com', 'logitravel.com',
-  // Generic directory / mirror sites
-  'hotelmix.com', 'hotelmix.co.uk', 'booked.net', 'booked.com', 'reservations.com',
-  'hotelscombined.com', 'hotelhunter.com', 'zenhotels.com', 'cozycozy.com',
-  'lodging-world.com', 'hotel-dir.com', 'venere.com', 'hostelworld.com',
-  'hotelworld.com', 'bedandbreakfast.com', 'bedandbreakfast.eu',
-  'guestreservations.com', 'online-reservations.com', 'hotel.com', 'hotel.de',
-  // Domain parking & for-sale pages
-  'godaddy.com', 'sedo.com', 'dan.com', 'afternic.com',
-  'parkingcrew.com', 'bodis.com', 'hugedomains.com', 'undeveloped.com',
-  'squadhelp.com', 'brandbucket.com',
-]
+import { getCachedBlockedDomains, isBlockedByList } from './blocked-domains.service.js'
 
-// Keyword patterns — block any domain containing these substrings (use sparingly — substring match)
-// Exception: IBE providers (synxis, travelclick, simplebooking, etc.) are detected separately
-// and must NOT appear here — they receive high scores via detectKnownIBE()
-const OTA_KEYWORD_PATTERNS = [
-  'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'hotel-dir', 'lodging-world',
-  'forsale.', 'for-sale.',
-  'tripadvisor.',   // catches tripadvisor.com/.ca/.fr etc.
-  'google.co.',     // catches google.co.uk, google.co.jp etc.
-  // DMO / tourism authority patterns (thousands of orgs worldwide)
-  'tourism',        // paristourism.com, maltourism.com, tourismthailand.org, etc.
-  'touristboard', 'tourismboard', 'touristoffice', 'touristbureau', 'visitorsbureau',
-  'visitorsguide', 'travelguide', 'destinationguide',
-  'convention-bureau', 'conventionbureau',
-]
-
+// Keep for CompSet's directory detection (not part of the OTA blocklist)
 export const DIRECTORY_PATTERNS = [
   'hotelmix', 'zenhotels', 'cozycozy', 'hotelhunter', 'lodging-world',
   'hotel-dir', 'guestreservations', 'venere.com', 'hostelworld.com',
@@ -74,17 +11,15 @@ export interface HotelCandidate {
   url: string
   title: string
   detected: boolean
+  ibeName: string | null
   screenshotUrl: string | null
-  score: number // 0-100 confidence this is the hotel's own website/IBE
+  score: number
 }
 
-export function isOta(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase()
-    if (OTA_BLOCKLIST.some(ota => hostname === ota || hostname.endsWith('.' + ota))) return true
-    if (OTA_KEYWORD_PATTERNS.some(kw => hostname.includes(kw))) return true
-    return false
-  } catch { return false }
+// Synchronous OTA check — reads from the in-memory cache loaded at search start.
+// Always pre-load the cache (await getBlockedDomains()) before calling this.
+export function isOta(url: string, searchCountry?: string): boolean {
+  return isBlockedByList(url, getCachedBlockedDomains(), searchCountry)
 }
 
 export function scoreCandidate(url: string, title: string, hotelName: string, detected: boolean): number {
@@ -94,20 +29,15 @@ export function scoreCandidate(url: string, title: string, hotelName: string, de
     const domain = u.hostname.toLowerCase().replace(/^www\./, '')
     const pathLower = u.pathname.toLowerCase()
     const words = hotelName.toLowerCase().split(/\s+/).filter(w => w.length > 2)
-    // Penalise known directory/reseller domains
     if (DIRECTORY_PATTERNS.some(d => domain.includes(d))) return 10
     let score = 20
-    // Words from hotel name in domain
     const matchCount = words.filter(w => domain.includes(w)).length
     if (matchCount >= 2) score += 40
     else if (matchCount === 1) score += 25
-    // Words in title
     const titleMatchCount = words.filter(w => title.toLowerCase().includes(w)).length
     if (titleMatchCount >= 2) score += 10
-    // Booking-related path → direct booking engine
     if (/book|reserv|book-now|direct/i.test(pathLower)) score += 10
-    // Looks like a hotel chain or brand site (short domain, e.g. h10hotels.com)
     if (domain.split('.').length === 2) score += 5
-    return Math.min(score, 89) // cap below IBE-detected
+    return Math.min(score, 89)
   } catch { return 20 }
 }

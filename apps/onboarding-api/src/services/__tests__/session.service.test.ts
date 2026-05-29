@@ -32,7 +32,7 @@ describe('initSession', () => {
     vi.mocked(prisma.onboardingInvitation.findUnique).mockResolvedValue({
       id: 1, revokedAt: null, usedAt: null,
       expiresAt: new Date(Date.now() - 1000),
-      pmsId: 3, pmsName: 'SiteMinder', organizationId: 5,
+      pmsId: 12, pmsName: 'SiteMinder', organizationId: 5,
       harvestStatus: 'pending', harvestedData: null,
       session: null,
     } as any);
@@ -43,7 +43,7 @@ describe('initSession', () => {
     vi.mocked(prisma.onboardingInvitation.findUnique).mockResolvedValue({
       id: 1, revokedAt: null, usedAt: null,
       expiresAt: futureDate,
-      pmsId: 3, pmsName: 'SiteMinder', organizationId: 5,
+      pmsId: 12, pmsName: 'SiteMinder', organizationId: 5,
       harvestStatus: 'pending', harvestedData: null,
       session: null,
     } as any);
@@ -62,7 +62,7 @@ describe('initSession', () => {
     vi.mocked(prisma.onboardingInvitation.findUnique).mockResolvedValue({
       id: 1, revokedAt: null, usedAt: null,
       expiresAt: futureDate,
-      pmsId: 3, pmsName: 'SiteMinder', organizationId: 5,
+      pmsId: 12, pmsName: 'SiteMinder', organizationId: 5,
       harvestStatus: 'pending', harvestedData: null,
       session: null,
     } as any);

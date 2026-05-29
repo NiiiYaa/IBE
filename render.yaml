@@ -5,11 +5,13 @@ databases:
     plan: free
 
 services:
+  # ── Main API ────────────────────────────────────────────────────────────────
   - type: web
     name: ibe-api
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
+    # sync: false  # uncomment to stop Blueprint from modifying this service
     plan: free
     envVars:
       - key: DATABASE_URL
@@ -25,23 +27,32 @@ services:
       - key: WEB_BASE_URL
         value: https://hyperguest.net
       - key: CORS_ORIGINS
-        value: https://hyperguest.net,https://www.hyperguest.net,https://ibe-web.onrender.com
+        value: https://hyperguest.net,https://www.hyperguest.net,https://ibe-web.onrender.com,https://onboarding.onrender.com
       - key: HYPERGUEST_SEARCH_DOMAIN
         value: search-api.hyperguest.io
       - key: HYPERGUEST_BOOKING_DOMAIN
         value: book-api.hyperguest.io
       - key: HYPERGUEST_STATIC_DOMAIN
         value: hg-static.hyperguest.com
+      - key: ONBOARDING_API_INTERNAL_URL
+        value: https://onboarding-api.onrender.com
+      - key: ADMIN_BASE_URL
+        value: https://www.hyperguest.net
       # Set these manually in the Render dashboard:
       # HYPERGUEST_BEARER_TOKEN
       # STRIPE_SECRET_KEY
       # STRIPE_WEBHOOK_SECRET
+      # DATAFORSEO_LOGIN
+      # DATAFORSEO_PASSWORD
+      # SLACK_DEV_WEBHOOK_URL
 
+  # ── Admin web (Next.js) ─────────────────────────────────────────────────────
   - type: web
     name: ibe-web
     runtime: docker
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: .
+    # sync: false  # uncomment to stop Blueprint from modifying this service
     plan: free
     dockerBuildArgs:
       - key: NEXT_PUBLIC_API_URL
@@ -49,5 +60,51 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_PUBLIC_ONBOARDING_APP_URL
+        value: https://onboarding.onrender.com
       # Set these manually in the Render dashboard:
       # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+
+  # ── Onboarding API (Fastify wizard backend) ─────────────────────────────────
+  - type: web
+    name: onboarding-api
+    runtime: docker
+    dockerfilePath: ./apps/onboarding-api/Dockerfile
+    dockerContext: .
+    plan: starter            # needs Chromium; free plan has too little RAM
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ibe-postgres
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: HG_BO_API_BASE
+        value: https://back-office.dev.hyperguest.io
+      - key: ONBOARDING_APP_URL
+        value: https://onboarding.onrender.com
+      - key: IBE_API_CALLBACK_URL
+        value: https://ibe-api.onrender.com
+      - key: SESSION_COOKIE_SECRET
+        generateValue: true
+      - key: INTERNAL_API_SECRET
+        generateValue: true
+      # Set these manually in the Render dashboard:
+      # HG_BO_API_KEY
+      # DATAFORSEO_LOGIN
+      # DATAFORSEO_PASSWORD
+      # AI_PROVIDER + AI_API_KEY  (for AI fallback in hotel search)
+
+  # ── Hotel onboarding wizard (Next.js, hotel-facing) ─────────────────────────
+  - type: web
+    name: onboarding
+    runtime: docker
+    dockerfilePath: ./apps/onboarding/Dockerfile
+    dockerContext: .
+    plan: free
+    dockerBuildArgs:
+      - key: NEXT_PUBLIC_ONBOARDING_API_URL
+        value: https://onboarding-api.onrender.com
+    envVars:
+      - key: NODE_ENV
+        value: production

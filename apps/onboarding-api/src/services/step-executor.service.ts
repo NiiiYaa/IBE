@@ -54,7 +54,45 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
   const hgBoClient = getHGBoClient();
 
   try {
-    if (step.id === 'enrich_data') {
+    if (step.id === 'geocode_address') {
+      sseEvent(reply, { type: 'progress', message: 'Looking up property address and coordinates...' });
+      const harvestedData = (session.harvestedData as Record<string, unknown>) ?? {};
+      const existingAddress = harvestedData['address'] as string | null;
+      const enriched = (session.enrichedData as Record<string, unknown>) ?? {};
+      const hotelName = invitation.hotelName ?? '';
+      const city = (enriched['city'] as string) ?? '';
+      const countryCode = (enriched['countryCode'] as string) ?? '';
+
+      // Build query: prefer harvested address (accurate), fall back to name+city+country
+      const query = encodeURIComponent(existingAddress ?? [hotelName, city, countryCode].filter(Boolean).join(' '))
+      let geoResult: { address: string; latitude: number; longitude: number } | null = null
+
+      try {
+        const geoRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${query}&format=jsonv2&limit=1&addressdetails=1`,
+          { headers: { 'User-Agent': 'HyperGuestIBE/1.0 (nir@hyperguest.com)' }, signal: AbortSignal.timeout(8000) }
+        )
+        if (geoRes.ok) {
+          const data = await geoRes.json() as Array<{ display_name: string; lat: string; lon: string }>
+          if (data.length) {
+            geoResult = {
+              address: existingAddress ?? data[0]!.display_name,
+              latitude: parseFloat(data[0]!.lat),
+              longitude: parseFloat(data[0]!.lon),
+            }
+          }
+        }
+      } catch { /* non-fatal — proceed without coordinates */ }
+
+      const geoData = geoResult ?? { address: existingAddress ?? '', latitude: null, longitude: null }
+      await prisma.onboardingSession.update({
+        where: { id: sessionId },
+        data: { enrichedData: { ...enriched, ...geoData } as any },
+      })
+      await advanceStep(sessionId, stepIndex, { stepId: step.id, success: true, data: geoData as any })
+      sseEvent(reply, { type: 'complete', stepId: step.id, data: geoData as any })
+
+    } else if (step.id === 'enrich_data') {
       sseEvent(reply, { type: 'progress', message: 'Building enriched data...' });
       const enriched = buildEnrichedData({
         hotelName: invitation.hotelName,
@@ -83,6 +121,17 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
     } else if (step.id === 'create_hg_property') {
       sseEvent(reply, { type: 'progress', message: 'Creating property in HyperGuest...' });
       const payload = flow.getHGPropertyPayload({ ...ctx, enrichedData: { ...enrichedData } });
+      // Inject geocode data from enrichedData into the property location (available after geocode_address step)
+      if (enrichedData['latitude'] && enrichedData['longitude']) {
+        const prop = payload['property'] as Record<string, unknown>
+        const loc = (prop['location'] as Record<string, unknown>) ?? {}
+        prop['location'] = {
+          ...loc,
+          latitude: enrichedData['latitude'],
+          longitude: enrichedData['longitude'],
+          ...(enrichedData['address'] ? { address: enrichedData['address'] } : {}),
+        }
+      }
       const result = await hgBoClient.createProperty(payload);
       const propertyCode = result.property.propertyCode;
       await prisma.onboardingSession.update({

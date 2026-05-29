@@ -30,6 +30,7 @@ describe('createInvitation', () => {
       organizationId: 5,
       pmsId: 4,
       pmsName: 'SiteMinder',
+      contactEmail: 'test@hotel.com',
       createdByAdminId: 10,
     })
 

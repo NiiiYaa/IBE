@@ -2220,6 +2220,16 @@ model ManualCache {
 
 // ── Self-Onboarding ──────────────────────────────────────────────────────────
 
+model OnboardingBlockedDomain {
+  id        Int      @id @default(autoincrement())
+  domain    String   @unique // hostname or pattern — stored without www.
+  label     String?           // human-readable description
+  matchType String   @default("subdomain") // subdomain | exact | brand | keyword
+  country   String?           // ISO-2 country code; null = Global (blocks in all searches)
+  addedById Int?              // adminId who added it; null = seeded from code
+  createdAt DateTime @default(now())
+}
+
 model OnboardingInvitation {
   id                  Int                @id @default(autoincrement())
   token               String             @unique @default(cuid())
@@ -2232,7 +2242,8 @@ model OnboardingInvitation {
   hotelName           String?
   city                String?
   country             String?
-  ibeUrl              String?            // selected IBE URL (staff sets this upfront; self-reg sets it during wizard)
+  websiteUrl          String?            // hotel marketing/homepage URL (the URL the admin searched and selected)
+  ibeUrl              String?            // resolved IBE/booking-engine URL (may differ from websiteUrl)
   ibePattern          String?            // detected IBE pattern name from registry; null if unrecognized
   contactEmail        String?
   // Pre-harvest fields (staff_invite / zoho flow only)
@@ -2240,6 +2251,12 @@ model OnboardingInvitation {
   harvestedData       Json?              // HarvestedHotelData — populated before invitation is sent (staff/CRM flow)
   failureReason       String?            // error message if harvestStatus=failed
   harvestNotifiedAt   DateTime?          // when HG staff were notified of harvest failure
+  hgStatus            String?            // null=ready | needs_setup=IBE known but no harvester | needs_research=no IBE found
+  hgNotes             String?            // HG agent IBE investigation notes
+  hgAriNotes          String?            // HG agent ARI source investigation notes
+  address             String?            // Full formatted address (geocoded)
+  latitude            Float?             // GPS latitude (geocoded)
+  longitude           Float?             // GPS longitude (geocoded)
   expiresAt           DateTime
   usedAt              DateTime?
   revokedAt           DateTime?

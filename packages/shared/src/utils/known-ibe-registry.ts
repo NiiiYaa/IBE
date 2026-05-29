@@ -125,10 +125,12 @@ const registry: KnownIBEEntry[] = [
     // For search pages without sbe_rc: chain+hotel+arrive+depart together are unique to SynXis.
     name: 'Sabre SynXis',
     paramFingerprint(p) {
-      return p.has('sbe_rc') || (p.has('chain') && p.has('hotel') && p.has('arrive') && p.has('depart'))
+      // chain-level URL (level=chain) has no hotel param; hotel-level URL has both
+      return p.has('sbe_rc') || (p.has('chain') && p.has('arrive') && p.has('depart'))
     },
     extractHotelId(_url, p) {
-      return p.get('hotel')
+      // hotel param is present on hotel-level URLs; chain param is the fallback for chain-level
+      return p.get('hotel') ?? p.get('chain')
     },
     searchTemplate(url) {
       const p = safeParams(url)
@@ -204,6 +206,21 @@ const registry: KnownIBEEntry[] = [
     searchTemplate: 'https://bookingengine.mylighthouse.com/{externalHotelId}/Rooms/Select?Arrival={checkIn}&Departure={checkOut}&Room=&Rate=&Package=&DiscountCode=',
     bookingTemplate: 'https://bookingengine.mylighthouse.com/{externalHotelId}/Rooms/Select?Arrival={checkIn}&Departure={checkOut}&Room=&Rate=&Package=&DiscountCode=',
     noScraping: true,
+  },
+  {
+    // Clock PMS (clock-software.com) — cloud PMS/booking engine popular in Europe.
+    // Served from region-specific subdomains: sky-eu1, sky-eu2, sky-us1, etc.
+    // Hotel ID is in the hash fragment: /spa/pms-wbe/#/hotel/{id}
+    // noScraping: SPA requires JS execution; hash routing not accessible via static fetch.
+    name: 'Clock PMS',
+    domainPattern: /^https?:\/\/[^.]+\.clock-software\.com\/spa\/pms-wbe\//,
+    extractHotelId(url) {
+      return new URL(url).hash.match(/#\/hotel\/(\d+)/)?.[1] ?? null
+    },
+    searchTemplate: 'https://sky-eu1.clock-software.com/spa/pms-wbe/#/hotel/{externalHotelId}',
+    bookingTemplate: 'https://sky-eu1.clock-software.com/spa/pms-wbe/#/hotel/{externalHotelId}',
+    noScraping: true,
+    sampleUrl: 'https://sky-eu1.clock-software.com/spa/pms-wbe/#/hotel/14057',
   },
   {
     // TravelClick (Amadeus Hospitality iHotelier) — always white-labeled on the hotel's own domain.

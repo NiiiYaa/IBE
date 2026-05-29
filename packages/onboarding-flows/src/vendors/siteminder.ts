@@ -22,6 +22,7 @@ export const siteMinderFlow = createVendorFlow({
   pmsName: 'SiteMinder',
   dataFlow: 'blank',
   requiresStaffChannelSetup: false,
+  kbVerified: true,
   regionAware: true,
   credentialsSchema: z.object({
     propertyId: z.string().min(1, 'SiteMinder Property ID is required'),

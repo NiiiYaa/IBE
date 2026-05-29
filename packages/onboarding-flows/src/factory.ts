@@ -5,6 +5,7 @@ export function defaultStepsFor(dataFlow: DataFlow): StepDefinition[] {
     { id: 'candidate_search', kind: 'candidate_search', title: 'Find Your Hotel Online', description: 'Search for your hotel\'s booking engine, or paste your booking URL directly.' },
     { id: 'harvest_data', kind: 'automated', title: 'Collecting Your Property Information', description: 'Pulling room details, policies, and images from your booking engine.' },
     { id: 'review_data', kind: 'data_review', title: 'Review Your Property Information', description: 'Check the details we collected and edit anything that needs updating.' },
+    { id: 'geocode_address', kind: 'automated', title: 'Verifying Your Location', description: 'Looking up your property address and coordinates so your hotel appears correctly on maps.' },
     { id: 'ari_source_selection', kind: 'ari_source_selection', title: 'Select Your Channel Manager', description: 'Tell us which channel manager pushes your availability and rates to HyperGuest.' },
     { id: 'collect_credentials', kind: 'credentials', title: 'Connect Your Channel Manager', description: 'Enter your channel manager credentials to enable live availability and rates.' },
     { id: 'cm_settings', kind: 'cm_settings', title: 'Rate & Tax Configuration', description: 'Tell us how your channel manager sends rates so prices display correctly.' },
