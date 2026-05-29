@@ -99,7 +99,9 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     if (me.role !== 'super') return reply.forbidden('Super admin required')
     const pmsId = parseInt((request.params as { pmsId: string }).pmsId)
     if (isNaN(pmsId)) return reply.badRequest('Invalid pmsId')
-    const body = setWhiteLabelSchema.parse(request.body)
+    const parsed = setWhiteLabelSchema.safeParse(request.body)
+    if (!parsed.success) return reply.badRequest(parsed.error.issues.map(i => i.message).join(', '))
+    const body = parsed.data
     if (body.whiteLabelOfPmsId === null) {
       await prisma.ariSourceWhiteLabel.deleteMany({ where: { pmsId } })
     } else {

@@ -2628,7 +2628,7 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/ari-sources/list')
   },
 
-  async listAriWhiteLabels(): Promise<Record<number, number>> {
+  async listAriWhiteLabels(): Promise<Record<string, number>> {
     return apiRequest('/api/v1/admin/hotel-onboarding/ari-sources/white-labels')
   },
 
