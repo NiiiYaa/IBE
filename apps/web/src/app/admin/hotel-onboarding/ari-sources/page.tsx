@@ -350,23 +350,22 @@ export default function AriSourcesPage() {
                             maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
                             minWidth: '180px',
                           }}>
-                            {sources
-                              .filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase()))
-                              .map(o => (
-                                <li
-                                  key={o.pmsId}
-                                  onMouseDown={() => saveWl(s.pmsId, o.pmsId)}
-                                  style={{ padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem' }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                >
-                                  {o.pmsName}
-                                </li>
-                              ))
-                            }
-                            {sources.filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase())).length === 0 && (
-                              <li style={{ padding: '0.4rem 0.75rem', color: '#9ca3af', fontSize: '0.78rem' }}>No match</li>
-                            )}
+                            {(() => {
+                              const opts = sources.filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase()));
+                              return opts.length === 0
+                                ? <li style={{ padding: '0.4rem 0.75rem', color: '#9ca3af', fontSize: '0.78rem' }}>No match</li>
+                                : opts.map(o => (
+                                  <li
+                                    key={o.pmsId}
+                                    onMouseDown={() => saveWl(s.pmsId, o.pmsId)}
+                                    style={{ padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem' }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                  >
+                                    {o.pmsName}
+                                  </li>
+                                ));
+                            })()}
                           </ul>
                         </div>
                       ) : wlMap[String(s.pmsId)] != null ? (
