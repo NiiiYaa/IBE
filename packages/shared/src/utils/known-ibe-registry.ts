@@ -47,6 +47,7 @@ const registry: KnownIBEEntry[] = [
   },
   {
     name: 'SimpleBooking.it',
+    sampleUrl: 'https://www.simplebooking.it/ibe2/hotel/702?lang=EN&cur=USD&guests=A%2CA&in=2026-10-20&out=2026-10-23',
     domainPattern: /^https?:\/\/(?:www\.)?simplebooking\.it\/ibe2\/hotel\/([^/?#]+)/,
     extractHotelId(url) {
       return this.domainPattern!.exec(url)?.[1] ?? null
@@ -56,6 +57,7 @@ const registry: KnownIBEEntry[] = [
   },
   {
     name: 'direct-book.com',
+    sampleUrl: 'https://direct-book.com/properties/quentinamsterdamhotel?locale=en&checkInDate=2026-06-19&checkOutDate=2026-06-21&items[0][adults]=2&items[0][children]=0&items[0][infants]=0&currency=EUR&trackPage=yes',
     domainPattern: /^https?:\/\/(?:www\.)?direct-book\.com\/properties\/([^/?#]+)/,
     extractHotelId(url) {
       const m = this.domainPattern!.exec(url)
@@ -73,6 +75,7 @@ const registry: KnownIBEEntry[] = [
     // Guest-type ID varies per hotel (embedded in guesttypes[0][ID] param) — captured at detection time.
     // Dates are Unix ms timestamps. Booking requires server-side session after room selection → noScraping.
     name: 'BookingExpert',
+    sampleUrl: 'https://bookings.goldzanzibar.com/book/accommodations',
     domainPattern: /^https?:\/\/be\.bookingexpert\.it\//,
     paramFingerprint(p, url) {
       return p.has('layout') && p.has('winding') && p.has('isnewsearch') && /\/book\/simple\/step\d/.test(url)
@@ -98,6 +101,7 @@ const registry: KnownIBEEntry[] = [
     // Falkensteiner — chain's own website. Hotel slug is the path segment before /book/.
     // ratePlanId is a pre-filter (not required). Dates are MM/DD/YYYY. noScraping (session-based checkout).
     name: 'Falkensteiner',
+    sampleUrl: 'https://www.falkensteiner.com/en/hotel-falkensteinerhof/book/accommodations?adults=2&datein=07/14/2026&dateout=07/18/2026&domain=www.falkensteiner.com&languageid=1&rooms=1',
     domainPattern: /^https?:\/\/(?:www\.)?falkensteiner\.com\//,
     extractHotelId(url) {
       return url.match(/\/en\/([^/]+)\/book\//)?.[1] ?? null
@@ -111,6 +115,7 @@ const registry: KnownIBEEntry[] = [
     // Booking step only changes s=results → s=validate-collect (same params, no solutionId).
     // stid/cluster/hname params in real URLs are tracking noise — not required.
     name: 'BookSecure',
+    sampleUrl: 'https://www.book-secure.com/index.php?s=results&property=jpnii23321&arrival=2026-06-18&departure=2026-06-21&adults1=1&children1=0&locale=en_GB&currency=USD',
     domainPattern: /^https?:\/\/(?:www\.)?book-secure\.com\//,
     extractHotelId(_url, p) {
       return p.get('property')
@@ -124,6 +129,7 @@ const registry: KnownIBEEntry[] = [
     // sbe_rc is SynXis-specific (base64 UUID session token).
     // For search pages without sbe_rc: chain+hotel+arrive+depart together are unique to SynXis.
     name: 'Sabre SynXis',
+    sampleUrl: 'https://reservations.brilliantbylangham.com/en-US/booking/rooms?adult=1&arrive=2026-07-19&brand=cd&chain=10316&child=0&config=brilliant&depart=2026-07-22&hotel=76618&level=hotel&locale=en-US&roomNumber=0&theme=brilliant',
     paramFingerprint(p) {
       // chain-level URL (level=chain) has no hotel param; hotel-level URL has both
       return p.has('sbe_rc') || (p.has('chain') && p.has('arrive') && p.has('depart'))
@@ -153,6 +159,7 @@ const registry: KnownIBEEntry[] = [
     // Each hotel gets a subdomain on reserve-online.net; the subdomain IS the hotel identifier.
     // Uses `nights` (duration) instead of a checkout date. noScraping: CloudFront WAF blocks headless browsers.
     name: 'WebHotelier',
+    sampleUrl: 'https://gracemykonos.reserve-online.net/?checkin=2026-07-14&rooms=1&nights=6&adults=2&currency=ILS',
     domainPattern: /^https?:\/\/[^.]+\.reserve-online\.net\//,
     extractHotelId(url) {
       return new URL(url).hostname.split('.')[0] ?? null
@@ -177,19 +184,20 @@ const registry: KnownIBEEntry[] = [
   {
     // Zenith Hotels (Malaysia) — custom ASP.NET system used across 4 Zenith properties.
     // Each property is a sub-path on thezenithhotel.com; the path prefix IS the hotel identifier.
-    // Dates: DD/MM/YYYY (URL-encoded slashes). noScraping: session-based checkout after room selection.
+    // Dates: DD/MM/YYYY. noScraping: session-based checkout after room selection.
     name: 'Zenith Hotels (MY)',
+    sampleUrl: 'https://www.thezenithhotel.com/Malaysia/Kuantan/SelectRooms.aspx?checkin_date=11/08/2026&checkout_date=12/08/2026&adults=1&children=0&rooms=1',
     domainPattern: /^https?:\/\/www\.thezenithhotel\.com\//,
     extractHotelId(url) {
-      return new URL(url).pathname.match(/^(\/[^?#]*\/)AvailabilitySearchRoom\.aspx/)?.[1] ?? null
+      return new URL(url).pathname.match(/^(\/[^?#]*\/)(SelectRooms|AvailabilitySearchRoom)\.aspx/)?.[1] ?? null
     },
     searchTemplate(url) {
       const origin = new URL(url).origin
-      return `${origin}{externalHotelId}AvailabilitySearchRoom.aspx?checkindate={checkInDMY}&checkoutdate={checkOutDMY}&adults={adults}&rooms=1`
+      return `${origin}{externalHotelId}SelectRooms.aspx?checkin_date={checkInDMY}&checkout_date={checkOutDMY}&adults={adults}&children=0&rooms=1`
     },
     bookingTemplate(url) {
       const origin = new URL(url).origin
-      return `${origin}{externalHotelId}AvailabilitySearchRoom.aspx?checkindate={checkInDMY}&checkoutdate={checkOutDMY}&adults={adults}&rooms=1`
+      return `${origin}{externalHotelId}SelectRooms.aspx?checkin_date={checkInDMY}&checkout_date={checkOutDMY}&adults={adults}&children=0&rooms=1`
     },
     noScraping: true,
   },
@@ -227,6 +235,7 @@ const registry: KnownIBEEntry[] = [
     // Detected by datein+dateout+languageid query params with a numeric hotel code in the URL path.
     // Dates are MM/DD/YYYY. noScraping: AngularJS app requires a live browser session.
     name: 'TravelClick',
+    sampleUrl: 'https://bookings.travelclick.com/95964?DateIn=07/14/2026&DateOut=07/19/2026&domain=www.onekingwest.com#/accommodation/room',
     paramFingerprint(p, url) {
       const path = new URL(url).pathname
       return p.has('datein') && p.has('dateout') && p.has('languageid') && /\/\d+\/?$/.test(path)
@@ -250,6 +259,7 @@ const registry: KnownIBEEntry[] = [
     // step stripping it (literal `{` chars confuse the unreplaced-token filter).
     // noScraping: React app requires a live browser session (checkCustomerWebSessionId) to render.
     name: 'Hotetec',
+    sampleUrl: 'https://www.marsenses.com/en/booking',
     paramFingerprint(p) {
       const be = p.get('bookingEngine')
       return be !== null && /^\d+$/.test(be)
