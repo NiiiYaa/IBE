@@ -75,6 +75,12 @@ import { teamSystemFlow }      from './vendors/teamsystem.js';
 import { zotelFlow }           from './vendors/zotel.js';
 import { bookingDesignerFlow } from './vendors/booking-designer.js';
 import { myGuestCareFlow }     from './vendors/myguestcare.js';
+// Batch 13
+import { staysFlow }           from './vendors/stays.js';
+import { hotelConnectFlow }    from './vendors/hotelconnect.js';
+import { shrFlow }             from './vendors/shr.js';
+import { lighthouseFlow }      from './vendors/lighthouse.js';
+import { nextPaxFlow }         from './vendors/nextpax.js';
 
 const registry = new Map<number, VendorFlow>([
   [siteMinderFlow.pmsId,      siteMinderFlow],
@@ -140,6 +146,11 @@ const registry = new Map<number, VendorFlow>([
   [zotelFlow.pmsId,           zotelFlow],
   [bookingDesignerFlow.pmsId, bookingDesignerFlow],
   [myGuestCareFlow.pmsId,     myGuestCareFlow],
+  [staysFlow.pmsId,           staysFlow],
+  [hotelConnectFlow.pmsId,    hotelConnectFlow],
+  [shrFlow.pmsId,             shrFlow],
+  [lighthouseFlow.pmsId,      lighthouseFlow],
+  [nextPaxFlow.pmsId,         nextPaxFlow],
 ]);
 
 for (const flow of registry.values()) {

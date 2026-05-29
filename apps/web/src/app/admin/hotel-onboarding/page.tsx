@@ -82,6 +82,12 @@ const PMS_OPTIONS = [
   { id: 170, name: 'Zotel' },
   { id: 118, name: 'Booking Designer' },
   { id: 73,  name: 'MyGuestCare' },
+  // Batch 13
+  { id: 15,  name: 'Stays' },
+  { id: 1,   name: 'HotelConnect' },
+  { id: 91,  name: 'SHR' },
+  { id: 43,  name: 'Lighthouse' },
+  { id: 29,  name: 'NextPax' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 const ONBOARDING_API_URL = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
