@@ -23,4 +23,5 @@ COPY --from=builder /repo/apps/onboarding/.next/static ./.next/static
 COPY --from=builder /repo/apps/onboarding/public ./public
 
 EXPOSE 3002
-CMD ["node", "server.js"]
+# In pnpm monorepos, Next.js standalone places server.js at the package path
+CMD ["sh", "-c", "node apps/onboarding/server.js 2>/dev/null || node server.js"]
