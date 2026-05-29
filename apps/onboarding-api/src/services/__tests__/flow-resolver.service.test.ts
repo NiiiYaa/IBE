@@ -38,4 +38,15 @@ describe('resolveVendorFlow', () => {
     const flow = await resolveVendorFlow(99999);
     expect(flow).toBeUndefined();
   });
+
+  it('returns undefined when WL mapping points to an unknown master pmsId', async () => {
+    vi.mocked(prisma.ariSourceWhiteLabel.findUnique).mockResolvedValue({
+      pmsId: 85,
+      whiteLabelOfPmsId: 99999, // no flow exists for 99999
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const flow = await resolveVendorFlow(85);
+    expect(flow).toBeUndefined();
+  });
 });

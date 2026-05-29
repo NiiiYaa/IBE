@@ -195,6 +195,7 @@ export default function AriSourcesPage() {
   const [editingWlFor, setEditingWlFor] = useState<number | null>(null);
   const [wlInput, setWlInput]           = useState('');
   const [wlSaving, setWlSaving]         = useState<Record<number, boolean>>({});
+  const [wlError, setWlError]           = useState<string | null>(null);
   const wlComboRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -225,8 +226,10 @@ export default function AriSourcesPage() {
     try {
       await apiClient.setAriWhiteLabel(pmsId, masterPmsId);
       setWlMap(p => ({ ...p, [String(pmsId)]: masterPmsId }));
-    } catch { /* ignore */ }
-    finally {
+    } catch (err) {
+      setWlError(err instanceof Error ? err.message : 'Failed to save');
+      setTimeout(() => setWlError(null), 3000);
+    } finally {
       setWlSaving(p => ({ ...p, [pmsId]: false }));
       setEditingWlFor(null);
       setWlInput('');
@@ -238,8 +241,10 @@ export default function AriSourcesPage() {
     try {
       await apiClient.setAriWhiteLabel(pmsId, null);
       setWlMap(p => { const next = { ...p }; delete next[String(pmsId)]; return next; });
-    } catch { /* ignore */ }
-    finally { setWlSaving(p => ({ ...p, [pmsId]: false })); }
+    } catch (err) {
+      setWlError(err instanceof Error ? err.message : 'Failed to clear');
+      setTimeout(() => setWlError(null), 3000);
+    } finally { setWlSaving(p => ({ ...p, [pmsId]: false })); }
   }
 
   const filtered = sources.filter(s =>
@@ -263,6 +268,12 @@ export default function AriSourcesPage() {
         placeholder="Filter by name…"
         style={{ width: '100%', maxWidth: '320px', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '6px', marginBottom: '1rem', display: 'block' }}
       />
+
+      {wlError && (
+        <div style={{ marginBottom: '0.75rem', padding: '0.6rem 1rem', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '0.82rem', color: '#991b1b' }}>
+          {wlError}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>Loading…</div>

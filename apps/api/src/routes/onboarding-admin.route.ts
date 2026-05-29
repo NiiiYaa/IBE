@@ -102,6 +102,8 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     const parsed = setWhiteLabelSchema.safeParse(request.body)
     if (!parsed.success) return reply.badRequest(parsed.error.issues.map(i => i.message).join(', '))
     const body = parsed.data
+    if (body.whiteLabelOfPmsId !== null && body.whiteLabelOfPmsId === pmsId)
+      return reply.badRequest('A CM cannot be a white-label of itself')
     if (body.whiteLabelOfPmsId === null) {
       await prisma.ariSourceWhiteLabel.deleteMany({ where: { pmsId } })
     } else {
