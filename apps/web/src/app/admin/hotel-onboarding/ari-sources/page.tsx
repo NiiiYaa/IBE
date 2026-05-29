@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, useRef, type CSSProperties } from 'react';
 import { apiClient } from '@/lib/api-client';
 
 type PreAction = { title: string; instruction: string; contactEmail?: string };
@@ -95,6 +95,10 @@ These instructions are included in the invitation email sent to the hotel, so th
     title: 'Approved',
     body: `Number of onboarding sessions for this ARI source that have been fully completed and approved by HyperGuest staff. A property is approved once ARI is confirmed flowing correctly and a test booking has passed.`,
   },
+  'WL': {
+    title: 'White Label of',
+    body: `Marks this ARI source as a white-label variant of another. When set, the onboarding wizard will run the master's flow for hotels using this CM instead of looking for a separate flow.\n\nExample: Isprava is a white-label of STAAH — hotels with Isprava go through the STAAH wizard.\n\nThe invitation still records the hotel's actual CM (e.g. Isprava). Only the flow execution is redirected.`,
+  },
 };
 
 type ModalContent =
@@ -187,16 +191,56 @@ export default function AriSourcesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState('');
   const [modal, setModal]     = useState<ModalContent>(null);
+  const [wlMap, setWlMap]               = useState<Record<string, number>>({});
+  const [editingWlFor, setEditingWlFor] = useState<number | null>(null);
+  const [wlInput, setWlInput]           = useState('');
+  const [wlSaving, setWlSaving]         = useState<Record<number, boolean>>({});
+  const wlComboRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     Promise.all([
       apiClient.listAriSources(),
       apiClient.getOnboardingStats().catch(() => ({ ariStats: {}, ibeStats: {}, ibeSampleUrls: {} })),
-    ]).then(([src, s]) => {
+      apiClient.listAriWhiteLabels().catch(() => ({})),
+    ]).then(([src, s, wl]) => {
       setSources(src);
       setStats(s.ariStats);
+      setWlMap(wl);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wlComboRef.current && !wlComboRef.current.contains(e.target as Node)) {
+        setEditingWlFor(null);
+        setWlInput('');
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  async function saveWl(pmsId: number, masterPmsId: number) {
+    setWlSaving(p => ({ ...p, [pmsId]: true }));
+    try {
+      await apiClient.setAriWhiteLabel(pmsId, masterPmsId);
+      setWlMap(p => ({ ...p, [String(pmsId)]: masterPmsId }));
+    } catch { /* ignore */ }
+    finally {
+      setWlSaving(p => ({ ...p, [pmsId]: false }));
+      setEditingWlFor(null);
+      setWlInput('');
+    }
+  }
+
+  async function clearWl(pmsId: number) {
+    setWlSaving(p => ({ ...p, [pmsId]: true }));
+    try {
+      await apiClient.setAriWhiteLabel(pmsId, null);
+      setWlMap(p => { const next = { ...p }; delete next[String(pmsId)]; return next; });
+    } catch { /* ignore */ }
+    finally { setWlSaving(p => ({ ...p, [pmsId]: false })); }
+  }
 
   const filtered = sources.filter(s =>
     s.pmsName.toLowerCase().includes(filter.toLowerCase())
@@ -227,7 +271,7 @@ export default function AriSourcesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['HG ID', 'Name', 'Data Flow', 'Flags', 'Steps', 'Knowledge Base Verified', 'Pre-actions', 'Invitations', 'Approved'].map(h => (
+                {['HG ID', 'Name', 'Data Flow', 'Flags', 'Steps', 'Knowledge Base Verified', 'Pre-actions', 'WL', 'Invitations', 'Approved'].map(h => (
                   <th key={h} style={hcell}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                       {h}
@@ -287,13 +331,76 @@ export default function AriSourcesPage() {
                           </button>
                         )}
                     </td>
+                    <td style={{ ...cell, minWidth: '140px' }}>
+                      {editingWlFor === s.pmsId ? (
+                        <div ref={wlComboRef} style={{ position: 'relative' }}>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={wlInput}
+                            onChange={e => setWlInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Escape') { setEditingWlFor(null); setWlInput(''); } }}
+                            placeholder="Search CM…"
+                            style={{ width: '130px', padding: '3px 6px', border: '1px solid #2563eb', borderRadius: '4px', fontSize: '0.78rem' }}
+                          />
+                          <ul style={{
+                            position: 'absolute', top: '100%', left: 0, zIndex: 50,
+                            background: '#fff', border: '1px solid #d1d5db', borderRadius: '5px',
+                            margin: '2px 0 0', padding: 0, listStyle: 'none',
+                            maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                            minWidth: '180px',
+                          }}>
+                            {sources
+                              .filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase()))
+                              .map(o => (
+                                <li
+                                  key={o.pmsId}
+                                  onMouseDown={() => saveWl(s.pmsId, o.pmsId)}
+                                  style={{ padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem' }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                >
+                                  {o.pmsName}
+                                </li>
+                              ))
+                            }
+                            {sources.filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase())).length === 0 && (
+                              <li style={{ padding: '0.4rem 0.75rem', color: '#9ca3af', fontSize: '0.78rem' }}>No match</li>
+                            )}
+                          </ul>
+                        </div>
+                      ) : wlMap[String(s.pmsId)] != null ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span
+                            onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
+                            style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            title="Click to change">
+                            {sources.find(o => o.pmsId === wlMap[String(s.pmsId)])?.pmsName ?? `#${wlMap[String(s.pmsId)]}`}
+                          </span>
+                          <button
+                            onClick={() => clearWl(s.pmsId)}
+                            disabled={wlSaving[s.pmsId]}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.75rem', padding: '0 2px', lineHeight: 1 }}
+                            title="Clear white-label">
+                            {wlSaving[s.pmsId] ? '…' : '✕'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
+                          disabled={wlSaving[s.pmsId]}
+                          style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', padding: '2px 8px', fontSize: '0.72rem', color: '#6b7280' }}>
+                          {wlSaving[s.pmsId] ? '…' : 'Set WL'}
+                        </button>
+                      )}
+                    </td>
                     <td style={{ ...cell, textAlign: 'center' }}>{stats[s.pmsId]?.total ?? 0}</td>
                     <td style={{ ...cell, textAlign: 'center' }}>{stats[s.pmsId]?.approved ?? 0}</td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ ...cell, textAlign: 'center', color: '#6b7280' }}>No results</td></tr>
+                <tr><td colSpan={10} style={{ ...cell, textAlign: 'center', color: '#6b7280' }}>No results</td></tr>
               )}
             </tbody>
           </table>
