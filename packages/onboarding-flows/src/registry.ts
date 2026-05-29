@@ -81,6 +81,33 @@ import { hotelConnectFlow }    from './vendors/hotelconnect.js';
 import { shrFlow }             from './vendors/shr.js';
 import { lighthouseFlow }      from './vendors/lighthouse.js';
 import { nextPaxFlow }         from './vendors/nextpax.js';
+// Batch 13 (pending registration)
+import { aoHostelsFlow }           from './vendors/aohostels.js';
+import { bookingHotelFlow }        from './vendors/bookinghotel.js';
+import { travellineFlow }          from './vendors/travelline.js';
+// Batch 14
+import { smarthotelFlow }          from './vendors/smarthotel.js';
+import { viomaFlow }               from './vendors/vioma.js';
+import { creativetecnoFlow }       from './vendors/creativetecno.js';
+import { primalresFlow }           from './vendors/primalres.js';
+// Batch 15
+import { eviivoFlow }              from './vendors/eviivo.js';
+import { booklogicFlow }           from './vendors/booklogic.js';
+import { hotelAvailabilitiesFlow } from './vendors/hotelavailabilities.js';
+import { ipernetFlow }             from './vendors/ipernet.js';
+import { otaSyncFlow }             from './vendors/otasync.js';
+// Batch 16
+import { egdsFlow }                from './vendors/egds.js';
+import { exelyFlow }               from './vendors/exely.js';
+import { tisyaStaysFlow }          from './vendors/tisyastays.js';
+import { proExSusFlow }            from './vendors/proexsus.js';
+import { fnsRoomsFlow }            from './vendors/fnsrooms.js';
+import { revenatiumFlow }          from './vendors/revenatium.js';
+import { myHotelLineFlow }         from './vendors/myhotelline.js';
+import { aviratoFlow }             from './vendors/avirato.js';
+import { webBookingProFlow }       from './vendors/webbookingpro.js';
+import { bookOnePmsFlow }          from './vendors/bookonepms.js';
+import { operaCloudFlow }          from './vendors/operacloud.js';
 
 const registry = new Map<number, VendorFlow>([
   [siteMinderFlow.pmsId,      siteMinderFlow],
@@ -151,6 +178,29 @@ const registry = new Map<number, VendorFlow>([
   [shrFlow.pmsId,             shrFlow],
   [lighthouseFlow.pmsId,      lighthouseFlow],
   [nextPaxFlow.pmsId,         nextPaxFlow],
+  [aoHostelsFlow.pmsId,       aoHostelsFlow],
+  [bookingHotelFlow.pmsId,    bookingHotelFlow],
+  [travellineFlow.pmsId,      travellineFlow],
+  [smarthotelFlow.pmsId,      smarthotelFlow],
+  [viomaFlow.pmsId,                viomaFlow],
+  [creativetecnoFlow.pmsId,        creativetecnoFlow],
+  [primalresFlow.pmsId,            primalresFlow],
+  [eviivoFlow.pmsId,               eviivoFlow],
+  [booklogicFlow.pmsId,            booklogicFlow],
+  [hotelAvailabilitiesFlow.pmsId,  hotelAvailabilitiesFlow],
+  [ipernetFlow.pmsId,              ipernetFlow],
+  [otaSyncFlow.pmsId,              otaSyncFlow],
+  [egdsFlow.pmsId,                 egdsFlow],
+  [exelyFlow.pmsId,                exelyFlow],
+  [tisyaStaysFlow.pmsId,           tisyaStaysFlow],
+  [proExSusFlow.pmsId,             proExSusFlow],
+  [fnsRoomsFlow.pmsId,             fnsRoomsFlow],
+  [revenatiumFlow.pmsId,           revenatiumFlow],
+  [myHotelLineFlow.pmsId,          myHotelLineFlow],
+  [aviratoFlow.pmsId,              aviratoFlow],
+  [webBookingProFlow.pmsId,        webBookingProFlow],
+  [bookOnePmsFlow.pmsId,           bookOnePmsFlow],
+  [operaCloudFlow.pmsId,           operaCloudFlow],
 ]);
 
 for (const flow of registry.values()) {

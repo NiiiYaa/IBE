@@ -88,6 +88,32 @@ const PMS_OPTIONS = [
   { id: 91,  name: 'SHR' },
   { id: 43,  name: 'Lighthouse' },
   { id: 29,  name: 'NextPax' },
+  { id: 165, name: 'A&O Hostels' },
+  { id: 148, name: 'BookingHotel' },
+  { id: 124, name: 'Travelline' },
+  // Batch 14
+  { id: 174, name: 'Smarthotel' },
+  { id: 147, name: 'Vioma' },
+  { id: 92,  name: 'Creativetecno' },
+  { id: 163, name: 'Primalres' },
+  // Batch 15
+  { id: 66,  name: 'eviivo' },
+  { id: 68,  name: 'BookLogic' },
+  { id: 106, name: 'HotelAvailabilities' },
+  { id: 40,  name: 'iper.net' },
+  { id: 90,  name: 'OTA Sync' },
+  // Batch 16
+  { id: 120, name: 'e-GDS' },
+  { id: 160, name: 'Exely' },
+  { id: 161, name: 'Tisya Stays' },
+  { id: 159, name: 'ProExSus' },
+  { id: 114, name: 'FNSrooms' },
+  { id: 129, name: 'Revenatium' },
+  { id: 158, name: 'MyHotelLine' },
+  { id: 136, name: 'Avirato' },
+  { id: 133, name: 'WebBookingPro' },
+  { id: 152, name: 'BookOne PMS' },
+  { id: 32,  name: 'Opera Cloud by Oracle' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 const ONBOARDING_API_URL = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
