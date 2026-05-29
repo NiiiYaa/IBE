@@ -63,6 +63,18 @@ import { miniHotelFlow }       from './vendors/mini-hotel.js';
 import { rmsFlow }             from './vendors/rms.js';
 import { ispravaFlow }         from './vendors/isprava.js';
 import { eResConnectFlow }     from './vendors/eresconnect.js';
+// Batch 11
+import { busyRoomsFlow }       from './vendors/busy-rooms.js';
+import { octoRateFlow }        from './vendors/octorate.js';
+import { prestigeFlow }        from './vendors/prestige.js';
+import { dirs21Flow }          from './vendors/dirs21.js';
+import { passepartoutFlow }    from './vendors/passepartout.js';
+// Batch 12
+import { hotetecFlow }         from './vendors/hotetec.js';
+import { teamSystemFlow }      from './vendors/teamsystem.js';
+import { zotelFlow }           from './vendors/zotel.js';
+import { bookingDesignerFlow } from './vendors/booking-designer.js';
+import { myGuestCareFlow }     from './vendors/myguestcare.js';
 
 const registry = new Map<number, VendorFlow>([
   [siteMinderFlow.pmsId,      siteMinderFlow],
@@ -118,6 +130,16 @@ const registry = new Map<number, VendorFlow>([
   [rmsFlow.pmsId,             rmsFlow],
   [ispravaFlow.pmsId,         ispravaFlow],
   [eResConnectFlow.pmsId,     eResConnectFlow],
+  [busyRoomsFlow.pmsId,       busyRoomsFlow],
+  [octoRateFlow.pmsId,        octoRateFlow],
+  [prestigeFlow.pmsId,        prestigeFlow],
+  [dirs21Flow.pmsId,          dirs21Flow],
+  [passepartoutFlow.pmsId,    passepartoutFlow],
+  [hotetecFlow.pmsId,         hotetecFlow],
+  [teamSystemFlow.pmsId,      teamSystemFlow],
+  [zotelFlow.pmsId,           zotelFlow],
+  [bookingDesignerFlow.pmsId, bookingDesignerFlow],
+  [myGuestCareFlow.pmsId,     myGuestCareFlow],
 ]);
 
 for (const flow of registry.values()) {

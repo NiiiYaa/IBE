@@ -70,6 +70,18 @@ const PMS_OPTIONS = [
   { id: 65,  name: 'RMS' },
   { id: 85,  name: 'Isprava' },
   { id: 55,  name: 'eResConnect' },
+  // Batch 11
+  { id: 72,  name: 'Busy Rooms' },
+  { id: 142, name: 'Octorate' },
+  { id: 52,  name: 'Prestige' },
+  { id: 34,  name: 'DIRS21' },
+  { id: 50,  name: 'Passepartout' },
+  // Batch 12
+  { id: 64,  name: 'Hotetec' },
+  { id: 93,  name: 'TeamSystem' },
+  { id: 170, name: 'Zotel' },
+  { id: 118, name: 'Booking Designer' },
+  { id: 73,  name: 'MyGuestCare' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 const ONBOARDING_API_URL = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
