@@ -8,6 +8,7 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
+RUN pnpm --filter @ibe/onboarding-flows build
 # Install Chromium + all system deps for Playwright (OTA scraper + external IBE scraper)
 RUN cd /repo/apps/api && npx playwright install --with-deps chromium
 RUN cd /repo/apps/api && npx prisma generate --schema=prisma/schema.prisma
