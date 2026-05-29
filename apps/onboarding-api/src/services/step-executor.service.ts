@@ -1,5 +1,6 @@
 import type { FastifyReply } from 'fastify';
-import { getVendorFlow, type OnboardingContext } from '@ibe/onboarding-flows';
+import { type OnboardingContext } from '@ibe/onboarding-flows';
+import { resolveVendorFlow } from './flow-resolver.service.js';
 import { getHGBoClient } from './hg-bo.client.js';
 import { advanceStep, getSession, completeSession } from './session.service.js';
 import { buildEnrichedData } from './enrichment.service.js';
@@ -23,7 +24,7 @@ export async function executeAutomatedStep(sessionId: number, stepIndex: number,
   }
 
   const invitation = session.invitation;
-  const flow = getVendorFlow(invitation.pmsId ?? 0);
+  const flow = await resolveVendorFlow(invitation.pmsId ?? 0);
   if (!flow) {
     sseEvent(reply, { type: 'error', message: 'Unknown vendor' });
     reply.raw.end();

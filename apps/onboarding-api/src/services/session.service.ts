@@ -1,6 +1,6 @@
 import { prisma } from '../db/client.js';
 import type { StepResult } from '@ibe/onboarding-flows';
-import { getVendorFlow } from '@ibe/onboarding-flows';
+import { resolveVendorFlow } from './flow-resolver.service.js';
 
 export class OnboardingError extends Error {
   constructor(message: string, public code: string) {
@@ -26,7 +26,7 @@ export async function initSession(token: string) {
     throw new OnboardingError('Your data is still being prepared — please try again in a moment', 'harvest_pending');
   }
 
-  const flow = getVendorFlow(invitation.pmsId ?? 0);
+  const flow = await resolveVendorFlow(invitation.pmsId ?? 0);
   if (!flow) throw new OnboardingError(`No flow for pmsId ${invitation.pmsId}`, 'unknown_pms');
 
   const hasPreHarvestedData = invitation.harvestStatus === 'complete' && invitation.harvestedData != null;
@@ -103,7 +103,7 @@ export async function initSelfRegistration(input: {
   contactEmail: string;
   websiteUrl?: string;
 }) {
-  const flow = getVendorFlow(input.pmsId);
+  const flow = await resolveVendorFlow(input.pmsId);
   if (!flow) throw new OnboardingError(`No flow for pmsId ${input.pmsId}`, 'unknown_pms');
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);

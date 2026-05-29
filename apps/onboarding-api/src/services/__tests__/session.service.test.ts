@@ -15,10 +15,19 @@ vi.mock('../../db/client.js', () => ({
   },
 }));
 
+vi.mock('../flow-resolver.service.js', () => ({
+  resolveVendorFlow: vi.fn(),
+}));
+
 import { prisma } from '../../db/client.js';
 import { initSession, getSession, advanceStep } from '../session.service.js';
+import { resolveVendorFlow } from '../flow-resolver.service.js';
+import { getVendorFlow } from '@ibe/onboarding-flows';
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(resolveVendorFlow).mockResolvedValue(getVendorFlow(12)); // default: SiteMinder
+});
 
 const futureDate = new Date(Date.now() + 86400000);
 

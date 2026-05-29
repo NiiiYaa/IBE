@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getSession, advanceStep, saveCredentials } from '../services/session.service.js';
 import { executeAutomatedStep } from '../services/step-executor.service.js';
-import { getVendorFlow } from '@ibe/onboarding-flows';
+import { resolveVendorFlow } from '../services/flow-resolver.service.js';
 import { prisma } from '../db/client.js';
 
 function getSessionIdFromCookie(request: FastifyRequest): number | null {
@@ -19,7 +19,7 @@ export async function wizardRoutes(app: FastifyInstance) {
     const session = await getSession(sessionId);
     if (!session) return reply.notFound('Session not found');
 
-    const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+    const flow = await resolveVendorFlow(session.invitation.pmsId ?? 0);
     const harvestedData = session.harvestedData as Record<string, unknown> | null;
 
     return {
@@ -49,7 +49,7 @@ export async function wizardRoutes(app: FastifyInstance) {
       const session = await getSession(sessionId);
       if (!session) return reply.notFound('Session not found');
 
-      const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+      const flow = await resolveVendorFlow(session.invitation.pmsId ?? 0);
       if (!flow) return reply.badRequest('Unknown vendor');
 
       const parsed = flow.credentialsSchema.safeParse(request.body.credentials);
@@ -75,7 +75,7 @@ export async function wizardRoutes(app: FastifyInstance) {
       const session = await getSession(sessionId);
       if (!session) return reply.notFound('Session not found');
 
-      const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+      const flow = await resolveVendorFlow(session.invitation.pmsId ?? 0);
       if (!flow) return reply.badRequest('Unknown vendor');
 
       await advanceStep(sessionId, session.currentStep, {
@@ -170,7 +170,7 @@ export async function wizardRoutes(app: FastifyInstance) {
       if (!sessionId) return reply.unauthorized('No session');
       const session = await getSession(sessionId);
       if (!session) return reply.notFound();
-      const flow = getVendorFlow(session.invitation.pmsId ?? 0);
+      const flow = await resolveVendorFlow(session.invitation.pmsId ?? 0);
       if (!flow) return reply.badRequest('Unknown vendor');
 
       const { cmSettings } = request.body;
