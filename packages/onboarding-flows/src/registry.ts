@@ -57,6 +57,12 @@ import { todoAlojamientoFlow } from './vendors/todoalojamiento.js';
 import { hotelNetSolutionsFlow } from './vendors/hotelnetsolutions.js';
 import { hostPmsFlow }         from './vendors/host-pms.js';
 import { sistemOtelFlow }      from './vendors/sistemotel.js';
+// Batch 10
+import { shijiFlow }           from './vendors/shiji.js';
+import { miniHotelFlow }       from './vendors/mini-hotel.js';
+import { rmsFlow }             from './vendors/rms.js';
+import { ispravaFlow }         from './vendors/isprava.js';
+import { eResConnectFlow }     from './vendors/eresconnect.js';
 
 const registry = new Map<number, VendorFlow>([
   [siteMinderFlow.pmsId,      siteMinderFlow],
@@ -107,6 +113,11 @@ const registry = new Map<number, VendorFlow>([
   [hotelNetSolutionsFlow.pmsId, hotelNetSolutionsFlow],
   [hostPmsFlow.pmsId,         hostPmsFlow],
   [sistemOtelFlow.pmsId,      sistemOtelFlow],
+  [shijiFlow.pmsId,           shijiFlow],
+  [miniHotelFlow.pmsId,       miniHotelFlow],
+  [rmsFlow.pmsId,             rmsFlow],
+  [ispravaFlow.pmsId,         ispravaFlow],
+  [eResConnectFlow.pmsId,     eResConnectFlow],
 ]);
 
 for (const flow of registry.values()) {

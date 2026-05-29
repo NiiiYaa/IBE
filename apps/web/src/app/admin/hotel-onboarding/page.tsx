@@ -64,6 +64,12 @@ const PMS_OPTIONS = [
   { id: 89,  name: 'HotelNetSolutions' },
   { id: 56,  name: 'Host PMS' },
   { id: 140, name: 'SistemOtel' },
+  // Batch 10
+  { id: 22,  name: 'Shiji' },
+  { id: 44,  name: 'Mini Hotel' },
+  { id: 65,  name: 'RMS' },
+  { id: 85,  name: 'Isprava' },
+  { id: 55,  name: 'eResConnect' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 const ONBOARDING_API_URL = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
