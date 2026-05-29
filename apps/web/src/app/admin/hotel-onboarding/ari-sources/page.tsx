@@ -282,7 +282,7 @@ export default function AriSourcesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['HG ID', 'Name', 'Data Flow', 'Flags', 'Steps', 'Knowledge Base Verified', 'Pre-actions', 'WL', 'Invitations', 'Approved'].map(h => (
+                {['HG ID', 'Name', 'Data Flow', 'Flags', 'Steps', 'Knowledge Base Verified', 'Pre-actions', 'Invitations', 'Approved'].map(h => (
                   <th key={h} style={hcell}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                       {h}
@@ -305,7 +305,66 @@ export default function AriSourcesPage() {
                 return (
                   <tr key={s.pmsId} style={{ borderTop: '1px solid #e5e7eb' }}>
                     <td style={{ ...cell, fontFamily: 'monospace', color: '#6b7280', fontSize: '0.82rem' }}>{s.pmsId}</td>
-                    <td style={{ ...cell, fontWeight: 600 }}>{s.pmsName}</td>
+                    <td style={{ ...cell, fontWeight: 600 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <span>{s.pmsName}</span>
+                        {editingWlFor === s.pmsId ? (
+                          <div ref={wlComboRef} style={{ position: 'relative' }}>
+                            <input
+                              autoFocus
+                              type="text"
+                              value={wlInput}
+                              onChange={e => setWlInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Escape') { setEditingWlFor(null); setWlInput(''); } }}
+                              placeholder="Search CM…"
+                              style={{ width: '130px', padding: '3px 6px', border: '1px solid #2563eb', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 400 }}
+                            />
+                            <ul style={{
+                              position: 'absolute', top: '100%', left: 0, zIndex: 50,
+                              background: '#fff', border: '1px solid #d1d5db', borderRadius: '5px',
+                              margin: '2px 0 0', padding: 0, listStyle: 'none',
+                              maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                              minWidth: '180px',
+                            }}>
+                              {(() => {
+                                const opts = sources.filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase()));
+                                return opts.length === 0
+                                  ? <li style={{ padding: '0.4rem 0.75rem', color: '#9ca3af', fontSize: '0.78rem' }}>No match</li>
+                                  : opts.map(o => (
+                                    <li key={o.pmsId} onMouseDown={() => saveWl(s.pmsId, o.pmsId)}
+                                      style={{ padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 400 }}
+                                      onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                      {o.pmsName}
+                                    </li>
+                                  ));
+                              })()}
+                            </ul>
+                          </div>
+                        ) : wlMap[String(s.pmsId)] != null ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <span style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 400 }}>WL:</span>
+                            <span
+                              onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
+                              title="Click to change"
+                              style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              {sources.find(o => o.pmsId === wlMap[String(s.pmsId)])?.pmsName ?? `#${wlMap[String(s.pmsId)]}`}
+                            </span>
+                            <button onClick={() => clearWl(s.pmsId)} disabled={wlSaving[s.pmsId]}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.7rem', padding: '0', lineHeight: 1 }}
+                              title="Clear white-label">
+                              {wlSaving[s.pmsId] ? '…' : '✕'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
+                            disabled={wlSaving[s.pmsId]}
+                            style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed #d1d5db', borderRadius: '3px', cursor: 'pointer', padding: '1px 6px', fontSize: '0.68rem', color: '#9ca3af', fontWeight: 400 }}>
+                            {wlSaving[s.pmsId] ? '…' : '+ WL'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td style={cell}>
                       <span style={{ background: flowStyle.bg, color: flowStyle.color, padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}
                             title={s.dataFlow}>
@@ -342,75 +401,13 @@ export default function AriSourcesPage() {
                           </button>
                         )}
                     </td>
-                    <td style={{ ...cell, minWidth: '140px' }}>
-                      {editingWlFor === s.pmsId ? (
-                        <div ref={wlComboRef} style={{ position: 'relative' }}>
-                          <input
-                            autoFocus
-                            type="text"
-                            value={wlInput}
-                            onChange={e => setWlInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Escape') { setEditingWlFor(null); setWlInput(''); } }}
-                            placeholder="Search CM…"
-                            style={{ width: '130px', padding: '3px 6px', border: '1px solid #2563eb', borderRadius: '4px', fontSize: '0.78rem' }}
-                          />
-                          <ul style={{
-                            position: 'absolute', top: '100%', left: 0, zIndex: 50,
-                            background: '#fff', border: '1px solid #d1d5db', borderRadius: '5px',
-                            margin: '2px 0 0', padding: 0, listStyle: 'none',
-                            maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                            minWidth: '180px',
-                          }}>
-                            {(() => {
-                              const opts = sources.filter(o => o.pmsId !== s.pmsId && o.pmsName.toLowerCase().includes(wlInput.toLowerCase()));
-                              return opts.length === 0
-                                ? <li style={{ padding: '0.4rem 0.75rem', color: '#9ca3af', fontSize: '0.78rem' }}>No match</li>
-                                : opts.map(o => (
-                                  <li
-                                    key={o.pmsId}
-                                    onMouseDown={() => saveWl(s.pmsId, o.pmsId)}
-                                    style={{ padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.78rem' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                  >
-                                    {o.pmsName}
-                                  </li>
-                                ));
-                            })()}
-                          </ul>
-                        </div>
-                      ) : wlMap[String(s.pmsId)] != null ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span
-                            onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
-                            style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '0.7rem', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            title="Click to change">
-                            {sources.find(o => o.pmsId === wlMap[String(s.pmsId)])?.pmsName ?? `#${wlMap[String(s.pmsId)]}`}
-                          </span>
-                          <button
-                            onClick={() => clearWl(s.pmsId)}
-                            disabled={wlSaving[s.pmsId]}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.75rem', padding: '0 2px', lineHeight: 1 }}
-                            title="Clear white-label">
-                            {wlSaving[s.pmsId] ? '…' : '✕'}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setEditingWlFor(s.pmsId); setWlInput(''); }}
-                          disabled={wlSaving[s.pmsId]}
-                          style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', padding: '2px 8px', fontSize: '0.72rem', color: '#6b7280' }}>
-                          {wlSaving[s.pmsId] ? '…' : 'Set WL'}
-                        </button>
-                      )}
-                    </td>
                     <td style={{ ...cell, textAlign: 'center' }}>{stats[s.pmsId]?.total ?? 0}</td>
                     <td style={{ ...cell, textAlign: 'center' }}>{stats[s.pmsId]?.approved ?? 0}</td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} style={{ ...cell, textAlign: 'center', color: '#6b7280' }}>No results</td></tr>
+                <tr><td colSpan={9} style={{ ...cell, textAlign: 'center', color: '#6b7280' }}>No results</td></tr>
               )}
             </tbody>
           </table>
