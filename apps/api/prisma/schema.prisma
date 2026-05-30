@@ -2260,6 +2260,7 @@ model OnboardingInvitation {
   expiresAt           DateTime
   usedAt              DateTime?
   revokedAt           DateTime?
+  deletedAt           DateTime?
   createdAt           DateTime           @default(now())
   createdByAdminId    Int?               // null for self-registration and zoho
   session             OnboardingSession?

@@ -2572,8 +2572,9 @@ export const apiClient = {
   },
 
   // ── Self-Onboarding ──────────────────────────────────────────────────────
-  async listOnboardingInvitations(): Promise<OnboardingInvitation[]> {
-    return apiRequest('/api/v1/admin/hotel-onboarding/invitations')
+  async listOnboardingInvitations(includeDeleted = false): Promise<OnboardingInvitation[]> {
+    const qs = includeDeleted ? '?deleted=true' : ''
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations${qs}`)
   },
 
   async getOnboardingStats(): Promise<{
@@ -2615,6 +2616,18 @@ export const apiClient = {
 
   async revokeOnboardingInvitation(id: number): Promise<void> {
     return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}`, { method: 'DELETE' })
+  },
+
+  async resendOnboardingInvitation(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/resend`, { method: 'POST' })
+  },
+
+  async softDeleteOnboardingInvitation(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/soft`, { method: 'DELETE' })
+  },
+
+  async deleteOnboardingInvitation(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/hard`, { method: 'DELETE' })
   },
 
   async listAriSources(): Promise<Array<{
@@ -2685,6 +2698,7 @@ export interface BlockedDomain {
   matchType: string  // subdomain | exact | brand | keyword
   country: string | null  // ISO-2 country code; null = Global
   addedById: number | null
+  addedByAdmin: { id: number; name: string } | null
   createdAt: string
 }
 
@@ -2709,7 +2723,9 @@ export interface OnboardingInvitation {
   expiresAt: string
   usedAt: string | null
   revokedAt: string | null
+  deletedAt: string | null
   source: string
+  createdByAdmin: { id: number; name: string; email: string } | null
   session: { id: number; status: string; currentStep: number } | null
 }
 

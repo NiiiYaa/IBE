@@ -194,6 +194,14 @@ export default function HotelOnboardingPage() {
   const [hgAriNotes, setHgAriNotes] = useState<Record<number, string>>({});
   const [notifying, setNotifying] = useState<Record<number, boolean>>({});
   const [notifyDone, setNotifyDone] = useState<Record<number, boolean>>({});
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
+  const [commentModal, setCommentModal] = useState<{ invId: number; type: 'ibe' | 'ari'; value: string } | null>(null);
+  const [filterAriSource, setFilterAriSource] = useState('');
+  const [filterSource, setFilterSource] = useState('');
+  const [filterHgStaff, setFilterHgStaff] = useState('');
+  const [filterHarvest, setFilterHarvest] = useState('');
+  const [filterExpires, setFilterExpires] = useState('');
 
   const [searchForm, setSearchForm] = useState({ hotelName: '', city: '', country: '' });
   const [lastSearchParams, setLastSearchParams] = useState<{ hotelName: string; city: string; country: string } | null>(null);
@@ -231,11 +239,11 @@ export default function HotelOnboardingPage() {
 
   const onboardingAppUrl = process.env['NEXT_PUBLIC_ONBOARDING_APP_URL'] ?? 'http://localhost:3002';
 
-  async function load() {
+  async function load(deleted = showDeleted) {
     setLoading(true);
     try {
       const [invs, blocked] = await Promise.all([
-        apiClient.listOnboardingInvitations(),
+        apiClient.listOnboardingInvitations(deleted),
         apiClient.listBlockedDomains().catch(() => []),
       ]);
       setInvitations(invs);
@@ -533,6 +541,24 @@ export default function HotelOnboardingPage() {
   async function handleRevoke(id: number) {
     if (!confirm('Revoke this invitation?')) return;
     await apiClient.revokeOnboardingInvitation(id);
+    await load();
+  }
+
+  async function handleReInvite(id: number) {
+    if (!confirm('Send a fresh invitation link to this hotel?')) return;
+    await apiClient.resendOnboardingInvitation(id);
+    await load();
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this invitation? It can be recovered by showing deleted items.')) return;
+    await apiClient.softDeleteOnboardingInvitation(id);
+    await load();
+  }
+
+  async function handlePermanentDelete(id: number) {
+    if (!confirm('Permanently delete this invitation? This cannot be undone.')) return;
+    await apiClient.deleteOnboardingInvitation(id);
     await load();
   }
 
@@ -1188,14 +1214,28 @@ export default function HotelOnboardingPage() {
       {/* Invitations & Sessions — tabbed */}
       {(() => {
         const q = listFilter.toLowerCase();
-        const match = (inv: OnboardingInvitation) =>
-          !q ||
-          (inv.hotelName ?? '').toLowerCase().includes(q) ||
-          (inv.contactEmail ?? '').toLowerCase().includes(q) ||
-          (inv.ibeUrl ?? '').toLowerCase().includes(q) ||
-          (inv.ibePattern ?? '').toLowerCase().includes(q) ||
-          (inv.pmsName ?? '').toLowerCase().includes(q) ||
-          (inv.unknownPmsName ?? '').toLowerCase().includes(q);
+        const now = new Date();
+        const match = (inv: OnboardingInvitation) => {
+          if (q && !(
+            (inv.hotelName ?? '').toLowerCase().includes(q) ||
+            (inv.contactEmail ?? '').toLowerCase().includes(q) ||
+            (inv.ibeUrl ?? '').toLowerCase().includes(q) ||
+            (inv.ibePattern ?? '').toLowerCase().includes(q) ||
+            (inv.pmsName ?? '').toLowerCase().includes(q) ||
+            (inv.unknownPmsName ?? '').toLowerCase().includes(q)
+          )) return false;
+          if (filterAriSource && (inv.pmsName ?? inv.unknownPmsName ?? '') !== filterAriSource) return false;
+          if (filterSource && inv.source !== filterSource) return false;
+          if (filterHgStaff && (inv.createdByAdmin?.name ?? '') !== filterHgStaff) return false;
+          if (filterHarvest && inv.harvestStatus !== filterHarvest) return false;
+          if (filterExpires === 'expired' && new Date(inv.expiresAt) > now) return false;
+          if (filterExpires === 'active' && new Date(inv.expiresAt) <= now) return false;
+          return true;
+        };
+
+        const ariSourceOptions = [...new Set(invitations.map(i => i.pmsName ?? i.unknownPmsName ?? '').filter(Boolean))].sort();
+        const hgStaffOptions   = [...new Set(invitations.map(i => i.createdByAdmin?.name ?? '').filter(Boolean))].sort();
+        const harvestOptions   = [...new Set(invitations.map(i => i.harvestStatus).filter(Boolean))].sort();
 
         const tabInvitations = invitations.filter(i => !i.hgStatus && !i.session).filter(match);
         const tabSessions    = invitations.filter(i => !i.hgStatus && !!i.session).filter(match);
@@ -1213,11 +1253,11 @@ export default function HotelOnboardingPage() {
 
         return (
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-            {/* Header: tabs + search */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', borderBottom: '1px solid #e5e7eb', gap: '1rem' }}>
+            {/* Header: tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 1.5rem', borderBottom: '1px solid #e5e7eb' }}>
               <div style={{ display: 'flex', gap: 0 }}>
                 {TAB_DEFS.map(t => (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)}
+                  <button key={t.key} onClick={() => { setActiveTab(t.key); if (t.key === 'hg_queue') { setFilterHarvest(''); setFilterExpires(''); } }}
                     style={{
                       padding: '0.85rem 1rem', background: 'transparent', border: 'none',
                       borderBottom: activeTab === t.key ? '2px solid #2563eb' : '2px solid transparent',
@@ -1234,11 +1274,60 @@ export default function HotelOnboardingPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Filters bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1.5rem', borderBottom: '1px solid #e5e7eb', background: '#f9fafb', flexWrap: 'wrap' }}>
               <input
                 type="text" value={listFilter} onChange={e => setListFilter(e.target.value)}
                 placeholder="Filter by hotel, email, IBE…"
-                style={{ padding: '0.4rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.8rem', width: '220px' }}
+                style={{ padding: '0.3rem 0.6rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', width: '200px' }}
               />
+              <select value={filterAriSource} onChange={e => setFilterAriSource(e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', color: filterAriSource ? '#111' : '#9ca3af' }}>
+                <option value="">ARI Source</option>
+                {ariSourceOptions.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={filterSource} onChange={e => setFilterSource(e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', color: filterSource ? '#111' : '#9ca3af' }}>
+                <option value="">Source</option>
+                <option value="staff_invite">HG Agent</option>
+                <option value="self_registration">Hotel Self</option>
+                <option value="zoho">CRM</option>
+              </select>
+              <select value={filterHgStaff} onChange={e => setFilterHgStaff(e.target.value)}
+                style={{ padding: '0.3rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', color: filterHgStaff ? '#111' : '#9ca3af' }}>
+                <option value="">HG-Staff</option>
+                {hgStaffOptions.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {activeTab !== 'hg_queue' && (
+                <select value={filterHarvest} onChange={e => setFilterHarvest(e.target.value)}
+                  style={{ padding: '0.3rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', color: filterHarvest ? '#111' : '#9ca3af' }}>
+                  <option value="">Harvest</option>
+                  {harvestOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              )}
+              {activeTab !== 'hg_queue' && (
+                <select value={filterExpires} onChange={e => setFilterExpires(e.target.value)}
+                  style={{ padding: '0.3rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', color: filterExpires ? '#111' : '#9ca3af' }}>
+                  <option value="">Expires</option>
+                  <option value="active">Active</option>
+                  <option value="expired">Expired</option>
+                </select>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: '#6b7280', cursor: 'pointer', userSelect: 'none', marginLeft: '0.25rem' }}>
+                <input type="checkbox" checked={showDeleted} onChange={e => {
+                  setShowDeleted(e.target.checked);
+                  load(e.target.checked);
+                }} />
+                Show deleted
+              </label>
+              {(filterAriSource || filterSource || filterHgStaff || filterHarvest || filterExpires || listFilter) && (
+                <button onClick={() => { setFilterAriSource(''); setFilterSource(''); setFilterHgStaff(''); setFilterHarvest(''); setFilterExpires(''); setListFilter(''); }}
+                  style={{ padding: '0.3rem 0.6rem', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.78rem', background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>
+                  Clear filters
+                </button>
+              )}
             </div>
 
             {loading ? (
@@ -1252,10 +1341,10 @@ export default function HotelOnboardingPage() {
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
                     {activeTab === 'hg_queue'
-                      ? ['Hotel', 'Contact Email', 'IBE', 'ARI Source', 'Source', 'Queued', 'Actions'].map(h => (
+                      ? ['Hotel', 'Contact Email', 'IBE', 'ARI Source', 'Source', 'HG-Staff', 'Queued', 'Actions'].map(h => (
                           <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                         ))
-                      : ['Hotel', 'Contact Email', 'IBE', 'ARI Source', 'Source', activeTab === 'sessions' ? 'Session' : 'Harvest', 'Expires', 'Actions'].map(h => (
+                      : ['Hotel', 'Contact Email', 'IBE', 'ARI Source', 'Source', 'HG-Staff', activeTab === 'sessions' ? 'Session' : 'Harvest', 'Expires', 'Actions'].map(h => (
                           <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                         ))
                     }
@@ -1263,7 +1352,7 @@ export default function HotelOnboardingPage() {
                 </thead>
                 <tbody>
                   {rows.map(inv => (
-                    <tr key={inv.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                    <tr key={inv.id} style={{ borderTop: '1px solid #e5e7eb', opacity: inv.deletedAt ? 0.5 : 1, background: inv.deletedAt ? '#fafafa' : undefined }}>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ fontWeight: 500 }}>{inv.hotelName || '—'}</div>
                         {(inv.city || inv.country) && (
@@ -1308,19 +1397,16 @@ export default function HotelOnboardingPage() {
                               </div>
                             );
                           })()}
-                          <textarea
-                            rows={2}
-                            value={hgNotes[inv.id] ?? inv.hgNotes ?? ''}
-                            onChange={e => setHgNotes(p => ({ ...p, [inv.id]: e.target.value }))}
-                            onBlur={async () => {
-                              const note = hgNotes[inv.id];
-                              if (note !== undefined && note !== inv.hgNotes) {
-                                await apiClient.saveOnboardingNotes(inv.id, note).catch(() => {});
-                              }
-                            }}
-                            placeholder="Investigation notes (saved automatically on blur)…"
-                            style={{ display: 'block', width: '100%', marginTop: '0.5rem', padding: '0.35rem 0.5rem', fontSize: '0.78rem', border: '1px solid #d1d5db', borderRadius: '5px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, boxSizing: 'border-box' }}
-                          />
+                          {(() => {
+                            const hasNote = !!(hgNotes[inv.id] ?? inv.hgNotes ?? '');
+                            return (
+                              <button
+                                onClick={() => setCommentModal({ invId: inv.id, type: 'ibe', value: hgNotes[inv.id] ?? inv.hgNotes ?? '' })}
+                                style={{ marginTop: '0.5rem', padding: '0.25rem 0.6rem', border: `1px solid ${hasNote ? '#93c5fd' : '#d1d5db'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', background: hasNote ? '#eff6ff' : 'transparent', color: hasNote ? '#1d4ed8' : '#6b7280' }}>
+                                {hasNote ? '💬 Comment' : '+ Add comment'}
+                              </button>
+                            );
+                          })()}
                         </td>
                       ) : (
                         <td style={{ padding: '0.75rem 1rem', fontSize: '0.78rem', color: '#6b7280', fontFamily: 'monospace' }}>
@@ -1352,13 +1438,8 @@ export default function HotelOnboardingPage() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <span style={{ fontSize: '0.875rem', color: '#374151' }}>{inv.unknownPmsName}</span>
                             <span style={{ background: '#fef9c3', color: '#92400e', fontSize: '0.7rem', fontWeight: 700, padding: '1px 7px', borderRadius: '4px', alignSelf: 'flex-start' }}>
-                              Needs setup — no wizard flow yet
+                              No flow yet
                             </span>
-                            {activeTab === 'hg_queue' && (
-                              <span style={{ fontSize: '0.7rem', color: '#6b7280', fontStyle: 'italic' }}>
-                                Build a VendorFlow for this CM or verify the HG pmsId
-                              </span>
-                            )}
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1368,28 +1449,18 @@ export default function HotelOnboardingPage() {
                                 ARI source unknown
                               </span>
                             )}
-                            {activeTab === 'hg_queue' && (
-                              <span style={{ fontSize: '0.7rem', color: '#6b7280', fontStyle: 'italic' }}>
-                                Hotel needs to specify their CM before onboarding can proceed
-                              </span>
-                            )}
                           </div>
                         )}
-                        {activeTab === 'hg_queue' && (
-                          <textarea
-                            rows={2}
-                            value={hgAriNotes[inv.id] ?? inv.hgAriNotes ?? ''}
-                            onChange={e => setHgAriNotes(p => ({ ...p, [inv.id]: e.target.value }))}
-                            onBlur={async () => {
-                              const note = hgAriNotes[inv.id];
-                              if (note !== undefined && note !== inv.hgAriNotes) {
-                                await apiClient.saveOnboardingAriNotes(inv.id, note).catch(() => {});
-                              }
-                            }}
-                            placeholder="ARI investigation notes…"
-                            style={{ display: 'block', width: '100%', marginTop: '0.4rem', padding: '0.35rem 0.5rem', fontSize: '0.78rem', border: '1px solid #d1d5db', borderRadius: '5px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, boxSizing: 'border-box' as const }}
-                          />
-                        )}
+                        {activeTab === 'hg_queue' && (() => {
+                          const hasNote = !!(hgAriNotes[inv.id] ?? inv.hgAriNotes ?? '');
+                          return (
+                            <button
+                              onClick={() => setCommentModal({ invId: inv.id, type: 'ari', value: hgAriNotes[inv.id] ?? inv.hgAriNotes ?? '' })}
+                              style={{ marginTop: '0.4rem', padding: '0.25rem 0.6rem', border: `1px solid ${hasNote ? '#93c5fd' : '#d1d5db'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', background: hasNote ? '#eff6ff' : 'transparent', color: hasNote ? '#1d4ed8' : '#6b7280', whiteSpace: 'nowrap' }}>
+                              {hasNote ? '💬 Comment' : '+ Add comment'}
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       <td style={{ padding: '0.75rem 1rem' }}>
@@ -1400,6 +1471,10 @@ export default function HotelOnboardingPage() {
                           const color= src === 'self_registration' ? '#1e40af' : src === 'zoho' ? '#92400e' : '#374151';
                           return <span style={{ background: bg, color, fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>{label}</span>;
                         })()}
+                      </td>
+
+                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                        {inv.createdByAdmin ? inv.createdByAdmin.name : <span style={{ color: '#9ca3af' }}>—</span>}
                       </td>
 
                       {activeTab === 'sessions' ? (
@@ -1425,7 +1500,79 @@ export default function HotelOnboardingPage() {
                       )}
 
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {activeTab === 'hg_queue' && (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <button
+                              onClick={() => setExpandedActions(p => ({ ...p, [inv.id]: !p[inv.id] }))}
+                              style={{ padding: '0.25rem 0.7rem', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: expandedActions[inv.id] ? '#f3f4f6' : 'transparent', color: '#374151', whiteSpace: 'nowrap' }}>
+                              Actions {expandedActions[inv.id] ? '↑' : '→'}
+                            </button>
+                            {expandedActions[inv.id] && (
+                              <div style={{ position: 'absolute', bottom: '100%', right: 0, zIndex: 50, marginBottom: '4px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '140px' }}>
+                                {inv.hgStatus && !inv.revokedAt && (
+                                  <button onClick={() => { handleRevoke(inv.id); setExpandedActions(p => ({ ...p, [inv.id]: false })); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#dc2626', textAlign: 'left', width: '100%' }}>
+                                    🚫 Dismiss
+                                  </button>
+                                )}
+                                {inv.hgStatus && (inv.ibeUrl !== undefined || !inv.ibePattern) && (
+                                  <button
+                                    onClick={() => { copyToClipboard(buildIbePrompt(inv)); setCopiedPrompt(p => ({ ...p, [inv.id * 10]: true })); setTimeout(() => setCopiedPrompt(p => ({ ...p, [inv.id * 10]: false })), 2000); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: copiedPrompt[inv.id * 10] ? '#6366f1' : 'transparent', color: copiedPrompt[inv.id * 10] ? '#fff' : '#6366f1', textAlign: 'left', width: '100%' }}>
+                                    {copiedPrompt[inv.id * 10] ? '✓' : '⚡'} IBE Prompt
+                                  </button>
+                                )}
+                                {inv.hgStatus && (!inv.pmsId || inv.unknownPmsName) && (
+                                  <button
+                                    onClick={() => { copyToClipboard(buildAriPrompt(inv)); setCopiedPrompt(p => ({ ...p, [inv.id * 10 + 1]: true })); setTimeout(() => setCopiedPrompt(p => ({ ...p, [inv.id * 10 + 1]: false })), 2000); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: copiedPrompt[inv.id * 10 + 1] ? '#0891b2' : 'transparent', color: copiedPrompt[inv.id * 10 + 1] ? '#fff' : '#0891b2', textAlign: 'left', width: '100%' }}>
+                                    {copiedPrompt[inv.id * 10 + 1] ? '✓' : '⚡'} ARI Prompt
+                                  </button>
+                                )}
+                                {inv.hgStatus && !inv.revokedAt && (() => {
+                                  const note = hgNotes[inv.id] ?? inv.hgNotes ?? '';
+                                  const done = notifyDone[inv.id];
+                                  const busy = notifying[inv.id];
+                                  return (
+                                    <button
+                                      disabled={busy || done}
+                                      onClick={async () => {
+                                        setNotifying(p => ({ ...p, [inv.id]: true }));
+                                        try {
+                                          const ibePr = (inv.ibeUrl !== undefined || !inv.ibePattern) ? buildIbePrompt(inv) : undefined;
+                                          const ariPr = (!inv.pmsId || inv.unknownPmsName) ? buildAriPrompt(inv) : undefined;
+                                          await apiClient.notifyDevTeam(inv.id, note, ibePr, ariPr);
+                                          setNotifyDone(p => ({ ...p, [inv.id]: true }));
+                                        } catch { /* ignore */ }
+                                        finally { setNotifying(p => ({ ...p, [inv.id]: false })); }
+                                      }}
+                                      style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: (busy || done) ? 'default' : 'pointer', fontSize: '0.78rem', background: done ? '#6366f1' : 'transparent', color: done ? '#fff' : '#6366f1', opacity: busy ? 0.6 : 1, textAlign: 'left', width: '100%' }}>
+                                      {done ? '✓ Notified' : busy ? 'Sending…' : '🔔 Notify Dev'}
+                                    </button>
+                                  );
+                                })()}
+                                {inv.revokedAt && !inv.deletedAt && (
+                                  <button onClick={() => { handleReInvite(inv.id); setExpandedActions(p => ({ ...p, [inv.id]: false })); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#2563eb', textAlign: 'left', width: '100%' }}>
+                                    Re-invite
+                                  </button>
+                                )}
+                                {inv.deletedAt ? (
+                                  <button onClick={() => { handlePermanentDelete(inv.id); setExpandedActions(p => ({ ...p, [inv.id]: false })); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#991b1b', textAlign: 'left', width: '100%' }}>
+                                    🗑️ Permanent Delete
+                                  </button>
+                                ) : (
+                                  <button onClick={() => { handleDelete(inv.id); setExpandedActions(p => ({ ...p, [inv.id]: false })); }}
+                                    style={{ padding: '0.3rem 0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#dc2626', textAlign: 'left', width: '100%' }}>
+                                    🗑️ Delete
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ display: activeTab === 'hg_queue' ? 'none' : 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                           {!inv.usedAt && !inv.revokedAt && !inv.hgStatus && (
                             <>
                               <button onClick={() => copyToClipboard(`${onboardingAppUrl}/start/${inv.token}`)}
@@ -1494,6 +1641,23 @@ export default function HotelOnboardingPage() {
                               </button>
                             );
                           })()}
+                          {inv.revokedAt && !inv.deletedAt && (
+                            <button onClick={() => handleReInvite(inv.id)}
+                              style={{ padding: '0.25rem 0.6rem', border: '1px solid #2563eb', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#2563eb' }}>
+                              Re-invite
+                            </button>
+                          )}
+                          {inv.deletedAt ? (
+                            <button onClick={() => handlePermanentDelete(inv.id)}
+                              style={{ padding: '0.25rem 0.6rem', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: '#fee2e2', color: '#991b1b' }}>
+                              Permanent Delete
+                            </button>
+                          ) : (
+                            <button onClick={() => handleDelete(inv.id)}
+                              style={{ padding: '0.25rem 0.6rem', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem', background: 'transparent', color: '#dc2626' }}>
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1501,6 +1665,52 @@ export default function HotelOnboardingPage() {
                 </tbody>
               </table>
             )}
+          </div>
+        );
+      })()}
+
+      {/* Comment modal */}
+      {commentModal && (() => {
+        const isIbe = commentModal.type === 'ibe';
+        const title = isIbe ? 'IBE Investigation Notes' : 'ARI Investigation Notes';
+        const save = async () => {
+          const val = commentModal.value;
+          if (isIbe) {
+            setHgNotes(p => ({ ...p, [commentModal.invId]: val }));
+            await apiClient.saveOnboardingNotes(commentModal.invId, val).catch(() => {});
+          } else {
+            setHgAriNotes(p => ({ ...p, [commentModal.invId]: val }));
+            await apiClient.saveOnboardingAriNotes(commentModal.invId, val).catch(() => {});
+          }
+          setCommentModal(null);
+        };
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={e => { if (e.target === e.currentTarget) save(); }}>
+            <div style={{ background: '#fff', borderRadius: '10px', padding: '1.5rem', width: '480px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{title}</h3>
+                <button onClick={() => setCommentModal(null)} style={{ background: 'transparent', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#6b7280', lineHeight: 1 }}>×</button>
+              </div>
+              <textarea
+                autoFocus
+                rows={6}
+                value={commentModal.value}
+                onChange={e => setCommentModal(m => m ? { ...m, value: e.target.value } : m)}
+                placeholder={`${title}…`}
+                style={{ width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.875rem', border: '1px solid #d1d5db', borderRadius: '6px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button onClick={() => setCommentModal(null)}
+                  style={{ padding: '0.4rem 1rem', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', background: 'transparent', color: '#374151' }}>
+                  Cancel
+                </button>
+                <button onClick={save}
+                  style={{ padding: '0.4rem 1rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', background: '#2563eb', color: '#fff', fontWeight: 600 }}>
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
         );
       })()}

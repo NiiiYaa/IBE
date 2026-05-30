@@ -2,9 +2,12 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
   createInvitation,
+  hardDeleteInvitation,
   listInvitations,
   listNeedsAttention,
+  resendInvitation,
   revokeInvitation,
+  softDeleteInvitation,
   triggerBackgroundHarvest,
 } from '../services/onboarding-invitation.service.js'
 import { getVendorFlow, listVendorFlows } from '@ibe/onboarding-flows'
@@ -119,7 +122,8 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.get('/admin/hotel-onboarding/invitations', async (request, reply) => {
     const me = request.admin
     if (!me.organizationId) return reply.badRequest('No organization context')
-    return listInvitations(me.organizationId)
+    const includeDeleted = (request.query as { deleted?: string }).deleted === 'true'
+    return listInvitations(me.organizationId, includeDeleted)
   })
 
   app.get('/admin/hotel-onboarding/stats', async (request, reply) => {
@@ -412,6 +416,42 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     return reply.code(204).send()
   })
 
+  app.delete('/admin/hotel-onboarding/invitations/:id/soft', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
+    await softDeleteInvitation(invitationId)
+    return reply.code(204).send()
+  })
+
+  app.post('/admin/hotel-onboarding/invitations/:id/resend', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
+    await resendInvitation(invitationId)
+    return reply.code(204).send()
+  })
+
+  app.delete('/admin/hotel-onboarding/invitations/:id/hard', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
+    await hardDeleteInvitation(invitationId)
+    return reply.code(204).send()
+  })
+
   // PATCH /admin/hotel-onboarding/invitations/:id/ari-notes — save HG agent ARI investigation notes
   app.patch<{ Params: { id: string }; Body: { notes: string } }>(
     '/admin/hotel-onboarding/invitations/:id/ari-notes',
@@ -529,7 +569,16 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
   app.get('/admin/hotel-onboarding/blocked', async (request, reply) => {
     const me = request.admin
     if (me.role !== 'super' && !me.organizationId) return reply.forbidden()
-    return prisma.onboardingBlockedDomain.findMany({ orderBy: { createdAt: 'desc' } })
+    const domains = await prisma.onboardingBlockedDomain.findMany({ orderBy: { createdAt: 'desc' } })
+    const adminIds = [...new Set(domains.map(d => d.addedById).filter((id): id is number => id !== null))]
+    const admins = adminIds.length
+      ? await prisma.adminUser.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true } })
+      : []
+    const adminMap = Object.fromEntries(admins.map(a => [a.id, a]))
+    return domains.map(d => ({
+      ...d,
+      addedByAdmin: d.addedById ? (adminMap[d.addedById] ?? null) : null,
+    }))
   })
 
   app.post<{ Body: { url: string; label?: string; matchType?: string; country?: string } }>(

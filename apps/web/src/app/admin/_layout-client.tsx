@@ -145,7 +145,7 @@ const SECTIONS: Section[] = [
       { href: '/admin/hotel-onboarding', label: 'Invitations', minRole: 'admin' },
       { href: '/admin/hotel-onboarding/ari-sources', label: 'ARI Sources', minRole: 'admin' },
       { href: '/admin/hotel-onboarding/ibes', label: 'IBEs', minRole: 'admin' },
-      { href: '/admin/hotel-onboarding/blocked', label: 'Blocked', minRole: 'admin' },
+      { href: '/admin/hotel-onboarding/blocked', label: 'Blacklist', minRole: 'admin' },
     ],
   },
   {
@@ -723,7 +723,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
             </span>
           )}
           {!showPropertySelector && <span className="flex-1" />}
-          {(b2cUrl || b2bUrl) && (
+          {(b2cUrl || b2bUrl) && activeSection !== 'Onboarding' && (
             <div className="ml-2 flex shrink-0 items-center gap-1.5">
               {b2cUrl && (
                 <a href={b2cUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 font-medium text-amber-700 transition-colors hover:bg-amber-100">

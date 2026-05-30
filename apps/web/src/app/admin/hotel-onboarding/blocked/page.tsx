@@ -91,7 +91,7 @@ export default function BlockedDomainsPage() {
   }
 
   async function handleRemove(id: number) {
-    if (!confirm('Remove this domain from the blocklist?')) return;
+    if (!confirm('Remove this domain from the blacklist?')) return;
     await apiClient.removeBlockedDomain(id);
     await load();
   }
@@ -109,14 +109,14 @@ export default function BlockedDomainsPage() {
 
   return (
     <div style={{ maxWidth: '1050px', margin: '0 auto', padding: '2rem' }}>
-      <h1 style={{ marginBottom: '0.25rem' }}>Blocked Domains</h1>
+      <h1 style={{ marginBottom: '0.25rem' }}>Blacklist</h1>
       <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-        Single list of all domains blocked from hotel search results. Includes built-in rules (seeded from code) and custom additions. Click a match-type badge to cycle through types.
+        All domains blocked from hotel search results. Includes built-in rules and custom additions. Click a match-type badge to cycle through types.
       </p>
 
       {/* Add form */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Add domain</h2>
+        <h2 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Add to Blacklist</h2>
         <form onSubmit={handleAdd}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
             <div>
@@ -204,7 +204,7 @@ export default function BlockedDomainsPage() {
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <button type="submit" disabled={adding}
               style={{ padding: '0.55rem 1.4rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: adding ? 'not-allowed' : 'pointer', opacity: adding ? 0.7 : 1 }}>
-              {adding ? 'Adding…' : '+ Add to Blocklist'}
+              {adding ? 'Adding…' : '+ Add to Blacklist'}
             </button>
             <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
               Country = Global means blocked in all searches. Country-specific rules are stored for future use.
@@ -244,7 +244,7 @@ export default function BlockedDomainsPage() {
                   { label: 'Label',            width: undefined },
                   { label: 'Type',             width: '130px' },
                   { label: 'Country',          width: '120px' },
-                  { label: 'Source',           width: '90px' },
+                  { label: 'Added by',         width: '130px' },
                   { label: 'Actions',          width: '120px' },
                 ].map(h => (
                   <th key={h.label} style={{ padding: '0.7rem 1rem', textAlign: 'left', fontWeight: 600, fontSize: '0.8rem', width: h.width }}>{h.label}</th>
@@ -278,11 +278,11 @@ export default function BlockedDomainsPage() {
                         </span>
                       ) : <span style={{ color: '#9ca3af' }}>Global</span>}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: d.addedById ? '#1d4ed8' : '#6b7280',
-                        background: d.addedById ? '#dbeafe' : '#f3f4f6', padding: '1px 7px', borderRadius: '4px' }}>
-                        {d.addedById ? 'Custom' : 'Built-in'}
-                      </span>
+                    <td style={{ padding: '0.75rem 1rem', fontSize: '0.82rem', color: '#374151' }}>
+                      {d.addedByAdmin
+                        ? d.addedByAdmin.name
+                        : <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '1px 7px', borderRadius: '4px' }}>Built-in</span>
+                      }
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ display: 'flex', gap: '0.4rem' }}>

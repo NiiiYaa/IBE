@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
 import { sendInvitationEmail, notifyHarvestFailure } from './onboarding-email.service.js'
 
@@ -70,12 +71,23 @@ export async function listNeedsAttention() {
   })
 }
 
-export async function listInvitations(organizationId: number) {
-  return prisma.onboardingInvitation.findMany({
-    where: { organizationId },
+export async function listInvitations(organizationId: number, includeDeleted = false) {
+  const invitations = await prisma.onboardingInvitation.findMany({
+    where: { organizationId, deletedAt: includeDeleted ? undefined : null },
     orderBy: { createdAt: 'desc' },
     include: { session: { select: { status: true, currentStep: true } } },
   })
+
+  const adminIds = [...new Set(invitations.map(i => i.createdByAdminId).filter((id): id is number => id !== null))]
+  const admins = adminIds.length
+    ? await prisma.adminUser.findMany({ where: { id: { in: adminIds } }, select: { id: true, name: true, email: true } })
+    : []
+  const adminMap = Object.fromEntries(admins.map(a => [a.id, a]))
+
+  return invitations.map(inv => ({
+    ...inv,
+    createdByAdmin: inv.createdByAdminId ? (adminMap[inv.createdByAdminId] ?? null) : null,
+  }))
 }
 
 export async function revokeInvitation(id: number) {
@@ -83,6 +95,30 @@ export async function revokeInvitation(id: number) {
     where: { id },
     data: { revokedAt: new Date() },
   })
+}
+
+export async function resendInvitation(id: number) {
+  const invitation = await prisma.onboardingInvitation.update({
+    where: { id },
+    data: {
+      token: randomUUID(),
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  })
+  await sendInvitationEmail(invitation)
+  return invitation
+}
+
+export async function softDeleteInvitation(id: number) {
+  return prisma.onboardingInvitation.update({
+    where: { id },
+    data: { deletedAt: new Date(), revokedAt: new Date() },
+  })
+}
+
+export async function hardDeleteInvitation(id: number) {
+  return prisma.onboardingInvitation.delete({ where: { id } })
 }
 
 export async function getInvitationByToken(token: string) {
