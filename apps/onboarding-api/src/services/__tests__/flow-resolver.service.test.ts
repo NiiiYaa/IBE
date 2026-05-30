@@ -1,19 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../db/client.js', () => ({
-  prisma: {
-    ariSourceWhiteLabel: {
-      findUnique: vi.fn(),
+vi.mock('../../db/client.js', () => {
+  return {
+    prisma: {
+      ariSourceWhiteLabel: {
+        findUnique: vi.fn(),
+      },
     },
-  },
-}));
+  };
+});
 
 import { prisma } from '../../db/client.js';
 import { resolveVendorFlow } from '../flow-resolver.service.js';
 
-beforeEach(() => vi.clearAllMocks());
-
 describe('resolveVendorFlow', () => {
+  beforeEach(() => vi.clearAllMocks());
   it('returns the flow for pmsId directly when no WL mapping exists', async () => {
     vi.mocked(prisma.ariSourceWhiteLabel.findUnique).mockResolvedValue(null);
     const flow = await resolveVendorFlow(12); // SiteMinder has a real flow

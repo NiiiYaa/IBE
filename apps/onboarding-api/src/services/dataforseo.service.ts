@@ -151,19 +151,20 @@ export async function searchHotelsDataForSEO(
   const location = [city, country].filter(Boolean).join(' ')
   const exclusions = '-site:booking.com -site:tripadvisor.com -site:expedia.com -site:agoda.com -site:airbnb.com -site:hotels.com'
 
-  // Two parallel queries:
-  // 1. Quoted (exact phrase) — high precision, may miss hotels that style their name differently
-  // 2. Unquoted (keyword) — broader recall, catches "Siam @ Siam" when user typed "Siam At Siam"
+  // Start with quoted (exact phrase) — high precision.
+  // Only fire unquoted if quoted returns fewer than 2 non-OTA results.
   const quotedKeyword   = `"${hotelName}"${location ? ' ' + location : ''} ${exclusions}`
   const unquotedKeyword = `${hotelName}${location ? ' ' + location : ''} official site ${exclusions}`
 
   try {
-    const [quotedItems, unquotedItems] = await Promise.all([
-      fetchSerpItems(quotedKeyword, credentials, locationCode),
-      fetchSerpItems(unquotedKeyword, credentials, locationCode),
-    ])
+    const quotedItems = await fetchSerpItems(quotedKeyword, credentials, locationCode)
+    const nonOtaFromQuoted = quotedItems.filter(i => i.url && !isOta(i.url, country))
 
-    // Merge: quoted results first (higher confidence), unquoted fills gaps
+    const unquotedItems = nonOtaFromQuoted.length >= 2
+      ? []
+      : await fetchSerpItems(unquotedKeyword, credentials, locationCode)
+
+    // Merge: quoted first (higher confidence), unquoted fills gaps
     const seenUrls = new Set<string>()
     const allOrganic: DataForSEOItem[] = []
     for (const item of [...quotedItems, ...unquotedItems]) {
