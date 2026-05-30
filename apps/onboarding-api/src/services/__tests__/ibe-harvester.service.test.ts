@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../env.js', () => ({ env: { RESIDENTIAL_PROXY_URL: undefined } }))
+
 vi.mock('../ibe-resolver.service.js', () => ({
   resolveIbeUrl: vi.fn(),
 }));

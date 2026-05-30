@@ -45,6 +45,11 @@ async function start() {
   // Background warmup: pre-populate HyperGuest static cache so the first request is never cold
   void warmupStaticCache()
 
+  // Start harvest timeout watcher — marks stuck harvesting invitations as failed after 600s
+  void import('./services/onboarding-invitation.service.js').then(m => m.startHarvestTimeoutWatcher()).catch(err =>
+    logger.warn({ err }, '[Harvest] Timeout watcher setup failed (non-fatal)'),
+  )
+
   // Start data provider cron (non-fatal)
   void import('./services/data-provider-cron.service.js').then(m => m.startDataProviderCron()).catch(err =>
     logger.warn({ err }, '[DataProvider] Cron setup failed (non-fatal)'),

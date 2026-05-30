@@ -143,6 +143,7 @@ const SECTIONS: Section[] = [
     minRole: 'admin',
     items: [
       { href: '/admin/hotel-onboarding', label: 'Invitations', minRole: 'admin' },
+      { href: '/admin/hotel-onboarding/queue', label: 'Queue', minRole: 'admin' },
       { href: '/admin/hotel-onboarding/ari-sources', label: 'ARI Sources', minRole: 'admin' },
       { href: '/admin/hotel-onboarding/ibes', label: 'IBEs', minRole: 'admin' },
       { href: '/admin/hotel-onboarding/blocked', label: 'Blacklist', minRole: 'admin' },

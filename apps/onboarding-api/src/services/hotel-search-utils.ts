@@ -28,10 +28,12 @@ export function scoreCandidate(url: string, title: string, hotelName: string, de
     const u = new URL(url)
     const domain = u.hostname.toLowerCase().replace(/^www\./, '')
     const pathLower = u.pathname.toLowerCase()
-    const words = hotelName.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    const normalize = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const words = normalize(hotelName).split(/\s+/).filter(w => w.length > 2)
+    const domainNorm = normalize(domain)
     if (DIRECTORY_PATTERNS.some(d => domain.includes(d))) return 10
     let score = 20
-    const matchCount = words.filter(w => domain.includes(w)).length
+    const matchCount = words.filter(w => domainNorm.includes(w)).length
     if (matchCount >= 2) score += 40
     else if (matchCount === 1) score += 25
     const titleMatchCount = words.filter(w => title.toLowerCase().includes(w)).length

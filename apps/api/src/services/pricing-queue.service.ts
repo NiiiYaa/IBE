@@ -10,6 +10,7 @@ export interface PricingJobData {
 }
 
 const CONNECTION = { url: env.REDIS_URL ?? 'redis://localhost:6379' }
+const REDIS_AVAILABLE = Boolean(env.REDIS_URL)
 
 let _queue: Queue<PricingJobData> | null = null
 let _worker: Worker<PricingJobData> | null = null
@@ -22,6 +23,7 @@ function getQueue(): Queue<PricingJobData> {
 }
 
 export async function enqueuePricingJob(propertyId: number, triggeredBy: 'cron' | 'manual'): Promise<'queued' | 'already_running'> {
+  if (!REDIS_AVAILABLE) return 'already_running'
   const queue = getQueue()
   const [active, waiting] = await Promise.all([queue.getActive(), queue.getWaiting()])
   const alreadyQueued = [...active, ...waiting].some(j => j.data.propertyId === propertyId)
@@ -47,7 +49,8 @@ export async function getPricingJobStatus(propertyId: number): Promise<'idle' | 
   }
 }
 
-export function startPricingWorker(): Worker<PricingJobData> {
+export function startPricingWorker(): Worker<PricingJobData> | null {
+  if (!REDIS_AVAILABLE) return null
   if (!_worker) {
     _worker = new Worker<PricingJobData>(
       'pricing',

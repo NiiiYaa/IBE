@@ -70,6 +70,20 @@ export interface HarvestedRoom {
   supportedOccupancies: HarvestedOccupancy[];
   maxAdults: number | null;
   maxOccupancy: number | null;
+  // Detailed occupancy breakdown (adults/children/infants with age ranges)
+  maxChildren: number | null;
+  maxInfants: number | null;
+  baseOccupancy: number | null;
+  baseAdults: number | null;
+  baseChildren: number | null;
+  baseInfants: number | null;
+  /** Age thresholds derived from occupancy probe (probeOccupancy service) */
+  adultsAgeFrom: number | null;   // first age = adult (e.g. 13)
+  childrenAgeFrom: number | null; // first age = child (e.g. 4)
+  childrenAgeTo: number | null;   // last age = child (e.g. 12)
+  infantsAgeTo: number | null;    // last age = infant (e.g. 3)
+  /** Per-age price points from probe — shows price change at each child age */
+  agePricePoints?: Array<{ age: number; found: boolean; lowestPrice: number | null; priceChangedFromBase: boolean }> | null;
 }
 
 export interface HarvestedFee {

@@ -13,17 +13,26 @@ function dummyDates(): { checkIn: string; checkOut: string } {
   };
 }
 
+export interface HarvestResumeContext {
+  existingData: Record<string, unknown> | null
+  completedSteps: string[]
+  saveProgress: (stepKey: string, partialData?: Record<string, unknown>) => void
+  reportIbeUrl?: (url: string) => void
+}
+
 export async function harvestFromUrl(
   rawUrl: string,
   onProgress: (msg: string) => void,
+  resume?: HarvestResumeContext,
 ): Promise<HarvestedHotelData> {
   onProgress('Identifying booking engine...');
   const resolved = await resolveIbeUrl(rawUrl);
   if (!resolved) throw new Error('IBE URL unresolved — could not identify booking engine');
+  onProgress(`  → ${resolved.ibeName} (hotel ID: ${resolved.hotelId ?? 'n/a'})`)
 
   const harvester = ibeHarvesterMap.get(resolved.ibeName);
   if (!harvester) throw new Error(`No harvester registered for IBE: ${resolved.ibeName}`);
 
-  onProgress(`Detected: ${resolved.ibeName}. Starting harvest...`);
-  return harvester.harvest(resolved.ibeUrl, dummyDates(), onProgress);
+  onProgress(`Starting harvest...`);
+  return harvester.harvest(resolved.ibeUrl, dummyDates(), onProgress, resume);
 }

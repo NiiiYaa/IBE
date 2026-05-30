@@ -36,6 +36,32 @@ function safeParams(url: string): URLSearchParams | null {
 
 const registry: KnownIBEEntry[] = [
   {
+    // D-Edge white-label domain — URL pattern: /d-edge/redirect/{chain}/{hotelId}/
+    name: 'D-Edge / Availpro',
+    sampleUrl: 'https://www.secure-hotel-booking.com/d-edge/EDOUARD-6-MONTPARNASSE-ST-GERMAIN-DES-PRES/24N2/RoomSelection?arrivalDate=2026-07-14&departureDate=2026-07-17&selectedAdultCount=2&selectedChildCount=0&selectedInfantCount=0&currency=EUR&language=en-US&hotelId=335',
+    // Matches: /d-edge/redirect/{chain}/{id}/, /d-edge/{slug}/{chain}/, /{slug}/{chain}/ formats
+    domainPattern: /^https?:\/\/(?:www\.)?secure-hotel-booking\.com\/(?:d-edge\/(?:redirect\/)?)?([^?#]+)/,
+    extractHotelId(url) {
+      // hotelId param takes priority (e.g. ?hotelId=335)
+      try { const p = new URL(url).searchParams; const id = p.get('hotelId'); if (id) return id } catch {}
+      const m = /secure-hotel-booking\.com\/(?:d-edge\/(?:redirect\/)?)?([^/?#\s]+(?:\/[^/?#\s]+)?)/.exec(url)
+      return m?.[1]?.replace(/\/$/, '') ?? null
+    },
+    searchTemplate(url) {
+      if (url.includes('/RoomSelection')) return url
+      const origin = (() => { try { return new URL(url).origin } catch { return 'https://www.secure-hotel-booking.com' } })()
+      const path = (() => { try { return new URL(url).pathname.replace(/\/$/, '') } catch { return '' } })()
+      return `${origin}${path}/RoomSelection?arrivalDate={checkIn}&departureDate={checkOut}&selectedAdultCount={adults}&selectedChildCount=0&selectedInfantCount=0&currency={currency}&language=en-US`
+    },
+    bookingTemplate(url) {
+      if (url.includes('/RoomSelection')) return url
+      const origin = (() => { try { return new URL(url).origin } catch { return 'https://www.secure-hotel-booking.com' } })()
+      const path = (() => { try { return new URL(url).pathname.replace(/\/$/, '') } catch { return '' } })()
+      return `${origin}${path}/RoomSelection?arrivalDate={checkIn}&departureDate={checkOut}&selectedAdultCount={adults}&selectedChildCount=0&selectedInfantCount=0&currency={currency}&language=en-US`
+    },
+    noScraping: true,
+  },
+  {
     name: 'Sentec',
     sampleUrl: 'https://booking.sentec.io/hotel/CERUGZNM22C3CH/rooms?lang=en-US&cur=IDR&in=2026-11-17&out=2026-11-20&guests=A,A',
     domainPattern: /^https?:\/\/booking\.sentec\.io\/hotel\/([^/?#]+)/,

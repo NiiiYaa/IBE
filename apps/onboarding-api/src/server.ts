@@ -1,10 +1,14 @@
 import { buildApp } from './app.js'
 import { env } from './env.js'
 import { prisma } from './db/client.js'
+import { startHarvestQueue } from './services/harvest-queue.service.js'
 
 const app = await buildApp()
 
+const queueInterval = startHarvestQueue()
+
 const shutdown = async () => {
+  clearInterval(queueInterval)
   await app.close()
   await prisma.$disconnect()
   process.exit(0)

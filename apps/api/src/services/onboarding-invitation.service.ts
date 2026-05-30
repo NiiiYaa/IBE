@@ -31,24 +31,26 @@ export async function createInvitation(input: CreateInvitationInput) {
   return invitation
 }
 
-export async function triggerBackgroundHarvest(invitationId: number, ibeUrl: string) {
+export async function triggerBackgroundHarvest(invitationId: number, _ibeUrl: string) {
+  // Enqueue — the onboarding-api queue worker will pick this up based on priority
   await prisma.onboardingInvitation.update({
     where: { id: invitationId },
-    data: { harvestStatus: 'harvesting' },
+    data: {
+      harvestStatus: 'queued',
+      harvestQueuedAt: new Date(),
+      harvestStartedAt: null,
+      harvestCompletedAt: null,
+      failureReason: null,
+      harvestLog: null,
+      // harvestedData and harvestProgress are intentionally preserved for partial resume
+    },
   })
-  const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
-  const res = await fetch(`${internalUrl}/internal/harvest`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invitationId, ibeUrl }),
-  })
-  if (!res.ok) throw new Error(`Internal harvest request failed: ${res.status}`)
 }
 
 export async function markHarvestComplete(invitationId: number, harvestedData: unknown) {
   await prisma.onboardingInvitation.update({
     where: { id: invitationId },
-    data: { harvestStatus: 'complete', harvestedData: harvestedData as any },
+    data: { harvestStatus: 'complete', harvestedData: harvestedData as any, harvestCompletedAt: new Date() },
   })
   const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
   if (invitation?.contactEmail) {
@@ -59,7 +61,7 @@ export async function markHarvestComplete(invitationId: number, harvestedData: u
 export async function markHarvestFailed(invitationId: number, reason: string) {
   await prisma.onboardingInvitation.update({
     where: { id: invitationId },
-    data: { harvestStatus: 'failed', failureReason: reason },
+    data: { harvestStatus: 'failed', failureReason: reason, harvestCompletedAt: new Date() },
   })
   await notifyHarvestFailure(invitationId, reason)
 }
@@ -119,6 +121,38 @@ export async function softDeleteInvitation(id: number) {
 
 export async function hardDeleteInvitation(id: number) {
   return prisma.onboardingInvitation.delete({ where: { id } })
+}
+
+const HARVEST_TIMEOUT_SECONDS = 600
+
+export function startHarvestTimeoutWatcher() {
+  const check = async () => {
+    try {
+      const cutoff = new Date(Date.now() - HARVEST_TIMEOUT_SECONDS * 1000)
+      const stale = await prisma.onboardingInvitation.findMany({
+        where: {
+          harvestStatus: 'harvesting',
+          harvestStartedAt: { lt: cutoff },
+        },
+        select: { id: true },
+      })
+      if (stale.length > 0) {
+        await prisma.onboardingInvitation.updateMany({
+          where: { id: { in: stale.map(i => i.id) } },
+          data: {
+            harvestStatus: 'failed',
+            failureReason: `Harvest timed out after ${HARVEST_TIMEOUT_SECONDS}s`,
+            harvestCompletedAt: new Date(),
+          },
+        })
+        console.log(`[Harvest watcher] Marked ${stale.length} stale harvest(s) as failed`)
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Run immediately on startup, then every 60s
+  void check()
+  return setInterval(check, 60_000)
 }
 
 export async function getInvitationByToken(token: string) {

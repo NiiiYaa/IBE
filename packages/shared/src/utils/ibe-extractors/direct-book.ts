@@ -91,12 +91,13 @@ function parseRateItem(item: unknown): ParsedRate | null {
   const cancelText = coerceStr(
     r['cancellationPolicy'] ?? r['cancellation'] ?? r['refundPolicy'] ?? r['cancelPolicy']
   ) ?? ''
+  const nameStr = coerceStr(r['name']) ?? ''
   const isNonRefundable =
     r['nonRefundable'] === true ||
     r['isNonRefundable'] === true ||
     r['refundable'] === false ||
-    /non.?refund/i.test(cancelText) ||
-    /non.?refund/i.test(coerceStr(r['name']) ?? '')
+    /non.?refund|non.?rembours|no.?refund|nicht.?erstatt|no.?reembols/i.test(cancelText) ||
+    /non.?refund|non.?rembours|no.?refund|nicht.?erstatt|no.?reembols/i.test(nameStr)
   return {
     boardLabel,
     cancelText,

@@ -1,7 +1,19 @@
 import { env } from '../env.js'
+import { prisma } from '../db/client.js'
 import { detectKnownIBE } from '@ibe/shared'
 import { isOta, scoreCandidate, type HotelCandidate } from './hotel-search-utils.js'
 import { getBlockedDomains } from './blocked-domains.service.js'
+
+async function getDfsCredentials(): Promise<{ login: string; password: string } | null> {
+  if (env.DATAFORSEO_LOGIN && env.DATAFORSEO_PASSWORD) {
+    return { login: env.DATAFORSEO_LOGIN, password: env.DATAFORSEO_PASSWORD }
+  }
+  try {
+    const cfg = await prisma.systemDataProviderConfig.findFirst()
+    if (cfg?.login && cfg?.password) return { login: cfg.login, password: cfg.password }
+  } catch { /* ignore — DB may not have this table yet */ }
+  return null
+}
 
 export type { HotelCandidate }
 
@@ -124,7 +136,7 @@ async function fetchSerpItems(
     const res = await fetch(SERP_URL, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([{ keyword, location_code: locationCode, language_code: 'en', depth: 10 }]),
+      body: JSON.stringify([{ keyword, location_code: locationCode, language_code: 'en', depth: 20 }]),
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) return []
@@ -142,10 +154,11 @@ export async function searchHotelsDataForSEO(
   city: string,
   country: string,
 ): Promise<HotelCandidate[]> {
-  if (!env.DATAFORSEO_LOGIN || !env.DATAFORSEO_PASSWORD) return []
+  const dfsCredentials = await getDfsCredentials()
+  if (!dfsCredentials) return []
 
   await getBlockedDomains() // warm the cache; isOta() reads from it synchronously
-  const credentials = Buffer.from(`${env.DATAFORSEO_LOGIN}:${env.DATAFORSEO_PASSWORD}`).toString('base64')
+  const credentials = Buffer.from(`${dfsCredentials.login}:${dfsCredentials.password}`).toString('base64')
   const locationCode = locationCodeForCountry(country)
 
   const location = [city, country].filter(Boolean).join(' ')
@@ -199,7 +212,7 @@ export async function searchHotelsDataForSEO(
 
     // Deduplicate by base domain — keep highest-scoring result per domain
     const byDomain = new Map<string, HotelCandidate>()
-    for (const c of candidates.filter(c => c.score >= 30)) {
+    for (const c of candidates.filter(c => c.score >= 15)) {
       try {
         const domain = new URL(c.url).hostname.replace(/^www\./, '')
         const existing = byDomain.get(domain)

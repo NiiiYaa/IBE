@@ -23,10 +23,10 @@ function tryTier1(url: string): ResolvedIBE | null {
   return { ibeName: d.name, ibeUrl: url, hotelId: d.externalHotelId };
 }
 
-const BOOKING_TEXT_RE = /book(?:ing(?:s|now)?|now)?|r[eé]serv(?:e|er|ations?|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ations?)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill|pric(?:e|es|ing)|rates?|offers?|deals?|vacanc(?:y|ies)|suites?|stay(?:s|ing)?|accommodation|check.in|check.out|arrival|departure/iu
+const BOOKING_TEXT_RE = /book(?:ing(?:s|now)?|now)?|r[eé]serv(?:e|er|ations?|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ations?)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill|pric(?:e|es|ing)\s+rooms?|best\s+rates?|offers?|deals?|vacanc(?:y|ies)|book\s+suites?|accommodation/iu
 
 // URL path patterns — detect booking links regardless of button text (e.g. icon buttons)
-const BOOKING_URL_RE = /\/book(?:ing|-now|-online)?(?:\/|$|\?)|\/reserv(?:e|ation|ations?|ar)?(?:\/|$|\?)|\/check.?avail|\/rates?(?:\/|$|\?)|\/rooms?(?:\/|$|\?)|\/availability(?:\/|$|\?)|\/tarif(?:fs?|aux)?(?:\/|$|\?)|\/prenot|\/buchen|booking-engine|reservation-engine|\/accommodation(?:\/|$|\?)|\/offers?(?:\/|$|\?)|\/deals?(?:\/|$|\?)|\/suites?(?:\/|$|\?)|\/stay(?:\/|$|\?)/i
+const BOOKING_URL_RE = /\/book(?:ing|-now|-online)?(?:\/|$|\?)|\/reserv(?:e|ation|ations?|ar)?(?:\/|$|\?)|\/check.?avail|\/rates?(?:\/|$|\?)|\/rooms?(?:\/|$|\?)|\/availability(?:\/|$|\?)|\/tarif(?:fs?|aux)?(?:\/|$|\?)|\/prenot|\/buchen|booking-engine|reservation-engine|\/accommodation(?:\/|$|\?)|\/offers?(?:\/|$|\?)|\/deals?(?:\/|$|\?)|\/suites?(?:\/|$|\?)|\/stay(?:\/|$|\?)|secure-hotel-booking\.com|be\.synxis\.com|booking\.d-edge\.com/i
 const MAX_HOPS = 5;
 
 // Vendor fingerprints detected from page <script>/<link> resource URLs.
@@ -38,7 +38,7 @@ const RESOURCE_FINGERPRINTS: Array<{ pattern: RegExp; ibeName: string }> = [
   { pattern: /avvio\.com/i,                                           ibeName: 'Avvio' },
   { pattern: /motor\.mirai\.com|secure\.mirai\.com/i,                ibeName: 'Mirai' },
   { pattern: /booking\.profitroom\.com|profitroom\.com/i,            ibeName: 'Profitroom' },
-  { pattern: /availpro\.com|booking\.d-edge\.com/i,                  ibeName: 'D-Edge / Availpro' },
+  { pattern: /availpro\.com|booking\.d-edge\.com|secure-hotel-booking\.com\/d-edge/i, ibeName: 'D-Edge / Availpro' },
   { pattern: /booking\.omnibees\.com/i,                              ibeName: 'Omnibees' },
   { pattern: /reservit\.com/i,                                        ibeName: 'Reservit' },
   { pattern: /amenitiz\.io|engine\.amenitiz\.io/i,                   ibeName: 'Amenitiz' },
@@ -65,7 +65,8 @@ async function collectBookingCandidates(page: Page, currentUrl: string): Promise
       }
 
       function isVisible(el: Element) {
-        return (el as HTMLElement).offsetParent !== null
+        const r = (el as HTMLElement).getBoundingClientRect()
+        return r.width > 0 && r.height > 0
       }
 
       function extractText(el: Element) {
@@ -78,14 +79,16 @@ async function collectBookingCandidates(page: Page, currentUrl: string): Promise
         )
       }
 
-      // 1. <a href> — by booking text OR booking URL pattern
+      // 1. <a href> — URL-pattern matches (known IBE domains) always included regardless of visibility;
+      //    text-based matches require visibility (avoids picking up hidden nav duplicates)
       for (const el of Array.from(document.querySelectorAll('a[href]'))) {
-        if (!isVisible(el)) continue
         const a = el as HTMLAnchorElement
         const href = a.href
         if (!href?.startsWith('http')) continue
+        if (urlRe.test(href)) { add(href); continue } // known IBE domain — always include
+        if (!isVisible(el)) continue
         const text = extractText(el)
-        if (textRe.test(text) || urlRe.test(href)) add(href)
+        if (textRe.test(text)) add(href)
       }
 
       // 2. <button> / [role="button"] — extract URL from data-* or onclick
@@ -102,10 +105,12 @@ async function collectBookingCandidates(page: Page, currentUrl: string): Promise
         if (m) add(m[0]!)
       }
 
-      // 3. <iframe src> on a different origin — likely embedded booking widget
+      // 3. <iframe src> on a different origin — likely embedded booking widget.
+      // Skip known non-booking embeds (maps, social, analytics, video, consent).
+      const NON_BOOKING_IFRAME = /google\.(com|co\.|maps)|youtube\.com|facebook\.com|twitter\.com|instagram\.com|linkedin\.com|vimeo\.com|googletagmanager\.com|analytics\.|hotjar\.|cookiebot\.|onetrust\.|maps\.googleapis/i
       for (const el of Array.from(document.querySelectorAll('iframe[src]'))) {
         const src = (el as HTMLIFrameElement).src
-        if (src?.startsWith('http') && !src.startsWith(args.currentOrigin)) add(src)
+        if (src?.startsWith('http') && !src.startsWith(args.currentOrigin) && !NON_BOOKING_IFRAME.test(src)) add(src)
       }
 
       // 4. <form action> matching booking URL pattern
@@ -210,12 +215,25 @@ async function submitSearchWidget(page: Page): Promise<string | null> {
 
     if (!submitted) return null
 
-    // Observe navigation result
-    const navPromise = page.waitForNavigation({ timeout: 5000 }).then(() => page.url()).catch(() => null)
-    const popupPromise = page.context().waitForEvent('page', { timeout: 5000 })
-      .then((p: { url(): string }) => p.url()).catch(() => null)
+    // Observe navigation result — filter same-origin navigations, wait for first non-null
+    const submitOrigin = (() => { try { return new URL(page.url()).origin } catch { return '' } })()
+    const submitNavPromise = page.waitForNavigation({ timeout: 8000 })
+      .then(() => { const u = page.url(); try { if (new URL(u).origin === submitOrigin) return null } catch {}; return u })
+      .catch(() => null)
+    const submitPopupPromise = page.context().waitForEvent('page', { timeout: 8000 })
+      .then(async (p) => {
+        await (p as any).waitForLoadState?.('domcontentloaded', { timeout: 6000 }).catch(() => {})
+        const u = (p as { url(): string }).url()
+        return u === 'about:blank' ? null : u
+      }).catch(() => null)
 
-    const result = await Promise.race([navPromise, popupPromise])
+    const result = await new Promise<string | null>((resolve) => {
+      let settled = 0
+      const check = (val: string | null) => { if (val) { resolve(val); return }; if (++settled >= 2) resolve(null) }
+      submitNavPromise.then(check)
+      submitPopupPromise.then(check)
+      setTimeout(() => resolve(null), 9000)
+    })
     if (result && result !== 'about:blank') return result
 
     // Check for new iframe after submission (some widgets load the IBE in an iframe)
@@ -242,11 +260,10 @@ async function clickAndObserve(page: Page): Promise<string | null> {
 
       for (const el of Array.from(document.querySelectorAll('a[href], button, [role="button"]'))) {
         const h = el as HTMLElement
-        if (h.offsetParent === null) continue // hidden
+        const rect = h.getBoundingClientRect()
+        if (rect.width === 0 && rect.height === 0) continue // hidden
         const text = h.innerText?.trim() || h.getAttribute('aria-label') || h.getAttribute('title') || ''
         if (!re.test(text)) continue
-
-        const rect = h.getBoundingClientRect()
         let score = 0
         if (rect.top < window.innerHeight) score += 20
         if (el.closest('header, nav, [role="navigation"]')) score += 30
@@ -258,24 +275,81 @@ async function clickAndObserve(page: Page): Promise<string | null> {
       candidates.sort((a, b) => b.score - a.score)
       const best = candidates[0]!.el
 
-      // Build a unique selector so Playwright can click it outside evaluate
-      if (best.id) return `#${CSS.escape(best.id)}`
+      // Return enough info for Playwright to identify the element uniquely
+      const text = best.innerText?.trim().slice(0, 40) || ''
+      const href = (best as HTMLAnchorElement).href || ''
       const tag = best.tagName.toLowerCase()
+      if (best.id) return JSON.stringify({ type: 'css', selector: `#${CSS.escape(best.id)}` })
+      if (href) return JSON.stringify({ type: 'href', href, tag })
+      if (text) return JSON.stringify({ type: 'text', text, tag })
       const cls = Array.from(best.classList).slice(0, 2).map(c => `.${CSS.escape(c)}`).join('')
-      return `${tag}${cls}` || tag
+      return JSON.stringify({ type: 'css', selector: `${tag}${cls}` || tag })
     }, BOOKING_TEXT_RE.source).catch(() => null)
 
     if (!selector) return null
 
-    // Set up listeners BEFORE clicking so fast-opening new tabs are not missed
-    const navPromise = page.waitForNavigation({ timeout: 5000 }).then(() => page.url()).catch(() => null)
-    const popupPromise = page.context().waitForEvent('page', { timeout: 5000 })
-      .then((p: { url(): string }) => p.url()).catch(() => null)
+    // If the element has a direct href to a known IBE, return it immediately without clicking
+    try {
+      const desc = JSON.parse(selector) as { type: string; href?: string }
+      if (desc.type === 'href' && desc.href) {
+        const t1 = tryTier1(desc.href)
+        if (t1) return desc.href
+        // Also check if it matches BOOKING_URL_RE — if so, return for Tier1 check by caller
+        const urlRe = /secure-hotel-booking\.com|be\.synxis\.com|booking\.d-edge\.com/i
+        if (urlRe.test(desc.href)) return desc.href
+      }
+    } catch {}
 
-    await page.click(selector, { timeout: 3000 }).catch(() => {})
+    // Parse the element descriptor and build a Playwright-compatible locator string
+    let playwrightSelector: string
+    try {
+      const desc = JSON.parse(selector) as { type: string; selector?: string; href?: string; text?: string; tag?: string }
+      if (desc.type === 'css') {
+        playwrightSelector = desc.selector!
+      } else if (desc.type === 'href') {
+        playwrightSelector = `${desc.tag ?? 'a'}[href="${desc.href}"]`
+      } else {
+        // text-based: use Playwright's text= selector
+        playwrightSelector = `${desc.tag ?? 'a'}:has-text("${desc.text!.replace(/"/g, '\\"')}")`
+      }
+    } catch {
+      playwrightSelector = selector
+    }
+    console.log(`[IBE v2] clickAndObserve playwrightSelector=${playwrightSelector}`)
 
-    const result = await Promise.race([navPromise, popupPromise])
-    if (result && result !== 'about:blank') return result
+    const pageOrigin = (() => { try { return new URL(page.url()).origin } catch { return '' } })()
+
+    // Set up listeners BEFORE clicking.
+    // Use a custom race that waits for the first non-null, non-same-origin, non-about:blank result.
+    // navPromise returns null for same-origin navigations (fragment changes like #home)
+    // so the popup (new tab) can still win even if a fragment change fires first.
+    const navPromise = page.waitForNavigation({ timeout: 8000 })
+      .then(() => {
+        const u = page.url()
+        try { if (new URL(u).origin === pageOrigin) return null } catch {}
+        return u
+      }).catch(() => null)
+    const popupPromise = page.context().waitForEvent('page', { timeout: 8000 })
+      .then(async (p) => {
+        await (p as any).waitForLoadState?.('domcontentloaded', { timeout: 6000 }).catch(() => {})
+        const u = (p as { url(): string }).url()
+        return u === 'about:blank' ? null : u
+      }).catch(() => null)
+
+    await page.click(playwrightSelector, { timeout: 3000 }).catch(() => {})
+
+    // Wait for the first non-null result from either promise
+    const result = await new Promise<string | null>((resolve) => {
+      let settled = 0
+      const check = (val: string | null) => {
+        if (val) { resolve(val); return }
+        if (++settled >= 2) resolve(null)
+      }
+      navPromise.then(check)
+      popupPromise.then(check)
+      setTimeout(() => resolve(null), 9000)
+    })
+    if (result) return result
 
     // Check if a new iframe appeared after the click
     return page.evaluate(() => {
@@ -327,6 +401,7 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
     let currentUrl = startUrl;
     // Track first booking-intent URL found — fallback if no known IBE is detected
     let firstBookingUrl: string | null = null;
+    const startOrigin = (() => { try { return new URL(startUrl).origin } catch { return '' } })()
 
     for (let hop = 0; hop < MAX_HOPS; hop++) {
       // Check current URL against registry
@@ -339,6 +414,7 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
 
       // Collect booking-intent candidates from all sources
       const hrefs = await collectBookingCandidates(page, currentUrl)
+      console.log(`[IBE resolver v2] hop=${hop} url=${currentUrl} candidates=${JSON.stringify(hrefs)}`)
 
       // Check each href via Tier 1 before navigating
       for (const href of hrefs) {
@@ -348,19 +424,36 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
 
       if (hrefs.length === 0) break;
 
-      // Remember the first booking URL we encountered (for unknown-IBE fallback)
-      const candidateUrl = hrefs[0]!;
-      if (!firstBookingUrl && candidateUrl !== startUrl) {
-        firstBookingUrl = candidateUrl;
+      // Only follow external URLs (different origin) or same-origin paths that differ from start.
+      // Skip pure same-origin anchor-only changes to avoid getting stuck on the hotel homepage.
+      const externalHrefs = hrefs.filter(h => {
+        try { return new URL(h).origin !== startOrigin } catch { return false }
+      })
+      const candidateUrl = externalHrefs[0] ?? hrefs.find(h => {
+        try {
+          const u = new URL(h)
+          return u.origin === startOrigin && u.pathname !== new URL(startUrl).pathname
+        } catch { return false }
+      })
+
+      if (!candidateUrl) break
+
+      // Only track as booking URL if it's on a different domain (external IBE)
+      if (!firstBookingUrl) {
+        try {
+          if (new URL(candidateUrl).origin !== startOrigin) firstBookingUrl = candidateUrl
+        } catch {}
       }
 
-      // Navigate to the first booking-intent link
+      // Navigate to the candidate
       try {
         await page.goto(candidateUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
         await page.waitForTimeout(2000);
         currentUrl = page.url();
-        // Update firstBookingUrl to the resolved URL after navigation
-        firstBookingUrl = currentUrl;
+        // Only update firstBookingUrl if we landed on a different domain
+        try {
+          if (new URL(currentUrl).origin !== startOrigin) firstBookingUrl = currentUrl
+        } catch {}
       } catch {
         break;
       }
@@ -368,31 +461,46 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
 
     // Search-widget fallback — fill date fields and submit the booking search form
     const widgetUrl = await submitSearchWidget(page)
+    console.log(`[IBE v2] widgetUrl=${widgetUrl}`)
     if (widgetUrl) {
       const t1 = tryTier1(widgetUrl)
       if (t1) return t1
       const resourceMatch = await scanPageResources(page, widgetUrl)
       if (resourceMatch) return resourceMatch
-      if (widgetUrl !== startUrl) firstBookingUrl = widgetUrl
+      try { if (new URL(widgetUrl).origin !== startOrigin) firstBookingUrl = widgetUrl } catch {}
     }
 
     // Click-and-observe fallback — only reached when all hops found no candidates
     const clickedUrl = await clickAndObserve(page)
-    if (clickedUrl) {
-      const t1 = tryTier1(clickedUrl)
+    console.log(`[IBE v2] clickedUrl=${clickedUrl} firstBookingUrl=${firstBookingUrl}`)
+    const clickedExternal = clickedUrl && (() => { try { return new URL(clickedUrl).origin !== startOrigin } catch { return false } })()
+    if (clickedExternal) {
+      const t1 = tryTier1(clickedUrl!)
       if (t1) return t1
-      const resourceMatch = await scanPageResources(page, clickedUrl)
+      const resourceMatch = await scanPageResources(page, clickedUrl!)
       if (resourceMatch) return resourceMatch
-      if (clickedUrl !== startUrl) {
-        firstBookingUrl = clickedUrl
+      firstBookingUrl = clickedUrl!
+    }
+    if (!clickedUrl || !clickedExternal) {
+      // null: nothing clicked, OR same-origin: click opened a calendar/overlay on the same page
+      // clickAndObserve clicked something but navigation didn't happen.
+      // Common pattern: "Book Now" opens a date-picker calendar on the same page.
+      // Wait for it to appear, then try submitSearchWidget to fill dates and submit.
+      await page.waitForTimeout(2000)
+
+      // Try filling the date picker that appeared after clicking the booking button
+      const postClickWidgetUrl = await submitSearchWidget(page)
+      if (postClickWidgetUrl) {
+        const t1 = tryTier1(postClickWidgetUrl)
+        if (t1) return t1
+        const resourceMatch = await scanPageResources(page, postClickWidgetUrl)
+        if (resourceMatch) return resourceMatch
+        try { if (new URL(postClickWidgetUrl).origin !== startOrigin) firstBookingUrl = postClickWidgetUrl } catch {}
       }
-    } else {
-      // clickAndObserve clicked something but navigation didn't happen — the click may have
-      // opened an in-page modal/overlay that injected IBE scripts. Wait and re-scan.
-      await page.waitForTimeout(2500)
+
+      // Also scan for new resources or iframes injected by the calendar widget
       const modalResourceMatch = await scanPageResources(page, currentUrl)
       if (modalResourceMatch) return modalResourceMatch
-      // Also look for new iframes that appeared after the click
       const modalCandidates = await collectBookingCandidates(page, currentUrl)
       for (const href of modalCandidates) {
         const t1 = tryTier1(href)

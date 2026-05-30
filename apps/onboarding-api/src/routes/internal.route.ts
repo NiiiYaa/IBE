@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
+import { prisma } from '../db/client.js';
 import { harvestFromUrl } from '../services/ibe-harvester.service.js';
 import { invalidateBlockedDomainsCache } from '../services/blocked-domains.service.js';
+
+// In-memory DataDome cookie store (24h TTL, reset on restart)
+export const dataDomeCookies: Record<string, string> = {}
 
 export async function internalRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request, reply) => {
@@ -23,12 +27,21 @@ export async function internalRoutes(app: FastifyInstance) {
       const callbackBase = process.env['IBE_API_CALLBACK_URL'] ?? 'http://localhost:3000';
       const secret = env.INTERNAL_API_SECRET;
 
+      const HARVEST_TIMEOUT_MS = 120_000 // 2 minutes hard cap
+
       // Run harvest asynchronously — respond immediately so apps/api is not blocked
       setImmediate(async () => {
         try {
-          const harvestedData = await harvestFromUrl(ibeUrl, (msg) => {
-            console.log(`[harvest:${invitationId}] ${msg}`);
-          });
+          const appendLog = (msg: string) => {
+            const line = `[${new Date().toISOString().slice(11, 19)}] ${msg}\n`
+            console.log(`[harvest:${invitationId}] ${msg}`)
+            prisma.$executeRaw`UPDATE "OnboardingInvitation" SET "harvestLog" = COALESCE("harvestLog", '') || ${line} WHERE id = ${invitationId}`.catch(() => {})
+          }
+          const harvestPromise = harvestFromUrl(ibeUrl, appendLog)
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Harvest timed out after ${HARVEST_TIMEOUT_MS / 1000}s`)), HARVEST_TIMEOUT_MS)
+          )
+          const harvestedData = await Promise.race([harvestPromise, timeoutPromise])
           await fetch(`${callbackBase}/internal/onboarding/harvest-complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-internal-secret': secret },
@@ -47,6 +60,12 @@ export async function internalRoutes(app: FastifyInstance) {
       return reply.code(202).send({ ok: true });
     }
   );
+
+  app.post<{ Body: { domain: string; cookie: string } }>('/internal/datadome-cookie', async (request, reply) => {
+    const { domain, cookie } = request.body
+    if (domain && cookie) dataDomeCookies[domain] = cookie
+    return reply.send({ ok: true })
+  })
 
   app.post('/internal/invalidate-blocked-cache', async (_request, reply) => {
     invalidateBlockedDomainsCache();

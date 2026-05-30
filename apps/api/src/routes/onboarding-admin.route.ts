@@ -16,6 +16,32 @@ import { resolveAIConfig } from '../services/ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { prisma } from '../db/client.js'
 
+// Stateless HMAC-signed scrape tokens — no in-memory store, survives API restarts.
+// Format: base64url(invitationId:expiresAt:hmac)
+import { createHmac } from 'crypto'
+const SCRAPE_TOKEN_SECRET = process.env['INTERNAL_API_SECRET'] ?? 'dev-scrape-secret'
+
+export function createScrapeToken(invitationId: number): string {
+  const expiresAt = Date.now() + 24 * 3600 * 1000
+  const payload = `${invitationId}:${expiresAt}`
+  const sig = createHmac('sha256', SCRAPE_TOKEN_SECRET).update(payload).digest('base64url')
+  return Buffer.from(`${payload}:${sig}`).toString('base64url')
+}
+
+export function verifyScrapeToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf8')
+    const parts = decoded.split(':')
+    if (parts.length !== 3) return null
+    const [idStr, expiresAtStr, sig] = parts
+    if (Date.now() > parseInt(expiresAtStr)) return null
+    const payload = `${idStr}:${expiresAtStr}`
+    const expected = createHmac('sha256', SCRAPE_TOKEN_SECRET).update(payload).digest('base64url')
+    if (sig !== expected) return null
+    return parseInt(idStr)
+  } catch { return null }
+}
+
 const createInvitationSchema = z.object({
   pmsId:           z.number().int().positive().optional(),
   unknownPmsName:  z.string().optional(),
@@ -287,6 +313,40 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
     }
   )
 
+  // AI-only search — used when SERP results are all blocked and user wants a fresh suggestion
+  app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
+    '/admin/hotel-onboarding/search/ai',
+    async (request, reply) => {
+      const me = request.admin
+      if (!me.organizationId && me.role !== 'super') return reply.badRequest('No organization context')
+      const { hotelName, city, country } = request.body
+      if (!hotelName?.trim()) return reply.badRequest('hotelName is required')
+      try {
+        type Candidate = { url: string; title: string; detected: boolean; ibeName: string | null; screenshotUrl: string | null; score: number }
+        const { resolveAIConfig } = await import('../services/ai-config.service.js')
+        const { getProviderAdapter } = await import('../ai/adapters/index.js')
+        const { detectKnownIBE } = await import('@ibe/shared')
+        const aiConfig = await resolveAIConfig()
+        if (!aiConfig || aiConfig.provider === 'fake') return reply.send({ candidates: [] })
+        const adapter = getProviderAdapter(aiConfig.provider)
+        let aiTimeoutId: ReturnType<typeof setTimeout>
+        const aiRes = await Promise.race([
+          adapter.call(
+            [{ role: 'user', content: `What is the official website homepage URL for the hotel "${hotelName.trim()}"${city?.trim() ? ` in ${city.trim()}` : ''}${country?.trim() ? `, ${country.trim()}` : ''}? Reply with ONLY the root homepage URL, no explanation.` }],
+            [], 'You are a hotel industry expert. Reply with only a URL.', aiConfig.apiKey, aiConfig.model,
+          ),
+          new Promise<never>((_, reject) => { aiTimeoutId = setTimeout(() => reject(new Error('AI timeout')), 15000) }),
+        ]).finally(() => clearTimeout(aiTimeoutId))
+        const urlMatch = aiRes.text?.match(/https?:\/\/[^\s"'<>]+/)
+        if (!urlMatch) return reply.send({ candidates: [] })
+        const aiUrl = urlMatch[0].replace(/[.,)]+$/, '')
+        const detection = detectKnownIBE(aiUrl)
+        const candidate: Candidate = { url: aiUrl, title: `${hotelName.trim()} (AI suggestion)`, detected: detection !== null, ibeName: detection?.name ?? null, screenshotUrl: null, score: detection ? 90 : 60 }
+        return reply.send({ candidates: [candidate] })
+      } catch { return reply.send({ candidates: [] }) }
+    }
+  )
+
   app.post<{ Body: { hotelName: string; city: string; country?: string } }>(
     '/admin/hotel-onboarding/search',
     async (request, reply) => {
@@ -314,7 +374,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
           }
         } catch { /* DataForSEO failed — continue */ }
 
-        if (allCandidates.some(c => c.score >= 30)) return reply.send({ candidates: allCandidates })
+        if (allCandidates.some(c => c.score >= 15)) return reply.send({ candidates: allCandidates })
 
         // Step 2: AI fallback
         const aiConfig = await resolveAIConfig()
@@ -358,7 +418,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
           } catch { /* AI failed — continue to Brave */ }
         }
 
-        if (allCandidates.some(c => c.score >= 30)) return reply.send({ candidates: allCandidates })
+        if (allCandidates.some(c => c.score >= 15)) return reply.send({ candidates: allCandidates })
 
         // Step 3: Brave (last resort, slow ~40s)
         const braveController = new AbortController()
@@ -396,6 +456,105 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       }
     }
   )
+
+  // Store DataDome bypass cookies — forwarded to onboarding-api in-memory store
+  app.post<{ Body: { domain: string; cookie: string } }>(
+    '/admin/hotel-onboarding/datadome-cookies',
+    async (request, reply) => {
+      const me = request.admin
+      if (me.role !== 'super' && me.role !== 'admin' && me.role !== 'ob_agent') return reply.forbidden()
+      const { domain, cookie } = request.body
+      if (!domain || !cookie) return reply.badRequest('domain and cookie required')
+      const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+      const secret = process.env['INTERNAL_API_SECRET'] ?? 'dev-internal-secret'
+      await fetch(`${internalUrl}/internal/datadome-cookie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-secret': secret },
+        body: JSON.stringify({ domain, cookie }),
+      }).catch(() => {})
+      return { ok: true }
+    }
+  )
+
+  // GET scrape token — returns a one-time token for use in the browser console script
+  app.get<{ Params: { id: string } }>(
+    '/admin/hotel-onboarding/invitations/:id/scrape-token',
+    async (request, reply) => {
+      const me = request.admin
+      if (me.role !== 'super' && me.role !== 'admin' && me.role !== 'ob_agent') return reply.forbidden()
+      const id = parseInt(request.params.id)
+      if (isNaN(id)) return reply.badRequest('invalid id')
+      const token = createScrapeToken(id)
+      return reply.send({ token })
+    }
+  )
+
+  // GET supported IBE patterns (those with a harvester built)
+  app.get('/admin/hotel-onboarding/supported-ibes', async (_request, reply) => {
+    const internalUrl = process.env['ONBOARDING_API_INTERNAL_URL'] ?? 'http://localhost:3003'
+    try {
+      const res = await fetch(`${internalUrl}/supported-ibes`)
+      if (res.ok) return reply.send(await res.json())
+    } catch {}
+    return reply.send({ supported: [] })
+  })
+
+  // ── Harvest queue management ─────────────────────────────────────────────
+  app.get('/admin/hotel-onboarding/harvest-queue', async (request, reply) => {
+    const me = request.admin
+    const orgFilter = me.role === 'super' ? {} : { organizationId: me.organizationId }
+    const items = await prisma.onboardingInvitation.findMany({
+      where: { harvestStatus: { in: ['queued', 'harvesting'] }, ...orgFilter },
+      select: { id: true, hotelName: true, source: true, harvestStatus: true, harvestQueuedAt: true, harvestStartedAt: true, ibeUrl: true, ibePattern: true, organizationId: true },
+      orderBy: { harvestQueuedAt: 'asc' },
+    })
+    // Sort by priority: self_registration (3) > staff_invite (2) > zoho (1)
+    const priority: Record<string, number> = { self_registration: 3, staff_invite: 2, zoho: 1 }
+    return items.sort((a, b) => {
+      if (a.harvestStatus === 'harvesting') return -1
+      if (b.harvestStatus === 'harvesting') return 1
+      return (priority[b.source] ?? 0) - (priority[a.source] ?? 0)
+    })
+  })
+
+  app.delete('/admin/hotel-onboarding/harvest-queue/:id', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    await prisma.onboardingInvitation.update({
+      where: { id: invitationId },
+      data: { harvestStatus: 'failed', failureReason: `Cancelled from queue by ${me.email}`, harvestCompletedAt: new Date() },
+    })
+    return reply.code(204).send()
+  })
+
+  app.patch<{ Params: { id: string }; Body: { priority: 'high' | 'low' } }>(
+    '/admin/hotel-onboarding/harvest-queue/:id/priority',
+    async (request, reply) => {
+      const me = request.admin
+      const invitationId = parseInt(request.params.id, 10)
+      // Bump priority by updating harvestQueuedAt: set to far past (high) or far future (low)
+      const newQueuedAt = request.body.priority === 'high'
+        ? new Date(0) // epoch = highest priority
+        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // far future = lowest
+      await prisma.onboardingInvitation.update({
+        where: { id: invitationId },
+        data: { harvestQueuedAt: newQueuedAt },
+      })
+      return reply.code(204).send()
+    }
+  )
+
+  app.get('/admin/hotel-onboarding/invitations/:id/harvest-status', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const inv = await prisma.onboardingInvitation.findUnique({
+      where: { id: invitationId },
+      select: { id: true, harvestStatus: true, harvestLog: true, harvestStartedAt: true, harvestCompletedAt: true, failureReason: true, organizationId: true },
+    })
+    if (!inv) return reply.notFound()
+    if (me.role !== 'super' && inv.organizationId !== me.organizationId) return reply.forbidden()
+    return { harvestStatus: inv.harvestStatus, harvestLog: inv.harvestLog, harvestStartedAt: inv.harvestStartedAt, harvestCompletedAt: inv.harvestCompletedAt, failureReason: inv.failureReason }
+  })
 
   app.get('/admin/hotel-onboarding/invitations/needs-attention', async (request, reply) => {
     const me = request.admin
@@ -561,6 +720,57 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       return reply.forbidden('Access denied')
     }
     if (!invitation.ibeUrl) return reply.badRequest('No IBE URL on invitation')
+    await triggerBackgroundHarvest(invitationId, invitation.ibeUrl)
+    return { ok: true }
+  })
+
+  // Cancel a running harvest
+  app.post('/admin/hotel-onboarding/invitations/:id/cancel-harvest', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) return reply.forbidden()
+    if (invitation.harvestStatus !== 'harvesting') return reply.badRequest('Harvest is not running')
+    await prisma.onboardingInvitation.update({
+      where: { id: invitationId },
+      data: { harvestStatus: 'failed', failureReason: 'Cancelled by user', harvestCompletedAt: new Date() },
+    })
+    return { ok: true }
+  })
+
+  // Move invitation to HG Queue for investigation
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/admin/hotel-onboarding/invitations/:id/move-to-queue',
+    async (request, reply) => {
+      const me = request.admin
+      const invitationId = parseInt(request.params.id, 10)
+      const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+      if (!invitation) return reply.notFound('Invitation not found')
+      if (me.role !== 'super' && invitation.organizationId !== me.organizationId) return reply.forbidden()
+      await prisma.onboardingInvitation.update({
+        where: { id: invitationId },
+        data: { hgStatus: 'needs_research' },
+      })
+      return { ok: true }
+    }
+  )
+
+  // Force full re-harvest from scratch — clears all previous harvest data and progress
+  app.post('/admin/hotel-onboarding/invitations/:id/reharvest', async (request, reply) => {
+    const me = request.admin
+    const invitationId = parseInt((request.params as { id: string }).id, 10)
+    const invitation = await prisma.onboardingInvitation.findUnique({ where: { id: invitationId } })
+    if (!invitation) return reply.notFound('Invitation not found')
+    if (me.role !== 'super' && invitation.organizationId !== me.organizationId) {
+      return reply.forbidden('Access denied')
+    }
+    if (!invitation.ibeUrl) return reply.badRequest('No IBE URL on invitation')
+    // Clear all previous harvest data before re-queuing
+    await prisma.onboardingInvitation.update({
+      where: { id: invitationId },
+      data: { harvestedData: null, harvestProgress: null, harvestLog: null },
+    })
     await triggerBackgroundHarvest(invitationId, invitation.ibeUrl)
     return { ok: true }
   })

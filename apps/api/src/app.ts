@@ -74,6 +74,7 @@ import { flexibleDatesPublicRoutes, flexibleDatesAdminRoutes } from './routes/fl
 import { interHotelPublicRoutes, interHotelAdminRoutes } from './routes/interhotel.route.js'
 import { multiCityPublicRoutes, multiCityAdminRoutes } from './routes/multicity.route.js'
 import { onboardingAdminRoutes } from './routes/onboarding-admin.route.js'
+import { onboardingScrapeRoutes } from './routes/onboarding-scrape.route.js'
 import { onboardingInternalRoutes } from './routes/onboarding-internal.route.js'
 import type { AdminPayload } from './services/auth.service.js'
 
@@ -226,6 +227,9 @@ export async function buildApp() {
 
   // MCP server endpoint (public — auth via Bearer API key or OAuth JWT)
   await app.register(mcpRoutes, { prefix: '/api/v1' })
+
+  // Bookmarklet scrape endpoint (public — auth via one-time token, CORS open)
+  await app.register(onboardingScrapeRoutes, { prefix: '/api/v1' })
 
   // Built-in OAuth 2.0 server (public — for ChatGPT and Claude.ai connectors)
   await app.register(oauthRoutes, { prefix: '/api/v1' })

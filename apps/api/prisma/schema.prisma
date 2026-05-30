@@ -2248,6 +2248,11 @@ model OnboardingInvitation {
   contactEmail        String?
   // Pre-harvest fields (staff_invite / zoho flow only)
   harvestStatus       String             @default("pending") // pending | harvesting | complete | failed
+  harvestStartedAt    DateTime?          // when the Playwright scrape began
+  harvestCompletedAt  DateTime?          // when the scrape finished (complete or failed)
+  harvestLog          String?            // newline-delimited progress messages from the harvester
+  harvestProgress     Json?              // array of completed step keys — used for partial resume on retry
+  harvestQueuedAt     DateTime?          // when the invitation entered the harvest queue
   harvestedData       Json?              // HarvestedHotelData — populated before invitation is sent (staff/CRM flow)
   failureReason       String?            // error message if harvestStatus=failed
   harvestNotifiedAt   DateTime?          // when HG staff were notified of harvest failure

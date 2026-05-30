@@ -3,6 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
+vi.mock('../../db/client.js', () => ({
+  prisma: {
+    systemDataProviderConfig: { findFirst: vi.fn().mockResolvedValue(null) },
+  },
+}))
+
 vi.mock('../../env.js', () => ({
   env: {
     DATAFORSEO_LOGIN: 'testlogin',
@@ -10,10 +16,11 @@ vi.mock('../../env.js', () => ({
   },
 }))
 
+const BLOCKED = [{ domain: 'booking.com', matchType: 'subdomain', country: null }]
 vi.mock('../blocked-domains.service.js', () => ({
-  getBlockedDomains: vi.fn().mockResolvedValue([]),
-  getCachedBlockedDomains: vi.fn().mockReturnValue([]),
-  isBlockedByList: vi.fn().mockReturnValue(false),
+  getBlockedDomains: vi.fn().mockResolvedValue(BLOCKED),
+  getCachedBlockedDomains: vi.fn().mockReturnValue(BLOCKED),
+  isBlockedByList: vi.fn().mockImplementation((url: string) => url.includes('booking.com')),
   invalidateBlockedDomainsCache: vi.fn(),
 }))
 
@@ -78,7 +85,7 @@ describe('searchHotelsDataForSEO', () => {
     expect(body[0].keyword).toContain('"Grand Hotel"')
     expect(body[0].keyword).toContain('Rome')
     expect(body[0].keyword).toContain('-site:booking.com')
-    expect(body[0].depth).toBe(10)
+    expect(body[0].depth).toBe(20)
   })
 
   it('returns [] when credentials are missing', async () => {

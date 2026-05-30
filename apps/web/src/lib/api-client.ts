@@ -2595,6 +2595,12 @@ export const apiClient = {
     return apiRequest('/api/v1/admin/hotel-onboarding/search', { method: 'POST', body: JSON.stringify(body) })
   },
 
+  async searchOnboardingHotelAI(body: { hotelName: string; city: string; country?: string }): Promise<{
+    candidates: Array<{ url: string; title: string; detected: boolean; ibeName: string | null; screenshotUrl: string | null; score: number }>
+  }> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/search/ai', { method: 'POST', body: JSON.stringify(body) })
+  },
+
   async geocodeHotel(name: string, city?: string, country?: string): Promise<{
     result: { address: string; latitude: number; longitude: number; street: string | null; postalCode: string | null } | null
   }> {
@@ -2616,6 +2622,48 @@ export const apiClient = {
 
   async revokeOnboardingInvitation(id: number): Promise<void> {
     return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}`, { method: 'DELETE' })
+  },
+
+  async listSupportedIbes(): Promise<{ supported: string[] }> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/supported-ibes')
+  },
+
+  async listHarvestQueue(): Promise<Array<{ id: number; hotelName: string | null; source: string; harvestStatus: string; harvestQueuedAt: string | null; harvestStartedAt: string | null; ibeUrl: string | null; ibePattern: string | null }>> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/harvest-queue')
+  },
+  async cancelHarvestQueue(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/harvest-queue/${id}`, { method: 'DELETE' })
+  },
+  async setHarvestQueuePriority(id: number, priority: 'high' | 'low'): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/harvest-queue/${id}/priority`, { method: 'PATCH', body: JSON.stringify({ priority }) })
+  },
+
+  async getOnboardingHarvestStatus(id: number): Promise<{ harvestStatus: string; harvestLog: string | null; harvestStartedAt: string | null; harvestCompletedAt: string | null; failureReason: string | null }> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/harvest-status`)
+  },
+
+  async retryOnboardingHarvest(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/retry-harvest`, { method: 'POST' })
+  },
+
+  async getScrapeToken(id: number): Promise<{ token: string }> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/scrape-token`)
+  },
+
+  async saveDataDomeCookie(domain: string, cookie: string): Promise<void> {
+    return apiRequest('/api/v1/admin/hotel-onboarding/datadome-cookies', { method: 'POST', body: JSON.stringify({ domain, cookie }) })
+  },
+
+  async cancelHarvest(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/cancel-harvest`, { method: 'POST' })
+  },
+
+  async moveToHgQueue(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/move-to-queue`, { method: 'POST' })
+  },
+
+  async reharvestOnboarding(id: number): Promise<void> {
+    return apiRequest(`/api/v1/admin/hotel-onboarding/invitations/${id}/reharvest`, { method: 'POST' })
   },
 
   async resendOnboardingInvitation(id: number): Promise<void> {
@@ -2715,6 +2763,13 @@ export interface OnboardingInvitation {
   ibeUrl: string | null
   ibePattern: string | null
   harvestStatus: string
+  harvestedData: Record<string, unknown> | null
+  failureReason: string | null
+  harvestStartedAt: string | null
+  harvestCompletedAt: string | null
+  harvestNotifiedAt: string | null
+  harvestLog: string | null
+  harvestQueuedAt: string | null
   hgStatus: 'needs_setup' | 'needs_research' | null
   unknownPmsName: string | null
   hgNotes: string | null

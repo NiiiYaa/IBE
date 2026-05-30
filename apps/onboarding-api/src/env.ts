@@ -12,6 +12,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATAFORSEO_LOGIN: z.string().optional(),
   DATAFORSEO_PASSWORD: z.string().optional(),
+  RESIDENTIAL_PROXY_URL: z.string().url().optional(), // e.g. http://user:pass@gate.proxy-seller.com:8080
 });
 
 export const env = envSchema.parse(process.env);

@@ -131,17 +131,23 @@ describe('DirectBookHarvester.harvest', () => {
   })
 
   it('deduplicates rooms and merges supported occupancies', async () => {
-    let callCount = 0
+    let scrapeCallCount = 0
     vi.mocked(withStealthPage).mockImplementation(async (_url, fn, opts) => {
-      callCount++
-      const roomsJson = callCount <= 4
-        ? {
+      // Sub-page calls (no beforeNavigate) return empty — only hotel info & scrape calls matter
+      if (!opts?.beforeNavigate) {
+        const page = makeMockPage({})
+        return fn(page as any)
+      }
+      scrapeCallCount++
+      // First call = fetchHotelInfo; subsequent = scrapeSearch (return rooms JSON)
+      const roomsJson = scrapeCallCount === 1
+        ? {}
+        : {
             rooms: [{
               name: 'Standard Room',
               rates: [{ boardType: 'Room Only', cancellationPolicy: '', nonRefundable: false, pricePerNight: 80, currency: 'USD' }],
             }],
           }
-        : {}
       const page = makeMockPage({ jsonResponses: [{ url: 'https://direct-book.com/api', json: roomsJson }] })
       opts?.beforeNavigate?.(page as any)
       return fn(page as any)
