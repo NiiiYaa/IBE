@@ -156,10 +156,10 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
     const mockEl = { click: mockClick, isVisible: vi.fn().mockResolvedValue(true), boundingBox: vi.fn().mockResolvedValue({ y: 100 }) }
 
     const mockEvaluate = vi.fn()
-      .mockResolvedValueOnce([])    // scanPageResources — empty resource list
-      .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
-      .mockResolvedValueOnce(false) // submitSearchWidget — no date fields found, returns null early
-      .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
+      .mockResolvedValueOnce([])         // scanPageResources — empty resource list
+      .mockResolvedValueOnce([])         // collectBookingCandidates — empty candidates, breaks hop loop
+      .mockResolvedValueOnce(false)      // submitSearchWidget — no date fields found, returns null early
+      .mockResolvedValueOnce('#reserve') // clickAndObserve — returns CSS selector for best element
 
     vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
       let urlCallCount = 0
@@ -170,6 +170,7 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
         waitForTimeout: vi.fn(),
         goto: vi.fn(),
         evaluate: mockEvaluate,
+        click: vi.fn().mockResolvedValue(undefined), // Playwright click after listeners are set up
         $: vi.fn().mockResolvedValue(null),
         $$: vi.fn().mockResolvedValue([mockEl]),
         waitForNavigation: vi.fn().mockResolvedValue(undefined), // resolves — navigation happened
@@ -180,7 +181,7 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
 
     const result = await resolveIbeUrl('https://hotel.com')
     expect(result).toMatchObject({ ibeName: 'Mews' })
-    // Verify full fallback chain: scanPageResources + collectBookingCandidates + submitSearchWidget + clickAndObserve click
+    // Verify full fallback chain: scanPageResources + collectBookingCandidates + submitSearchWidget + clickAndObserve selector find
     expect(mockEvaluate).toHaveBeenCalledTimes(4)
   })
 })

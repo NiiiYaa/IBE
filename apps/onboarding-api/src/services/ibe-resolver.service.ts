@@ -233,10 +233,11 @@ async function submitSearchWidget(page: Page): Promise<string | null> {
 
 async function clickAndObserve(page: Page): Promise<string | null> {
   try {
-    // Find the best visible booking-intent element, scored by position and type
-    const clicked = await page.evaluate((reSource: string) => {
+    // Find the best booking-intent element and return a unique CSS selector for it.
+    // We separate find from click so we can set up Playwright listeners before clicking.
+    const selector = await page.evaluate((reSource: string) => {
       const re = new RegExp(reSource, 'iu')
-      interface Candidate { el: Element; score: number }
+      interface Candidate { el: HTMLElement; score: number }
       const candidates: Candidate[] = []
 
       for (const el of Array.from(document.querySelectorAll('a[href], button, [role="button"]'))) {
@@ -247,30 +248,36 @@ async function clickAndObserve(page: Page): Promise<string | null> {
 
         const rect = h.getBoundingClientRect()
         let score = 0
-        if (rect.top < window.innerHeight) score += 20   // above the fold
-        if (el.closest('header, nav, [role="navigation"]')) score += 30  // in nav
-        score += Math.min(rect.width * rect.height / 1000, 20)  // size
-
-        candidates.push({ el, score })
+        if (rect.top < window.innerHeight) score += 20
+        if (el.closest('header, nav, [role="navigation"]')) score += 30
+        score += Math.min(rect.width * rect.height / 1000, 20)
+        candidates.push({ el: h, score })
       }
 
-      if (candidates.length === 0) return false
+      if (candidates.length === 0) return null
       candidates.sort((a, b) => b.score - a.score)
-      ;(candidates[0]!.el as HTMLElement).click()
-      return true
-    }, BOOKING_TEXT_RE.source).catch(() => false)
+      const best = candidates[0]!.el
 
-    if (!clicked) return null
+      // Build a unique selector so Playwright can click it outside evaluate
+      if (best.id) return `#${CSS.escape(best.id)}`
+      const tag = best.tagName.toLowerCase()
+      const cls = Array.from(best.classList).slice(0, 2).map(c => `.${CSS.escape(c)}`).join('')
+      return `${tag}${cls}` || tag
+    }, BOOKING_TEXT_RE.source).catch(() => null)
 
-    // Race: navigation vs popup, 4s timeout each
-    const navPromise = page.waitForNavigation({ timeout: 4000 }).then(() => page.url()).catch(() => null)
-    const popupPromise = page.context().waitForEvent('page', { timeout: 4000 })
+    if (!selector) return null
+
+    // Set up listeners BEFORE clicking so fast-opening new tabs are not missed
+    const navPromise = page.waitForNavigation({ timeout: 5000 }).then(() => page.url()).catch(() => null)
+    const popupPromise = page.context().waitForEvent('page', { timeout: 5000 })
       .then((p: { url(): string }) => p.url()).catch(() => null)
+
+    await page.click(selector, { timeout: 3000 }).catch(() => {})
 
     const result = await Promise.race([navPromise, popupPromise])
     if (result && result !== 'about:blank') return result
 
-    // Check if a new iframe appeared
+    // Check if a new iframe appeared after the click
     return page.evaluate(() => {
       for (const f of Array.from(document.querySelectorAll('iframe[src]'))) {
         const src = (f as HTMLIFrameElement).src
