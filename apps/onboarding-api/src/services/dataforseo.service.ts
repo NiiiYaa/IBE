@@ -9,7 +9,9 @@ async function getDfsCredentials(): Promise<{ login: string; password: string } 
     return { login: env.DATAFORSEO_LOGIN, password: env.DATAFORSEO_PASSWORD }
   }
   try {
-    const cfg = await prisma.systemDataProviderConfig.findFirst()
+    const cfg = await prisma.systemDataProviderConfig.findFirst({
+      where: { providerType: 'dataforseo' },
+    })
     if (cfg?.login && cfg?.password) return { login: cfg.login, password: cfg.password }
   } catch { /* ignore — DB may not have this table yet */ }
   return null
@@ -155,7 +157,10 @@ export async function searchHotelsDataForSEO(
   country: string,
 ): Promise<HotelCandidate[]> {
   const dfsCredentials = await getDfsCredentials()
-  if (!dfsCredentials) return []
+  if (!dfsCredentials) {
+    console.warn('[DFS] No credentials found (env or DB) — skipping DataForSEO search')
+    return []
+  }
 
   await getBlockedDomains() // warm the cache; isOta() reads from it synchronously
   const credentials = Buffer.from(`${dfsCredentials.login}:${dfsCredentials.password}`).toString('base64')
