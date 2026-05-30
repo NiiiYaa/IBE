@@ -142,33 +142,38 @@ describe('resolveIbeUrl — multi-source candidate collection', () => {
 
 describe('resolveIbeUrl — click-and-observe fallback', () => {
   it('clicks a booking button when fast scan finds nothing, returns navigated URL', async () => {
-    vi.mocked(detectKnownIBE).mockReturnValueOnce(null) // initial URL
-    vi.mocked(detectKnownIBE).mockReturnValueOnce({    // after click navigation
-      name: 'Mews',
-      externalHotelId: 'MEWS1',
-      searchTemplate: 'https://app.mews.com/distributor/MEWS1',
-      bookingTemplate: 'https://app.mews.com/distributor/MEWS1',
-    })
+    vi.mocked(detectKnownIBE)
+      .mockReturnValueOnce(null) // initial URL (line 13)
+      .mockReturnValueOnce(null) // hop loop checks initial URL (line 232)
+      .mockReturnValueOnce({     // clickAndObserve iframe result (line 271)
+        name: 'Mews',
+        externalHotelId: 'MEWS1',
+        searchTemplate: 'https://app.mews.com/distributor/MEWS1',
+        bookingTemplate: 'https://app.mews.com/distributor/MEWS1',
+      })
 
     const mockClick = vi.fn().mockResolvedValue(undefined)
     const mockEl = { click: mockClick, isVisible: vi.fn().mockResolvedValue(true), boundingBox: vi.fn().mockResolvedValue({ y: 100 }) }
 
+    const mockEvaluate = vi.fn()
+      .mockResolvedValueOnce([])    // scanPageResources — empty resource list
+      .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
+      .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
+      .mockResolvedValueOnce(null)  // clickAndObserve iframe scan — no new iframe
+
     vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
-      let callCount = 0
+      let urlCallCount = 0
       const mockPage = {
-        url: vi.fn().mockImplementation(() =>
-          callCount++ === 0 ? 'https://hotel.com' : 'https://app.mews.com/distributor/MEWS1'
-        ),
+        url: vi.fn().mockImplementation(() => {
+          // First url() call returns initial URL, subsequent calls return about:blank (simulating no navigation/popup)
+          return urlCallCount++ === 0 ? 'https://hotel.com' : 'about:blank'
+        }),
         waitForTimeout: vi.fn(),
         goto: vi.fn(),
-        evaluate: vi.fn()
-          .mockResolvedValueOnce([])    // scanPageResources — empty resource list
-          .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
-          .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
-          .mockResolvedValueOnce(null), // clickAndObserve iframe scan — no new iframe
+        evaluate: mockEvaluate,
         $: vi.fn().mockResolvedValue(null),
         $$: vi.fn().mockResolvedValue([mockEl]),
-        waitForNavigation: vi.fn().mockResolvedValue(undefined),
+        waitForNavigation: vi.fn().mockRejectedValue(new Error('no navigation')), // Reject, forcing fallthrough to iframe check
         context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('no popup')) }),
       }
       return fn(mockPage as any)
@@ -176,5 +181,8 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
 
     const result = await resolveIbeUrl('https://hotel.com')
     expect(result).toMatchObject({ ibeName: 'Mews' })
+    // Verify click-and-observe path was taken: evaluate must have been called 4 times
+    // (scanPageResources, collectBookingCandidates, clickAndObserve click, clickAndObserve iframe scan)
+    expect(mockEvaluate).toHaveBeenCalledTimes(4)
   })
 })
