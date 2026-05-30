@@ -23,7 +23,10 @@ function tryTier1(url: string): ResolvedIBE | null {
   return { ibeName: d.name, ibeUrl: url, hotelId: d.externalHotelId };
 }
 
-const BOOKING_TEXT_RE = /book|reserv|check.?avail|rooms?.?rates?|availability/i;
+const BOOKING_TEXT_RE = /book(?:ing|now)?|r[eé]serv(?:e|er|ation|ations|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ation)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill/iu
+
+// URL path patterns — detect booking links regardless of button text (e.g. icon buttons)
+const BOOKING_URL_RE = /\/book(?:ing|-now|-online)?(?:\/|$|\?)|\/reserv(?:e|ation|ations?|ar)?(?:\/|$|\?)|\/check.?avail|\/rates?(?:\/|$|\?)|\/rooms?(?:\/|$|\?)|\/availability(?:\/|$|\?)|\/tarif(?:fs?|aux)?(?:\/|$|\?)|\/prenot|\/buchen|booking-engine|reservation-engine|\/accommodation(?:\/|$|\?)/i
 const MAX_HOPS = 5;
 
 // Vendor fingerprints detected from page <script>/<link> resource URLs.
@@ -97,7 +100,7 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
 
       // Collect booking-intent <a href> candidates (browser resolves relative → absolute)
       const hrefs: string[] = await page.evaluate((reSource: string) => {
-        const re = new RegExp(reSource, 'i');
+        const re = new RegExp(reSource, 'iu');
         const found: string[] = [];
         document.querySelectorAll('a[href]').forEach(el => {
           const anchor = el as HTMLAnchorElement;
