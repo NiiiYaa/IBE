@@ -23,10 +23,10 @@ function tryTier1(url: string): ResolvedIBE | null {
   return { ibeName: d.name, ibeUrl: url, hotelId: d.externalHotelId };
 }
 
-const BOOKING_TEXT_RE = /book(?:ing|now)?|r[eé]serv(?:e|er|ation|ations|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ation)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill/iu
+const BOOKING_TEXT_RE = /book(?:ing(?:s|now)?|now)?|r[eé]serv(?:e|er|ations?|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ations?)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill|pric(?:e|es|ing)|rates?|offers?|deals?|vacanc(?:y|ies)|suites?|stay(?:s|ing)?|accommodation|check.in|check.out|arrival|departure/iu
 
 // URL path patterns — detect booking links regardless of button text (e.g. icon buttons)
-const BOOKING_URL_RE = /\/book(?:ing|-now|-online)?(?:\/|$|\?)|\/reserv(?:e|ation|ations?|ar)?(?:\/|$|\?)|\/check.?avail|\/rates?(?:\/|$|\?)|\/rooms?(?:\/|$|\?)|\/availability(?:\/|$|\?)|\/tarif(?:fs?|aux)?(?:\/|$|\?)|\/prenot|\/buchen|booking-engine|reservation-engine|\/accommodation(?:\/|$|\?)/i
+const BOOKING_URL_RE = /\/book(?:ing|-now|-online)?(?:\/|$|\?)|\/reserv(?:e|ation|ations?|ar)?(?:\/|$|\?)|\/check.?avail|\/rates?(?:\/|$|\?)|\/rooms?(?:\/|$|\?)|\/availability(?:\/|$|\?)|\/tarif(?:fs?|aux)?(?:\/|$|\?)|\/prenot|\/buchen|booking-engine|reservation-engine|\/accommodation(?:\/|$|\?)|\/offers?(?:\/|$|\?)|\/deals?(?:\/|$|\?)|\/suites?(?:\/|$|\?)|\/stay(?:\/|$|\?)/i
 const MAX_HOPS = 5;
 
 // Vendor fingerprints detected from page <script>/<link> resource URLs.
@@ -135,6 +135,100 @@ async function collectBookingCandidates(page: Page, currentUrl: string): Promise
     },
     { textSrc: BOOKING_TEXT_RE.source, urlSrc: BOOKING_URL_RE.source, currentOrigin: (() => { try { return new URL(currentUrl).origin } catch { return '' } })() },
   ).catch(() => [] as string[])
+}
+
+// Attribute patterns that identify check-in / check-out date fields
+const CHECKIN_ATTRS  = ['checkin', 'check_in', 'check-in', 'arrival', 'datefrom', 'date_from', 'startdate', 'start_date', 'from', 'date1', 'in']
+const CHECKOUT_ATTRS = ['checkout', 'check_out', 'check-out', 'departure', 'dateto', 'date_to', 'enddate', 'end_date', 'to', 'date2', 'out']
+
+async function submitSearchWidget(page: Page): Promise<string | null> {
+  try {
+    // Tomorrow and day-after as ISO date strings (YYYY-MM-DD)
+    const d1 = new Date(); d1.setDate(d1.getDate() + 1)
+    const d2 = new Date(); d2.setDate(d2.getDate() + 3)
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    const checkIn = fmt(d1), checkOut = fmt(d2)
+
+    // Inject dates into all recognisable date inputs, return true if any were found
+    const found = await page.evaluate(
+      (args: { checkinAttrs: string[]; checkoutAttrs: string[]; checkIn: string; checkOut: string }) => {
+        function matchesAttr(el: Element, patterns: string[]) {
+          const haystack = [
+            el.getAttribute('name'), el.getAttribute('id'),
+            el.getAttribute('placeholder'), el.getAttribute('class'),
+            el.getAttribute('data-field'), el.getAttribute('data-type'),
+          ].join(' ').toLowerCase()
+          return patterns.some(p => haystack.includes(p))
+        }
+
+        let filled = 0
+        for (const input of Array.from(document.querySelectorAll('input'))) {
+          const isDate = input.type === 'date' || input.type === 'text' || input.type === 'hidden' || input.type === ''
+          if (!isDate) continue
+          if (matchesAttr(input, args.checkinAttrs)) {
+            // Try native value setter (works for React/Vue controlled inputs)
+            const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+            nativeSetter?.call(input, args.checkIn)
+            input.value = args.checkIn
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+            filled++
+          } else if (matchesAttr(input, args.checkoutAttrs)) {
+            const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+            nativeSetter?.call(input, args.checkOut)
+            input.value = args.checkOut
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+            filled++
+          }
+        }
+        return filled >= 2
+      },
+      { checkinAttrs: CHECKIN_ATTRS, checkoutAttrs: CHECKOUT_ATTRS, checkIn: checkIn, checkOut: checkOut },
+    ).catch(() => false)
+
+    if (!found) return null
+
+    // Short pause so JS frameworks react to the change events
+    await page.waitForTimeout(600)
+
+    // Find and click the search/submit button inside or near a booking form
+    const submitted = await page.evaluate((reSource: string) => {
+      const re = new RegExp(reSource, 'iu')
+      // Prefer [type="submit"] first, then buttons with booking text
+      const candidates: HTMLElement[] = []
+      for (const el of Array.from(document.querySelectorAll('[type="submit"], button, [role="button"]'))) {
+        const h = el as HTMLElement
+        if (h.offsetParent === null) continue
+        const text = h.innerText?.trim() || h.getAttribute('aria-label') || h.getAttribute('value') || ''
+        if (el.getAttribute('type') === 'submit' || re.test(text)) candidates.push(h)
+      }
+      if (candidates.length === 0) return false
+      candidates[0]!.click()
+      return true
+    }, BOOKING_TEXT_RE.source).catch(() => false)
+
+    if (!submitted) return null
+
+    // Observe navigation result
+    const navPromise = page.waitForNavigation({ timeout: 5000 }).then(() => page.url()).catch(() => null)
+    const popupPromise = page.context().waitForEvent('page', { timeout: 5000 })
+      .then((p: { url(): string }) => p.url()).catch(() => null)
+
+    const result = await Promise.race([navPromise, popupPromise])
+    if (result && result !== 'about:blank') return result
+
+    // Check for new iframe after submission (some widgets load the IBE in an iframe)
+    return page.evaluate(() => {
+      for (const f of Array.from(document.querySelectorAll('iframe[src]'))) {
+        const src = (f as HTMLIFrameElement).src
+        if (src?.startsWith('http')) return src
+      }
+      return null
+    }).catch(() => null)
+  } catch {
+    return null
+  }
 }
 
 async function clickAndObserve(page: Page): Promise<string | null> {
@@ -263,6 +357,16 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
       } catch {
         break;
       }
+    }
+
+    // Search-widget fallback — fill date fields and submit the booking search form
+    const widgetUrl = await submitSearchWidget(page)
+    if (widgetUrl) {
+      const t1 = tryTier1(widgetUrl)
+      if (t1) return t1
+      const resourceMatch = await scanPageResources(page, widgetUrl)
+      if (resourceMatch) return resourceMatch
+      if (widgetUrl !== startUrl) firstBookingUrl = widgetUrl
     }
 
     // Click-and-observe fallback — only reached when all hops found no candidates

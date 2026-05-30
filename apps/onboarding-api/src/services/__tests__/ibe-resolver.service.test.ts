@@ -158,6 +158,7 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
     const mockEvaluate = vi.fn()
       .mockResolvedValueOnce([])    // scanPageResources — empty resource list
       .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
+      .mockResolvedValueOnce(false) // submitSearchWidget — no date fields found, returns null early
       .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
       .mockResolvedValueOnce(null)  // clickAndObserve iframe scan — no new iframe
 
@@ -181,8 +182,7 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
 
     const result = await resolveIbeUrl('https://hotel.com')
     expect(result).toMatchObject({ ibeName: 'Mews' })
-    // Verify click-and-observe path was taken: evaluate must have been called 4 times
-    // (scanPageResources, collectBookingCandidates, clickAndObserve click, clickAndObserve iframe scan)
-    expect(mockEvaluate).toHaveBeenCalledTimes(4)
+    // Verify full fallback path: scanPageResources + collectBookingCandidates + submitSearchWidget + clickAndObserve (x2)
+    expect(mockEvaluate).toHaveBeenCalledTimes(5)
   })
 })
