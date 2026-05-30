@@ -139,3 +139,41 @@ describe('resolveIbeUrl — multi-source candidate collection', () => {
     expect(result).toMatchObject({ ibeName: 'Sabre SynXis' })
   })
 })
+
+describe('resolveIbeUrl — click-and-observe fallback', () => {
+  it('clicks a booking button when fast scan finds nothing, returns navigated URL', async () => {
+    vi.mocked(detectKnownIBE).mockReturnValueOnce(null) // initial URL
+    vi.mocked(detectKnownIBE).mockReturnValueOnce({    // after click navigation
+      name: 'Mews',
+      externalHotelId: 'MEWS1',
+      searchTemplate: 'https://app.mews.com/distributor/MEWS1',
+      bookingTemplate: 'https://app.mews.com/distributor/MEWS1',
+    })
+
+    const mockClick = vi.fn().mockResolvedValue(undefined)
+    const mockEl = { click: mockClick, isVisible: vi.fn().mockResolvedValue(true), boundingBox: vi.fn().mockResolvedValue({ y: 100 }) }
+
+    vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
+      let callCount = 0
+      const mockPage = {
+        url: vi.fn().mockImplementation(() =>
+          callCount++ === 0 ? 'https://hotel.com' : 'https://app.mews.com/distributor/MEWS1'
+        ),
+        waitForTimeout: vi.fn(),
+        goto: vi.fn(),
+        evaluate: vi.fn()
+          .mockResolvedValueOnce([])    // collectBookingCandidates — returns empty, triggers click fallback
+          .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
+          .mockResolvedValueOnce(null), // iframe scan — no new iframe
+        $: vi.fn().mockResolvedValue(null),
+        $$: vi.fn().mockResolvedValue([mockEl]),
+        waitForNavigation: vi.fn().mockResolvedValue(undefined),
+        context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('no popup')) }),
+      }
+      return fn(mockPage as any)
+    })
+
+    const result = await resolveIbeUrl('https://hotel.com')
+    expect(result).toMatchObject({ ibeName: 'Mews' })
+  })
+})

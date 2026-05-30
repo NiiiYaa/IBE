@@ -137,6 +137,58 @@ async function collectBookingCandidates(page: Page, currentUrl: string): Promise
   ).catch(() => [] as string[])
 }
 
+async function clickAndObserve(page: Page): Promise<string | null> {
+  try {
+    // Find the best visible booking-intent element, scored by position and type
+    const clicked = await page.evaluate((reSource: string) => {
+      const re = new RegExp(reSource, 'iu')
+      interface Candidate { el: Element; score: number }
+      const candidates: Candidate[] = []
+
+      for (const el of Array.from(document.querySelectorAll('a[href], button, [role="button"]'))) {
+        const h = el as HTMLElement
+        if (h.offsetParent === null) continue // hidden
+        const text = h.innerText?.trim() || h.getAttribute('aria-label') || h.getAttribute('title') || ''
+        if (!re.test(text)) continue
+
+        const rect = h.getBoundingClientRect()
+        let score = 0
+        if (rect.top < window.innerHeight) score += 20   // above the fold
+        if (el.closest('header, nav, [role="navigation"]')) score += 30  // in nav
+        score += Math.min(rect.width * rect.height / 1000, 20)  // size
+
+        candidates.push({ el, score })
+      }
+
+      if (candidates.length === 0) return false
+      candidates.sort((a, b) => b.score - a.score)
+      ;(candidates[0]!.el as HTMLElement).click()
+      return true
+    }, BOOKING_TEXT_RE.source).catch(() => false)
+
+    if (!clicked) return null
+
+    // Race: navigation vs popup, 4s timeout each
+    const navPromise = page.waitForNavigation({ timeout: 4000 }).then(() => page.url()).catch(() => null)
+    const popupPromise = page.context().waitForEvent('page', { timeout: 4000 })
+      .then((p: { url(): string }) => p.url()).catch(() => null)
+
+    const result = await Promise.race([navPromise, popupPromise])
+    if (result && result !== 'about:blank') return result
+
+    // Check if a new iframe appeared
+    return page.evaluate(() => {
+      for (const f of Array.from(document.querySelectorAll('iframe[src]'))) {
+        const src = (f as HTMLIFrameElement).src
+        if (src?.startsWith('http')) return src
+      }
+      return null
+    }).catch(() => null)
+  } catch {
+    return null
+  }
+}
+
 async function scanPageResources(page: Page, currentPageUrl: string): Promise<ResolvedIBE | null> {
   // Collect all external resource URLs from script/link tags
   const resources: string[] = await page.evaluate(() => {
@@ -210,6 +262,18 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
         firstBookingUrl = currentUrl;
       } catch {
         break;
+      }
+    }
+
+    // Click-and-observe fallback — only reached when all hops found no candidates
+    const clickedUrl = await clickAndObserve(page)
+    if (clickedUrl) {
+      const t1 = tryTier1(clickedUrl)
+      if (t1) return t1
+      const resourceMatch = await scanPageResources(page, clickedUrl)
+      if (resourceMatch) return resourceMatch
+      if (clickedUrl !== startUrl) {
+        firstBookingUrl = clickedUrl
       }
     }
 
