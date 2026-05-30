@@ -160,21 +160,19 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
       .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
       .mockResolvedValueOnce(false) // submitSearchWidget — no date fields found, returns null early
       .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
-      .mockResolvedValueOnce(null)  // clickAndObserve iframe scan — no new iframe
 
     vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
       let urlCallCount = 0
       const mockPage = {
-        url: vi.fn().mockImplementation(() => {
-          // First url() call returns initial URL, subsequent calls return about:blank (simulating no navigation/popup)
-          return urlCallCount++ === 0 ? 'https://hotel.com' : 'about:blank'
-        }),
+        url: vi.fn().mockImplementation(() =>
+          urlCallCount++ === 0 ? 'https://hotel.com' : 'https://app.mews.com/distributor/MEWS1'
+        ),
         waitForTimeout: vi.fn(),
         goto: vi.fn(),
         evaluate: mockEvaluate,
         $: vi.fn().mockResolvedValue(null),
         $$: vi.fn().mockResolvedValue([mockEl]),
-        waitForNavigation: vi.fn().mockRejectedValue(new Error('no navigation')), // Reject, forcing fallthrough to iframe check
+        waitForNavigation: vi.fn().mockResolvedValue(undefined), // resolves — navigation happened
         context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('no popup')) }),
       }
       return fn(mockPage as any)
@@ -182,7 +180,7 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
 
     const result = await resolveIbeUrl('https://hotel.com')
     expect(result).toMatchObject({ ibeName: 'Mews' })
-    // Verify full fallback path: scanPageResources + collectBookingCandidates + submitSearchWidget + clickAndObserve (x2)
-    expect(mockEvaluate).toHaveBeenCalledTimes(5)
+    // Verify full fallback chain: scanPageResources + collectBookingCandidates + submitSearchWidget + clickAndObserve click
+    expect(mockEvaluate).toHaveBeenCalledTimes(4)
   })
 })

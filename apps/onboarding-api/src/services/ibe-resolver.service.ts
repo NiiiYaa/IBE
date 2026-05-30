@@ -379,6 +379,18 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
       if (clickedUrl !== startUrl) {
         firstBookingUrl = clickedUrl
       }
+    } else {
+      // clickAndObserve clicked something but navigation didn't happen — the click may have
+      // opened an in-page modal/overlay that injected IBE scripts. Wait and re-scan.
+      await page.waitForTimeout(2500)
+      const modalResourceMatch = await scanPageResources(page, currentUrl)
+      if (modalResourceMatch) return modalResourceMatch
+      // Also look for new iframes that appeared after the click
+      const modalCandidates = await collectBookingCandidates(page, currentUrl)
+      for (const href of modalCandidates) {
+        const t1 = tryTier1(href)
+        if (t1) return { ...t1, ibeUrl: href }
+      }
     }
 
     // Final checks on the last page
