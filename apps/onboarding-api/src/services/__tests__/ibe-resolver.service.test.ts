@@ -162,9 +162,10 @@ describe('resolveIbeUrl — click-and-observe fallback', () => {
         waitForTimeout: vi.fn(),
         goto: vi.fn(),
         evaluate: vi.fn()
-          .mockResolvedValueOnce([])    // collectBookingCandidates — returns empty, triggers click fallback
+          .mockResolvedValueOnce([])    // scanPageResources — empty resource list
+          .mockResolvedValueOnce([])    // collectBookingCandidates — empty candidates, breaks hop loop
           .mockResolvedValueOnce(true)  // clickAndObserve — finds and clicks element
-          .mockResolvedValueOnce(null), // iframe scan — no new iframe
+          .mockResolvedValueOnce(null), // clickAndObserve iframe scan — no new iframe
         $: vi.fn().mockResolvedValue(null),
         $$: vi.fn().mockResolvedValue([mockEl]),
         waitForNavigation: vi.fn().mockResolvedValue(undefined),
