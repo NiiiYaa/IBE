@@ -18,9 +18,15 @@ export async function resolveIbeUrl(url: string): Promise<ResolvedIBE | null> {
 }
 
 function tryTier1(url: string): ResolvedIBE | null {
+  // Check known IBE registry first (includes hotelId extraction)
   const d = detectKnownIBE(url);
-  if (!d) return null;
-  return { ibeName: d.name, ibeUrl: url, hotelId: d.externalHotelId };
+  if (d) return { ibeName: d.name, ibeUrl: url, hotelId: d.externalHotelId };
+  // Also check vendor fingerprint patterns against the URL itself —
+  // catches known IBE domains when the URL is passed directly (e.g. secure-hotel-booking.com)
+  for (const fp of RESOURCE_FINGERPRINTS) {
+    if (fp.pattern.test(url)) return { ibeName: fp.ibeName, ibeUrl: url, hotelId: null };
+  }
+  return null;
 }
 
 const BOOKING_TEXT_RE = /book(?:ing(?:s|now)?|now)?|r[eé]serv(?:e|er|ations?|ar|are|ieren)?|check.?avail|rooms?.?rates?|availab(?:il)?it|prenot(?:a|are|azione)?|buchen?|beschikbaar|reserveren|tarif(?:fs?|aux)?|disponib(?:il)?it|бронир|забронир|预订|预定|訂房|予約|예약|จอง|rezerv(?:asyon|ations?)?|foglal(?:ás|jon)?|rezerv(?:ace|ovat)?|kr[aá]tit|κράτηση|הזמנה|rezerv(?:are|ați)?|boka|bestill|pric(?:e|es|ing)\s+rooms?|best\s+rates?|offers?|deals?|vacanc(?:y|ies)|book\s+suites?|accommodation/iu
