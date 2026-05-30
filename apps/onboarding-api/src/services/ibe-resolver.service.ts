@@ -50,6 +50,93 @@ const RESOURCE_FINGERPRINTS: Array<{ pattern: RegExp; ibeName: string }> = [
   { pattern: /mews\.com|app\.mews\.com/i,                            ibeName: 'Mews' },
 ]
 
+async function collectBookingCandidates(page: Page, currentUrl: string): Promise<string[]> {
+  return page.evaluate(
+    (args: { textSrc: string; urlSrc: string; currentOrigin: string }) => {
+      const textRe = new RegExp(args.textSrc, 'iu')
+      const urlRe = new RegExp(args.urlSrc, 'i')
+      const seen = new Set<string>()
+      const candidates: string[] = []
+
+      function add(url: string) {
+        if (!url || !url.startsWith('http')) return
+        const clean = url.split('#')[0] ?? url
+        if (!seen.has(clean)) { seen.add(clean); candidates.push(clean) }
+      }
+
+      function isVisible(el: Element) {
+        return (el as HTMLElement).offsetParent !== null
+      }
+
+      function extractText(el: Element) {
+        return (
+          (el as HTMLElement).innerText?.trim() ||
+          el.getAttribute('aria-label') ||
+          el.getAttribute('title') ||
+          el.getAttribute('alt') ||
+          ''
+        )
+      }
+
+      // 1. <a href> — by booking text OR booking URL pattern
+      for (const el of Array.from(document.querySelectorAll('a[href]'))) {
+        if (!isVisible(el)) continue
+        const a = el as HTMLAnchorElement
+        const href = a.href
+        if (!href?.startsWith('http')) continue
+        const text = extractText(el)
+        if (textRe.test(text) || urlRe.test(href)) add(href)
+      }
+
+      // 2. <button> / [role="button"] — extract URL from data-* or onclick
+      for (const el of Array.from(document.querySelectorAll('button, [role="button"]'))) {
+        if (!isVisible(el)) continue
+        const text = extractText(el)
+        if (!textRe.test(text)) continue
+        for (const attr of ['data-href', 'data-url', 'data-link', 'data-target', 'data-book-url']) {
+          const val = el.getAttribute(attr)
+          if (val?.startsWith('http')) { add(val); break }
+        }
+        const onclick = el.getAttribute('onclick') ?? ''
+        const m = onclick.match(/https?:\/\/[^\s'"]+/)
+        if (m) add(m[0]!)
+      }
+
+      // 3. <iframe src> on a different origin — likely embedded booking widget
+      for (const el of Array.from(document.querySelectorAll('iframe[src]'))) {
+        const src = (el as HTMLIFrameElement).src
+        if (src?.startsWith('http') && !src.startsWith(args.currentOrigin)) add(src)
+      }
+
+      // 4. <form action> matching booking URL pattern
+      for (const el of Array.from(document.querySelectorAll('form[action]'))) {
+        const action = (el as HTMLFormElement).action
+        if (action?.startsWith('http') && urlRe.test(action)) add(action)
+      }
+
+      // 5. JSON-LD schema — ReserveAction / BookAction target
+      for (const script of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+        try {
+          const data = JSON.parse(script.textContent ?? '{}')
+          const check = (obj: unknown) => {
+            if (!obj || typeof obj !== 'object') return
+            const o = obj as Record<string, unknown>
+            for (const key of ['url', 'target', 'urlTemplate']) {
+              const v = o[key]
+              if (typeof v === 'string' && v.startsWith('http')) add(v)
+            }
+            for (const v of Object.values(o)) if (v && typeof v === 'object') check(v)
+          }
+          check(data)
+        } catch {}
+      }
+
+      return candidates.slice(0, 12)
+    },
+    { textSrc: BOOKING_TEXT_RE.source, urlSrc: BOOKING_URL_RE.source, currentOrigin: (() => { try { return new URL(currentUrl).origin } catch { return '' } })() },
+  ).catch(() => [] as string[])
+}
+
 async function scanPageResources(page: Page, currentPageUrl: string): Promise<ResolvedIBE | null> {
   // Collect all external resource URLs from script/link tags
   const resources: string[] = await page.evaluate(() => {
@@ -87,7 +174,6 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
     let currentUrl = startUrl;
     // Track first booking-intent URL found — fallback if no known IBE is detected
     let firstBookingUrl: string | null = null;
-    let firstBookingIbeName: string | null = null;
 
     for (let hop = 0; hop < MAX_HOPS; hop++) {
       // Check current URL against registry
@@ -98,18 +184,8 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
       const resourceMatch = await scanPageResources(page, currentUrl);
       if (resourceMatch) return resourceMatch;
 
-      // Collect booking-intent <a href> candidates (browser resolves relative → absolute)
-      const hrefs: string[] = await page.evaluate((reSource: string) => {
-        const re = new RegExp(reSource, 'iu');
-        const found: string[] = [];
-        document.querySelectorAll('a[href]').forEach(el => {
-          const anchor = el as HTMLAnchorElement;
-          const text = anchor.innerText?.trim() || anchor.getAttribute('aria-label') || anchor.getAttribute('title') || '';
-          const href = anchor.href; // browser resolves relative URLs automatically
-          if (re.test(text) && href?.startsWith('http')) found.push(href);
-        });
-        return found.slice(0, 8);
-      }, BOOKING_TEXT_RE.source).catch(() => [] as string[]);
+      // Collect booking-intent candidates from all sources
+      const hrefs = await collectBookingCandidates(page, currentUrl)
 
       // Check each href via Tier 1 before navigating
       for (const href of hrefs) {
@@ -131,7 +207,7 @@ async function followBookingLinks(startUrl: string): Promise<ResolvedIBE | null>
         await page.waitForTimeout(2000);
         currentUrl = page.url();
         // Update firstBookingUrl to the resolved URL after navigation
-        if (!firstBookingIbeName) firstBookingUrl = currentUrl;
+        firstBookingUrl = currentUrl;
       } catch {
         break;
       }

@@ -62,3 +62,80 @@ describe('resolveIbeUrl — Tier 3 browser', () => {
     expect(result).toMatchObject({ ibeName: 'Sabre SynXis', hotelId: 'HOTEL1' });
   });
 });
+
+describe('resolveIbeUrl — multi-source candidate collection', () => {
+  it('finds IBE via <button data-href>', async () => {
+    vi.mocked(detectKnownIBE).mockReturnValueOnce(null) // initial URL
+    vi.mocked(detectKnownIBE).mockReturnValueOnce({
+      name: 'Profitroom',
+      externalHotelId: 'HOTEL1',
+      searchTemplate: 'https://booking.profitroom.com/HOTEL1',
+      bookingTemplate: 'https://booking.profitroom.com/HOTEL1',
+    })
+    vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
+      const mockPage = {
+        url: () => 'https://hotel.com',
+        waitForTimeout: vi.fn(),
+        goto: vi.fn(),
+        evaluate: vi.fn().mockResolvedValue(['https://booking.profitroom.com/HOTEL1']),
+        $: vi.fn().mockResolvedValue(null),
+        $$: vi.fn().mockResolvedValue([]),
+        waitForNavigation: vi.fn().mockRejectedValue(new Error('timeout')),
+        context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('timeout')) }),
+      }
+      return fn(mockPage as any)
+    })
+    const result = await resolveIbeUrl('https://hotel.com')
+    expect(result).toMatchObject({ ibeName: 'Profitroom' })
+  })
+
+  it('finds IBE via iframe src', async () => {
+    vi.mocked(detectKnownIBE).mockReturnValueOnce(null)
+    vi.mocked(detectKnownIBE).mockReturnValueOnce({
+      name: 'Cloudbeds',
+      externalHotelId: 'HOTEL1',
+      searchTemplate: 'https://hotels.cloudbeds.com/reservation/HOTEL1',
+      bookingTemplate: 'https://hotels.cloudbeds.com/reservation/HOTEL1',
+    })
+    vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
+      const mockPage = {
+        url: () => 'https://hotel.com',
+        waitForTimeout: vi.fn(),
+        goto: vi.fn(),
+        evaluate: vi.fn().mockResolvedValue(['https://hotels.cloudbeds.com/reservation/HOTEL1']),
+        $: vi.fn().mockResolvedValue(null),
+        $$: vi.fn().mockResolvedValue([]),
+        waitForNavigation: vi.fn().mockRejectedValue(new Error('timeout')),
+        context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('timeout')) }),
+      }
+      return fn(mockPage as any)
+    })
+    const result = await resolveIbeUrl('https://hotel.com')
+    expect(result).toMatchObject({ ibeName: 'Cloudbeds' })
+  })
+
+  it('finds IBE via URL-pattern href (icon button, no text)', async () => {
+    vi.mocked(detectKnownIBE).mockReturnValueOnce(null)
+    vi.mocked(detectKnownIBE).mockReturnValueOnce({
+      name: 'Sabre SynXis',
+      externalHotelId: 'HOTEL1',
+      searchTemplate: 'https://be.synxis.com/?hotel=HOTEL1',
+      bookingTemplate: 'https://be.synxis.com/?hotel=HOTEL1',
+    })
+    vi.mocked(withStealthPage).mockImplementation(async (_url, fn) => {
+      const mockPage = {
+        url: () => 'https://hotel.com',
+        waitForTimeout: vi.fn(),
+        goto: vi.fn(),
+        evaluate: vi.fn().mockResolvedValue(['https://be.synxis.com/?hotel=HOTEL1&chain=ABC']),
+        $: vi.fn().mockResolvedValue(null),
+        $$: vi.fn().mockResolvedValue([]),
+        waitForNavigation: vi.fn().mockRejectedValue(new Error('timeout')),
+        context: () => ({ waitForEvent: vi.fn().mockRejectedValue(new Error('timeout')) }),
+      }
+      return fn(mockPage as any)
+    })
+    const result = await resolveIbeUrl('https://hotel.com')
+    expect(result).toMatchObject({ ibeName: 'Sabre SynXis' })
+  })
+})
