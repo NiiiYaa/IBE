@@ -106,6 +106,7 @@ export class DEdgeHarvester implements IbeHarvester {
     let connectedToCDP = false
 
     // Try to connect to user's running Chrome (bypasses DataDome completely)
+    onProgress('Launching browser...')
     try {
       const { chromium: plainChromium } = await import('playwright')
       browser = await plainChromium.connectOverCDP(chromeDebugUrl)
@@ -113,6 +114,7 @@ export class DEdgeHarvester implements IbeHarvester {
       onProgress('  → Connected to your Chrome browser (DataDome bypassed)')
     } catch {
       // Fallback: launch headless Playwright
+      onProgress('  → No local Chrome found — using headless browser (DataDome may block)')
       browser = await chromiumExtra.launch({
         headless: true,
         args: [...BROWSER_ARGS, '--window-size=1280,900'],

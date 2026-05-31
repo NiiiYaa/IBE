@@ -30,6 +30,10 @@ export async function harvestFromUrl(
   if (!resolved) throw new Error('IBE URL unresolved — could not identify booking engine');
   onProgress(`  → ${resolved.ibeName} (hotel ID: ${resolved.hotelId ?? 'n/a'})`)
 
+  // Update stored IBE URL immediately so the UI reflects the real booking engine URL,
+  // not the marketing site used to discover it.
+  if (resolved.ibeUrl !== rawUrl) resume?.reportIbeUrl?.(resolved.ibeUrl)
+
   const harvester = ibeHarvesterMap.get(resolved.ibeName);
   if (!harvester) throw new Error(`No harvester registered for IBE: ${resolved.ibeName}`);
 
