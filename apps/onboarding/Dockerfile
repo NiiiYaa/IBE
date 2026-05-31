@@ -11,6 +11,7 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ibe/shared build
+RUN pnpm --filter @ibe/onboarding-flows build
 RUN pnpm --filter @ibe/onboarding build
 
 FROM node:20-alpine AS runner
