@@ -125,7 +125,6 @@ export const ARI_SYSTEMS: AriSystem[] = [
   // ── Switches ──────────────────────────────────────────────────────────────────
   { name: 'IBS (iRes)',                                 category: 'Switch' },
   { name: 'DHISCO (RateGain)',                          category: 'Switch' },
-  { name: 'DerbySoft',                                  category: 'Switch' },
   // ── Global Distribution Systems ───────────────────────────────────────────────
   { name: 'GDS Amadeus',                                category: 'GDS'    },
   { name: 'GDS Sabre',                                  category: 'GDS'    },
