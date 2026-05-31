@@ -133,7 +133,7 @@ export class DEdgeHarvester implements IbeHarvester {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
         Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] })
         Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en', 'fr'] })
-        window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} }
+        ;(window as any).chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} }
         // Pre-seed consent cookies
         try {
           localStorage.setItem('OptanonAlertBoxClosed', new Date().toISOString())
@@ -174,7 +174,7 @@ export class DEdgeHarvester implements IbeHarvester {
       // Try to extract property info from JSON API
       for (const p of payloads1) {
         const info = tryParsePropertyInfo(p)
-        if (info?.name) { hotelInfo = { ...hotelInfo, ...info }; break }
+        if (info?.name) { hotelInfo = { ...hotelInfo, ...info, description: info.description ?? hotelInfo.description }; break }
       }
       const domInfo = await page.evaluate(() => {
         const imgs = Array.from(document.querySelectorAll('img')).map(i => (i as HTMLImageElement).src).filter(s => s.startsWith('http')).slice(0, 20)

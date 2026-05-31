@@ -72,15 +72,16 @@ async function processNextJob(): Promise<void> {
   )
 
   try {
-    let harvestedData = await Promise.race([harvestPromise, timeoutPromise]) as Record<string, unknown>
+    let harvestedData = await Promise.race([harvestPromise, timeoutPromise]) as unknown as Record<string, unknown>
 
     // If harvester discovered a better IBE URL (e.g. D-Edge with hotelId), update the invitation
     if (resolvedIbeUrlFromHarvest) {
+      const resolvedUrl = resolvedIbeUrlFromHarvest as string
       await prisma.onboardingInvitation.update({
         where: { id: job.id },
-        data: { ibeUrl: resolvedIbeUrlFromHarvest },
+        data: { ibeUrl: resolvedUrl },
       }).catch(() => {})
-      appendLog(`  → IBE URL updated: ${resolvedIbeUrlFromHarvest.slice(0, 80)}`)
+      appendLog(`  → IBE URL updated: ${resolvedUrl.slice(0, 80)}`)
     }
 
     // Marketing site harvest — fills hotel-level gaps (address, phone, email, images, description)
@@ -93,7 +94,7 @@ async function processNextJob(): Promise<void> {
         if (marketing.latitude && marketing.longitude) {
           await prisma.onboardingInvitation.update({
             where: { id: job.id },
-            data: { latitude: marketing.latitude, longitude: marketing.longitude, address: marketing.address ?? undefined },
+            data: { latitude: marketing.latitude, longitude: marketing.longitude, ...(marketing.address != null ? { address: marketing.address } : {}) },
           }).catch(() => {})
         }
       } catch { /* non-fatal — proceed with IBE data only */ }

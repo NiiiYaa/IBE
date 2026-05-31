@@ -82,7 +82,7 @@ export class DirectBookHarvester implements IbeHarvester {
       onProgress('Fetching hotel information... (skipped — already retrieved)')
       onProgress(`  → ${existing.name}${existing.starRating ? ` ★${existing.starRating}` : ''} · ${existing.images?.length ?? 0} image(s) · ${existing.amenities?.length ?? 0} amenity(ies)`)
       hotelInfo = {
-        name: existing.name, starRating: existing.starRating ?? null,
+        name: existing.name ?? '', starRating: existing.starRating ?? null,
         address: existing.address ?? null, city: existing.city ?? null, country: existing.country ?? null,
         phone: existing.phone ?? null, email: existing.email ?? null, website: existing.website ?? null,
         description: existing.description ?? '', images: existing.images ?? [],
@@ -100,7 +100,7 @@ export class DirectBookHarvester implements IbeHarvester {
     const { rooms, ratePlanTypes } = await this.discoverRoomsAndRates(
       searchTemplate, hotelId, onProgress, completed, resume?.saveProgress,
       existing?.rooms ?? [], existing?.discoveredRatePlanTypes ?? [],
-      { ...hotelInfo, rooms: [], discoveredRatePlanTypes: [], agePolicy: null, taxesAndFees: [] },
+      hotelInfo,
     )
     onProgress(`  → ${rooms.length} room type(s) · ${ratePlanTypes.length} rate plan(s)`)
 
@@ -203,7 +203,7 @@ export class DirectBookHarvester implements IbeHarvester {
             return page.evaluate((type: string): {
               images: string[]; amenities: string[]; description: string
               address: string | null; phone: string | null; email: string | null
-              policies: Array<{ type: string; description: string }>
+              policies: Array<{ type: 'other'; value: string; rawText: string | null }>
             } => {
               // Images
               const seen = new Set<string>()
@@ -230,16 +230,16 @@ export class DirectBookHarvester implements IbeHarvester {
               const emailMatch = bodyText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
               const addrEl = document.querySelector('[class*="address"], [class*="Address"], [itemprop="address"]')
               // Policies
-              const policies: Array<{ type: string; description: string }> = []
+              const policies: Array<{ type: 'other'; value: string; rawText: string | null }> = []
               for (const section of Array.from(document.querySelectorAll('[class*="policy"], [class*="Policy"], [class*="rule"], [class*="Rule"], section, article'))) {
-                const heading = section.querySelector('h2, h3, h4, strong')?.innerText?.trim()
+                const heading = (section.querySelector('h2, h3, h4, strong') as HTMLElement | null)?.innerText?.trim()
                 const body = (section as HTMLElement).innerText?.trim().replace(/\s+/g, ' ')
-                if (heading && body && body.length > 20 && body.length < 500) policies.push({ type: heading, description: body })
+                if (heading && body && body.length > 20 && body.length < 500) policies.push({ type: 'other', value: `${heading}: ${body}`, rawText: body })
                 if (policies.length >= 10) break
               }
               return {
                 images, amenities, description,
-                address: addrEl?.innerText?.trim() ?? null,
+                address: (addrEl as HTMLElement | null)?.innerText?.trim() ?? null,
                 phone: phoneMatch?.[0]?.trim() ?? null,
                 email: emailMatch?.[0]?.trim() ?? null,
                 policies,
@@ -309,6 +309,9 @@ export class DirectBookHarvester implements IbeHarvester {
               supportedOccupancies: [{ adults, children }],
               maxAdults: adults,
               maxOccupancy: adults + children,
+              maxChildren: null, maxInfants: null,
+              baseOccupancy: null, baseAdults: null, baseChildren: null, baseInfants: null,
+              adultsAgeFrom: null, childrenAgeFrom: null, childrenAgeTo: null, infantsAgeTo: null,
             })
           } else {
             const existing = roomsMap.get(room.name)!
@@ -397,7 +400,7 @@ export class DirectBookHarvester implements IbeHarvester {
               .map(i => i.src).filter(s => s.startsWith('http'))
 
             // Full card text for structured field extraction
-            const cardText = card.innerText ?? ''
+            const cardText = (card as HTMLElement).innerText ?? ''
 
             // Description — Room Features section or paragraph blocks
             const featureSection = Array.from(card.querySelectorAll('[class*="feature"], [class*="room-info"], [class*="RoomInfo"]'))
@@ -440,8 +443,8 @@ export class DirectBookHarvester implements IbeHarvester {
             // Parse comma-separated amenities line if present
             const amenLine = cardText.match(/amenities?\s*\n([^\n]{10,})/i)
             if (amenLine?.[1]) {
-              amenLine[1].split(',').map(s => s.trim()).filter(s => s.length > 2 && s.length < 50)
-                .forEach(s => amenitySet.add(s))
+              amenLine[1].split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 2 && s.length < 50)
+                .forEach((s: string) => amenitySet.add(s))
             }
             // Fallback: li elements
             if (amenitySet.size === 0) {

@@ -127,7 +127,6 @@ export async function harvestMarketingSite(
   // Step 1: Homepage
   try {
     const home = await scrapePage(websiteUrl)
-    if (home.description) result.description = home.description  // will be set below
     if (home.text) result.description = home.text
     if (home.name) result.name = home.name
     result.images = home.images

@@ -102,6 +102,9 @@ export class SynXisHarvester implements IbeHarvester {
               supportedOccupancies: [{ adults, children }],
               maxAdults: adults,
               maxOccupancy: adults + children,
+              maxChildren: null, maxInfants: null,
+              baseOccupancy: null, baseAdults: null, baseChildren: null, baseInfants: null,
+              adultsAgeFrom: null, childrenAgeFrom: null, childrenAgeTo: null, infantsAgeTo: null,
             });
           } else {
             const existing = roomsMap.get(card.name)!;
