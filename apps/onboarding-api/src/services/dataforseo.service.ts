@@ -26,6 +26,8 @@ interface DataForSEOItem {
   url?: string
   title?: string
   description?: string
+  website?: string       // present on knowledge_graph items
+  items?: DataForSEOItem[] // present on hotels_pack / local_pack items
 }
 
 interface DataForSEOResponse {
@@ -145,10 +147,22 @@ async function fetchSerpItems(
     const data = await res.json() as DataForSEOResponse
     const task = data.tasks?.[0]
     if (!task || task.status_code !== 20000) return []
-    return (task.result?.[0]?.items ?? []).filter(i => i.type === 'organic' && i.url)
+    return task.result?.[0]?.items ?? []
   } catch {
     return []
   }
+}
+
+function extractKnowledgeGraphWebsite(items: DataForSEOItem[]): string | null {
+  for (const item of items) {
+    if (item.type === 'knowledge_graph' && item.website) return item.website
+    if ((item.type === 'hotels_pack' || item.type === 'local_pack') && item.items) {
+      for (const sub of item.items) {
+        if (sub.website) return sub.website
+      }
+    }
+  }
+  return null
 }
 
 export async function searchHotelsDataForSEO(
@@ -175,12 +189,14 @@ export async function searchHotelsDataForSEO(
   const unquotedKeyword = `${hotelName}${location ? ' ' + location : ''} official site ${exclusions}`
 
   try {
-    const quotedItems = await fetchSerpItems(quotedKeyword, credentials, locationCode)
+    const quotedAllItems = await fetchSerpItems(quotedKeyword, credentials, locationCode)
+    const kgWebsite = extractKnowledgeGraphWebsite(quotedAllItems)
+    const quotedItems = quotedAllItems.filter(i => i.type === 'organic' && i.url)
     const nonOtaFromQuoted = quotedItems.filter(i => i.url && !isOta(i.url, country))
 
     const unquotedItems = nonOtaFromQuoted.length >= 2
       ? []
-      : await fetchSerpItems(unquotedKeyword, credentials, locationCode)
+      : (await fetchSerpItems(unquotedKeyword, credentials, locationCode)).filter(i => i.type === 'organic' && i.url)
 
     // Merge: quoted first (higher confidence), unquoted fills gaps
     const seenUrls = new Set<string>()
@@ -213,6 +229,19 @@ export async function searchHotelsDataForSEO(
       const detected = detection !== null
       const score = scoreCandidate(url, item.title ?? '', hotelName, detected)
       candidates.push({ url, title: item.title ?? url, detected, ibeName: detection?.name ?? null, screenshotUrl: null, score })
+    }
+
+    // Knowledge graph website — score 97, highest confidence (Google's curated hotel data)
+    if (kgWebsite && !isOta(kgWebsite, country)) {
+      const kgDetection = detectKnownIBE(kgWebsite)
+      candidates.push({
+        url: kgWebsite,
+        title: 'Official website (Google Hotels)',
+        detected: kgDetection !== null,
+        ibeName: kgDetection?.name ?? null,
+        screenshotUrl: null,
+        score: 97,
+      })
     }
 
     // Deduplicate by base domain — keep highest-scoring result per domain
