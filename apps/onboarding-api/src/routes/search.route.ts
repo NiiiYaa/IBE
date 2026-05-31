@@ -37,12 +37,12 @@ export async function searchRoutes(app: FastifyInstance) {
   });
 
   // POST /hotel-search — DataForSEO SERP primary search (~2s)
-  app.post<{ Body: { hotelName: string; city: string; country: string } }>(
+  app.post<{ Body: { hotelName: string; city: string; country: string; dfsLogin?: string; dfsPassword?: string } }>(
     '/hotel-search',
     async (request, reply) => {
-      const { hotelName, city, country } = request.body;
+      const { hotelName, city, country, dfsLogin, dfsPassword } = request.body;
       if (!hotelName?.trim()) return reply.badRequest('hotelName is required');
-      const candidates = await searchHotelsPrimary(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '');
+      const candidates = await searchHotelsPrimary(hotelName.trim(), city?.trim() ?? '', country?.trim() ?? '', dfsLogin, dfsPassword);
       return reply.send({ candidates });
     }
   );

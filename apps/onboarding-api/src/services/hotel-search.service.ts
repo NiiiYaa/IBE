@@ -189,9 +189,11 @@ export async function searchHotelsPrimary(
   hotelName: string,
   city: string,
   country: string,
+  dfsLogin?: string,
+  dfsPassword?: string,
 ): Promise<HotelCandidate[]> {
   const chainDomain = detectChain(hotelName)
-  const results = await _dfsSearch(hotelName, city, country)
+  const results = await _dfsSearch(hotelName, city, country, dfsLogin, dfsPassword)
 
   if (chainDomain) {
     const chainHostname = new URL(chainDomain).hostname

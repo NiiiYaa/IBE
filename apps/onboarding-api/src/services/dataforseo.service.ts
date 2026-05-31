@@ -4,7 +4,9 @@ import { detectKnownIBE } from '@ibe/shared'
 import { isOta, scoreCandidate, type HotelCandidate } from './hotel-search-utils.js'
 import { getBlockedDomains } from './blocked-domains.service.js'
 
-async function getDfsCredentials(): Promise<{ login: string; password: string } | null> {
+async function getDfsCredentials(passedLogin?: string, passedPassword?: string): Promise<{ login: string; password: string } | null> {
+  // Prefer credentials passed directly from the ibe-api (already decrypted)
+  if (passedLogin && passedPassword) return { login: passedLogin, password: passedPassword }
   if (env.DATAFORSEO_LOGIN && env.DATAFORSEO_PASSWORD) {
     return { login: env.DATAFORSEO_LOGIN, password: env.DATAFORSEO_PASSWORD }
   }
@@ -169,8 +171,10 @@ export async function searchHotelsDataForSEO(
   hotelName: string,
   city: string,
   country: string,
+  passedLogin?: string,
+  passedPassword?: string,
 ): Promise<HotelCandidate[]> {
-  const dfsCredentials = await getDfsCredentials()
+  const dfsCredentials = await getDfsCredentials(passedLogin, passedPassword)
   if (!dfsCredentials) {
     console.warn('[DFS] No credentials found (env or DB) — skipping DataForSEO search')
     return []
