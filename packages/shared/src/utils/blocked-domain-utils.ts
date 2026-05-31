@@ -40,8 +40,9 @@ function extractBrandLabel(hostname: string): string | null {
   const parts = h.split('.')
   if (parts.length === 2) return parts[0] ?? null
   if (parts.length === 3) {
-    if (CC_SLDS.has(parts[1]!)) return parts[0] ?? null
-    if (COMMON_TLDS.has(parts[2]!)) return parts[1] ?? null
+    if (CC_SLDS.has(parts[1]!)) return parts[0] ?? null          // trip.co.uk → 'trip'
+    if (COMMON_TLDS.has(parts[2]!)) return parts[1] ?? null      // fr.trip.com → 'trip'
+    if (parts[2]!.length === 2) return parts[1] ?? null           // aaa.booking.fr → 'booking'
   }
   return null
 }
