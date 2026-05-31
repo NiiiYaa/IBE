@@ -3,118 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiClient, type OnboardingInvitation, type BlockedDomain } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
-import { AriSystemCombobox } from '@/components/onboarding/AriSystemCombobox';
+import { AriSourceCombobox } from '@/components/onboarding/AriSourceCombobox';
+import type { AriSelection } from '@ibe/shared';
 import { COUNTRIES, countryFlag } from '@/lib/countries';
 
-const PMS_OPTIONS = [
-  // Batch 1 — original
-  { id: 12,  name: 'SiteMinder' },
-  { id: 25,  name: 'TravelClick' },
-  { id: 18,  name: 'eZee Centrix' },
-  { id: 88,  name: 'Cloudbeds' },
-  { id: 4,   name: 'Mews' },
-  { id: 127, name: 'RoomRaccoon' },
-  { id: 96,  name: 'SabeeApp' },
-  // Batch 2 — priority order
-  { id: 48,  name: 'AxisRooms' },
-  { id: 30,  name: 'STAAH' },
-  { id: 169, name: 'STAAH V2' },
-  { id: 26,  name: 'Vertical Booking' },
-  { id: 36,  name: 'RateGain' },
-  { id: 20,  name: 'D-EDGE' },
-  // Batch 3
-  { id: 24,  name: 'Channex' },
-  { id: 103, name: 'StayFlexi' },
-  { id: 14,  name: 'RoomCloud' },
-  { id: 99,  name: 'SynXis CCX' },
-  { id: 69,  name: 'DJUBO' },
-  // Batch 4
-  { id: 39,  name: 'HotelRunner' },
-  { id: 23,  name: 'RateTiger by eRevMax' },
-  { id: 102, name: 'AsiaTech' },
-  { id: 110, name: 'ElektraWeb' },
-  { id: 63,  name: 'ResAvenue' },
-  // Batch 5
-  { id: 166, name: 'Extranetsync' },
-  { id: 16,  name: 'YieldPlanet' },
-  { id: 101, name: 'eGlobe' },
-  { id: 54,  name: 'BookingJini' },
-  { id: 62,  name: 'WuBook' },
-  // Batch 6
-  { id: 11,  name: 'Dingus' },
-  { id: 59,  name: 'Omnibees' },
-  { id: 117, name: 'EaseRoom' },
-  { id: 38,  name: 'HotelPartner' },
-  { id: 35,  name: 'Reseliva' },
-  // Batch 7
-  { id: 57,  name: 'Hotel Link' },
-  { id: 37,  name: 'Optima' },
-  { id: 53,  name: 'Ermes' },
-  { id: 108, name: 'Maximojo' },
-  { id: 51,  name: 'Simple Booking' },
-  // Batch 8
-  { id: 122, name: 'Aiosell' },
-  { id: 146, name: 'LobbyPMS' },
-  { id: 27,  name: 'Booking Expert' },
-  { id: 58,  name: 'Hotel Spider' },
-  { id: 10,  name: 'Profitroom' },
-  // Batch 9
-  { id: 100, name: 'Phobs' },
-  { id: 21,  name: 'TodoAlojamiento' },
-  { id: 89,  name: 'HotelNetSolutions' },
-  { id: 56,  name: 'Host PMS' },
-  { id: 140, name: 'SistemOtel' },
-  // Batch 10
-  { id: 22,  name: 'Shiji' },
-  { id: 44,  name: 'Mini Hotel' },
-  { id: 65,  name: 'RMS' },
-  { id: 85,  name: 'Isprava' },
-  { id: 55,  name: 'eResConnect' },
-  // Batch 11
-  { id: 72,  name: 'Busy Rooms' },
-  { id: 142, name: 'Octorate' },
-  { id: 52,  name: 'Prestige' },
-  { id: 34,  name: 'DIRS21' },
-  { id: 50,  name: 'Passepartout' },
-  // Batch 12
-  { id: 64,  name: 'Hotetec' },
-  { id: 93,  name: 'TeamSystem' },
-  { id: 170, name: 'Zotel' },
-  { id: 118, name: 'Booking Designer' },
-  { id: 73,  name: 'MyGuestCare' },
-  // Batch 13
-  { id: 15,  name: 'Stays' },
-  { id: 1,   name: 'HotelConnect' },
-  { id: 91,  name: 'SHR' },
-  { id: 43,  name: 'Lighthouse' },
-  { id: 29,  name: 'NextPax' },
-  { id: 165, name: 'A&O Hostels' },
-  { id: 148, name: 'BookingHotel' },
-  { id: 124, name: 'Travelline' },
-  // Batch 14
-  { id: 174, name: 'Smarthotel' },
-  { id: 147, name: 'Vioma' },
-  { id: 92,  name: 'Creativetecno' },
-  { id: 163, name: 'Primalres' },
-  // Batch 15
-  { id: 66,  name: 'eviivo' },
-  { id: 68,  name: 'BookLogic' },
-  { id: 106, name: 'HotelAvailabilities' },
-  { id: 40,  name: 'iper.net' },
-  { id: 90,  name: 'OTA Sync' },
-  // Batch 16
-  { id: 120, name: 'e-GDS' },
-  { id: 160, name: 'Exely' },
-  { id: 161, name: 'Tisya Stays' },
-  { id: 159, name: 'ProExSus' },
-  { id: 114, name: 'FNSrooms' },
-  { id: 129, name: 'Revenatium' },
-  { id: 158, name: 'MyHotelLine' },
-  { id: 136, name: 'Avirato' },
-  { id: 133, name: 'WebBookingPro' },
-  { id: 152, name: 'BookOne PMS' },
-  { id: 32,  name: 'Opera Cloud by Oracle' },
-].sort((a, b) => a.name.localeCompare(b.name));
 
 const ONBOARDING_API_URL = process.env['NEXT_PUBLIC_ONBOARDING_API_URL'] ?? 'http://localhost:3003';
 
@@ -259,10 +151,7 @@ export default function HotelOnboardingPage() {
   const [countryOpen, setCountryOpen] = useState(false);
   const countryRef = useRef<HTMLDivElement>(null);
 
-  const [ariInput, setAriInput] = useState('');
-  const [ariOpen, setAriOpen] = useState(false);
-  const ariRef = useRef<HTMLDivElement>(null);
-  const [unknownPmsName, setUnknownPmsName] = useState('');
+  const [ariSelection, setAriSelection] = useState<AriSelection | null>(null);
 
   const [visibleCount, setVisibleCount] = useState(2);
 
@@ -270,7 +159,7 @@ export default function HotelOnboardingPage() {
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveResult, setResolveResult] = useState<ResolveResult | null>(null);
-  const [createForm, setCreateForm] = useState({ pmsId: 0, contactEmail: '' });
+  const [contactEmail, setContactEmail] = useState('');
   const [creating, setCreating] = useState(false);
   const [newLink, setNewLink] = useState<string | null>(null);
   const [hgQueued, setHgQueued] = useState(false);
@@ -374,7 +263,6 @@ export default function HotelOnboardingPage() {
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (countryRef.current && !countryRef.current.contains(e.target as Node)) setCountryOpen(false);
-      if (ariRef.current && !ariRef.current.contains(e.target as Node)) setAriOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -559,16 +447,16 @@ export default function HotelOnboardingPage() {
   async function handleCreate(e: React.FormEvent, hgStatus?: 'needs_setup' | 'needs_research') {
     e.preventDefault();
     if (!selectedUrl) return;
-    const { isRegistered, isUnknown, cmName } = computeAriState();
-    if (!createForm.contactEmail.trim().includes('@')) { setCreateError('Please enter a valid contact email.'); return; }
+    const { isRegistered, isUnknown, cmName, pmsId, unknownPmsStatus } = computeAriState();
+    if (!contactEmail.trim().includes('@')) { setCreateError('Please enter a valid contact email.'); return; }
     setCreating(true);
     setCreateError(null);
     setNewLink(null);
     try {
       const effectiveHgStatus = hgStatus ?? (isUnknown ? 'needs_setup' as const : null);
       const inv = await apiClient.createOnboardingInvitation({
-        ...(isRegistered ? { pmsId: createForm.pmsId } : { unknownPmsName: cmName || '(unknown)' }),
-        contactEmail: createForm.contactEmail,
+        ...(isRegistered ? { pmsId: pmsId! } : { unknownPmsName: cmName || '(unknown)', ...(unknownPmsStatus ? { unknownPmsStatus } : {}) }),
+        contactEmail: contactEmail,
         ...(searchForm.hotelName ? { hotelName: searchForm.hotelName } : {}),
         ...(searchForm.city ? { city: searchForm.city } : {}),
         ...(searchForm.country ? { country: searchForm.country } : {}),
@@ -590,9 +478,8 @@ export default function HotelOnboardingPage() {
       setResolveResult(null);
       setSelectedUrl(null);
       setManualUrl('');
-      setCreateForm({ pmsId: 0, contactEmail: '' });
-      setAriInput('');
-      setUnknownPmsName('');
+      setAriSelection(null);
+      setContactEmail('');
       setHgQueued(false);
       await load();
     } catch (err) {
@@ -617,26 +504,28 @@ export default function HotelOnboardingPage() {
 
   // Shared helper: is the user in the "ARI not in our list" path?
   function computeAriState() {
-    const isRegistered = createForm.pmsId > 0;
-    const savedCmName = unknownPmsName.trim();
-    const typedAriText = ariInput.trim();
-    // "Not on the list" is a UI sentinel, not a real CM name
-    const ariName = typedAriText && typedAriText !== 'Not on the list' ? typedAriText : '';
-    // Unknown path: either text in ARI field, or a CM name was explicitly saved
-    const isUnknown = !isRegistered && (typedAriText.length > 0 || savedCmName.length > 0);
-    const cmName = savedCmName || ariName;
-    return { isRegistered, isUnknown, cmName };
+    if (!ariSelection) return { isRegistered: false, isUnknown: false, cmName: '', pmsId: undefined as number | undefined, unknownPmsStatus: undefined as 'to_be_added' | 'to_be_checked' | undefined }
+    if (ariSelection.kind === 'hg_has') {
+      return { isRegistered: true, isUnknown: false, cmName: ariSelection.name, pmsId: ariSelection.pmsId, unknownPmsStatus: undefined as 'to_be_added' | 'to_be_checked' | undefined }
+    }
+    return {
+      isRegistered: false,
+      isUnknown: true,
+      cmName: ariSelection.name,
+      pmsId: undefined as number | undefined,
+      unknownPmsStatus: (ariSelection.kind === 'to_be_added' ? 'to_be_added' : 'to_be_checked') as 'to_be_added' | 'to_be_checked',
+    }
   }
 
   async function handleAddToHgQueue(e: React.FormEvent) {
     e.preventDefault();
-    const { isRegistered, isUnknown, cmName } = computeAriState();
-    if (!createForm.contactEmail.trim() || (!isRegistered && !cmName)) return;
+    const { isRegistered, isUnknown, cmName, pmsId, unknownPmsStatus } = computeAriState();
+    if (!contactEmail.trim() || (!isRegistered && !cmName)) return;
     setHgQueueSubmitting(true);
     try {
       await apiClient.createOnboardingInvitation({
-        ...(isRegistered ? { pmsId: createForm.pmsId } : { unknownPmsName: cmName || '(unknown)' }),
-        contactEmail: createForm.contactEmail,
+        ...(isRegistered ? { pmsId: pmsId! } : { unknownPmsName: cmName || '(unknown)', ...(unknownPmsStatus ? { unknownPmsStatus } : {}) }),
+        contactEmail: contactEmail,
         ...(searchForm.hotelName ? { hotelName: searchForm.hotelName } : {}),
         ...(searchForm.city ? { city: searchForm.city } : {}),
         ...(searchForm.country ? { country: searchForm.country } : {}),
@@ -646,8 +535,7 @@ export default function HotelOnboardingPage() {
       setNewLink(null);
       setSearchForm({ hotelName: '', city: '', country: '' });
       setCountryInput(''); setCandidates(null); setSelectedUrl(null);
-      setManualUrl(''); setCreateForm({ pmsId: 0, contactEmail: '' });
-      setAriInput(''); setUnknownPmsName(''); setHgQueueNotes('');
+      setManualUrl(''); setAriSelection(null); setContactEmail(''); setHgQueueNotes('');
       alert('Added to HG Queue for investigation.');
       await load();
     } catch (err) {
@@ -765,7 +653,7 @@ export default function HotelOnboardingPage() {
     lines.push('   Use siteminder.ts as reference (blank dataFlow)');
     lines.push('   Set: pmsId, pmsName, dataFlow, credentialsSchema, steps, getHGPropertyPayload');
     lines.push('3. Register in `packages/onboarding-flows/src/registry.ts`');
-    lines.push('4. Add to PMS_OPTIONS in `apps/web/src/app/admin/hotel-onboarding/page.tsx`');
+    lines.push('4. Add to the HG VendorFlow list so it appears in the AriSourceCombobox');
     lines.push('5. `pnpm --filter @ibe/onboarding-flows build`');
     lines.push('6. `pnpm --filter onboarding-api test -- --run` (update session.service.test.ts pmsId if needed)');
     lines.push('7. NOTE: Once ARI is live in HG, the hotel must complete a test booking to verify the end-to-end connection. This verification step is not yet part of the wizard — it is currently done manually outside the onboarding flow.');
@@ -804,30 +692,21 @@ export default function HotelOnboardingPage() {
             )}
             <form onSubmit={handleAddToHgQueue} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {/* ARI Source combobox — same as Step 2 */}
-                <div ref={ariRef} style={{ position: 'relative' }}>
+                {/* ARI Source combobox */}
+                <div>
                   <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>ARI Source (CM / PMS / CRS) *</label>
-                  <input type="text" value={ariInput}
-                    onChange={e => { setAriInput(e.target.value); setCreateForm(p => ({ ...p, pmsId: 0 })); setAriOpen(true); }}
-                    onFocus={() => setAriOpen(true)} placeholder="Type to search…" autoComplete="off"
-                    style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                  <AriSourceCombobox value={ariSelection} onChange={setAriSelection} style={{ width: '100%' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>Hotel's Contact Email *</label>
-                  <input type="email" required value={createForm.contactEmail}
-                    onChange={e => setCreateForm(p => ({ ...p, contactEmail: e.target.value }))}
+                  <input type="email" required value={contactEmail}
+                    onChange={e => setContactEmail(e.target.value)}
                     placeholder="hotel@example.com" style={{ width: '100%', ...inputStyle }} />
                 </div>
               </div>
-              {computeAriState().isUnknown && (
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '7px', padding: '0.75rem 1rem' }}>
-                  <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem', color: '#92400e' }}>CM / PMS / CRS name</label>
-                  <AriSystemCombobox value={unknownPmsName} onChange={setUnknownPmsName} style={{ width: '100%' }} />
-                </div>
-              )}
               {(() => {
                 const { isRegistered, isUnknown, cmName } = computeAriState();
-                const ok = createForm.contactEmail.trim() && (isRegistered || (isUnknown && cmName));
+                const ok = contactEmail.trim().includes('@') && (isRegistered || (isUnknown && cmName));
                 return (
                   <button type="submit" disabled={hgQueueSubmitting || !ok}
                     style={{ padding: '0.7rem 1.5rem', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: (hgQueueSubmitting || !ok) ? 'not-allowed' : 'pointer', opacity: (hgQueueSubmitting || !ok) ? 0.5 : 1 }}>
@@ -1223,95 +1102,22 @@ export default function HotelOnboardingPage() {
             {!resolving && resolveResult && (
               <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div ref={ariRef} style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ fontWeight: 600, fontSize: '0.875rem' }}>ARI Source (CM / PMS / CRS) *</label>
-                      {ariInput && !PMS_OPTIONS.some(o => o.name === ariInput) && (
-                        <button type="button" onClick={() => { setAriInput(''); setCreateForm(p => ({ ...p, pmsId: 0 })); setUnknownPmsName(''); }}
-                          style={{ fontSize: '0.75rem', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-                          ✕ Clear
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      value={ariInput}
-                      onChange={e => {
-                        setAriInput(e.target.value);
-                        setCreateForm(p => ({ ...p, pmsId: 0 }));
-                        setAriOpen(true);
-                      }}
-                      onFocus={() => setAriOpen(true)}
-                      placeholder="Type to search…"
-                      autoComplete="off"
-                      style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
-                    />
-                    {ariOpen && (
-                      <ul style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                        background: '#fff', border: '1px solid #d1d5db', borderRadius: '6px',
-                        margin: '2px 0 0', padding: 0, listStyle: 'none',
-                        maxHeight: '220px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                      }}>
-                        {PMS_OPTIONS.filter(o => o.name.toLowerCase().includes(ariInput.toLowerCase())).map(o => (
-                          <li key={o.id}
-                            onMouseDown={() => {
-                              setAriInput(o.name);
-                              setCreateForm(p => ({ ...p, pmsId: o.id }));
-                              setUnknownPmsName('');
-                              setAriOpen(false);
-                            }}
-                            style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.875rem' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >{o.name}</li>
-                        ))}
-                        {'not on the list'.includes(ariInput.toLowerCase()) || ariInput === '' ? (
-                          <li
-                            onMouseDown={() => {
-                              setAriInput('Not on the list');
-                              setCreateForm(p => ({ ...p, pmsId: 0 }));
-                              setAriOpen(false);
-                            }}
-                            style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.875rem', borderTop: '1px solid #e5e7eb', color: '#92400e', fontStyle: 'italic' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#fef9c3')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          >Not on the list — flag for HG team</li>
-                        ) : null}
-                        {PMS_OPTIONS.filter(o => o.name.toLowerCase().includes(ariInput.toLowerCase())).length === 0
-                          && !'not on the list'.includes(ariInput.toLowerCase()) && (
-                          <li style={{ padding: '0.5rem 0.75rem', color: '#9ca3af', fontSize: '0.875rem' }}>No match</li>
-                        )}
-                      </ul>
-                    )}
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>ARI Source (CM / PMS / CRS) *</label>
+                    <AriSourceCombobox value={ariSelection} onChange={setAriSelection} style={{ width: '100%' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem' }}>Hotel's Contact Email *</label>
-                    <input type="email" required value={createForm.contactEmail}
-                      onChange={e => setCreateForm(p => ({ ...p, contactEmail: e.target.value }))}
+                    <input type="email" required value={contactEmail}
+                      onChange={e => setContactEmail(e.target.value)}
                       placeholder="hotel@example.com"
                       style={{ width: '100%', ...inputStyle }} />
                   </div>
                 </div>
-                {computeAriState().isUnknown && (
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '7px', padding: '0.75rem 1rem' }}>
-                    <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.3rem', fontSize: '0.875rem', color: '#92400e' }}>
-                      What is the name of the CM / PMS / CRS?
-                    </label>
-                    <AriSystemCombobox
-                      value={unknownPmsName}
-                      onChange={setUnknownPmsName}
-                      style={{ width: '100%' }}
-                    />
-                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: '#92400e' }}>
-                      This invitation will be added to the HG team queue for manual setup.
-                    </p>
-                  </div>
-                )}
                 {createError && <p style={{ color: '#dc2626', margin: 0, fontSize: '0.875rem' }}>{createError}</p>}
                 {(() => {
                   const { isRegistered, isUnknown: isUnknownPms, cmName: effectiveCmName } = computeAriState();
-                  const formValid = (isRegistered || (isUnknownPms && effectiveCmName.length > 0)) && createForm.contactEmail.trim().includes('@');
+                  const formValid = (isRegistered || (isUnknownPms && effectiveCmName.length > 0)) && contactEmail.trim().includes('@');
                   const btnDisabled = creating || !formValid;
                   const missingHint = !formValid && !creating
                     ? (!isRegistered && !isUnknownPms ? 'Select an ARI Source' : isUnknownPms && !effectiveCmName ? 'Enter the CM name' : 'Enter a valid contact email')
