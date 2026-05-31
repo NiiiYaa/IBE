@@ -14,8 +14,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   initSession: (token: string) => request<{ ok: boolean; sessionId: number }>('POST', '/session', { token }),
-  register: (data: { hotelName: string; pmsId: number; contactEmail: string; websiteUrl?: string }) =>
-    request<{ ok: boolean; sessionId: number }>('POST', '/register', data),
+  register: (data: { hotelName: string; pmsId?: number; unknownPmsName?: string; unknownPmsStatus?: 'to_be_added' | 'to_be_checked'; contactEmail: string; websiteUrl?: string }) =>
+    request<{ ok: boolean; redirect: 'wizard' | 'pending' }>('POST', '/register', data),
   getState: () => request<WizardState>('GET', '/wizard/state'),
   submitCredentials: (credentials: Record<string, string>) =>
     request<{ ok: boolean }>('POST', '/wizard/submit-credentials', { credentials }),
