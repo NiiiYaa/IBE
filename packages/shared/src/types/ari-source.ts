@@ -120,4 +120,6 @@ export const ARI_SYSTEMS: AriSystem[] = [
   { name: 'Avvio (Allo CRS)',                           category: 'CRS' },
   { name: 'IBC Hotels CRS',                             category: 'CRS' },
   { name: 'InnLink CRS',                                category: 'CRS' },
+  { name: 'IBS (iRes CRS)',                             category: 'CRS' },
+  { name: 'DHISCO (RateGain)',                          category: 'CM'  },
 ]
