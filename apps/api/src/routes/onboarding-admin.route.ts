@@ -11,7 +11,7 @@ import {
   triggerBackgroundHarvest,
 } from '../services/onboarding-invitation.service.js'
 import { getVendorFlow, listVendorFlows } from '@ibe/onboarding-flows'
-import { detectKnownIBE, listKnownIBEPatterns } from '@ibe/shared'
+import { detectKnownIBE, listKnownIBEPatterns, detectCountryFromDomain, isRedundantEntry } from '@ibe/shared'
 import { resolveAIConfig } from '../services/ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { prisma } from '../db/client.js'
@@ -805,12 +805,23 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       } catch { domain = raw.toLowerCase().replace(/^www\./, '') }
       const existing = await prisma.onboardingBlockedDomain.findUnique({ where: { domain } })
       if (existing) return reply.conflict('Domain already blocked')
+
+      // Auto-detect country if caller didn't supply one
+      const detectedCountry = request.body.country?.trim() || detectCountryFromDomain(domain) || null
+
+      // Redundancy check — is this domain already covered by a global brand/subdomain entry?
+      const allEntries = await prisma.onboardingBlockedDomain.findMany({
+        select: { domain: true, matchType: true, country: true, redundant: true },
+      })
+      const isRedundant = isRedundantEntry(domain, allEntries)
+
       const created = await prisma.onboardingBlockedDomain.create({
         data: {
           domain,
           label: request.body.label?.trim() || null,
           matchType: request.body.matchType ?? 'subdomain',
-          country: request.body.country?.trim() || null,
+          country: detectedCountry,
+          redundant: isRedundant,
           addedById: me.adminId,
         },
       })
