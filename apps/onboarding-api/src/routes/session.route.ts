@@ -25,15 +25,25 @@ export async function sessionRoutes(app: FastifyInstance) {
   });
 
   // POST /register — self-registration (hotel fills public form, no prior invite)
-  app.post<{ Body: { hotelName: string; pmsId: number; contactEmail: string; websiteUrl?: string } }>(
+  app.post<{ Body: { hotelName: string; pmsId?: number; unknownPmsName?: string; unknownPmsStatus?: 'to_be_added' | 'to_be_checked'; contactEmail: string; websiteUrl?: string } }>(
     '/register',
     async (request, reply) => {
-      const { hotelName, pmsId, contactEmail, websiteUrl } = request.body;
-      if (!hotelName || !pmsId || !contactEmail) return reply.badRequest('hotelName, pmsId and contactEmail are required');
+      const { hotelName, pmsId, unknownPmsName, unknownPmsStatus, contactEmail, websiteUrl } = request.body;
+      if (!hotelName || !contactEmail) return reply.badRequest('hotelName and contactEmail are required');
+      if (!pmsId && !unknownPmsName) return reply.badRequest('pmsId or unknownPmsName is required');
       try {
-        const session = await initSelfRegistration({ hotelName, pmsId, contactEmail, ...(websiteUrl !== undefined ? { websiteUrl } : {}) });
-        setSessionCookie(reply, session.id);
-        return reply.code(201).send({ ok: true, sessionId: session.id });
+        const result = await initSelfRegistration({
+          hotelName,
+          pmsId,
+          unknownPmsName,
+          unknownPmsStatus,
+          contactEmail,
+          ...(websiteUrl !== undefined ? { websiteUrl } : {}),
+        });
+        if (result.redirect === 'wizard' && result.sessionId) {
+          setSessionCookie(reply, result.sessionId);
+        }
+        return reply.code(201).send({ ok: true, redirect: result.redirect });
       } catch (err: unknown) {
         return reply.badRequest(err instanceof Error ? err.message : 'Registration failed');
       }

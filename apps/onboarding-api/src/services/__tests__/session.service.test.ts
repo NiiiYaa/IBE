@@ -20,7 +20,7 @@ vi.mock('../flow-resolver.service.js', () => ({
 }));
 
 import { prisma } from '../../db/client.js';
-import { initSession, getSession, advanceStep } from '../session.service.js';
+import { initSession, getSession, advanceStep, initSelfRegistration } from '../session.service.js';
 import { resolveVendorFlow } from '../flow-resolver.service.js';
 import { getVendorFlow } from '@ibe/onboarding-flows';
 
@@ -86,6 +86,43 @@ describe('initSession', () => {
     expect(ariStep?.status).toBe('completed');
   });
 });
+
+describe('initSelfRegistration with unknown PMS', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(prisma.onboardingInvitation.create).mockResolvedValue({ id: 99 } as any)
+  })
+
+  it('returns redirect=pending when unknownPmsName is provided', async () => {
+    const result = await initSelfRegistration({
+      hotelName: 'Test Hotel',
+      unknownPmsName: 'FakeCM',
+      unknownPmsStatus: 'to_be_checked',
+      contactEmail: 'test@hotel.com',
+    })
+    expect(result.redirect).toBe('pending')
+    expect(result.sessionId).toBeUndefined()
+  })
+
+  it('creates invitation with hgStatus=needs_setup for unknown PMS', async () => {
+    await initSelfRegistration({
+      hotelName: 'Test Hotel',
+      unknownPmsName: 'FakeCM',
+      unknownPmsStatus: 'to_be_added',
+      contactEmail: 'test@hotel.com',
+    })
+    expect(prisma.onboardingInvitation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          unknownPmsName: 'FakeCM',
+          unknownPmsStatus: 'to_be_added',
+          hgStatus: 'needs_setup',
+          source: 'self_registration',
+        }),
+      })
+    )
+  })
+})
 
 describe('advanceStep', () => {
   it('increments currentStep', async () => {

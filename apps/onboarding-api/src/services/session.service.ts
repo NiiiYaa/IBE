@@ -99,14 +99,34 @@ export async function saveCredentials(sessionId: number, credentials: Record<str
 
 export async function initSelfRegistration(input: {
   hotelName: string;
-  pmsId: number;
+  pmsId?: number;
+  unknownPmsName?: string;
+  unknownPmsStatus?: 'to_be_added' | 'to_be_checked';
   contactEmail: string;
   websiteUrl?: string;
-}) {
-  const flow = await resolveVendorFlow(input.pmsId);
+}): Promise<{ redirect: 'wizard' | 'pending'; sessionId?: number }> {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  if (input.unknownPmsName) {
+    await prisma.onboardingInvitation.create({
+      data: {
+        source: 'self_registration',
+        unknownPmsName: input.unknownPmsName,
+        unknownPmsStatus: input.unknownPmsStatus ?? 'to_be_checked',
+        hotelName: input.hotelName,
+        contactEmail: input.contactEmail,
+        hgStatus: 'needs_setup',
+        ...(input.websiteUrl !== undefined ? { ibeUrl: input.websiteUrl } : {}),
+        expiresAt,
+        usedAt: new Date(),
+      },
+    });
+    return { redirect: 'pending' };
+  }
+
+  const flow = await resolveVendorFlow(input.pmsId ?? 0);
   if (!flow) throw new OnboardingError(`No flow for pmsId ${input.pmsId}`, 'unknown_pms');
 
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const initialSteps = flow.steps.map((s) => ({ ...s, status: 'pending' }));
 
   const invitation = await prisma.onboardingInvitation.create({
@@ -130,7 +150,7 @@ export async function initSelfRegistration(input: {
     },
   });
 
-  return session;
+  return { redirect: 'wizard', sessionId: session.id };
 }
 
 export async function completeSession(sessionId: number) {
