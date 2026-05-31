@@ -23,6 +23,7 @@ export type * from './types/test-bookings.js'
 export type * from './types/compset.js'
 export type * from './types/event-calendar.js'
 export type * from './types/cluster.js'
+export * from './types/ari-source.js'
 
 // Schemas
 export * from './schemas/search.js'
