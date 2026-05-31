@@ -6,7 +6,11 @@ interface CreateInvitationInput {
   organizationId: number
   pmsId?: number
   pmsName?: string
+  unknownPmsName?: string
+  unknownPmsStatus?: 'to_be_added' | 'to_be_checked'
   hotelName?: string
+  city?: string
+  country?: string
   websiteUrl?: string
   ibeUrl?: string
   ibePattern?: string
