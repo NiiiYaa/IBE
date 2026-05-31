@@ -84,7 +84,7 @@ const registry: KnownIBEEntry[] = [
   {
     name: 'direct-book.com',
     sampleUrl: 'https://direct-book.com/properties/quentinamsterdamhotel?locale=en&checkInDate=2026-06-19&checkOutDate=2026-06-21&items[0][adults]=2&items[0][children]=0&items[0][infants]=0&currency=EUR&trackPage=yes',
-    domainPattern: /^https?:\/\/(?:www\.)?direct-book\.com\/properties\/([^/?#]+)/,
+    domainPattern: /^https?:\/\/(?:(?:www\.)?direct-book\.com|app\.thebookingbutton\.com)\/properties\/([^/?#]+)/,
     extractHotelId(url) {
       const m = this.domainPattern!.exec(url)
       if (!m) return null
