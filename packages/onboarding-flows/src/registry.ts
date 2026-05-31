@@ -108,6 +108,9 @@ import { aviratoFlow }             from './vendors/avirato.js';
 import { webBookingProFlow }       from './vendors/webbookingpro.js';
 import { bookOnePmsFlow }          from './vendors/bookonepms.js';
 import { operaCloudFlow }          from './vendors/operacloud.js';
+// Batch 17
+import { derbysoftFlow }           from './vendors/derbysoft.js';
+import { derbysoftV2Flow }         from './vendors/derbysoft-v2.js';
 
 const registry = new Map<number, VendorFlow>([
   [siteMinderFlow.pmsId,      siteMinderFlow],
@@ -201,6 +204,8 @@ const registry = new Map<number, VendorFlow>([
   [webBookingProFlow.pmsId,        webBookingProFlow],
   [bookOnePmsFlow.pmsId,           bookOnePmsFlow],
   [operaCloudFlow.pmsId,           operaCloudFlow],
+  [derbysoftFlow.pmsId,            derbysoftFlow],
+  [derbysoftV2Flow.pmsId,          derbysoftV2Flow],
 ]);
 
 for (const flow of registry.values()) {
