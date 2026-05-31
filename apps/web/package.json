@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",
+    "@ibe/onboarding-flows": "workspace:*",
     "@ibe/shared": "workspace:*",
     "@stripe/react-stripe-js": "^6.2.0",
     "@stripe/stripe-js": "^9.2.0",
