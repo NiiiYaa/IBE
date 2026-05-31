@@ -1,11 +1,11 @@
 export interface AriSystem {
   name: string
-  category: 'PMS' | 'CM' | 'CRS'
+  category: 'PMS' | 'CM' | 'CRS' | 'Switch' | 'GDS'
 }
 
 export type AriSourceOption =
   | { kind: 'hg_has';      pmsId: number; name: string }
-  | { kind: 'to_be_added'; name: string; category: 'PMS' | 'CM' | 'CRS' }
+  | { kind: 'to_be_added'; name: string; category: 'PMS' | 'CM' | 'CRS' | 'Switch' | 'GDS' }
 
 export type AriSelection =
   | { kind: 'hg_has';       pmsId: number; name: string }
@@ -13,9 +13,11 @@ export type AriSelection =
   | { kind: 'to_be_checked'; name: string }
 
 export const CATEGORY_LABELS: Record<AriSystem['category'], string> = {
-  PMS: 'Property Management Systems (PMS)',
-  CM:  'Channel Managers (CM)',
-  CRS: 'Central Reservation Systems (CRS)',
+  PMS:    'Property Management Systems (PMS)',
+  CM:     'Channel Managers (CM)',
+  CRS:    'Central Reservation Systems (CRS)',
+  Switch: 'Switches',
+  GDS:    'Global Distribution Systems (GDS)',
 }
 
 export function getAriSourceList(
@@ -119,7 +121,14 @@ export const ARI_SYSTEMS: AriSystem[] = [
   { name: 'Hotelogix CRS',                              category: 'CRS' },
   { name: 'Avvio (Allo CRS)',                           category: 'CRS' },
   { name: 'IBC Hotels CRS',                             category: 'CRS' },
-  { name: 'InnLink CRS',                                category: 'CRS' },
-  { name: 'IBS (iRes CRS)',                             category: 'CRS' },
-  { name: 'DHISCO (RateGain)',                          category: 'CM'  },
+  { name: 'InnLink CRS',                                category: 'CRS'    },
+  // ── Switches ──────────────────────────────────────────────────────────────────
+  { name: 'IBS (iRes)',                                 category: 'Switch' },
+  { name: 'DHISCO (RateGain)',                          category: 'Switch' },
+  { name: 'DerbySoft',                                  category: 'Switch' },
+  // ── Global Distribution Systems ───────────────────────────────────────────────
+  { name: 'Amadeus GDS',                                category: 'GDS'    },
+  { name: 'Sabre GDS',                                  category: 'GDS'    },
+  { name: 'Travelport Galileo',                         category: 'GDS'    },
+  { name: 'Travelport Worldspan',                       category: 'GDS'    },
 ]
