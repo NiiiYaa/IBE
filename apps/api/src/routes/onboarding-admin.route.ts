@@ -15,6 +15,8 @@ import { detectKnownIBE, listKnownIBEPatterns, detectCountryFromDomain, isRedund
 import { resolveAIConfig } from '../services/ai-config.service.js'
 import { getProviderAdapter } from '../ai/adapters/index.js'
 import { prisma } from '../db/client.js'
+import { decryptCredential } from '../services/data-provider.service.js'
+import { env } from '../config/env.js'
 
 // Stateless HMAC-signed scrape tokens — no in-memory store, survives API restarts.
 // Format: base64url(invitationId:expiresAt:hmac)
@@ -45,6 +47,7 @@ export function verifyScrapeToken(token: string): number | null {
 const createInvitationSchema = z.object({
   pmsId:           z.number().int().positive().optional(),
   unknownPmsName:  z.string().optional(),
+  unknownPmsStatus: z.enum(['to_be_added', 'to_be_checked']).optional(),
   hotelName:       z.string().optional(),
   city:            z.string().optional(),
   country:         z.string().optional(),
@@ -84,6 +87,7 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
       ...(pmsId !== undefined && { pmsId }),
       ...(pmsName !== undefined && { pmsName }),
       ...(body.unknownPmsName !== undefined && { unknownPmsName: body.unknownPmsName }),
+      ...(body.unknownPmsStatus !== undefined && { unknownPmsStatus: body.unknownPmsStatus }),
       ...(body.hotelName !== undefined && { hotelName: body.hotelName }),
       ...(body.city !== undefined && { city: body.city }),
       ...(body.country !== undefined && { country: body.country }),
@@ -361,22 +365,41 @@ export async function onboardingAdminRoutes(app: FastifyInstance) {
         const allCandidates: Candidate[] = []
 
         // Step 1: DataForSEO SERP (fast ~2s)
+        // Resolve & decrypt system DFS credentials here so the onboarding-api receives plain-text
+        // credentials — it cannot decrypt them itself (encryption key lives only in ibe-api).
+        const dfsCreds = await (async () => {
+          try {
+            const row = await prisma.systemDataProviderConfig.findFirst({ where: { providerType: 'dataforseo' } })
+            const login = row?.login ? decryptCredential(row.login) : env.DATAFORSEO_LOGIN
+            const password = row?.password ? decryptCredential(row.password) : env.DATAFORSEO_PASSWORD
+            if (login && password) return { login, password }
+          } catch { /* ignore */ }
+          return null
+        })()
         try {
           const dfsRes = await fetch(`${internalUrl}/hotel-search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '' }),
+            body: JSON.stringify({ hotelName: hotelName.trim(), city: city?.trim() ?? '', country: country?.trim() ?? '', dfsLogin: dfsCreds?.login, dfsPassword: dfsCreds?.password }),
             signal: AbortSignal.timeout(20000),
           })
           if (dfsRes.ok) {
             const dfsData = await dfsRes.json() as { candidates: Candidate[] }
             allCandidates.push(...dfsData.candidates)
+            if (dfsData.candidates.length === 0) {
+              request.log.warn({ hotelName, internalUrl }, '[hotel-search] DFS returned 0 candidates — falling to AI')
+            }
+          } else {
+            request.log.error({ hotelName, status: dfsRes.status, internalUrl }, '[hotel-search] DFS fetch returned non-OK status')
           }
-        } catch { /* DataForSEO failed — continue */ }
+        } catch (dfsErr) {
+          request.log.error({ hotelName, internalUrl, err: dfsErr instanceof Error ? dfsErr.message : String(dfsErr) }, '[hotel-search] DFS fetch threw — onboarding-api unreachable or timed out')
+        }
 
         if (allCandidates.some(c => c.score >= 15)) return reply.send({ candidates: allCandidates })
 
         // Step 2: AI fallback
+        request.log.info({ hotelName }, '[hotel-search] DFS had no results — trying AI fallback')
         const aiConfig = await resolveAIConfig()
         if (aiConfig && aiConfig.provider !== 'fake') {
           try {
