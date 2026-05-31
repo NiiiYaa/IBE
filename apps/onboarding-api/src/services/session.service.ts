@@ -132,7 +132,7 @@ export async function initSelfRegistration(input: {
   const invitation = await prisma.onboardingInvitation.create({
     data: {
       source: 'self_registration',
-      pmsId: input.pmsId,
+      ...(input.pmsId !== undefined ? { pmsId: input.pmsId } : {}),
       pmsName: flow.pmsName,
       hotelName: input.hotelName,
       contactEmail: input.contactEmail,

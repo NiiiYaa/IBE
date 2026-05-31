@@ -2616,6 +2616,7 @@ export const apiClient = {
     ibeUrl: string | null;
     fullySupported: boolean;
     needsHgReview: boolean;
+    suggestedUrl?: string | null;
   }> {
     return apiRequest('/api/v1/admin/hotel-onboarding/resolve-ibe', { method: 'POST', body: JSON.stringify({ url }) })
   },

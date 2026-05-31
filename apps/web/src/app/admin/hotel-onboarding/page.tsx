@@ -1884,7 +1884,7 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                             `${clean}${cleanSep}selectedAdultCount=3&selectedChildCount=0&arrivalDate=${addD(90)}&departureDate=${addD(91)}&hg_token=${token}`,
                             `${clean}${cleanSep}selectedAdultCount=1&selectedChildCount=0&arrivalDate=${addD(1)}&departureDate=${addD(2)}&hg_token=${token}`,
                           ]
-                          wins.forEach((w, i) => { if (w) w.location.href = patterns[i] })
+                          wins.forEach((w, i) => { if (w) w.location.href = patterns[i]! })
                           setScrapeTabOpen(true)
                           if (scrapeTabPollRef.current) clearInterval(scrapeTabPollRef.current)
                           scrapeTabPollRef.current = setInterval(async () => {
@@ -1903,7 +1903,7 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                         } catch { wins.forEach(w => w?.close()) }
                       }
 
-                      const step = (n: number, text: string) => (
+                      const step = (n: number, text: React.ReactNode) => (
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                           <span style={{ background: '#ea580c', color: '#fff', borderRadius: '50%', width: '1.25rem', height: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, flexShrink: 0, marginTop: '0.05rem' }}>{n}</span>
                           <span style={{ color: '#7c2d12', lineHeight: 1.55 }}>{text}</span>
@@ -2085,7 +2085,7 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.4rem', color: '#374151' }}>Contact Info</div>
                       <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.82rem' }}>
-                        {d['address'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>📍 Address: </span><span style={{ fontWeight: 600 }}>{String(d['address'])}</span>{d['city'] ? `, ${String(d['city'])}` : ''}{d['country'] ? `, ${String(d['country'])}` : ''}</div>}
+                        {!!d['address'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>📍 Address: </span><span style={{ fontWeight: 600 }}>{String(d['address'])}</span>{d['city'] ? `, ${String(d['city'])}` : ''}{d['country'] ? `, ${String(d['country'])}` : ''}</div>}
                         {d['latitude'] != null && d['longitude'] != null && (
                           <div>
                             <span style={{ color: '#6b7280', fontSize: '0.75rem' }}>🗺 Coordinates: </span>
@@ -2094,8 +2094,8 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                               style={{ marginLeft: '0.5rem', color: '#2563eb', fontSize: '0.75rem' }}>View map ↗</a>
                           </div>
                         )}
-                        {d['phone'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>📞 Phone: </span><span style={{ fontWeight: 600 }}>{String(d['phone'])}</span></div>}
-                        {d['email'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>✉ Email: </span><a href={`mailto:${String(d['email'])}`} style={{ fontWeight: 600, color: '#2563eb' }}>{String(d['email'])}</a></div>}
+                        {!!d['phone'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>📞 Phone: </span><span style={{ fontWeight: 600 }}>{String(d['phone'])}</span></div>}
+                        {!!d['email'] && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>✉ Email: </span><a href={`mailto:${String(d['email'])}`} style={{ fontWeight: 600, color: '#2563eb' }}>{String(d['email'])}</a></div>}
                         {inv.websiteUrl && <div><span style={{ color: '#6b7280', fontSize: '0.75rem' }}>🌐 Website: </span><a href={inv.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#2563eb' }}>{inv.websiteUrl}</a></div>}
                         {!d['address'] && !d['phone'] && !d['email'] && d['latitude'] == null && !inv.websiteUrl && (
                           <div style={{ color: '#9ca3af', fontSize: '0.78rem' }}>No contact info retrieved</div>
@@ -2119,9 +2119,9 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                     {/* Header */}
                     <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#111827' }}>{String(room['name'] ?? '')}</span>
-                      {room['size'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>📐 {String(room['size'])}</span>}
-                      {room['maxOccupancy'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>👥 {String(room['maxOccupancy'])}</span>}
-                      {room['bedConfiguration'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>🛏 {String(room['bedConfiguration'])}</span>}
+                      {!!room['size'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>📐 {String(room['size'])}</span>}
+                      {!!room['maxOccupancy'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>👥 {String(room['maxOccupancy'])}</span>}
+                      {!!room['bedConfiguration'] && <span style={{ color: '#6b7280', fontSize: '0.76rem' }}>🛏 {String(room['bedConfiguration'])}</span>}
                       {imgs.length > 0 && (
                         <button onClick={() => setRoomImgPopup({ name: String(room['name'] ?? ''), images: imgs })}
                           style={{ marginLeft: 'auto', background: 'none', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '1px 7px', color: '#2563eb', fontSize: '0.76rem', cursor: 'pointer' }}>
@@ -2142,7 +2142,7 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                       )}
                       {/* Right: all data */}
                       <div style={{ padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {room['description'] && (
+                        {!!room['description'] && (
                           <div style={{ color: '#374151', lineHeight: 1.5, fontSize: '0.8rem' }}>{String(room['description'])}</div>
                         )}
                         {roomAms.length > 0 && (
@@ -2157,9 +2157,9 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                               {plans.map((pl, j) => (
                                 <div key={j} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px 8px', fontSize: '0.76rem' }}>
                                   <span style={{ fontWeight: 600 }}>{String(pl['name'] ?? '')}</span>
-                                  {pl['board'] && <span style={{ color: '#6b7280', marginLeft: '0.4rem' }}>· {String(pl['board'])}</span>}
-                                  {pl['price'] && <span style={{ color: '#059669', marginLeft: '0.4rem' }}>{String(pl['price'])}</span>}
-                                  {pl['cancellation'] && <div style={{ color: '#6b7280', fontSize: '0.72rem', marginTop: '1px' }}>↩ {String(pl['cancellation'])}</div>}
+                                  {!!pl['board'] && <span style={{ color: '#6b7280', marginLeft: '0.4rem' }}>· {String(pl['board'])}</span>}
+                                  {!!pl['price'] && <span style={{ color: '#059669', marginLeft: '0.4rem' }}>{String(pl['price'])}</span>}
+                                  {!!pl['cancellation'] && <div style={{ color: '#6b7280', fontSize: '0.72rem', marginTop: '1px' }}>↩ {String(pl['cancellation'])}</div>}
                                 </div>
                               ))}
                             </div>
@@ -2259,10 +2259,10 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                         return (
                           <div key={i} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                             <div style={{ fontWeight: 600, color: '#166534', marginBottom: '0.15rem' }}>✓ Refundable</div>
-                            {cp?.['freeCancellationUntil'] && <div><strong>Free cancellation until:</strong> {String(cp['freeCancellationUntil'])}</div>}
-                            {cp?.['penaltyType'] && <div><strong>Penalty type:</strong> {String(cp['penaltyType'])}</div>}
+                            {!!cp?.['freeCancellationUntil'] && <div><strong>Free cancellation until:</strong> {String(cp['freeCancellationUntil'])}</div>}
+                            {!!cp?.['penaltyType'] && <div><strong>Penalty type:</strong> {String(cp['penaltyType'])}</div>}
                             {cp?.['penaltyValue'] != null && <div><strong>Penalty amount:</strong> {String(cp['penaltyValue'])}</div>}
-                            {cp?.['description'] && <div style={{ color: '#374151', marginTop: '0.2rem' }}>{String(cp['description'])}</div>}
+                            {!!cp?.['description'] && <div style={{ color: '#374151', marginTop: '0.2rem' }}>{String(cp['description'])}</div>}
                             {!cp && <div style={{ color: '#6b7280' }}>No detailed policy captured</div>}
                           </div>
                         )
@@ -2282,8 +2282,8 @@ fetch('%%BASE%%/api/v1/hotel-onboarding/scrape-submit',{method:'POST',headers:{'
                     ? <div style={{ color: '#9ca3af', textAlign: 'center', padding: '2rem' }}>No general policies retrieved</div>
                     : policyList.map((p, i) => (
                       <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem' }}>
-                        {p['type'] && <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.4rem', color: '#374151' }}>{String(p['type'])}</div>}
-                        {p['description'] && <div style={{ fontSize: '0.82rem', color: '#6b7280', lineHeight: 1.6 }}>{String(p['description'])}</div>}
+                        {!!p['type'] && <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.4rem', color: '#374151' }}>{String(p['type'])}</div>}
+                        {!!p['description'] && <div style={{ fontSize: '0.82rem', color: '#6b7280', lineHeight: 1.6 }}>{String(p['description'])}</div>}
                       </div>
                     ))
                 )}

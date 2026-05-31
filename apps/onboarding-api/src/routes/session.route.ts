@@ -34,9 +34,9 @@ export async function sessionRoutes(app: FastifyInstance) {
       try {
         const result = await initSelfRegistration({
           hotelName,
-          pmsId,
-          unknownPmsName,
-          unknownPmsStatus,
+          ...(pmsId !== undefined ? { pmsId } : {}),
+          ...(unknownPmsName !== undefined ? { unknownPmsName } : {}),
+          ...(unknownPmsStatus !== undefined ? { unknownPmsStatus } : {}),
           contactEmail,
           ...(websiteUrl !== undefined ? { websiteUrl } : {}),
         });
