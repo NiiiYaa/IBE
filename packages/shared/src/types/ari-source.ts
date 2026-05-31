@@ -127,8 +127,7 @@ export const ARI_SYSTEMS: AriSystem[] = [
   { name: 'DHISCO (RateGain)',                          category: 'Switch' },
   { name: 'DerbySoft',                                  category: 'Switch' },
   // ── Global Distribution Systems ───────────────────────────────────────────────
-  { name: 'Amadeus GDS',                                category: 'GDS'    },
-  { name: 'Sabre GDS',                                  category: 'GDS'    },
-  { name: 'Travelport Galileo',                         category: 'GDS'    },
-  { name: 'Travelport Worldspan',                       category: 'GDS'    },
+  { name: 'GDS Amadeus',                                category: 'GDS'    },
+  { name: 'GDS Sabre',                                  category: 'GDS'    },
+  { name: 'GDS TravelPort',                             category: 'GDS'    },
 ]
