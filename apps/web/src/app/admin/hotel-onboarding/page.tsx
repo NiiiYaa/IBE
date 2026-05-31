@@ -913,7 +913,7 @@ export default function HotelOnboardingPage() {
 
             {searching && (
               <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-                Be patient — search can take up to 20 seconds (AI lookup + screenshot).
+                Be patient — search can take up to 20 seconds.
               </p>
             )}
             {searchError && <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.875rem' }}>{searchError}</p>}
