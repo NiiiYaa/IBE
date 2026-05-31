@@ -2226,6 +2226,7 @@ model OnboardingBlockedDomain {
   label     String?           // human-readable description
   matchType String   @default("subdomain") // subdomain | exact | brand | keyword
   country   String?           // ISO-2 country code; null = Global (blocks in all searches)
+  redundant Boolean  @default(false) // true = covered by global brand entry; kept for audit
   addedById Int?              // adminId who added it; null = seeded from code
   createdAt DateTime @default(now())
 }
