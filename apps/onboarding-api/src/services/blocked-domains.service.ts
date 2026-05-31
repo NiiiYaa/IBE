@@ -29,12 +29,16 @@ export function invalidateBlockedDomainsCache() {
 }
 
 const CC_SLDS = new Set(['co', 'com', 'org', 'net', 'gov', 'edu', 'ac', 'or', 'ne', 'go'])
+const COMMON_TLDS = new Set(['com', 'net', 'org', 'io', 'travel', 'hotel'])
 
 function extractBrandLabel(hostname: string): string | null {
   const h = hostname.startsWith('www.') ? hostname.slice(4) : hostname
   const parts = h.split('.')
   if (parts.length === 2) return parts[0] ?? null
-  if (parts.length === 3 && CC_SLDS.has(parts[1]!)) return parts[0] ?? null
+  if (parts.length === 3) {
+    if (CC_SLDS.has(parts[1]!)) return parts[0] ?? null     // e.g. trip.co.uk → 'trip'
+    if (COMMON_TLDS.has(parts[2]!)) return parts[1] ?? null // e.g. fr.trip.com → 'trip'
+  }
   return null
 }
 

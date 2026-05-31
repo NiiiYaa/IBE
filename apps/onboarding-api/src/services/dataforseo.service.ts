@@ -167,7 +167,7 @@ export async function searchHotelsDataForSEO(
   const locationCode = locationCodeForCountry(country)
 
   const location = [city, country].filter(Boolean).join(' ')
-  const exclusions = '-site:booking.com -site:tripadvisor.com -site:expedia.com -site:agoda.com -site:airbnb.com -site:hotels.com'
+  const exclusions = '-site:booking.com -site:tripadvisor.com -site:expedia.com -site:agoda.com -site:airbnb.com -site:hotels.com -site:trip.com -site:ctrip.com'
 
   // Start with quoted (exact phrase) — high precision.
   // Only fire unquoted if quoted returns fewer than 2 non-OTA results.
