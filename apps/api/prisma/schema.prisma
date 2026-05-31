@@ -2240,6 +2240,7 @@ model OnboardingInvitation {
   pmsId               Int?               // set by staff upfront (staff flow) or by hotel selection (self-reg)
   pmsName             String?            // human-readable name of the selected ARI source, e.g. "Mews"
   unknownPmsName      String?            // hotel typed a CM name not in registry → triggers pending_ari_source
+  unknownPmsStatus    String?            // 'to_be_added' | 'to_be_checked' — classification of unknownPmsName
   hotelName           String?
   city                String?
   country             String?
